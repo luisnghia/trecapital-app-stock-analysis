@@ -155,7 +155,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .main .block-container {padding-top: 1rem; padding-bottom: 2rem; max-width: 1500px;}
+    .main .block-container {padding-top: 1rem; padding-bottom: 2rem; max-width: none; width: 100%;}
     .stApp {background: radial-gradient(circle at 10% 0%, rgba(11,127,117,.08), transparent 28%), linear-gradient(180deg, #F7FBF8 0%, #FFFFFF 60%);} 
     section[data-testid="stSidebar"] {background: linear-gradient(180deg, #EAF7F1 0%, #FFFFFF 72%); border-right: 1px solid rgba(11,127,117,.14);}
     /* V23.25: hide Streamlit built-in multipage nav; app provides branded page links manually. */
@@ -477,7 +477,7 @@ def _inject_runtime_ui_css() -> None:
             --tre-yellow:#F5B21B;
             --tre-red:#B91C1C;
         }
-        .main .block-container {padding-top: 1rem !important; padding-bottom: 2rem !important; max-width: 1540px !important;}
+        .main .block-container {padding-top: 1rem !important; padding-bottom: 2rem !important; max-width: none !important; width: 100% !important;}
         .stApp {background: radial-gradient(circle at 10% 0%, rgba(11,127,117,.08), transparent 28%), linear-gradient(180deg, #F7FBF8 0%, #FFFFFF 60%) !important;}
         section[data-testid="stSidebar"] {background: linear-gradient(180deg, #EAF7F1 0%, #FFFFFF 72%) !important; border-right: 1px solid rgba(11,127,117,.14) !important;}
     /* V23.25: hide Streamlit built-in multipage nav; app provides branded page links manually. */
