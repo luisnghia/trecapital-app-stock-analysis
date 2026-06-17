@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 import warnings
@@ -56,23 +56,23 @@ DATA_CACHE_DIR = APP_DIR / "data_cache"
 RAW_DIR = APP_DIR / "raw_data"
 REPORT_DIR = APP_DIR / "reports"
 ASSUMPTIONS_PATH = APP_DIR / "configs" / "valuation_assumptions.json"
-APP_NAME = "Định giá chuyên sâu"
+APP_NAME = "Äá»‹nh giÃ¡ chuyÃªn sÃ¢u"
 APP_VERSION = "V23.66-formula-source-audit-fix"
 
 DATA_SOURCE_DISPLAY_TO_INTERNAL = {
-    "Tự động": "Tự động từ dữ liệu tổng quan",
-    "Dữ liệu ưu tiên 1": "FireAnt + Vietstock",
-    "Dữ liệu ưu tiên 2": "FireAnt",
-    "Dữ liệu ưu tiên 3": "Vietstock",
-    "Dữ liệu tích hợp": "Financial tích hợp",
-    "Dữ liệu mẫu": "CSV mẫu tích hợp",
+    "Tá»± Ä‘á»™ng": "Tá»± Ä‘á»™ng tá»« dá»¯ liá»‡u tá»•ng quan",
+    "Dá»¯ liá»‡u Æ°u tiÃªn 1": "FireAnt + Vietstock",
+    "Dá»¯ liá»‡u Æ°u tiÃªn 2": "FireAnt",
+    "Dá»¯ liá»‡u Æ°u tiÃªn 3": "Vietstock",
+    "Dá»¯ liá»‡u tÃ­ch há»£p": "Financial tÃ­ch há»£p",
+    "Dá»¯ liá»‡u máº«u": "CSV máº«u tÃ­ch há»£p",
 }
 DATA_SOURCE_INTERNAL_TO_DISPLAY = {v: k for k, v in DATA_SOURCE_DISPLAY_TO_INTERNAL.items()}
 PEER_SOURCE_DISPLAY_TO_INTERNAL = {
-    "Cùng chế độ mã gốc": "__same__",
-    "Dữ liệu ưu tiên": "FireAnt",
-    "Dữ liệu tích hợp": "Financial tích hợp",
-    "Dữ liệu mẫu": "CSV mẫu tích hợp",
+    "CÃ¹ng cháº¿ Ä‘á»™ mÃ£ gá»‘c": "__same__",
+    "Dá»¯ liá»‡u Æ°u tiÃªn": "FireAnt",
+    "Dá»¯ liá»‡u tÃ­ch há»£p": "Financial tÃ­ch há»£p",
+    "Dá»¯ liá»‡u máº«u": "CSV máº«u tÃ­ch há»£p",
 }
 
 
@@ -102,30 +102,30 @@ def _public_text(value: object) -> str:
     for raw, public in DATA_SOURCE_INTERNAL_TO_DISPLAY.items():
         text = text.replace(raw, public)
     replacements = {
-        "FireAnt": "Dữ liệu ưu tiên",
-        "Vietstock": "Dữ liệu ưu tiên",
-        "Simplize": "Danh sách cùng ngành",
-        "KBS": "nhóm trực tuyến",
-        "VCI": "nhóm trực tuyến",
-        "CafeF": "Tham khảo",
-        "SSC": "Công bố thông tin",
-        "HOSE": "Công bố thông tin",
-        "HNX": "Công bố thông tin",
-        "Financial tích hợp": "Dữ liệu tích hợp",
-        "CSV mẫu tích hợp": "Dữ liệu mẫu",
-        "raw_data": "nhật ký nội bộ",
-        "data_cache": "bộ nhớ dữ liệu",
+        "FireAnt": "Dá»¯ liá»‡u Æ°u tiÃªn",
+        "Vietstock": "Dá»¯ liá»‡u Æ°u tiÃªn",
+        "Simplize": "Danh sÃ¡ch cÃ¹ng ngÃ nh",
+        "KBS": "nhÃ³m trá»±c tuyáº¿n",
+        "VCI": "nhÃ³m trá»±c tuyáº¿n",
+        "CafeF": "Tham kháº£o",
+        "SSC": "CÃ´ng bá»‘ thÃ´ng tin",
+        "HOSE": "CÃ´ng bá»‘ thÃ´ng tin",
+        "HNX": "CÃ´ng bá»‘ thÃ´ng tin",
+        "Financial tÃ­ch há»£p": "Dá»¯ liá»‡u tÃ­ch há»£p",
+        "CSV máº«u tÃ­ch há»£p": "Dá»¯ liá»‡u máº«u",
+        "raw_data": "nháº­t kÃ½ ná»™i bá»™",
+        "data_cache": "bá»™ nhá»› dá»¯ liá»‡u",
     }
     for raw, public in replacements.items():
         text = text.replace(raw, public)
-    # Ẩn các cụm kỹ thuật/nguồn nội bộ trong mọi thông báo công khai.
-    text = re.sub(r"(?:Dữ liệu ưu tiên|Dữ liệu tích hợp|Dữ liệu mẫu|FireAnt|Vietstock|Simplize)?\s*(?:VBA\s+)?endpoints?\s*", "Dữ liệu cập nhật ", text, flags=re.I)
-    text = re.sub(r"\bCrawler\s+[^0-9]*(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})", r"Dữ liệu cập nhật \1", text, flags=re.I)
+    # áº¨n cÃ¡c cá»¥m ká»¹ thuáº­t/nguá»“n ná»™i bá»™ trong má»i thÃ´ng bÃ¡o cÃ´ng khai.
+    text = re.sub(r"(?:Dá»¯ liá»‡u Æ°u tiÃªn|Dá»¯ liá»‡u tÃ­ch há»£p|Dá»¯ liá»‡u máº«u|FireAnt|Vietstock|Simplize)?\s*(?:VBA\s+)?endpoints?\s*", "Dá»¯ liá»‡u cáº­p nháº­t ", text, flags=re.I)
+    text = re.sub(r"\bCrawler\s+[^0-9]*(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})", r"Dá»¯ liá»‡u cáº­p nháº­t \1", text, flags=re.I)
     text = text.replace("TCReport_", "")
-    text = re.sub(r"https?://\S+", "liên kết nội bộ", text, flags=re.I)
-    text = re.sub(r"/?[^\s<>]*\.(?:csv|json|html|txt|xlsm|xlsx|md)", "file nội bộ", text, flags=re.I)
-    text = re.sub(r"[A-Za-z]:\\[^\s<>]+", "đường dẫn nội bộ", text)
-    text = re.sub(r"/(?:mnt|home|Users|raw_data|data_cache)[^\s<>]+", "đường dẫn nội bộ", text)
+    text = re.sub(r"https?://\S+", "liÃªn káº¿t ná»™i bá»™", text, flags=re.I)
+    text = re.sub(r"/?[^\s<>]*\.(?:csv|json|html|txt|xlsm|xlsx|md)", "file ná»™i bá»™", text, flags=re.I)
+    text = re.sub(r"[A-Za-z]:\\[^\s<>]+", "Ä‘Æ°á»ng dáº«n ná»™i bá»™", text)
+    text = re.sub(r"/(?:mnt|home|Users|raw_data|data_cache)[^\s<>]+", "Ä‘Æ°á»ng dáº«n ná»™i bá»™", text)
     text = re.sub(r"\s{2,}", " ", text).strip()
     return text
 
@@ -134,8 +134,8 @@ def _hide_source_columns(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame() if df is None else df
     hidden_names = {
-        "source", "Source", "Nguồn", "Nguồn/URL", "Nguồn dữ liệu", "URL", "Truy vấn",
-        "updated_at", "note", "raw_path", "File", "File năm", "File quý", "source_label"
+        "source", "Source", "Nguá»“n", "Nguá»“n/URL", "Nguá»“n dá»¯ liá»‡u", "URL", "Truy váº¥n",
+        "updated_at", "note", "raw_path", "File", "File nÄƒm", "File quÃ½", "source_label"
     }
     out = df.drop(columns=[c for c in df.columns if str(c) in hidden_names or "url" in str(c).lower() or str(c).lower() == "source"], errors="ignore").copy()
     for c in out.columns:
@@ -144,16 +144,16 @@ def _hide_source_columns(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 ICB_CODE_NAME_MAP = {
-    "2353": "Xây dựng & Vật liệu",
-    "2350": "Xây dựng & Vật liệu",
-    "2357": "Vật liệu xây dựng",
-    "1353": "Hóa chất",
-    "1357": "Hóa chất cơ bản/Phân bón",
-    "1753": "Dịch vụ vận tải",
-    "2777": "Hạ tầng giao thông & dịch vụ sân bay",
-    "8355": "Ngân hàng",
-    "8532": "Bảo hiểm",
-    "9533": "Bất động sản",
+    "2353": "XÃ¢y dá»±ng & Váº­t liá»‡u",
+    "2350": "XÃ¢y dá»±ng & Váº­t liá»‡u",
+    "2357": "Váº­t liá»‡u xÃ¢y dá»±ng",
+    "1353": "HÃ³a cháº¥t",
+    "1357": "HÃ³a cháº¥t cÆ¡ báº£n/PhÃ¢n bÃ³n",
+    "1753": "Dá»‹ch vá»¥ váº­n táº£i",
+    "2777": "Háº¡ táº§ng giao thÃ´ng & dá»‹ch vá»¥ sÃ¢n bay",
+    "8355": "NgÃ¢n hÃ ng",
+    "8532": "Báº£o hiá»ƒm",
+    "9533": "Báº¥t Ä‘á»™ng sáº£n",
 }
 
 
@@ -163,7 +163,7 @@ def _display_industry_value(value: object) -> str:
         return "N/A"
     code_text = text[:-2] if re.fullmatch(r"\d{3,6}\.0", text) else text
     if re.fullmatch(r"\d{3,6}", code_text):
-        return ICB_CODE_NAME_MAP.get(code_text, f"Chưa nhận diện tên ngành (mã {code_text})")
+        return ICB_CODE_NAME_MAP.get(code_text, f"ChÆ°a nháº­n diá»‡n tÃªn ngÃ nh (mÃ£ {code_text})")
     return text
 
 
@@ -210,8 +210,8 @@ def _normalize_mos_value(value, default: int = 50) -> int:
 
 def _prepare_mos_widget(widget_key: str) -> int:
     canonical = _normalize_mos_value(st.session_state.get("target_mos_pct", st.session_state.get("module2_target_mos_pct", 50)))
-    # Nếu MOS vừa đổi ở module khác, ép widget hiện tại theo canonical chung.
-    # Nếu MOS vừa đổi ở chính widget này, callback _commit_mos_widget đã cập nhật canonical trước khi rerun.
+    # Náº¿u MOS vá»«a Ä‘á»•i á»Ÿ module khÃ¡c, Ã©p widget hiá»‡n táº¡i theo canonical chung.
+    # Náº¿u MOS vá»«a Ä‘á»•i á»Ÿ chÃ­nh widget nÃ y, callback _commit_mos_widget Ä‘Ã£ cáº­p nháº­t canonical trÆ°á»›c khi rerun.
     if widget_key not in st.session_state or _normalize_mos_value(st.session_state.get(widget_key)) != canonical:
         st.session_state[widget_key] = canonical
     st.session_state["target_mos_pct"] = canonical
@@ -226,7 +226,7 @@ def _commit_mos_widget(widget_key: str) -> None:
     st.session_state["module1_target_mos_pct"] = canonical
     st.session_state["module2_target_mos_pct"] = canonical
     st.session_state["last_mos_source_widget"] = widget_key
-    st.session_state["mos_sync_status"] = f"Đã đồng bộ MOS yêu cầu {canonical}% cho Tổng quan doanh nghiệp và Định giá chuyên sâu."
+    st.session_state["mos_sync_status"] = f"ÄÃ£ Ä‘á»“ng bá»™ MOS yÃªu cáº§u {canonical}% cho Tá»•ng quan doanh nghiá»‡p vÃ  Äá»‹nh giÃ¡ chuyÃªn sÃ¢u."
 
 
 def _markdownish_to_html(text: object) -> str:
@@ -238,7 +238,7 @@ def _markdownish_to_html(text: object) -> str:
     escaped = re.sub(r"__(.+?)__", r"<b>\1</b>", escaped)
     escaped = escaped.replace("\n", "<br>")
     # Keep bullet-like output readable.
-    escaped = escaped.replace("• ", "&bull; ").replace("- ", "&ndash; ")
+    escaped = escaped.replace("â€¢ ", "&bull; ").replace("- ", "&ndash; ")
     return escaped
 
 
@@ -270,9 +270,9 @@ def _render_warning_card(title: str, body: object) -> None:
 
 
 
-# V23.20: CSS phải được inject trong render_dashboard(), không để ở top-level import.
-# Lý do: Streamlit cache module Python; khi widget MOS làm rerun thì import không chạy lại,
-# dẫn đến mất style tab và style nhận xét. Hàm này chạy ở mỗi lần render để style luôn còn.
+# V23.20: CSS pháº£i Ä‘Æ°á»£c inject trong render_dashboard(), khÃ´ng Ä‘á»ƒ á»Ÿ top-level import.
+# LÃ½ do: Streamlit cache module Python; khi widget MOS lÃ m rerun thÃ¬ import khÃ´ng cháº¡y láº¡i,
+# dáº«n Ä‘áº¿n máº¥t style tab vÃ  style nháº­n xÃ©t. HÃ m nÃ y cháº¡y á»Ÿ má»—i láº§n render Ä‘á»ƒ style luÃ´n cÃ²n.
 def _inject_runtime_ui_css() -> None:
     st.markdown(
         """
@@ -284,7 +284,7 @@ def _inject_runtime_ui_css() -> None:
             --tre-yellow:#F5B21B;
             --tre-red:#B91C1C;
         }
-        .main .block-container {padding-top: 1rem !important; padding-bottom: 2rem !important; max-width: 1540px !important;}
+        .main .block-container {padding-top: 1rem !important; padding-bottom: 2rem !important; max-width: none !important; width: 100% !important;}
         .stApp {background: radial-gradient(circle at 10% 0%, rgba(11,127,117,.08), transparent 28%), linear-gradient(180deg, #F7FBF8 0%, #FFFFFF 60%) !important;}
         section[data-testid="stSidebar"] {background: linear-gradient(180deg, #EAF7F1 0%, #FFFFFF 72%) !important; border-right: 1px solid rgba(11,127,117,.14) !important;}
     /* V23.25: hide Streamlit built-in multipage nav; app provides branded page links manually. */
@@ -351,7 +351,7 @@ def _inject_runtime_ui_css() -> None:
         }
 
 
-        /* Streamlit Tabs - dùng selector rộng cho nhiều version Streamlit/BaseWeb */
+        /* Streamlit Tabs - dÃ¹ng selector rá»™ng cho nhiá»u version Streamlit/BaseWeb */
         div[data-testid="stTabs"] {margin-top: 10px !important; margin-bottom: 8px !important;}
         div[data-testid="stTabs"] div[data-baseweb="tab-list"],
         div[data-testid="stTabs"] div[role="tablist"],
@@ -425,7 +425,7 @@ def _inject_runtime_ui_css() -> None:
         button[role="tab"][aria-selected="true"] span {color:#FFFFFF !important;}
 
 
-        /* V23.54: tab buttons có màu rõ hơn, tránh nền trắng khó nhìn. */
+        /* V23.54: tab buttons cÃ³ mÃ u rÃµ hÆ¡n, trÃ¡nh ná»n tráº¯ng khÃ³ nhÃ¬n. */
         div[data-testid="stTabs"] button[role="tab"],
         div[data-testid="stTabs"] button[data-baseweb="tab"],
         div[data-testid="stTabs"] div[role="tab"] {
@@ -450,7 +450,7 @@ def _inject_runtime_ui_css() -> None:
             box-shadow: 0 12px 28px rgba(11,127,117,.30) !important;
         }
 
-        /* Nhận xét/đánh giá/kết luận quan trọng */
+        /* Nháº­n xÃ©t/Ä‘Ã¡nh giÃ¡/káº¿t luáº­n quan trá»ng */
         .important-red, .important-red * {
             color: #B91C1C !important;
             font-size: 1.10rem !important;
@@ -532,7 +532,7 @@ def _inject_runtime_ui_css() -> None:
         .page-logo-img {max-height:146px; max-width:146px; object-fit:contain; display:block !important;}
         .page-hero-card {margin-bottom:0 !important; min-height:118px; display:flex; flex-direction:column; justify-content:center;}
 
-        /* V23.54 final override: mọi tab đều có màu nền dễ nhận diện. */
+        /* V23.54 final override: má»i tab Ä‘á»u cÃ³ mÃ u ná»n dá»… nháº­n diá»‡n. */
         div[data-testid="stTabs"] button[role="tab"],
         div[data-testid="stTabs"] button[data-baseweb="tab"],
         div[data-testid="stTabs"] div[role="tab"] {
@@ -606,8 +606,8 @@ def _available_financial_tickers_cached(xlsm_path: str) -> list[str]:
         import re
         wb = load_workbook(xlsm_path, data_only=True, read_only=True, keep_vba=False)
         tickers: list[str] = []
-        if "BÁO CÁO TÀI CHÍNH" in wb.sheetnames:
-            ws = wb["BÁO CÁO TÀI CHÍNH"]
+        if "BÃO CÃO TÃ€I CHÃNH" in wb.sheetnames:
+            ws = wb["BÃO CÃO TÃ€I CHÃNH"]
             for row in range(15, ws.max_row + 1):
                 code = ws.cell(row=row, column=3).value
                 if isinstance(code, str) and re.fullmatch(r"[A-Z0-9]{2,8}", code.strip().upper()):
@@ -619,11 +619,11 @@ def _available_financial_tickers_cached(xlsm_path: str) -> list[str]:
 
 @st.cache_data(show_spinner=False)
 def _listed_ticker_info_cached(xlsm_path: str, ticker: str) -> dict:
-    """Find company name/exchange in DANH SÁCH MÃ even if BCTC is not bundled."""
+    """Find company name/exchange in DANH SÃCH MÃƒ even if BCTC is not bundled."""
     try:
         from openpyxl import load_workbook
         wb = load_workbook(xlsm_path, data_only=True, read_only=True, keep_vba=False)
-        ws = wb["DANH SÁCH MÃ"] if "DANH SÁCH MÃ" in wb.sheetnames else None
+        ws = wb["DANH SÃCH MÃƒ"] if "DANH SÃCH MÃƒ" in wb.sheetnames else None
         if ws is None:
             return {}
         ticker = ticker.upper().strip()
@@ -643,7 +643,7 @@ def _listed_ticker_info_cached(xlsm_path: str, ticker: str) -> dict:
 
 st.set_page_config(
     page_title=APP_NAME,
-    page_icon="🧠",
+    page_icon="ðŸ§ ",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -651,7 +651,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .main .block-container {padding-top: 1rem; padding-bottom: 2rem; max-width: 1540px;}
+    .main .block-container {padding-top: 1rem; padding-bottom: 2rem; max-width: none; width: 100%;}
     .stApp {background: radial-gradient(circle at 10% 0%, rgba(11,127,117,.08), transparent 28%), linear-gradient(180deg, #F7FBF8 0%, #FFFFFF 60%);} 
     section[data-testid="stSidebar"] {background: linear-gradient(180deg, #EAF7F1 0%, #FFFFFF 72%); border-right: 1px solid rgba(11,127,117,.14);}
     /* V23.25: hide Streamlit built-in multipage nav; app provides branded page links manually. */
@@ -738,7 +738,7 @@ st.markdown(
     .important-red {color:#B91C1C !important; font-size:1.26rem !important; line-height:1.66 !important; font-weight:900 !important; background:rgba(254,242,242,.92) !important; border:2px solid rgba(239,68,68,.28) !important; border-left:10px solid #DC2626 !important; padding:16px 18px !important; border-radius:16px !important; margin:12px 0 16px 0 !important; box-shadow:0 8px 22px rgba(185,28,28,.08) !important;}
     .small-muted {font-size: .88rem; color: #64748b;}
     
-    /* V23.20: robust global Streamlit tab styling for Tổng quan doanh nghiệp + Định giá chuyên sâu */
+    /* V23.20: robust global Streamlit tab styling for Tá»•ng quan doanh nghiá»‡p + Äá»‹nh giÃ¡ chuyÃªn sÃ¢u */
     div[data-testid="stTabs"] {margin-top: 12px !important;}
     div[data-testid="stTabs"] div[role="tablist"],
     div[role="tablist"] {
@@ -798,7 +798,7 @@ st.markdown(
         color: #FFFFFF !important;
     }
 
-    /* V23.54 runtime override: tab thường có màu vàng/xanh, tab active nổi bật. */
+    /* V23.54 runtime override: tab thÆ°á»ng cÃ³ mÃ u vÃ ng/xanh, tab active ná»•i báº­t. */
     div[data-testid="stTabs"] button[role="tab"],
     div[data-testid="stTabs"] div[role="tab"],
     div[role="tablist"] button,
@@ -869,7 +869,7 @@ def _export_bundled_financial_cached(xlsm_path: str, ticker: str, cache_dir: str
         str(out_dir / "company_overview_sample.csv"),
         str(out_dir / "financial_timeseries_year.csv"),
         str(out_dir / "financial_timeseries_quarter.csv"),
-        f"Dữ liệu tích hợp | Năm: {len(result.annual)} dòng | Quý: {len(result.quarterly)} dòng",
+        f"Dá»¯ liá»‡u tÃ­ch há»£p | NÄƒm: {len(result.annual)} dÃ²ng | QuÃ½: {len(result.quarterly)} dÃ²ng",
     )
 
 
@@ -887,7 +887,7 @@ def _provider_result_score(result: ProviderResult) -> int:
 def _minimal_overview_df(ticker: str, source_name: str) -> pd.DataFrame:
     return normalize_columns(pd.DataFrame([{
         "ticker": ticker.upper(),
-        "company_name": f"{ticker.upper()} - đang cập nhật hồ sơ doanh nghiệp",
+        "company_name": f"{ticker.upper()} - Ä‘ang cáº­p nháº­t há»“ sÆ¡ doanh nghiá»‡p",
         "exchange": "",
         "industry": "",
         "sub_industry": "",
@@ -905,10 +905,10 @@ def _write_provider_df(df: pd.DataFrame, path: Path, fallback_columns: list[str]
 
 
 def _export_provider_result_to_module2_cache(result: ProviderResult, ticker: str, source_name: str, cache_dir: str) -> tuple[str, str, str, str]:
-    """Ghi kết quả crawler chuẩn Tổng quan doanh nghiệp ra cache để Định giá chuyên sâu dùng trực tiếp.
+    """Ghi káº¿t quáº£ crawler chuáº©n Tá»•ng quan doanh nghiá»‡p ra cache Ä‘á»ƒ Äá»‹nh giÃ¡ chuyÃªn sÃ¢u dÃ¹ng trá»±c tiáº¿p.
 
-    Đây là điểm tích hợp quan trọng: Định giá chuyên sâu không tự bịa dữ liệu và không chỉ tìm bằng chứng định tính;
-    nó dùng đúng pipeline crawler/normalizer của Tổng quan doanh nghiệp rồi đưa vào engine định giá.
+    ÄÃ¢y lÃ  Ä‘iá»ƒm tÃ­ch há»£p quan trá»ng: Äá»‹nh giÃ¡ chuyÃªn sÃ¢u khÃ´ng tá»± bá»‹a dá»¯ liá»‡u vÃ  khÃ´ng chá»‰ tÃ¬m báº±ng chá»©ng Ä‘á»‹nh tÃ­nh;
+    nÃ³ dÃ¹ng Ä‘Ãºng pipeline crawler/normalizer cá»§a Tá»•ng quan doanh nghiá»‡p rá»“i Ä‘Æ°a vÃ o engine Ä‘á»‹nh giÃ¡.
     """
     ticker = _safe_ticker(ticker)
     source_key = source_name.lower().replace(" ", "_").replace("+", "plus").replace("/", "_")
@@ -929,7 +929,7 @@ def _export_provider_result_to_module2_cache(result: ProviderResult, ticker: str
         "quarterly": _write_provider_df(normalize_columns(quarterly_df, MODULE1_TIMESERIES_COLUMNS), quarter_path, MODULE1_TIMESERIES_COLUMNS),
     }
     raw_note = ""
-    label = f"Dữ liệu đã chuẩn hóa từ Tổng quan doanh nghiệp | Tổng quan: {counts['overview']} dòng | Năm: {counts['annual']} dòng | Quý: {counts['quarterly']} dòng"
+    label = f"Dá»¯ liá»‡u Ä‘Ã£ chuáº©n hÃ³a tá»« Tá»•ng quan doanh nghiá»‡p | Tá»•ng quan: {counts['overview']} dÃ²ng | NÄƒm: {counts['annual']} dÃ²ng | QuÃ½: {counts['quarterly']} dÃ²ng"
     return str(overview_path), str(year_path), str(quarter_path), label
 
 
@@ -939,7 +939,7 @@ def _fetch_module1_crawler_result(ticker: str, source: str, raw_dir: str) -> Pro
         return PublicFireAntCrawler(raw_dir).fetch(ticker)
     if source == "Vietstock":
         return PublicVietstockCrawler(raw_dir).fetch(ticker)
-    if source in {"FireAnt + Vietstock", "Tự động từ dữ liệu tổng quan"}:
+    if source in {"FireAnt + Vietstock", "Tá»± Ä‘á»™ng tá»« dá»¯ liá»‡u tá»•ng quan"}:
         candidates: list[tuple[str, ProviderResult]] = []
         errors: list[str] = []
         for name, crawler in [("FireAnt", PublicFireAntCrawler(raw_dir)), ("Vietstock", PublicVietstockCrawler(raw_dir))]:
@@ -948,15 +948,15 @@ def _fetch_module1_crawler_result(ticker: str, source: str, raw_dir: str) -> Pro
             except Exception as exc:
                 errors.append(f"{name}: {exc}")
         if not candidates:
-            raise RuntimeError("Không gọi được crawler Tổng quan doanh nghiệp: " + " | ".join(errors))
-        # chọn nguồn nào trả được bảng nhiều kỳ tốt nhất
+            raise RuntimeError("KhÃ´ng gá»i Ä‘Æ°á»£c crawler Tá»•ng quan doanh nghiá»‡p: " + " | ".join(errors))
+        # chá»n nguá»“n nÃ o tráº£ Ä‘Æ°á»£c báº£ng nhiá»u ká»³ tá»‘t nháº¥t
         best_name, best_result = max(candidates, key=lambda item: _provider_result_score(item[1]))
-        notes = [f"{n}: overview={len(r.overview)}, năm={len(r.annual)}, quý={len(r.quarterly)}, note={r.note}" for n, r in candidates]
+        notes = [f"{n}: overview={len(r.overview)}, nÄƒm={len(r.annual)}, quÃ½={len(r.quarterly)}, note={r.note}" for n, r in candidates]
         if errors:
             notes.extend(errors)
-        best_result.note = f"Chọn {best_name}. " + " | ".join(notes)
+        best_result.note = f"Chá»n {best_name}. " + " | ".join(notes)
         return best_result
-    raise ValueError(f"Chế độ dữ liệu Tổng quan doanh nghiệp không hợp lệ: {_public_text(source)}")
+    raise ValueError(f"Cháº¿ Ä‘á»™ dá»¯ liá»‡u Tá»•ng quan doanh nghiá»‡p khÃ´ng há»£p lá»‡: {_public_text(source)}")
 
 
 @st.cache_data(show_spinner=False)
@@ -977,7 +977,7 @@ def _load_timeseries_cached(path: str, ticker: str, period_type: str, limit: int
 
 
 def _set_active_module1_bundle(overview_csv: Path, year_csv: Path, quarter_csv: Path, label: str, ticker: str) -> None:
-    """Dùng chung một bộ dữ liệu hoạt động cho Tổng quan doanh nghiệp và Định giá chuyên sâu trong multipage app."""
+    """DÃ¹ng chung má»™t bá»™ dá»¯ liá»‡u hoáº¡t Ä‘á»™ng cho Tá»•ng quan doanh nghiá»‡p vÃ  Äá»‹nh giÃ¡ chuyÃªn sÃ¢u trong multipage app."""
     ticker = _safe_ticker(ticker)
     st.session_state["active_ticker"] = ticker
     st.session_state["module1_ticker"] = ticker
@@ -987,21 +987,21 @@ def _set_active_module1_bundle(overview_csv: Path, year_csv: Path, quarter_csv: 
     st.session_state["active_year_csv"] = str(year_csv)
     st.session_state["active_quarter_csv"] = str(quarter_csv)
     st.session_state["active_source_label"] = label
-    st.session_state["module_sync_status"] = f"Đã đồng bộ {ticker} vào Tổng quan doanh nghiệp + Định giá chuyên sâu lúc {pd.Timestamp.now():%Y-%m-%d %H:%M:%S}"
+    st.session_state["module_sync_status"] = f"ÄÃ£ Ä‘á»“ng bá»™ {ticker} vÃ o Tá»•ng quan doanh nghiá»‡p + Äá»‹nh giÃ¡ chuyÃªn sÃ¢u lÃºc {pd.Timestamp.now():%Y-%m-%d %H:%M:%S}"
 
 
 def _active_module1_bundle_for_ticker(ticker: str) -> tuple[Path, Path, Path, str] | None:
-    """Ưu tiên dữ liệu đã được Tổng quan doanh nghiệp kích hoạt trong cùng app."""
+    """Æ¯u tiÃªn dá»¯ liá»‡u Ä‘Ã£ Ä‘Æ°á»£c Tá»•ng quan doanh nghiá»‡p kÃ­ch hoáº¡t trong cÃ¹ng app."""
     ticker = _safe_ticker(ticker)
     active_ticker = _safe_ticker(str(st.session_state.get("active_ticker", "")))
     paths = [st.session_state.get("active_overview_csv"), st.session_state.get("active_year_csv"), st.session_state.get("active_quarter_csv")]
     if active_ticker == ticker and all(p and Path(str(p)).exists() for p in paths):
-        return Path(str(paths[0])), Path(str(paths[1])), Path(str(paths[2])), str(st.session_state.get("active_source_label", "Dữ liệu đã đồng bộ từ Tổng quan doanh nghiệp"))
+        return Path(str(paths[0])), Path(str(paths[1])), Path(str(paths[2])), str(st.session_state.get("active_source_label", "Dá»¯ liá»‡u Ä‘Ã£ Ä‘á»“ng bá»™ tá»« Tá»•ng quan doanh nghiá»‡p"))
     return None
 
 
 def _existing_cache_bundle_for_ticker(ticker: str) -> tuple[Path, Path, Path, str] | None:
-    """Tìm cache chuẩn mà Tổng quan doanh nghiệp/Định giá chuyên sâu đã tạo trước đó cho cùng mã."""
+    """TÃ¬m cache chuáº©n mÃ  Tá»•ng quan doanh nghiá»‡p/Äá»‹nh giÃ¡ chuyÃªn sÃ¢u Ä‘Ã£ táº¡o trÆ°á»›c Ä‘Ã³ cho cÃ¹ng mÃ£."""
     ticker = _safe_ticker(ticker)
     roots = [
         DATA_CACHE_DIR / "fireant_vietstock" / ticker,
@@ -1020,7 +1020,7 @@ def _existing_cache_bundle_for_ticker(ticker: str) -> tuple[Path, Path, Path, st
             try:
                 company, annual, quarterly = _load_csv_bundle(overview, year, quarter, ticker)
                 if _has_real_financial_data(annual):
-                    return overview, year, quarter, f"Cache Tổng quan doanh nghiệp đã đồng bộ: {root}"
+                    return overview, year, quarter, f"Cache Tá»•ng quan doanh nghiá»‡p Ä‘Ã£ Ä‘á»“ng bá»™: {root}"
             except Exception:
                 continue
     return None
@@ -1041,16 +1041,16 @@ def _format_note_value(value: object) -> str:
     return str(value)
 
 
-# ===== V23.20: giữ lại thuật ngữ tài chính tiếng Anh như V23.15 =====
-# Các thuật ngữ như Owner Earnings, FCF, Moat score, Low/Base/High/Weighted được giữ nguyên
-# để đọc đúng bản chất phân tích. Hàm dưới đây chỉ là compatibility no-op cho code bảng.
+# ===== V23.20: giá»¯ láº¡i thuáº­t ngá»¯ tÃ i chÃ­nh tiáº¿ng Anh nhÆ° V23.15 =====
+# CÃ¡c thuáº­t ngá»¯ nhÆ° Owner Earnings, FCF, Moat score, Low/Base/High/Weighted Ä‘Æ°á»£c giá»¯ nguyÃªn
+# Ä‘á»ƒ Ä‘á»c Ä‘Ãºng báº£n cháº¥t phÃ¢n tÃ­ch. HÃ m dÆ°á»›i Ä‘Ã¢y chá»‰ lÃ  compatibility no-op cho code báº£ng.
 def _vi_text(value: object) -> object:
     return value
 
 def _vi_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
-# V23.33: bỏ block _build_row_note/_render_explainable_table cũ; chỉ dùng block mới ở dưới để note hoạt động ổn định.
+# V23.33: bá» block _build_row_note/_render_explainable_table cÅ©; chá»‰ dÃ¹ng block má»›i á»Ÿ dÆ°á»›i Ä‘á»ƒ note hoáº¡t Ä‘á»™ng á»•n Ä‘á»‹nh.
 
 def _load_csv_bundle(overview_csv: Path, year_csv: Path, quarter_csv: Path, ticker: str):
     company = _load_overview_cached(str(overview_csv), ticker)
@@ -1063,17 +1063,17 @@ def _load_csv_bundle(overview_csv: Path, year_csv: Path, quarter_csv: Path, tick
 def _load_data(ticker: str, source: str) -> tuple[object, pd.DataFrame, pd.DataFrame, str, tuple[Path, Path, Path]]:
     ticker = _safe_ticker(ticker) or "DCM"
 
-    if source == "Tự động từ dữ liệu tổng quan":
-        # 0) Ưu tiên bộ dữ liệu đang hoạt động của Tổng quan doanh nghiệp trong cùng app.
+    if source == "Tá»± Ä‘á»™ng tá»« dá»¯ liá»‡u tá»•ng quan":
+        # 0) Æ¯u tiÃªn bá»™ dá»¯ liá»‡u Ä‘ang hoáº¡t Ä‘á»™ng cá»§a Tá»•ng quan doanh nghiá»‡p trong cÃ¹ng app.
         active = _active_module1_bundle_for_ticker(ticker)
         if active:
             overview_csv, year_csv, quarter_csv, label = active
             company, annual, quarterly = _load_csv_bundle(overview_csv, year_csv, quarter_csv, ticker)
             if _has_real_financial_data(annual):
-                _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label + " | Định giá chuyên sâu dùng trực tiếp", ticker)
-                return company, annual, quarterly, label + " | Định giá chuyên sâu dùng trực tiếp", (overview_csv, year_csv, quarter_csv)
+                _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label + " | Äá»‹nh giÃ¡ chuyÃªn sÃ¢u dÃ¹ng trá»±c tiáº¿p", ticker)
+                return company, annual, quarterly, label + " | Äá»‹nh giÃ¡ chuyÃªn sÃ¢u dÃ¹ng trá»±c tiáº¿p", (overview_csv, year_csv, quarter_csv)
 
-        # 1) Nếu đã có cache Tổng quan doanh nghiệp/Định giá chuyên sâu cho đúng mã thì dùng ngay, không crawl lại.
+        # 1) Náº¿u Ä‘Ã£ cÃ³ cache Tá»•ng quan doanh nghiá»‡p/Äá»‹nh giÃ¡ chuyÃªn sÃ¢u cho Ä‘Ãºng mÃ£ thÃ¬ dÃ¹ng ngay, khÃ´ng crawl láº¡i.
         cached = _existing_cache_bundle_for_ticker(ticker)
         if cached:
             overview_csv, year_csv, quarter_csv, label = cached
@@ -1081,15 +1081,15 @@ def _load_data(ticker: str, source: str) -> tuple[object, pd.DataFrame, pd.DataF
             _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label, ticker)
             return company, annual, quarterly, label, (overview_csv, year_csv, quarter_csv)
 
-        # 2) Không có cache thì tự gọi pipeline crawler Tổng quan doanh nghiệp.
+        # 2) KhÃ´ng cÃ³ cache thÃ¬ tá»± gá»i pipeline crawler Tá»•ng quan doanh nghiá»‡p.
         overview, year, quarter, label = _export_module1_crawler_cached(ticker, "FireAnt + Vietstock", str(DATA_CACHE_DIR), str(RAW_DIR))
         overview_csv, year_csv, quarter_csv = Path(overview), Path(year), Path(quarter)
         company, annual, quarterly = _load_csv_bundle(overview_csv, year_csv, quarter_csv, ticker)
         if _has_real_financial_data(annual):
-            _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label + " | Auto-sync từ Định giá chuyên sâu", ticker)
-            return company, annual, quarterly, label + " | Auto-sync từ Định giá chuyên sâu", (overview_csv, year_csv, quarter_csv)
+            _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label + " | Auto-sync tá»« Äá»‹nh giÃ¡ chuyÃªn sÃ¢u", ticker)
+            return company, annual, quarterly, label + " | Auto-sync tá»« Äá»‹nh giÃ¡ chuyÃªn sÃ¢u", (overview_csv, year_csv, quarter_csv)
 
-        # 3) Fallback cuối: dữ liệu tích hợp, chỉ dùng nếu mã có dữ liệu thật.
+        # 3) Fallback cuá»‘i: dá»¯ liá»‡u tÃ­ch há»£p, chá»‰ dÃ¹ng náº¿u mÃ£ cÃ³ dá»¯ liá»‡u tháº­t.
         if BUNDLED_XLSM.exists():
             overview, year, quarter, label2 = _export_bundled_financial_cached(str(BUNDLED_XLSM), ticker, str(DATA_CACHE_DIR))
             overview_csv, year_csv, quarter_csv = Path(overview), Path(year), Path(quarter)
@@ -1104,18 +1104,18 @@ def _load_data(ticker: str, source: str) -> tuple[object, pd.DataFrame, pd.DataF
         overview_csv, year_csv, quarter_csv = Path(overview), Path(year), Path(quarter)
         company, annual, quarterly = _load_csv_bundle(overview_csv, year_csv, quarter_csv, ticker)
         if _has_real_financial_data(annual):
-            _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label + " | đồng bộ chủ động", ticker)
+            _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label + " | Ä‘á»“ng bá»™ chá»§ Ä‘á»™ng", ticker)
         return company, annual, quarterly, label, (overview_csv, year_csv, quarter_csv)
-    elif source == "Financial tích hợp" and BUNDLED_XLSM.exists():
+    elif source == "Financial tÃ­ch há»£p" and BUNDLED_XLSM.exists():
         overview, year, quarter, label = _export_bundled_financial_cached(str(BUNDLED_XLSM), ticker, str(DATA_CACHE_DIR))
         overview_csv, year_csv, quarter_csv = Path(overview), Path(year), Path(quarter)
         company, annual, quarterly = _load_csv_bundle(overview_csv, year_csv, quarter_csv, ticker)
         if _has_real_financial_data(annual):
-            _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label + " | đồng bộ Financial", ticker)
+            _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label + " | Ä‘á»“ng bá»™ Financial", ticker)
         return company, annual, quarterly, label, (overview_csv, year_csv, quarter_csv)
     else:
         overview_csv, year_csv, quarter_csv = DEFAULT_OVERVIEW_CSV, DEFAULT_YEAR_CSV, DEFAULT_QUARTER_CSV
-        label = "CSV mẫu tích hợp"
+        label = "CSV máº«u tÃ­ch há»£p"
     company, annual, quarterly = _load_csv_bundle(overview_csv, year_csv, quarter_csv, ticker)
     return company, annual, quarterly, label, (overview_csv, year_csv, quarter_csv)
 
@@ -1143,7 +1143,7 @@ def _style_table(df: pd.DataFrame):
         out = pd.DataFrame("", index=data.index, columns=data.columns)
         numeric_cols = []
         for col in data.columns:
-            if any(k in col.lower() for k in ["giá", "mos", "điểm", "trọng số", "%", "vnd", "cp", "tỷ", "lần", "value", "score"]):
+            if any(k in col.lower() for k in ["giÃ¡", "mos", "Ä‘iá»ƒm", "trá»ng sá»‘", "%", "vnd", "cp", "tá»·", "láº§n", "value", "score"]):
                 numeric_cols.append(col)
         vals = []
         for col in numeric_cols:
@@ -1161,23 +1161,23 @@ def _style_table(df: pd.DataFrame):
                 elif v > 0:
                     alpha = min(0.55, 0.10 + 0.45 * min(v / max_pos, 1))
                     out.loc[idx, col] = f"background-color: rgba(16,185,129,{alpha:.2f}); color:#064e3b;"
-        # Heatmap riêng cho các mức Moat level dạng chữ để không bị bỏ sót như 'Lợi thế khá'.
+        # Heatmap riÃªng cho cÃ¡c má»©c Moat level dáº¡ng chá»¯ Ä‘á»ƒ khÃ´ng bá»‹ bá» sÃ³t nhÆ° 'Lá»£i tháº¿ khÃ¡'.
         for col in data.columns:
             cl = str(col).strip().lower()
-            if cl in {"moat level", "mức moat", "moat_level"} or "moat level" in cl:
+            if cl in {"moat level", "má»©c moat", "moat_level"} or "moat level" in cl:
                 for idx, raw in data[col].items():
                     txt = str(raw).strip().lower()
                     if not txt:
                         continue
-                    if "rất mạnh" in txt or "very strong" in txt:
+                    if "ráº¥t máº¡nh" in txt or "very strong" in txt:
                         out.loc[idx, col] = "background-color:#0B7F75; color:#FFFFFF; font-weight:950;"
-                    elif "mạnh" in txt or "strong" in txt:
+                    elif "máº¡nh" in txt or "strong" in txt:
                         out.loc[idx, col] = "background-color:#D1FAE5; color:#065F46; font-weight:900;"
-                    elif "khá" in txt or "good" in txt:
+                    elif "khÃ¡" in txt or "good" in txt:
                         out.loc[idx, col] = "background-color:#FFF4C7; color:#7A4B00; font-weight:900;"
-                    elif "bình" in txt or "trung" in txt or "normal" in txt or "average" in txt:
+                    elif "bÃ¬nh" in txt or "trung" in txt or "normal" in txt or "average" in txt:
                         out.loc[idx, col] = "background-color:#FEF3C7; color:#92400E; font-weight:850;"
-                    elif "yếu" in txt or "không" in txt or "weak" in txt or "no moat" in txt:
+                    elif "yáº¿u" in txt or "khÃ´ng" in txt or "weak" in txt or "no moat" in txt:
                         out.loc[idx, col] = "background-color:#FEE2E2; color:#991B1B; font-weight:850;"
         return out
     fmt = {}
@@ -1186,9 +1186,9 @@ def _style_table(df: pd.DataFrame):
             low = str(col).lower()
             if str(col).strip().upper() in {"STT", "#"}:
                 fmt[col] = "{:,.0f}"
-            elif "%" in str(col) or "mos" in low or "điểm" in low or "trọng số" in low:
+            elif "%" in str(col) or "mos" in low or "Ä‘iá»ƒm" in low or "trá»ng sá»‘" in low:
                 fmt[col] = "{:,.1f}"
-            elif "giá" in low or "cp" in low:
+            elif "giÃ¡" in low or "cp" in low:
                 fmt[col] = "{:,.0f}"
             else:
                 fmt[col] = "{:,.1f}"
@@ -1197,7 +1197,7 @@ def _style_table(df: pd.DataFrame):
 
 def _show_table(df: pd.DataFrame, height: int | None = 520) -> None:
     if df is None or df.empty:
-        st.info("Chưa có dữ liệu.")
+        st.info("ChÆ°a cÃ³ dá»¯ liá»‡u.")
     else:
         safe_df = _hide_source_columns(df)
         st.dataframe(_style_table(safe_df), use_container_width=True, height=(height or 520), hide_index=True)
@@ -1209,17 +1209,17 @@ def _render_static_html_table(df: pd.DataFrame, table_kind: str = "", height: in
     Used for small summary tables where the user needs the standard table format but not row notes.
     """
     if df is None or df.empty:
-        st.info("Chưa có dữ liệu.")
+        st.info("ChÆ°a cÃ³ dá»¯ liá»‡u.")
         return
     display_df = _vi_dataframe_for_display(df.copy())
     if "Note" in display_df.columns:
         display_df = display_df.drop(columns=["Note"], errors="ignore")
-    display_df = display_df.drop(columns=[c for c in ["Nguồn/logic", "Nguồn / logic"] if c in display_df.columns], errors="ignore")
+    display_df = display_df.drop(columns=[c for c in ["Nguá»“n/logic", "Nguá»“n / logic"] if c in display_df.columns], errors="ignore")
 
     table_id = "static_tbl_" + str(abs(hash((table_kind, tuple(display_df.columns), len(display_df), APP_VERSION))))[0:10]
     header_cells = []
     for c in display_df.columns:
-        hcls = "summary-layer-header" if table_kind == "financial_manipulation_summary" and str(c).strip() == "Lớp" else ""
+        hcls = "summary-layer-header" if table_kind == "financial_manipulation_summary" and str(c).strip() == "Lá»›p" else ""
         header_cells.append(f"<th class='{hcls}'>{html.escape(str(c))}</th>")
     headers = "".join(header_cells)
     rows_html = []
@@ -1228,18 +1228,18 @@ def _render_static_html_table(df: pd.DataFrame, table_kind: str = "", height: in
         for c in display_df.columns:
             val = row.get(c)
             text = _format_note_value(val)
-            cls = _signal_class(val) if c in {"Tín hiệu", "Mức độ", "Mức cảnh báo", "Tình trạng", "Khuyến nghị", "Kết luận", "Kết luận theo mã", "Moat level", "Mức moat", "Độ tin cậy", "Đánh giá sơ bộ", "Loại lợi thế", "Vai trò"} else ""
+            cls = _signal_class(val) if c in {"TÃ­n hiá»‡u", "Má»©c Ä‘á»™", "Má»©c cáº£nh bÃ¡o", "TÃ¬nh tráº¡ng", "Khuyáº¿n nghá»‹", "Káº¿t luáº­n", "Káº¿t luáº­n theo mÃ£", "Moat level", "Má»©c moat", "Äá»™ tin cáº­y", "ÄÃ¡nh giÃ¡ sÆ¡ bá»™", "Loáº¡i lá»£i tháº¿", "Vai trÃ²"} else ""
             num = _parse_num(val)
-            if not cls and num is not None and any(k in str(c).lower() for k in ["giá", "mos", "điểm", "điểm nhiệt", "trọng", "%", "value", "score"]):
+            if not cls and num is not None and any(k in str(c).lower() for k in ["giÃ¡", "mos", "Ä‘iá»ƒm", "Ä‘iá»ƒm nhiá»‡t", "trá»ng", "%", "value", "score"]):
                 cls = "pos" if num > 0 else "neg" if num < 0 else ""
             cell_classes = [cls] if cls else []
-            if table_kind == "financial_manipulation_summary" and str(c).strip() == "Lớp":
+            if table_kind == "financial_manipulation_summary" and str(c).strip() == "Lá»›p":
                 cell_classes.append("summary-layer")
             tds.append(f"<td class='{' '.join(cell_classes)}'>{html.escape(text)}</td>")
         rows_html.append(f"<tr>{''.join(tds)}</tr>")
 
-    # V23.61: bảng tổng hợp thao túng tài chính chỉ có 4 lớp nên tự tính chiều cao gọn,
-    # không để dư khoảng trắng lớn làm phần phân tích từng lớp bị đẩy xuống xa.
+    # V23.61: báº£ng tá»•ng há»£p thao tÃºng tÃ i chÃ­nh chá»‰ cÃ³ 4 lá»›p nÃªn tá»± tÃ­nh chiá»u cao gá»n,
+    # khÃ´ng Ä‘á»ƒ dÆ° khoáº£ng tráº¯ng lá»›n lÃ m pháº§n phÃ¢n tÃ­ch tá»«ng lá»›p bá»‹ Ä‘áº©y xuá»‘ng xa.
     if table_kind == "financial_manipulation_summary":
         component_height = max(300, min(int(height), 92 + 78 * max(len(display_df), 1)))
     else:
@@ -1287,7 +1287,7 @@ def _has_real_financial_data(annual_df: pd.DataFrame) -> bool:
 
 
 
-# ===== V23.9: note engine theo từng doanh nghiệp, số liệu và tài liệu nguồn =====
+# ===== V23.9: note engine theo tá»«ng doanh nghiá»‡p, sá»‘ liá»‡u vÃ  tÃ i liá»‡u nguá»“n =====
 def _ctx() -> dict:
     obj = st.session_state.get("module2_note_context", {})
     return obj if isinstance(obj, dict) else {}
@@ -1372,39 +1372,39 @@ def _signal_class(value: object) -> str:
     s = str(value or "").strip().lower()
     if not s or s in {"nan", "none", "n/a", "na", "-"}:
         return ""
-    # Heatmap đầy đủ cho Moat level / tín hiệu chữ.
-    if "lợi thế" in s or "moat" in s:
-        if "rất mạnh" in s or "very strong" in s or "xuất sắc" in s:
+    # Heatmap Ä‘áº§y Ä‘á»§ cho Moat level / tÃ­n hiá»‡u chá»¯.
+    if "lá»£i tháº¿" in s or "moat" in s:
+        if "ráº¥t máº¡nh" in s or "very strong" in s or "xuáº¥t sáº¯c" in s:
             return "sig-purple-strong"
-        if "mạnh" in s or "strong" in s:
+        if "máº¡nh" in s or "strong" in s:
             return "sig-purple"
-        if "khá" in s or "good" in s:
+        if "khÃ¡" in s or "good" in s:
             return "sig-yellow"
-        if "bình" in s or "trung" in s or "normal" in s or "average" in s:
+        if "bÃ¬nh" in s or "trung" in s or "normal" in s or "average" in s:
             return "sig-yellow"
-        if "yếu" in s or "không" in s or "weak" in s or "no moat" in s:
+        if "yáº¿u" in s or "khÃ´ng" in s or "weak" in s or "no moat" in s:
             return "sig-red"
-    # Độ tin cậy.
+    # Äá»™ tin cáº­y.
     if s in {"cao", "high"}:
         return "sig-purple-strong"
-    if s in {"trung bình", "medium", "moderate"}:
+    if s in {"trung bÃ¬nh", "medium", "moderate"}:
         return "sig-yellow"
-    if s in {"thấp", "low", "không có dữ liệu", "no data"}:
+    if s in {"tháº¥p", "low", "khÃ´ng cÃ³ dá»¯ liá»‡u", "no data"}:
         return "sig-red"
-    # Rủi ro/cảnh báo.
-    red_terms = ["cảnh báo", "rủi ro", "rủi ro chu kỳ", "yếu", "âm", "suy giảm", "không đạt", "chưa đạt", "không phù hợp", "thiếu dữ liệu", "không có dữ liệu", "chưa đủ", "chưa có", "lỗi", "đòn bẩy cao", "xấu"]
+    # Rá»§i ro/cáº£nh bÃ¡o.
+    red_terms = ["cáº£nh bÃ¡o", "rá»§i ro", "rá»§i ro chu ká»³", "yáº¿u", "Ã¢m", "suy giáº£m", "khÃ´ng Ä‘áº¡t", "chÆ°a Ä‘áº¡t", "khÃ´ng phÃ¹ há»£p", "thiáº¿u dá»¯ liá»‡u", "khÃ´ng cÃ³ dá»¯ liá»‡u", "chÆ°a Ä‘á»§", "chÆ°a cÃ³", "lá»—i", "Ä‘Ã²n báº©y cao", "xáº¥u"]
     if any(k in s for k in red_terms):
-        if any(k in s for k in ["nghiêm trọng", "rất", "không đạt", "chưa đạt", "rủi ro", "yếu", "xấu"]):
+        if any(k in s for k in ["nghiÃªm trá»ng", "ráº¥t", "khÃ´ng Ä‘áº¡t", "chÆ°a Ä‘áº¡t", "rá»§i ro", "yáº¿u", "xáº¥u"]):
             return "sig-red-strong"
         return "sig-red"
-    # Tín hiệu tích cực.
-    purple_terms = ["tốt", "đạt", "mạnh", "an toàn", "hiệu quả", "tích cực", "vượt", "cao", "bền", "ổn định", "có runway", "runway", "pricing power", "có bằng chứng", "quality", "cash tốt", "tạo giá trị"]
+    # TÃ­n hiá»‡u tÃ­ch cá»±c.
+    purple_terms = ["tá»‘t", "Ä‘áº¡t", "máº¡nh", "an toÃ n", "hiá»‡u quáº£", "tÃ­ch cá»±c", "vÆ°á»£t", "cao", "bá»n", "á»•n Ä‘á»‹nh", "cÃ³ runway", "runway", "pricing power", "cÃ³ báº±ng chá»©ng", "quality", "cash tá»‘t", "táº¡o giÃ¡ trá»‹"]
     if any(k in s for k in purple_terms):
-        if any(k in s for k in ["rất", "mạnh", "vượt", "tốt", "cao", "bền"]):
+        if any(k in s for k in ["ráº¥t", "máº¡nh", "vÆ°á»£t", "tá»‘t", "cao", "bá»n"]):
             return "sig-purple-strong"
         return "sig-purple"
-    # Theo dõi/cần kiểm chứng.
-    yellow_terms = ["theo dõi", "cần kiểm", "cần soi", "cần xác minh", "cần kiểm chứng", "cần bổ sung", "cần tìm", "cẩn trọng", "trung bình", "bình thường", "khá", "chưa rõ", "hạn chế", "gần vùng", "chờ", "kiểm chứng", "chưa kết luận"]
+    # Theo dÃµi/cáº§n kiá»ƒm chá»©ng.
+    yellow_terms = ["theo dÃµi", "cáº§n kiá»ƒm", "cáº§n soi", "cáº§n xÃ¡c minh", "cáº§n kiá»ƒm chá»©ng", "cáº§n bá»• sung", "cáº§n tÃ¬m", "cáº©n trá»ng", "trung bÃ¬nh", "bÃ¬nh thÆ°á»ng", "khÃ¡", "chÆ°a rÃµ", "háº¡n cháº¿", "gáº§n vÃ¹ng", "chá»", "kiá»ƒm chá»©ng", "chÆ°a káº¿t luáº­n"]
     if any(k in s for k in yellow_terms):
         return "sig-yellow"
     return ""
@@ -1428,40 +1428,40 @@ def _ratio(value: object) -> str:
     n = _parse_num(value)
     if n is None:
         return "N/A"
-    return f"{n:,.1f} lần"
+    return f"{n:,.1f} láº§n"
 
 
 def _bil(value: object) -> str:
     n = _parse_num(value)
     if n is None:
         return "N/A"
-    return f"{n:,.0f} tỷ đồng"
+    return f"{n:,.0f} tá»· Ä‘á»“ng"
 
 
 def _period_label(annual_df: pd.DataFrame) -> str:
     latest = _latest_dict(annual_df)
-    return str(latest.get("period") or latest.get("year") or "kỳ mới nhất/TTM")
+    return str(latest.get("period") or latest.get("year") or "ká»³ má»›i nháº¥t/TTM")
 
 
 def _source_principle_text(kind: str, cls_name: str) -> str:
     base = {
-        "owner": "Cơ sở tư duy: Buffett xem Owner Earnings là chỉ tiêu phù hợp cho định giá chủ sở hữu: lợi nhuận báo cáo + khấu hao/phi tiền mặt - capex duy trì cần thiết để giữ vị thế cạnh tranh và sản lượng. Vì vậy với doanh nghiệp vốn nhẹ/dòng tiền thật, OE được ưu tiên; với doanh nghiệp đang mở rộng capex mạnh, cần tách capex duy trì và capex tăng trưởng.",
-        "fcf": "Cơ sở tư duy: FCF là kiểm tra dòng tiền, nhưng không tự động thay thế Owner Earnings. Nếu FCF âm do đầu tư mở rộng tạo ROIC cao thì không kết luận xấu ngay; nếu FCF âm kéo dài trong khi ROIC/biên lợi nhuận giảm thì phải cảnh báo chất lượng lợi nhuận.",
-        "epv": "Cơ sở tư duy: Graham/Dodd đặt trọng tâm vào earning power và sự khác biệt giữa giá và giá trị. EPS/LNST phải được chuẩn hóa qua nhiều kỳ, đặc biệt với doanh nghiệp chu kỳ hoặc có lợi nhuận bất thường.",
-        "asset": "Cơ sở tư duy: Graham ưu tiên biên an toàn và giá trị tài sản khi doanh nghiệp rơi vào nhóm asset play/deep value. Tài sản thanh khoản được haircut bảo thủ để bảo vệ downside, không dùng book value thô khi chất lượng tài sản chưa được kiểm tra.",
-        "porter": "Cơ sở tư duy: Porter không xem lợi thế cạnh tranh là khẩu hiệu chung. Moat phải truy về các hoạt động cụ thể trong chuỗi giá trị tạo giá trị cho khách hàng hoặc giảm chi phí, và phải có bằng chứng định lượng/định tính của chính doanh nghiệp.",
-        "risk": "Cơ sở tư duy: Howard Marks nhấn mạnh kiểm soát rủi ro và dải kết quả có thể xảy ra. Vì vậy note dùng Bear/Base/Bull và số liệu thực tế của doanh nghiệp thay vì một kết luận cố định.",
-        "mos": "Cơ sở tư duy: Graham/Li Lu coi margin of safety là trung tâm vì giá trị chỉ là ước tính. MOS phải phụ thuộc loại doanh nghiệp, độ tin cậy dòng tiền, tài sản bảo vệ downside và rủi ro chu kỳ của chính mã đang phân tích.",
+        "owner": "CÆ¡ sá»Ÿ tÆ° duy: Buffett xem Owner Earnings lÃ  chá»‰ tiÃªu phÃ¹ há»£p cho Ä‘á»‹nh giÃ¡ chá»§ sá»Ÿ há»¯u: lá»£i nhuáº­n bÃ¡o cÃ¡o + kháº¥u hao/phi tiá»n máº·t - capex duy trÃ¬ cáº§n thiáº¿t Ä‘á»ƒ giá»¯ vá»‹ tháº¿ cáº¡nh tranh vÃ  sáº£n lÆ°á»£ng. VÃ¬ váº­y vá»›i doanh nghiá»‡p vá»‘n nháº¹/dÃ²ng tiá»n tháº­t, OE Ä‘Æ°á»£c Æ°u tiÃªn; vá»›i doanh nghiá»‡p Ä‘ang má»Ÿ rá»™ng capex máº¡nh, cáº§n tÃ¡ch capex duy trÃ¬ vÃ  capex tÄƒng trÆ°á»Ÿng.",
+        "fcf": "CÆ¡ sá»Ÿ tÆ° duy: FCF lÃ  kiá»ƒm tra dÃ²ng tiá»n, nhÆ°ng khÃ´ng tá»± Ä‘á»™ng thay tháº¿ Owner Earnings. Náº¿u FCF Ã¢m do Ä‘áº§u tÆ° má»Ÿ rá»™ng táº¡o ROIC cao thÃ¬ khÃ´ng káº¿t luáº­n xáº¥u ngay; náº¿u FCF Ã¢m kÃ©o dÃ i trong khi ROIC/biÃªn lá»£i nhuáº­n giáº£m thÃ¬ pháº£i cáº£nh bÃ¡o cháº¥t lÆ°á»£ng lá»£i nhuáº­n.",
+        "epv": "CÆ¡ sá»Ÿ tÆ° duy: Graham/Dodd Ä‘áº·t trá»ng tÃ¢m vÃ o earning power vÃ  sá»± khÃ¡c biá»‡t giá»¯a giÃ¡ vÃ  giÃ¡ trá»‹. EPS/LNST pháº£i Ä‘Æ°á»£c chuáº©n hÃ³a qua nhiá»u ká»³, Ä‘áº·c biá»‡t vá»›i doanh nghiá»‡p chu ká»³ hoáº·c cÃ³ lá»£i nhuáº­n báº¥t thÆ°á»ng.",
+        "asset": "CÆ¡ sá»Ÿ tÆ° duy: Graham Æ°u tiÃªn biÃªn an toÃ n vÃ  giÃ¡ trá»‹ tÃ i sáº£n khi doanh nghiá»‡p rÆ¡i vÃ o nhÃ³m asset play/deep value. TÃ i sáº£n thanh khoáº£n Ä‘Æ°á»£c haircut báº£o thá»§ Ä‘á»ƒ báº£o vá»‡ downside, khÃ´ng dÃ¹ng book value thÃ´ khi cháº¥t lÆ°á»£ng tÃ i sáº£n chÆ°a Ä‘Æ°á»£c kiá»ƒm tra.",
+        "porter": "CÆ¡ sá»Ÿ tÆ° duy: Porter khÃ´ng xem lá»£i tháº¿ cáº¡nh tranh lÃ  kháº©u hiá»‡u chung. Moat pháº£i truy vá» cÃ¡c hoáº¡t Ä‘á»™ng cá»¥ thá»ƒ trong chuá»—i giÃ¡ trá»‹ táº¡o giÃ¡ trá»‹ cho khÃ¡ch hÃ ng hoáº·c giáº£m chi phÃ­, vÃ  pháº£i cÃ³ báº±ng chá»©ng Ä‘á»‹nh lÆ°á»£ng/Ä‘á»‹nh tÃ­nh cá»§a chÃ­nh doanh nghiá»‡p.",
+        "risk": "CÆ¡ sá»Ÿ tÆ° duy: Howard Marks nháº¥n máº¡nh kiá»ƒm soÃ¡t rá»§i ro vÃ  dáº£i káº¿t quáº£ cÃ³ thá»ƒ xáº£y ra. VÃ¬ váº­y note dÃ¹ng Bear/Base/Bull vÃ  sá»‘ liá»‡u thá»±c táº¿ cá»§a doanh nghiá»‡p thay vÃ¬ má»™t káº¿t luáº­n cá»‘ Ä‘á»‹nh.",
+        "mos": "CÆ¡ sá»Ÿ tÆ° duy: Graham/Li Lu coi margin of safety lÃ  trung tÃ¢m vÃ¬ giÃ¡ trá»‹ chá»‰ lÃ  Æ°á»›c tÃ­nh. MOS pháº£i phá»¥ thuá»™c loáº¡i doanh nghiá»‡p, Ä‘á»™ tin cáº­y dÃ²ng tiá»n, tÃ i sáº£n báº£o vá»‡ downside vÃ  rá»§i ro chu ká»³ cá»§a chÃ­nh mÃ£ Ä‘ang phÃ¢n tÃ­ch.",
     }
     txt = base.get(kind, base["mos"])
     if "Cyclical" in cls_name:
-        txt += " Với doanh nghiệp có tính chu kỳ, hệ thống giảm ý nghĩa của lợi nhuận 1 năm và ưu tiên trung vị nhiều kỳ/kiểm tra biên an toàn cao hơn."
+        txt += " Vá»›i doanh nghiá»‡p cÃ³ tÃ­nh chu ká»³, há»‡ thá»‘ng giáº£m Ã½ nghÄ©a cá»§a lá»£i nhuáº­n 1 nÄƒm vÃ  Æ°u tiÃªn trung vá»‹ nhiá»u ká»³/kiá»ƒm tra biÃªn an toÃ n cao hÆ¡n."
     elif "Quality" in cls_name:
-        txt += " Với doanh nghiệp chất lượng/compounder, hệ thống ưu tiên ROIC, Owner Earnings và khả năng tái đầu tư; tuy nhiên vẫn kiểm tra CFO/LNST và FCF để tránh lợi nhuận kế toán."
+        txt += " Vá»›i doanh nghiá»‡p cháº¥t lÆ°á»£ng/compounder, há»‡ thá»‘ng Æ°u tiÃªn ROIC, Owner Earnings vÃ  kháº£ nÄƒng tÃ¡i Ä‘áº§u tÆ°; tuy nhiÃªn váº«n kiá»ƒm tra CFO/LNST vÃ  FCF Ä‘á»ƒ trÃ¡nh lá»£i nhuáº­n káº¿ toÃ¡n."
     elif "Asset" in cls_name:
-        txt += " Với doanh nghiệp asset play/deep value, hệ thống ưu tiên tài sản thanh khoản ròng và downside protection trước khi tin vào tăng trưởng."
+        txt += " Vá»›i doanh nghiá»‡p asset play/deep value, há»‡ thá»‘ng Æ°u tiÃªn tÃ i sáº£n thanh khoáº£n rÃ²ng vÃ  downside protection trÆ°á»›c khi tin vÃ o tÄƒng trÆ°á»Ÿng."
     elif "Financial" in cls_name:
-        txt += " Với ngân hàng/bảo hiểm/tài chính, hệ thống không dùng FCF/VLĐ tổng quát làm lõi, mà ưu tiên P/B, ROE và chất lượng tài sản/vốn."
+        txt += " Vá»›i ngÃ¢n hÃ ng/báº£o hiá»ƒm/tÃ i chÃ­nh, há»‡ thá»‘ng khÃ´ng dÃ¹ng FCF/VLÄ tá»•ng quÃ¡t lÃ m lÃµi, mÃ  Æ°u tiÃªn P/B, ROE vÃ  cháº¥t lÆ°á»£ng tÃ i sáº£n/vá»‘n."
     return txt
 
 
@@ -1479,10 +1479,10 @@ def _company_snapshot() -> str:
     profit_cv = _cv2(annual, "net_profit_bil")
     price = _parse_num(getattr(c, "current_price", None)) if c is not None else None
     parts = [
-        f"Doanh nghiệp: {getattr(c, 'ticker', '')} - {getattr(c, 'company_name', '')}",
-        f"Kỳ dữ liệu dùng chính: {period}; bộ dữ liệu: {_public_text(_ctx().get('source_label', 'N/A'))}",
-        f"Phân loại hiện tại: {getattr(cls, 'company_type', 'N/A')} | Giá hiện tại: {_money(price, ' đ/cp')}",
-        f"Tín hiệu chính của chính doanh nghiệp: ROIC trung vị {_pct(roic)}, ROE trung vị {_pct(roe)}, CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}, CAGR doanh thu {_pct(None if rev_cagr is None else rev_cagr*100)}, độ biến động LNST {_pct(None if profit_cv is None else profit_cv*100)}.",
+        f"Doanh nghiá»‡p: {getattr(c, 'ticker', '')} - {getattr(c, 'company_name', '')}",
+        f"Ká»³ dá»¯ liá»‡u dÃ¹ng chÃ­nh: {period}; bá»™ dá»¯ liá»‡u: {_public_text(_ctx().get('source_label', 'N/A'))}",
+        f"PhÃ¢n loáº¡i hiá»‡n táº¡i: {getattr(cls, 'company_type', 'N/A')} | GiÃ¡ hiá»‡n táº¡i: {_money(price, ' Ä‘/cp')}",
+        f"TÃ­n hiá»‡u chÃ­nh cá»§a chÃ­nh doanh nghiá»‡p: ROIC trung vá»‹ {_pct(roic)}, ROE trung vá»‹ {_pct(roe)}, CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}, CAGR doanh thu {_pct(None if rev_cagr is None else rev_cagr*100)}, Ä‘á»™ biáº¿n Ä‘á»™ng LNST {_pct(None if profit_cv is None else profit_cv*100)}.",
     ]
     return "\n".join(parts)
 
@@ -1517,38 +1517,38 @@ def _module2_numeric_evidence_for_note(topic: str = "") -> str:
     rev = _recent_median2(annual, "revenue_bil")
     np = _recent_median2(annual, "net_profit_bil")
     total_inv = _recent_median2(annual, "total_investment_bil")
-    lines = [f"- Kỳ/chuỗi dữ liệu dùng: {period}."]
-    if any(k in topic_l for k in ["tái đầu tư", "runway", "compounder"]):
+    lines = [f"- Ká»³/chuá»—i dá»¯ liá»‡u dÃ¹ng: {period}."]
+    if any(k in topic_l for k in ["tÃ¡i Ä‘áº§u tÆ°", "runway", "compounder"]):
         lines += [
-            f"- Tăng trưởng: CAGR doanh thu {_pct(None if rev_cagr is None else rev_cagr*100)}, CAGR LNST {_pct(None if np_cagr is None else np_cagr*100)}, CAGR Owner Earnings {_pct(None if oe_cagr is None else oe_cagr*100)}.",
-            f"- Hiệu quả vốn: ROIC trung vị {_pct(roic)}, WACC trung vị {_pct(wacc)}, ROE trung vị {_pct(roe)}.",
-            f"- Dòng tiền/tái đầu tư: CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}, FCF trung vị {_bil(fcf)}, Owner Earnings trung vị {_bil(oe)}, Capex trung vị {_bil(capex)}, tổng đầu tư trung vị {_bil(total_inv)}.",
-            f"- Diễn giải cụ thể: nếu doanh thu/LNST tăng nhưng ROIC không cao hơn WACC hoặc FCF/LNST thấp, tăng trưởng có thể đang tiêu tiền/đòn bẩy chứ chưa chắc tạo giá trị.",
+            f"- TÄƒng trÆ°á»Ÿng: CAGR doanh thu {_pct(None if rev_cagr is None else rev_cagr*100)}, CAGR LNST {_pct(None if np_cagr is None else np_cagr*100)}, CAGR Owner Earnings {_pct(None if oe_cagr is None else oe_cagr*100)}.",
+            f"- Hiá»‡u quáº£ vá»‘n: ROIC trung vá»‹ {_pct(roic)}, WACC trung vá»‹ {_pct(wacc)}, ROE trung vá»‹ {_pct(roe)}.",
+            f"- DÃ²ng tiá»n/tÃ¡i Ä‘áº§u tÆ°: CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}, FCF trung vá»‹ {_bil(fcf)}, Owner Earnings trung vá»‹ {_bil(oe)}, Capex trung vá»‹ {_bil(capex)}, tá»•ng Ä‘áº§u tÆ° trung vá»‹ {_bil(total_inv)}.",
+            f"- Diá»…n giáº£i cá»¥ thá»ƒ: náº¿u doanh thu/LNST tÄƒng nhÆ°ng ROIC khÃ´ng cao hÆ¡n WACC hoáº·c FCF/LNST tháº¥p, tÄƒng trÆ°á»Ÿng cÃ³ thá»ƒ Ä‘ang tiÃªu tiá»n/Ä‘Ã²n báº©y chá»© chÆ°a cháº¯c táº¡o giÃ¡ trá»‹.",
         ]
-    elif any(k in topic_l for k in ["dòng tiền", "cash", "fcf", "owner"]):
+    elif any(k in topic_l for k in ["dÃ²ng tiá»n", "cash", "fcf", "owner"]):
         lines += [
-            f"- Chất lượng tiền: CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}, tỷ lệ kỳ FCF dương {_pct(None if fcf_pos is None else fcf_pos*100)}.",
-            f"- Quy mô tiền: CFO kỳ mới nhất {_bil(latest.get('cfo_bil'))}, FCF kỳ mới nhất {_bil(latest.get('free_cash_flow_bil'))}, Owner Earnings kỳ mới nhất {_bil(latest.get('owner_earnings_bil'))}, LNST kỳ mới nhất {_bil(latest.get('net_profit_bil'))}.",
+            f"- Cháº¥t lÆ°á»£ng tiá»n: CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}, tá»· lá»‡ ká»³ FCF dÆ°Æ¡ng {_pct(None if fcf_pos is None else fcf_pos*100)}.",
+            f"- Quy mÃ´ tiá»n: CFO ká»³ má»›i nháº¥t {_bil(latest.get('cfo_bil'))}, FCF ká»³ má»›i nháº¥t {_bil(latest.get('free_cash_flow_bil'))}, Owner Earnings ká»³ má»›i nháº¥t {_bil(latest.get('owner_earnings_bil'))}, LNST ká»³ má»›i nháº¥t {_bil(latest.get('net_profit_bil'))}.",
         ]
-    elif any(k in topic_l for k in ["cost", "chi phí", "vận hành", "logistics", "chuỗi giá trị"]):
+    elif any(k in topic_l for k in ["cost", "chi phÃ­", "váº­n hÃ nh", "logistics", "chuá»—i giÃ¡ trá»‹"]):
         lines += [
-            f"- Hiệu quả hoạt động: biên gộp trung vị {_pct(gross)}, biên EBIT {_pct(ebit)}, biên ròng {_pct(net)}, biến động biên gộp {_pct(None if margin_cv is None else margin_cv*100)}.",
-            f"- Vốn lưu động/vận hành: CCC {_money(ccc, ' ngày')}, vòng quay HTK {_ratio(inv_turn)}, CFO/LNST {_ratio(cfo_np)}.",
+            f"- Hiá»‡u quáº£ hoáº¡t Ä‘á»™ng: biÃªn gá»™p trung vá»‹ {_pct(gross)}, biÃªn EBIT {_pct(ebit)}, biÃªn rÃ²ng {_pct(net)}, biáº¿n Ä‘á»™ng biÃªn gá»™p {_pct(None if margin_cv is None else margin_cv*100)}.",
+            f"- Vá»‘n lÆ°u Ä‘á»™ng/váº­n hÃ nh: CCC {_money(ccc, ' ngÃ y')}, vÃ²ng quay HTK {_ratio(inv_turn)}, CFO/LNST {_ratio(cfo_np)}.",
         ]
-    elif any(k in topic_l for k in ["cấu trúc", "chu kỳ", "ngành"]):
+    elif any(k in topic_l for k in ["cáº¥u trÃºc", "chu ká»³", "ngÃ nh"]):
         lines += [
-            f"- Chu kỳ: độ biến động LNST {_pct(None if profit_cv is None else profit_cv*100)}, CAGR doanh thu {_pct(None if rev_cagr is None else rev_cagr*100)}, CAGR LNST {_pct(None if np_cagr is None else np_cagr*100)}.",
-            f"- Biên lợi nhuận: biên gộp {_pct(gross)}, biên ròng {_pct(net)}; nợ/EBITDA {_ratio(debt_ebitda)}.",
+            f"- Chu ká»³: Ä‘á»™ biáº¿n Ä‘á»™ng LNST {_pct(None if profit_cv is None else profit_cv*100)}, CAGR doanh thu {_pct(None if rev_cagr is None else rev_cagr*100)}, CAGR LNST {_pct(None if np_cagr is None else np_cagr*100)}.",
+            f"- BiÃªn lá»£i nhuáº­n: biÃªn gá»™p {_pct(gross)}, biÃªn rÃ²ng {_pct(net)}; ná»£/EBITDA {_ratio(debt_ebitda)}.",
         ]
-    elif any(k in topic_l for k in ["quản trị", "phân bổ vốn", "an toàn"]):
+    elif any(k in topic_l for k in ["quáº£n trá»‹", "phÃ¢n bá»• vá»‘n", "an toÃ n"]):
         lines += [
-            f"- Phân bổ vốn: ROIC {_pct(roic)}, WACC {_pct(wacc)}, ROE {_pct(roe)}, Capex {_bil(capex)}, tổng đầu tư {_bil(total_inv)}.",
-            f"- An toàn tài chính: nợ ròng/EBITDA {_ratio(debt_ebitda)}, nợ ròng/VCSH {_ratio(net_debt_equity)}, CFO/LNST {_ratio(cfo_np)}.",
+            f"- PhÃ¢n bá»• vá»‘n: ROIC {_pct(roic)}, WACC {_pct(wacc)}, ROE {_pct(roe)}, Capex {_bil(capex)}, tá»•ng Ä‘áº§u tÆ° {_bil(total_inv)}.",
+            f"- An toÃ n tÃ i chÃ­nh: ná»£ rÃ²ng/EBITDA {_ratio(debt_ebitda)}, ná»£ rÃ²ng/VCSH {_ratio(net_debt_equity)}, CFO/LNST {_ratio(cfo_np)}.",
         ]
     else:
         lines += [
-            f"- Sinh lời: ROIC {_pct(roic)}, ROE {_pct(roe)}, biên gộp {_pct(gross)}, biên ròng {_pct(net)}.",
-            f"- Tăng trưởng & dòng tiền: doanh thu trung vị {_bil(rev)}, LNST trung vị {_bil(np)}, CAGR doanh thu {_pct(None if rev_cagr is None else rev_cagr*100)}, CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}.",
+            f"- Sinh lá»i: ROIC {_pct(roic)}, ROE {_pct(roe)}, biÃªn gá»™p {_pct(gross)}, biÃªn rÃ²ng {_pct(net)}.",
+            f"- TÄƒng trÆ°á»Ÿng & dÃ²ng tiá»n: doanh thu trung vá»‹ {_bil(rev)}, LNST trung vá»‹ {_bil(np)}, CAGR doanh thu {_pct(None if rev_cagr is None else rev_cagr*100)}, CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}.",
         ]
     return "\n".join(lines)
 
@@ -1560,25 +1560,25 @@ def _valuation_method_note(rowd: dict) -> str:
     cls = _ctx().get("classification")
     cls_name = getattr(cls, "company_type", "N/A")
     latest = _latest_dict(annual)
-    method = str(rowd.get("Phương pháp", ""))
+    method = str(rowd.get("PhÆ°Æ¡ng phÃ¡p", ""))
     shares = _share_count_from_context(c, annual)
-    current_price = _parse_num(rowd.get("Giá hiện tại")) or (_parse_num(getattr(c, "current_price", None)) if c is not None else None)
-    intrinsic = _parse_num(rowd.get("Giá trị nội tại/cp"))
-    mos = _parse_num(rowd.get("MOS hiện tại %"))
-    lines = [_company_snapshot(), "", f"CHỈ TIÊU/PHƯƠNG PHÁP ĐANG CHỌN: {method}"]
+    current_price = _parse_num(rowd.get("GiÃ¡ hiá»‡n táº¡i")) or (_parse_num(getattr(c, "current_price", None)) if c is not None else None)
+    intrinsic = _parse_num(rowd.get("GiÃ¡ trá»‹ ná»™i táº¡i/cp"))
+    mos = _parse_num(rowd.get("MOS hiá»‡n táº¡i %"))
+    lines = [_company_snapshot(), "", f"CHá»ˆ TIÃŠU/PHÆ¯Æ NG PHÃP ÄANG CHá»ŒN: {method}"]
     if "Earnings Power" in method:
         net_profit_norm = _recent_median2(annual, "net_profit_bil") or _parse_num(latest.get("net_profit_bil"))
         eps_norm = _recent_median2(annual, "eps_vnd") or _per_share_bil(net_profit_norm, shares) or (_parse_num(getattr(c, "eps", None)) if c is not None else None)
         target_pe = assumptions.get("target_pe_quality", 14.0) if cls_name == "Quality Compounder" else assumptions.get("target_pe_normal", assumptions.get("target_pe_default", 10.0))
         calc = eps_norm * target_pe if eps_norm is not None else None
         lines += [
-            "Cách tính theo dữ liệu doanh nghiệp:",
-            f"- LNST chuẩn hóa = trung vị các kỳ gần đây = {_bil(net_profit_norm)}.",
-            f"- Số cổ phiếu pha loãng/ước tính = {_ratio(shares)} triệu cp. Nếu file không có cổ phiếu, hệ thống suy ra từ LNST và EPS.",
-            f"- EPS chuẩn hóa = LNST chuẩn hóa / số cổ phiếu = {_money(eps_norm, ' đ/cp')}.",
-            f"- P/E mục tiêu áp dụng cho {cls_name} = {_ratio(target_pe)}.",
-            f"- Giá trị tính lại = EPS chuẩn hóa x P/E mục tiêu = {_money(calc, ' đ/cp')}; giá trị đang dùng trong bảng = {_money(intrinsic, ' đ/cp')}.",
-            f"- MOS hiện tại = (giá trị - giá thị trường) / giá trị = {_pct(mos)} với giá hiện tại {_money(current_price, ' đ/cp')}.",
+            "CÃ¡ch tÃ­nh theo dá»¯ liá»‡u doanh nghiá»‡p:",
+            f"- LNST chuáº©n hÃ³a = trung vá»‹ cÃ¡c ká»³ gáº§n Ä‘Ã¢y = {_bil(net_profit_norm)}.",
+            f"- Sá»‘ cá»• phiáº¿u pha loÃ£ng/Æ°á»›c tÃ­nh = {_ratio(shares)} triá»‡u cp. Náº¿u file khÃ´ng cÃ³ cá»• phiáº¿u, há»‡ thá»‘ng suy ra tá»« LNST vÃ  EPS.",
+            f"- EPS chuáº©n hÃ³a = LNST chuáº©n hÃ³a / sá»‘ cá»• phiáº¿u = {_money(eps_norm, ' Ä‘/cp')}.",
+            f"- P/E má»¥c tiÃªu Ã¡p dá»¥ng cho {cls_name} = {_ratio(target_pe)}.",
+            f"- GiÃ¡ trá»‹ tÃ­nh láº¡i = EPS chuáº©n hÃ³a x P/E má»¥c tiÃªu = {_money(calc, ' Ä‘/cp')}; giÃ¡ trá»‹ Ä‘ang dÃ¹ng trong báº£ng = {_money(intrinsic, ' Ä‘/cp')}.",
+            f"- MOS hiá»‡n táº¡i = (giÃ¡ trá»‹ - giÃ¡ thá»‹ trÆ°á»ng) / giÃ¡ trá»‹ = {_pct(mos)} vá»›i giÃ¡ hiá»‡n táº¡i {_money(current_price, ' Ä‘/cp')}.",
             _source_principle_text("epv", cls_name),
         ]
     elif "Owner Earnings" in method:
@@ -1591,13 +1591,13 @@ def _valuation_method_note(rowd: dict) -> str:
         terminal = assumptions.get("terminal_growth", assumptions.get("terminal_growth_pct", 3.0) / 100)
         calc = oeps * (1 + growth_base) / max(discount - terminal, 0.04) if oeps is not None else None
         lines += [
-            "Cách tính theo dữ liệu doanh nghiệp:",
-            f"- Owner Earnings chuẩn hóa = trung vị các kỳ gần đây = {_bil(oe_norm)}.",
-            f"- OEPS chuẩn hóa = OE / số cổ phiếu = {_money(oeps, ' đ/cp')}.",
-            f"- Tăng trưởng cơ sở lấy theo OE CAGR nếu có, nếu không dùng CAGR doanh thu, sau đó chặn trần = {_pct(growth_base*100)}.",
+            "CÃ¡ch tÃ­nh theo dá»¯ liá»‡u doanh nghiá»‡p:",
+            f"- Owner Earnings chuáº©n hÃ³a = trung vá»‹ cÃ¡c ká»³ gáº§n Ä‘Ã¢y = {_bil(oe_norm)}.",
+            f"- OEPS chuáº©n hÃ³a = OE / sá»‘ cá»• phiáº¿u = {_money(oeps, ' Ä‘/cp')}.",
+            f"- TÄƒng trÆ°á»Ÿng cÆ¡ sá»Ÿ láº¥y theo OE CAGR náº¿u cÃ³, náº¿u khÃ´ng dÃ¹ng CAGR doanh thu, sau Ä‘Ã³ cháº·n tráº§n = {_pct(growth_base*100)}.",
             f"- Required return = {_pct(discount*100)}, terminal growth = {_pct(terminal*100)}.",
-            f"- Giá trị tính lại = OEPS x (1+g) / (r-g) = {_money(calc, ' đ/cp')}; bảng đang dùng = {_money(intrinsic, ' đ/cp')}.",
-            f"- Kiểm tra phù hợp: CFO/LNST {_ratio(_recent_median2(annual, 'cfo_to_net_profit'))}, FCF/LNST {_ratio(_recent_median2(annual, 'fcf_to_net_profit'))}. Nếu 2 chỉ tiêu này thấp, OE phải bị giảm độ tin cậy.",
+            f"- GiÃ¡ trá»‹ tÃ­nh láº¡i = OEPS x (1+g) / (r-g) = {_money(calc, ' Ä‘/cp')}; báº£ng Ä‘ang dÃ¹ng = {_money(intrinsic, ' Ä‘/cp')}.",
+            f"- Kiá»ƒm tra phÃ¹ há»£p: CFO/LNST {_ratio(_recent_median2(annual, 'cfo_to_net_profit'))}, FCF/LNST {_ratio(_recent_median2(annual, 'fcf_to_net_profit'))}. Náº¿u 2 chá»‰ tiÃªu nÃ y tháº¥p, OE pháº£i bá»‹ giáº£m Ä‘á»™ tin cáº­y.",
             _source_principle_text("owner", cls_name),
         ]
     elif "FCF" in method:
@@ -1609,13 +1609,13 @@ def _valuation_method_note(rowd: dict) -> str:
         conservative_growth = assumptions.get("conservative_growth_pct", 0.0) / 100
         calc = fcf_ps / max(discount - conservative_growth, 0.06) if fcf_ps is not None and fcf_ps > 0 else None
         lines += [
-            "Cách tính theo dữ liệu doanh nghiệp:",
-            f"- CFO chuẩn hóa = {_bil(cfo)}; Capex chuẩn hóa = {_bil(capex)}.",
-            f"- FCF chuẩn hóa = CFO - Capex = {_bil(fcf_norm)}.",
-            f"- FCF/cp = {_money(fcf_ps, ' đ/cp')}.",
-            f"- Suất vốn hóa bảo thủ = required return - tăng trưởng bảo thủ = {_pct((discount-conservative_growth)*100)}.",
-            f"- Giá trị tính lại = FCF/cp / suất vốn hóa = {_money(calc, ' đ/cp')}; bảng đang dùng = {_money(intrinsic, ' đ/cp')}.",
-            f"- Trường hợp doanh nghiệp đang mở rộng: nếu capex lớn nhưng ROIC vẫn cao ({_pct(_recent_median2(annual, 'roic_standard_pct') or _recent_median2(annual, 'roic_pct'))}), FCF âm không nhất thiết xấu; nếu FCF âm và ROIC giảm thì cảnh báo chất lượng tăng trưởng.",
+            "CÃ¡ch tÃ­nh theo dá»¯ liá»‡u doanh nghiá»‡p:",
+            f"- CFO chuáº©n hÃ³a = {_bil(cfo)}; Capex chuáº©n hÃ³a = {_bil(capex)}.",
+            f"- FCF chuáº©n hÃ³a = CFO - Capex = {_bil(fcf_norm)}.",
+            f"- FCF/cp = {_money(fcf_ps, ' Ä‘/cp')}.",
+            f"- Suáº¥t vá»‘n hÃ³a báº£o thá»§ = required return - tÄƒng trÆ°á»Ÿng báº£o thá»§ = {_pct((discount-conservative_growth)*100)}.",
+            f"- GiÃ¡ trá»‹ tÃ­nh láº¡i = FCF/cp / suáº¥t vá»‘n hÃ³a = {_money(calc, ' Ä‘/cp')}; báº£ng Ä‘ang dÃ¹ng = {_money(intrinsic, ' Ä‘/cp')}.",
+            f"- TrÆ°á»ng há»£p doanh nghiá»‡p Ä‘ang má»Ÿ rá»™ng: náº¿u capex lá»›n nhÆ°ng ROIC váº«n cao ({_pct(_recent_median2(annual, 'roic_standard_pct') or _recent_median2(annual, 'roic_pct'))}), FCF Ã¢m khÃ´ng nháº¥t thiáº¿t xáº¥u; náº¿u FCF Ã¢m vÃ  ROIC giáº£m thÃ¬ cáº£nh bÃ¡o cháº¥t lÆ°á»£ng tÄƒng trÆ°á»Ÿng.",
             _source_principle_text("fcf", cls_name),
         ]
     elif "Book Value" in method or "P-B" in method:
@@ -1624,13 +1624,13 @@ def _valuation_method_note(rowd: dict) -> str:
         target_pb = assumptions.get("target_pb_bank", 1.2) if cls_name == "Financial / Bank / Insurance" else 1.0
         calc = bvps * target_pb if bvps is not None else None
         lines += [
-            "Cách tính theo dữ liệu doanh nghiệp:",
-            f"- Vốn chủ sở hữu kỳ mới nhất = {_bil(equity)}.",
-            f"- Số cổ phiếu = {_ratio(shares)} triệu cp.",
-            f"- BVPS = vốn chủ sở hữu / cổ phiếu = {_money(bvps, ' đ/cp')}.",
-            f"- P/B mục tiêu áp dụng cho {cls_name} = {_ratio(target_pb)}.",
-            f"- Giá trị tính lại = BVPS x P/B mục tiêu = {_money(calc, ' đ/cp')}; bảng đang dùng = {_money(intrinsic, ' đ/cp')}.",
-            f"- Cần đọc cùng chất lượng tài sản: tổng tài sản {_bil(latest.get('total_assets_bil'))}, nợ phải trả {_bil(latest.get('liabilities_bil'))}, ROE trung vị {_pct(_recent_median2(annual, 'roe_actual_pct') or _recent_median2(annual, 'roe_pct'))}.",
+            "CÃ¡ch tÃ­nh theo dá»¯ liá»‡u doanh nghiá»‡p:",
+            f"- Vá»‘n chá»§ sá»Ÿ há»¯u ká»³ má»›i nháº¥t = {_bil(equity)}.",
+            f"- Sá»‘ cá»• phiáº¿u = {_ratio(shares)} triá»‡u cp.",
+            f"- BVPS = vá»‘n chá»§ sá»Ÿ há»¯u / cá»• phiáº¿u = {_money(bvps, ' Ä‘/cp')}.",
+            f"- P/B má»¥c tiÃªu Ã¡p dá»¥ng cho {cls_name} = {_ratio(target_pb)}.",
+            f"- GiÃ¡ trá»‹ tÃ­nh láº¡i = BVPS x P/B má»¥c tiÃªu = {_money(calc, ' Ä‘/cp')}; báº£ng Ä‘ang dÃ¹ng = {_money(intrinsic, ' Ä‘/cp')}.",
+            f"- Cáº§n Ä‘á»c cÃ¹ng cháº¥t lÆ°á»£ng tÃ i sáº£n: tá»•ng tÃ i sáº£n {_bil(latest.get('total_assets_bil'))}, ná»£ pháº£i tráº£ {_bil(latest.get('liabilities_bil'))}, ROE trung vá»‹ {_pct(_recent_median2(annual, 'roe_actual_pct') or _recent_median2(annual, 'roe_pct'))}.",
             _source_principle_text("asset", cls_name),
         ]
     elif "Net Liquid" in method or "NCAV" in method:
@@ -1645,19 +1645,19 @@ def _valuation_method_note(rowd: dict) -> str:
         nlav = cash*(1-h_cash/100) + sti*(1-h_cash/100) + recv*(1-h_recv/100) + inv*(1-h_inv/100) - liab
         calc = _per_share_bil(nlav, shares) if nlav > 0 else None
         lines += [
-            "Cách tính theo dữ liệu doanh nghiệp:",
-            f"- Tiền = {_bil(cash)}, đầu tư ngắn hạn = {_bil(sti)}, phải thu = {_bil(recv)}, tồn kho = {_bil(inv)}, nợ phải trả = {_bil(liab)}.",
-            f"- Haircut áp dụng: tiền/ĐT ngắn hạn {h_cash:.0f}%, phải thu {h_recv:.0f}%, tồn kho {h_inv:.0f}%.",
-            f"- NLA/NCAV bảo thủ = tiền + ĐT ngắn hạn + phải thu sau haircut + tồn kho sau haircut - nợ = {_bil(nlav)}.",
-            f"- NLA/NCAV/cp = {_money(calc, ' đ/cp')}; bảng đang dùng = {_money(intrinsic, ' đ/cp')}.",
-            f"- Nếu NLA âm, phương pháp này chỉ đóng vai trò kiểm tra downside, không dùng làm fair value chính.",
+            "CÃ¡ch tÃ­nh theo dá»¯ liá»‡u doanh nghiá»‡p:",
+            f"- Tiá»n = {_bil(cash)}, Ä‘áº§u tÆ° ngáº¯n háº¡n = {_bil(sti)}, pháº£i thu = {_bil(recv)}, tá»“n kho = {_bil(inv)}, ná»£ pháº£i tráº£ = {_bil(liab)}.",
+            f"- Haircut Ã¡p dá»¥ng: tiá»n/ÄT ngáº¯n háº¡n {h_cash:.0f}%, pháº£i thu {h_recv:.0f}%, tá»“n kho {h_inv:.0f}%.",
+            f"- NLA/NCAV báº£o thá»§ = tiá»n + ÄT ngáº¯n háº¡n + pháº£i thu sau haircut + tá»“n kho sau haircut - ná»£ = {_bil(nlav)}.",
+            f"- NLA/NCAV/cp = {_money(calc, ' Ä‘/cp')}; báº£ng Ä‘ang dÃ¹ng = {_money(intrinsic, ' Ä‘/cp')}.",
+            f"- Náº¿u NLA Ã¢m, phÆ°Æ¡ng phÃ¡p nÃ y chá»‰ Ä‘Ã³ng vai trÃ² kiá»ƒm tra downside, khÃ´ng dÃ¹ng lÃ m fair value chÃ­nh.",
             _source_principle_text("asset", cls_name),
         ]
     else:
         lines += [
-            f"Vai trò: {_format_note_value(rowd.get('Vai trò'))}; trọng số {_pct(rowd.get('Trọng số %'))}; độ tin cậy {_format_note_value(rowd.get('Độ tin cậy'))}.",
-            f"Cơ sở tính trong bảng: {_format_note_value(rowd.get('Cơ sở tính'))}.",
-            f"Cảnh báo: {_format_note_value(rowd.get('Cảnh báo'))}.",
+            f"Vai trÃ²: {_format_note_value(rowd.get('Vai trÃ²'))}; trá»ng sá»‘ {_pct(rowd.get('Trá»ng sá»‘ %'))}; Ä‘á»™ tin cáº­y {_format_note_value(rowd.get('Äá»™ tin cáº­y'))}.",
+            f"CÆ¡ sá»Ÿ tÃ­nh trong báº£ng: {_format_note_value(rowd.get('CÆ¡ sá»Ÿ tÃ­nh'))}.",
+            f"Cáº£nh bÃ¡o: {_format_note_value(rowd.get('Cáº£nh bÃ¡o'))}.",
         ]
     return "\n".join(lines)
 
@@ -1669,24 +1669,24 @@ def _valuation_range_note(rowd: dict) -> str:
     cls = _ctx().get("classification")
     method_lines = []
     if isinstance(valuation, pd.DataFrame) and not valuation.empty:
-        valid = valuation[pd.to_numeric(valuation.get("Giá trị nội tại/cp"), errors="coerce").notna()].copy()
-        valid = valid[pd.to_numeric(valid.get("Giá trị nội tại/cp"), errors="coerce") > 0]
+        valid = valuation[pd.to_numeric(valuation.get("GiÃ¡ trá»‹ ná»™i táº¡i/cp"), errors="coerce").notna()].copy()
+        valid = valid[pd.to_numeric(valid.get("GiÃ¡ trá»‹ ná»™i táº¡i/cp"), errors="coerce") > 0]
         for _, r in valid.iterrows():
-            method_lines.append(f"- {r.get('Phương pháp')}: giá trị {_money(r.get('Giá trị nội tại/cp'), ' đ/cp')}, trọng số {_pct(r.get('Trọng số %'))}, vai trò {r.get('Vai trò')}")
+            method_lines.append(f"- {r.get('PhÆ°Æ¡ng phÃ¡p')}: giÃ¡ trá»‹ {_money(r.get('GiÃ¡ trá»‹ ná»™i táº¡i/cp'), ' Ä‘/cp')}, trá»ng sá»‘ {_pct(r.get('Trá»ng sá»‘ %'))}, vai trÃ² {r.get('Vai trÃ²')}")
     current_price = _parse_num(getattr(c, "current_price", None)) if c is not None else None
-    chosen = str(rowd.get("Chỉ tiêu", ""))
+    chosen = str(rowd.get("Chá»‰ tiÃªu", ""))
     return "\n".join([
         _company_snapshot(),
         "",
-        f"DẢI GIÁ TRỊ ĐANG CHỌN: {chosen} = {_money(rowd.get('Giá trị/cp'), ' đ/cp')}",
-        f"- Low = phân vị 25% của các phương pháp hợp lệ: {_money(getattr(rng, 'low_vnd', None), ' đ/cp')}.",
-        f"- Base/Median = trung vị các phương pháp hợp lệ: {_money(getattr(rng, 'base_vnd', None), ' đ/cp')}.",
-        f"- High = phân vị 75% của các phương pháp hợp lệ: {_money(getattr(rng, 'high_vnd', None), ' đ/cp')}.",
-        f"- Weighted = trung bình trọng số theo vai trò/phù hợp với {getattr(cls, 'company_type', 'N/A')}: {_money(getattr(rng, 'weighted_vnd', None), ' đ/cp')}.",
-        f"- MOS hiện tại = (Weighted - giá thị trường) / Weighted = {_pct(getattr(rng, 'mos_to_weighted_pct', None))}; giá thị trường {_money(current_price, ' đ/cp')}.",
-        f"- MOS yêu cầu đang chọn = {_pct(_ctx().get('target_mos_pct'))}; giá mua tối đa theo giá trị trọng số = {_money(getattr(rng, 'weighted_vnd', None) * (1 - float(_ctx().get('target_mos_pct', 30)) / 100) if getattr(rng, 'weighted_vnd', None) else None, ' đ/cp')}.",
-        "Các phương pháp đang tham gia dải giá trị:",
-        "\n".join(method_lines) if method_lines else "- Chưa có phương pháp hợp lệ.",
+        f"Dáº¢I GIÃ TRá»Š ÄANG CHá»ŒN: {chosen} = {_money(rowd.get('GiÃ¡ trá»‹/cp'), ' Ä‘/cp')}",
+        f"- Low = phÃ¢n vá»‹ 25% cá»§a cÃ¡c phÆ°Æ¡ng phÃ¡p há»£p lá»‡: {_money(getattr(rng, 'low_vnd', None), ' Ä‘/cp')}.",
+        f"- Base/Median = trung vá»‹ cÃ¡c phÆ°Æ¡ng phÃ¡p há»£p lá»‡: {_money(getattr(rng, 'base_vnd', None), ' Ä‘/cp')}.",
+        f"- High = phÃ¢n vá»‹ 75% cá»§a cÃ¡c phÆ°Æ¡ng phÃ¡p há»£p lá»‡: {_money(getattr(rng, 'high_vnd', None), ' Ä‘/cp')}.",
+        f"- Weighted = trung bÃ¬nh trá»ng sá»‘ theo vai trÃ²/phÃ¹ há»£p vá»›i {getattr(cls, 'company_type', 'N/A')}: {_money(getattr(rng, 'weighted_vnd', None), ' Ä‘/cp')}.",
+        f"- MOS hiá»‡n táº¡i = (Weighted - giÃ¡ thá»‹ trÆ°á»ng) / Weighted = {_pct(getattr(rng, 'mos_to_weighted_pct', None))}; giÃ¡ thá»‹ trÆ°á»ng {_money(current_price, ' Ä‘/cp')}.",
+        f"- MOS yÃªu cáº§u Ä‘ang chá»n = {_pct(_ctx().get('target_mos_pct'))}; giÃ¡ mua tá»‘i Ä‘a theo giÃ¡ trá»‹ trá»ng sá»‘ = {_money(getattr(rng, 'weighted_vnd', None) * (1 - float(_ctx().get('target_mos_pct', 30)) / 100) if getattr(rng, 'weighted_vnd', None) else None, ' Ä‘/cp')}.",
+        "CÃ¡c phÆ°Æ¡ng phÃ¡p Ä‘ang tham gia dáº£i giÃ¡ trá»‹:",
+        "\n".join(method_lines) if method_lines else "- ChÆ°a cÃ³ phÆ°Æ¡ng phÃ¡p há»£p lá»‡.",
         _source_principle_text("mos", getattr(cls, 'company_type', 'N/A')),
     ])
 
@@ -1694,7 +1694,7 @@ def _valuation_range_note(rowd: dict) -> str:
 def _moat_note(rowd: dict) -> str:
     annual = _ctx().get("annual_df", pd.DataFrame())
     cls = _ctx().get("classification")
-    group = str(rowd.get("Nhóm Porter/Moat", ""))
+    group = str(rowd.get("NhÃ³m Porter/Moat", ""))
     roic = _recent_median2(annual, "roic_standard_pct") or _recent_median2(annual, "roic_pct")
     roe = _recent_median2(annual, "roe_actual_pct") or _recent_median2(annual, "roe_pct")
     gross = _recent_median2(annual, "gross_margin_pct")
@@ -1711,26 +1711,26 @@ def _moat_note(rowd: dict) -> str:
     if rev and rev > 0:
         sga_ratio = ((abs(_recent_median2(annual, "selling_expense_bil") or 0) + abs(_recent_median2(annual, "admin_expense_bil") or 0)) / rev * 100)
     mapping = {
-        "Hiệu quả vốn": f"ROIC trung vị {_pct(roic)} và ROE trung vị {_pct(roe)}. Điểm cao chỉ hợp lý khi lợi suất trên vốn cao lặp lại nhiều kỳ, không phải một năm đột biến.",
-        "Cost advantage": f"Biên gộp trung vị {_pct(gross)}, biên EBIT {_pct(ebit)}, CCC {_money(ccc, ' ngày')}, vòng quay HTK {_ratio(inv_turn)}, SG&A/DT {_pct(sga_ratio)}. Đây là dấu hiệu cụ thể xem công ty có cost advantage không.",
-        "Differentiation": f"Biên gộp {_pct(gross)} và mức duy trì biên qua nhiều kỳ là tín hiệu định lượng của pricing power. Cần bổ sung BCTN/tin IR về thương hiệu, khách hàng, sản phẩm, kênh phân phối của chính doanh nghiệp.",
-        "Cấu trúc ngành": f"Hệ thống hiện dùng biến động lợi nhuận {_pct(None if _cv2(annual, 'net_profit_bil') is None else _cv2(annual, 'net_profit_bil')*100)} và ngành của mã để nhận diện chu kỳ. Với ngành cạnh tranh/chu kỳ, điểm cấu trúc ngành sẽ thận trọng hơn.",
-        "Chất lượng dòng tiền": f"CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}, tỷ lệ kỳ FCF dương {_pct(None if fcf_pos is None else fcf_pos*100)}. Nếu LNST cao nhưng tiền không về, moat/valuation phải giảm độ tin cậy.",
-        "Tái đầu tư": f"CAGR doanh thu {_pct(None if rev_cagr is None else rev_cagr*100)}, CAGR Owner Earnings {_pct(None if oe_cagr is None else oe_cagr*100)}, ROIC {_pct(roic)}. Compounder thật cần vừa tăng trưởng vừa duy trì ROIC.",
-        "Quản trị & phân bổ vốn": f"Kiểm tra ROIC {_pct(roic)}, nợ/EBITDA {_ratio(_parse_num(_latest_dict(annual).get('net_debt_to_ebitda')))}, cổ tức/capex/nợ vay. Đây là dấu hiệu xem quản trị có phân bổ vốn tạo giá trị hay không.",
-        "Chuỗi giá trị Porter": f"Dùng dữ liệu vận hành: biên gộp {_pct(gross)}, SG&A/DT {_pct(sga_ratio)}, CCC {_money(ccc, ' ngày')}, vòng quay HTK {_ratio(inv_turn)} để truy nguồn lợi thế từ hoạt động cụ thể.",
+        "Hiá»‡u quáº£ vá»‘n": f"ROIC trung vá»‹ {_pct(roic)} vÃ  ROE trung vá»‹ {_pct(roe)}. Äiá»ƒm cao chá»‰ há»£p lÃ½ khi lá»£i suáº¥t trÃªn vá»‘n cao láº·p láº¡i nhiá»u ká»³, khÃ´ng pháº£i má»™t nÄƒm Ä‘á»™t biáº¿n.",
+        "Cost advantage": f"BiÃªn gá»™p trung vá»‹ {_pct(gross)}, biÃªn EBIT {_pct(ebit)}, CCC {_money(ccc, ' ngÃ y')}, vÃ²ng quay HTK {_ratio(inv_turn)}, SG&A/DT {_pct(sga_ratio)}. ÄÃ¢y lÃ  dáº¥u hiá»‡u cá»¥ thá»ƒ xem cÃ´ng ty cÃ³ cost advantage khÃ´ng.",
+        "Differentiation": f"BiÃªn gá»™p {_pct(gross)} vÃ  má»©c duy trÃ¬ biÃªn qua nhiá»u ká»³ lÃ  tÃ­n hiá»‡u Ä‘á»‹nh lÆ°á»£ng cá»§a pricing power. Cáº§n bá»• sung BCTN/tin IR vá» thÆ°Æ¡ng hiá»‡u, khÃ¡ch hÃ ng, sáº£n pháº©m, kÃªnh phÃ¢n phá»‘i cá»§a chÃ­nh doanh nghiá»‡p.",
+        "Cáº¥u trÃºc ngÃ nh": f"Há»‡ thá»‘ng hiá»‡n dÃ¹ng biáº¿n Ä‘á»™ng lá»£i nhuáº­n {_pct(None if _cv2(annual, 'net_profit_bil') is None else _cv2(annual, 'net_profit_bil')*100)} vÃ  ngÃ nh cá»§a mÃ£ Ä‘á»ƒ nháº­n diá»‡n chu ká»³. Vá»›i ngÃ nh cáº¡nh tranh/chu ká»³, Ä‘iá»ƒm cáº¥u trÃºc ngÃ nh sáº½ tháº­n trá»ng hÆ¡n.",
+        "Cháº¥t lÆ°á»£ng dÃ²ng tiá»n": f"CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}, tá»· lá»‡ ká»³ FCF dÆ°Æ¡ng {_pct(None if fcf_pos is None else fcf_pos*100)}. Náº¿u LNST cao nhÆ°ng tiá»n khÃ´ng vá», moat/valuation pháº£i giáº£m Ä‘á»™ tin cáº­y.",
+        "TÃ¡i Ä‘áº§u tÆ°": f"CAGR doanh thu {_pct(None if rev_cagr is None else rev_cagr*100)}, CAGR Owner Earnings {_pct(None if oe_cagr is None else oe_cagr*100)}, ROIC {_pct(roic)}. Compounder tháº­t cáº§n vá»«a tÄƒng trÆ°á»Ÿng vá»«a duy trÃ¬ ROIC.",
+        "Quáº£n trá»‹ & phÃ¢n bá»• vá»‘n": f"Kiá»ƒm tra ROIC {_pct(roic)}, ná»£/EBITDA {_ratio(_parse_num(_latest_dict(annual).get('net_debt_to_ebitda')))}, cá»• tá»©c/capex/ná»£ vay. ÄÃ¢y lÃ  dáº¥u hiá»‡u xem quáº£n trá»‹ cÃ³ phÃ¢n bá»• vá»‘n táº¡o giÃ¡ trá»‹ hay khÃ´ng.",
+        "Chuá»—i giÃ¡ trá»‹ Porter": f"DÃ¹ng dá»¯ liá»‡u váº­n hÃ nh: biÃªn gá»™p {_pct(gross)}, SG&A/DT {_pct(sga_ratio)}, CCC {_money(ccc, ' ngÃ y')}, vÃ²ng quay HTK {_ratio(inv_turn)} Ä‘á»ƒ truy nguá»“n lá»£i tháº¿ tá»« hoáº¡t Ä‘á»™ng cá»¥ thá»ƒ.",
     }
-    detail = next((v for k, v in mapping.items() if k in group), rowd.get("Diễn giải", ""))
+    detail = next((v for k, v in mapping.items() if k in group), rowd.get("Diá»…n giáº£i", ""))
     return "\n".join([
         _company_snapshot(),
         "",
-        f"NHÓM ĐÁNH GIÁ: {group}",
-        f"- Điểm đạt: {_format_note_value(rowd.get('Điểm đạt'))}/{_format_note_value(rowd.get('Trọng số %'))}.",
-        f"- Tín hiệu trong bảng: {_format_note_value(rowd.get('Tín hiệu'))}.",
-        f"- Diễn giải theo dữ liệu của mã này: {detail}",
-        "Số liệu cụ thể dẫn đến diễn giải:",
+        f"NHÃ“M ÄÃNH GIÃ: {group}",
+        f"- Äiá»ƒm Ä‘áº¡t: {_format_note_value(rowd.get('Äiá»ƒm Ä‘áº¡t'))}/{_format_note_value(rowd.get('Trá»ng sá»‘ %'))}.",
+        f"- TÃ­n hiá»‡u trong báº£ng: {_format_note_value(rowd.get('TÃ­n hiá»‡u'))}.",
+        f"- Diá»…n giáº£i theo dá»¯ liá»‡u cá»§a mÃ£ nÃ y: {detail}",
+        "Sá»‘ liá»‡u cá»¥ thá»ƒ dáº«n Ä‘áº¿n diá»…n giáº£i:",
         _module2_numeric_evidence_for_note(group),
-        f"- Bằng chứng cần xem thêm: {_format_note_value(rowd.get('Bằng chứng định lượng cần xem'))}.",
+        f"- Báº±ng chá»©ng cáº§n xem thÃªm: {_format_note_value(rowd.get('Báº±ng chá»©ng Ä‘á»‹nh lÆ°á»£ng cáº§n xem'))}.",
         _source_principle_text("porter", getattr(cls, 'company_type', 'N/A')),
     ])
 
@@ -1738,7 +1738,7 @@ def _moat_note(rowd: dict) -> str:
 def _value_chain_note(rowd: dict) -> str:
     annual = _ctx().get("annual_df", pd.DataFrame())
     cls = _ctx().get("classification")
-    activity = str(rowd.get("Hoạt động chuỗi giá trị", ""))
+    activity = str(rowd.get("Hoáº¡t Ä‘á»™ng chuá»—i giÃ¡ trá»‹", ""))
     gross = _recent_median2(annual, "gross_margin_pct")
     ebit = _recent_median2(annual, "ebit_margin_pct")
     ccc = _recent_median2(annual, "cash_conversion_cycle_days")
@@ -1750,25 +1750,25 @@ def _value_chain_note(rowd: dict) -> str:
     if rev and rev > 0:
         sga_ratio = ((abs(_recent_median2(annual, "selling_expense_bil") or 0) + abs(_recent_median2(annual, "admin_expense_bil") or 0)) / rev * 100)
     activity_detail = {
-        "Logistics đầu vào": f"Vòng quay tồn kho {_ratio(inv_turn)}. Nếu vòng quay cao và tồn kho không phình ra khi doanh thu tăng, có thể có lợi thế mua hàng/quản trị tồn kho. Nếu vòng quay thấp, phải soi tồn kho chậm luân chuyển và giá nguyên liệu.",
-        "Vận hành/sản xuất": f"Biên gộp {_pct(gross)}, biên EBIT {_pct(ebit)}, ROIC {_pct(roic)}. Nếu biên cao đi kèm ROIC cao nhiều kỳ, lợi thế có thể đến từ quy mô, công nghệ hoặc hiệu suất vận hành.",
-        "Logistics đầu ra": f"CCC {_money(ccc, ' ngày')}, CFO/LNST {_ratio(cfo_np)}. CCC thấp hoặc âm cho thấy doanh nghiệp thu tiền nhanh/chiếm dụng vốn tốt; CCC cao làm giảm chất lượng dòng tiền.",
-        "Marketing & bán hàng": f"SG&A/DT {_pct(sga_ratio)} và biên gộp {_pct(gross)}. Nếu chi phí bán hàng thấp nhưng biên gộp cao, có thể có thương hiệu/kênh phân phối mạnh; nếu SG&A cao mà biên không tăng, cần cảnh báo.",
-        "Dịch vụ sau bán hàng": "BCTC thường không đủ dữ liệu định lượng. Cần BCTN/IR: bảo hành, tỷ lệ khách hàng lặp lại, hợp đồng dài hạn, khiếu nại, churn. Note này không kết luận moat nếu thiếu bằng chứng doanh nghiệp.",
-        "Công nghệ/R&D": "Cần dữ liệu BCTN/IR về R&D, bằng sáng chế, chứng chỉ, tự động hóa, chi phí công nghệ. Nếu ROIC/biên gộp cao nhưng không có bằng chứng hoạt động, chỉ chấm moat thận trọng.",
-        "Nhân sự": "Cần dữ liệu nhân sự/năng suất/đào tạo. Nếu doanh thu/nhân viên, năng suất hoặc tỷ lệ nghỉ việc không có, hệ thống chỉ gợi ý kiểm tra, không kết luận moat.",
-        "Hạ tầng quản trị": f"ROIC {_pct(roic)}, CFO/LNST {_ratio(cfo_np)}, nợ/EBITDA {_ratio(_parse_num(_latest_dict(annual).get('net_debt_to_ebitda')))}. Quản trị tốt phải thể hiện ở phân bổ vốn, kiểm soát nợ, minh bạch và không làm loãng cổ đông.",
+        "Logistics Ä‘áº§u vÃ o": f"VÃ²ng quay tá»“n kho {_ratio(inv_turn)}. Náº¿u vÃ²ng quay cao vÃ  tá»“n kho khÃ´ng phÃ¬nh ra khi doanh thu tÄƒng, cÃ³ thá»ƒ cÃ³ lá»£i tháº¿ mua hÃ ng/quáº£n trá»‹ tá»“n kho. Náº¿u vÃ²ng quay tháº¥p, pháº£i soi tá»“n kho cháº­m luÃ¢n chuyá»ƒn vÃ  giÃ¡ nguyÃªn liá»‡u.",
+        "Váº­n hÃ nh/sáº£n xuáº¥t": f"BiÃªn gá»™p {_pct(gross)}, biÃªn EBIT {_pct(ebit)}, ROIC {_pct(roic)}. Náº¿u biÃªn cao Ä‘i kÃ¨m ROIC cao nhiá»u ká»³, lá»£i tháº¿ cÃ³ thá»ƒ Ä‘áº¿n tá»« quy mÃ´, cÃ´ng nghá»‡ hoáº·c hiá»‡u suáº¥t váº­n hÃ nh.",
+        "Logistics Ä‘áº§u ra": f"CCC {_money(ccc, ' ngÃ y')}, CFO/LNST {_ratio(cfo_np)}. CCC tháº¥p hoáº·c Ã¢m cho tháº¥y doanh nghiá»‡p thu tiá»n nhanh/chiáº¿m dá»¥ng vá»‘n tá»‘t; CCC cao lÃ m giáº£m cháº¥t lÆ°á»£ng dÃ²ng tiá»n.",
+        "Marketing & bÃ¡n hÃ ng": f"SG&A/DT {_pct(sga_ratio)} vÃ  biÃªn gá»™p {_pct(gross)}. Náº¿u chi phÃ­ bÃ¡n hÃ ng tháº¥p nhÆ°ng biÃªn gá»™p cao, cÃ³ thá»ƒ cÃ³ thÆ°Æ¡ng hiá»‡u/kÃªnh phÃ¢n phá»‘i máº¡nh; náº¿u SG&A cao mÃ  biÃªn khÃ´ng tÄƒng, cáº§n cáº£nh bÃ¡o.",
+        "Dá»‹ch vá»¥ sau bÃ¡n hÃ ng": "BCTC thÆ°á»ng khÃ´ng Ä‘á»§ dá»¯ liá»‡u Ä‘á»‹nh lÆ°á»£ng. Cáº§n BCTN/IR: báº£o hÃ nh, tá»· lá»‡ khÃ¡ch hÃ ng láº·p láº¡i, há»£p Ä‘á»“ng dÃ i háº¡n, khiáº¿u náº¡i, churn. Note nÃ y khÃ´ng káº¿t luáº­n moat náº¿u thiáº¿u báº±ng chá»©ng doanh nghiá»‡p.",
+        "CÃ´ng nghá»‡/R&D": "Cáº§n dá»¯ liá»‡u BCTN/IR vá» R&D, báº±ng sÃ¡ng cháº¿, chá»©ng chá»‰, tá»± Ä‘á»™ng hÃ³a, chi phÃ­ cÃ´ng nghá»‡. Náº¿u ROIC/biÃªn gá»™p cao nhÆ°ng khÃ´ng cÃ³ báº±ng chá»©ng hoáº¡t Ä‘á»™ng, chá»‰ cháº¥m moat tháº­n trá»ng.",
+        "NhÃ¢n sá»±": "Cáº§n dá»¯ liá»‡u nhÃ¢n sá»±/nÄƒng suáº¥t/Ä‘Ã o táº¡o. Náº¿u doanh thu/nhÃ¢n viÃªn, nÄƒng suáº¥t hoáº·c tá»· lá»‡ nghá»‰ viá»‡c khÃ´ng cÃ³, há»‡ thá»‘ng chá»‰ gá»£i Ã½ kiá»ƒm tra, khÃ´ng káº¿t luáº­n moat.",
+        "Háº¡ táº§ng quáº£n trá»‹": f"ROIC {_pct(roic)}, CFO/LNST {_ratio(cfo_np)}, ná»£/EBITDA {_ratio(_parse_num(_latest_dict(annual).get('net_debt_to_ebitda')))}. Quáº£n trá»‹ tá»‘t pháº£i thá»ƒ hiá»‡n á»Ÿ phÃ¢n bá»• vá»‘n, kiá»ƒm soÃ¡t ná»£, minh báº¡ch vÃ  khÃ´ng lÃ m loÃ£ng cá»• Ä‘Ã´ng.",
     }
-    detail = next((v for k, v in activity_detail.items() if k in activity), "Cần đọc BCTN/IR và đối chiếu số liệu nhiều kỳ.")
+    detail = next((v for k, v in activity_detail.items() if k in activity), "Cáº§n Ä‘á»c BCTN/IR vÃ  Ä‘á»‘i chiáº¿u sá»‘ liá»‡u nhiá»u ká»³.")
     return "\n".join([
         _company_snapshot(),
         "",
-        f"HOẠT ĐỘNG CHUỖI GIÁ TRỊ: {activity}",
-        f"- Đánh giá sơ bộ trong bảng: {_format_note_value(rowd.get('Đánh giá sơ bộ'))}; loại lợi thế: {_format_note_value(rowd.get('Loại lợi thế'))}.",
-        f"- Cách đọc theo dữ liệu doanh nghiệp: {detail}",
-        "Số liệu cụ thể dẫn đến diễn giải:",
+        f"HOáº T Äá»˜NG CHUá»–I GIÃ TRá»Š: {activity}",
+        f"- ÄÃ¡nh giÃ¡ sÆ¡ bá»™ trong báº£ng: {_format_note_value(rowd.get('ÄÃ¡nh giÃ¡ sÆ¡ bá»™'))}; loáº¡i lá»£i tháº¿: {_format_note_value(rowd.get('Loáº¡i lá»£i tháº¿'))}.",
+        f"- CÃ¡ch Ä‘á»c theo dá»¯ liá»‡u doanh nghiá»‡p: {detail}",
+        "Sá»‘ liá»‡u cá»¥ thá»ƒ dáº«n Ä‘áº¿n diá»…n giáº£i:",
         _module2_numeric_evidence_for_note(activity),
-        f"- Bằng chứng hiện có/cần tìm: {_format_note_value(rowd.get('Bằng chứng hiện có/cần tìm'))}.",
+        f"- Báº±ng chá»©ng hiá»‡n cÃ³/cáº§n tÃ¬m: {_format_note_value(rowd.get('Báº±ng chá»©ng hiá»‡n cÃ³/cáº§n tÃ¬m'))}.",
         _source_principle_text("porter", getattr(cls, 'company_type', 'N/A')),
     ])
 
@@ -1777,16 +1777,16 @@ def _scenario_note(rowd: dict) -> str:
     annual = _ctx().get("annual_df", pd.DataFrame())
     cls = _ctx().get("classification")
     current = _parse_num(getattr(_ctx().get("company"), "current_price", None))
-    value = _parse_num(rowd.get("Giá trị/cp"))
-    mos = ((value - current) / value * 100) if value and current else _parse_num(rowd.get("MOS so với giá hiện tại %"))
+    value = _parse_num(rowd.get("GiÃ¡ trá»‹/cp"))
+    mos = ((value - current) / value * 100) if value and current else _parse_num(rowd.get("MOS so vá»›i giÃ¡ hiá»‡n táº¡i %"))
     return "\n".join([
         _company_snapshot(),
         "",
-        f"KỊCH BẢN: {_format_note_value(rowd.get('Kịch bản'))}",
-        f"- Giá trị/cp của kịch bản = {_money(value, ' đ/cp')}; giá hiện tại = {_money(current, ' đ/cp')}; MOS = {_pct(mos)}.",
-        f"- Giả định chính: {_format_note_value(rowd.get('Giả định chính'))}.",
-        f"- Rủi ro được kích hoạt bởi dữ liệu: {_format_note_value(rowd.get('Rủi ro cần kiểm tra'))}.",
-        f"- Số liệu rủi ro cụ thể: biến động LNST {_pct(None if _cv2(annual, 'net_profit_bil') is None else _cv2(annual, 'net_profit_bil')*100)}, nợ/EBITDA {_ratio(_parse_num(_latest_dict(annual).get('net_debt_to_ebitda')))}, FCF/LNST {_ratio(_recent_median2(annual, 'fcf_to_net_profit'))}.",
+        f"Ká»ŠCH Báº¢N: {_format_note_value(rowd.get('Ká»‹ch báº£n'))}",
+        f"- GiÃ¡ trá»‹/cp cá»§a ká»‹ch báº£n = {_money(value, ' Ä‘/cp')}; giÃ¡ hiá»‡n táº¡i = {_money(current, ' Ä‘/cp')}; MOS = {_pct(mos)}.",
+        f"- Giáº£ Ä‘á»‹nh chÃ­nh: {_format_note_value(rowd.get('Giáº£ Ä‘á»‹nh chÃ­nh'))}.",
+        f"- Rá»§i ro Ä‘Æ°á»£c kÃ­ch hoáº¡t bá»Ÿi dá»¯ liá»‡u: {_format_note_value(rowd.get('Rá»§i ro cáº§n kiá»ƒm tra'))}.",
+        f"- Sá»‘ liá»‡u rá»§i ro cá»¥ thá»ƒ: biáº¿n Ä‘á»™ng LNST {_pct(None if _cv2(annual, 'net_profit_bil') is None else _cv2(annual, 'net_profit_bil')*100)}, ná»£/EBITDA {_ratio(_parse_num(_latest_dict(annual).get('net_debt_to_ebitda')))}, FCF/LNST {_ratio(_recent_median2(annual, 'fcf_to_net_profit'))}.",
         _source_principle_text("risk", getattr(cls, 'company_type', 'N/A')),
     ])
 
@@ -1795,10 +1795,10 @@ def _latest_card_note(rowd: dict) -> str:
     return "\n".join([
         _company_snapshot(),
         "",
-        f"CHỈ TIÊU KỲ GẦN NHẤT: {_format_note_value(rowd.get('Chỉ tiêu'))}",
-        f"- Giá trị đang hiển thị: {_format_note_value(rowd.get('Giá trị'))}.",
-        "- Số liệu lấy từ bảng BCTC đã chuẩn hóa của Tổng quan doanh nghiệp, ưu tiên TTM nếu đủ 4 quý gần nhất; nếu không có TTM thì dùng năm/kỳ mới nhất.",
-        "- Cách đọc không dùng chung: so sánh chỉ tiêu này với phân loại doanh nghiệp, ROIC, CFO/LNST, FCF/LNST và chu kỳ ngành của mã đang nhập. Ví dụ cùng một FCF âm: với doanh nghiệp mở rộng ROIC cao thì cần tách capex tăng trưởng; với doanh nghiệp suy giảm ROIC thì là cảnh báo.",
+        f"CHá»ˆ TIÃŠU Ká»² Gáº¦N NHáº¤T: {_format_note_value(rowd.get('Chá»‰ tiÃªu'))}",
+        f"- GiÃ¡ trá»‹ Ä‘ang hiá»ƒn thá»‹: {_format_note_value(rowd.get('GiÃ¡ trá»‹'))}.",
+        "- Sá»‘ liá»‡u láº¥y tá»« báº£ng BCTC Ä‘Ã£ chuáº©n hÃ³a cá»§a Tá»•ng quan doanh nghiá»‡p, Æ°u tiÃªn TTM náº¿u Ä‘á»§ 4 quÃ½ gáº§n nháº¥t; náº¿u khÃ´ng cÃ³ TTM thÃ¬ dÃ¹ng nÄƒm/ká»³ má»›i nháº¥t.",
+        "- CÃ¡ch Ä‘á»c khÃ´ng dÃ¹ng chung: so sÃ¡nh chá»‰ tiÃªu nÃ y vá»›i phÃ¢n loáº¡i doanh nghiá»‡p, ROIC, CFO/LNST, FCF/LNST vÃ  chu ká»³ ngÃ nh cá»§a mÃ£ Ä‘ang nháº­p. VÃ­ dá»¥ cÃ¹ng má»™t FCF Ã¢m: vá»›i doanh nghiá»‡p má»Ÿ rá»™ng ROIC cao thÃ¬ cáº§n tÃ¡ch capex tÄƒng trÆ°á»Ÿng; vá»›i doanh nghiá»‡p suy giáº£m ROIC thÃ¬ lÃ  cáº£nh bÃ¡o.",
     ])
 
 
@@ -1824,26 +1824,26 @@ def _profit_sustainability_assessment(annual_df: pd.DataFrame) -> tuple[str, str
     margin_cv = _cv2(annual_df, "net_margin_pct")
     net_margin = _recent_median2(annual_df, "net_margin_pct")
     facts = (
-        f"ROIC trung vị {_pct(roic)}, ROE trung vị {_pct(roe)}, CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}, "
-        f"tỷ lệ LNST dương {_pct(None if profit_pos is None else profit_pos*100)}, tỷ lệ FCF dương {_pct(None if fcf_pos is None else fcf_pos*100)}, "
+        f"ROIC trung vá»‹ {_pct(roic)}, ROE trung vá»‹ {_pct(roe)}, CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}, "
+        f"tá»· lá»‡ LNST dÆ°Æ¡ng {_pct(None if profit_pos is None else profit_pos*100)}, tá»· lá»‡ FCF dÆ°Æ¡ng {_pct(None if fcf_pos is None else fcf_pos*100)}, "
         f"CAGR doanh thu {_pct(None if rev_cagr is None else rev_cagr*100)}, CAGR LNST {_pct(None if profit_cagr is None else profit_cagr*100)}, "
-        f"độ biến động LNST {_pct(None if profit_cv is None else profit_cv*100)}, biên ròng trung vị {_pct(net_margin)}."
+        f"Ä‘á»™ biáº¿n Ä‘á»™ng LNST {_pct(None if profit_cv is None else profit_cv*100)}, biÃªn rÃ²ng trung vá»‹ {_pct(net_margin)}."
     )
     if profit_pos is not None and profit_pos < 0.6:
-        conclusion = "Chưa bền vững: doanh nghiệp có nhiều kỳ không tạo lợi nhuận dương."
+        conclusion = "ChÆ°a bá»n vá»¯ng: doanh nghiá»‡p cÃ³ nhiá»u ká»³ khÃ´ng táº¡o lá»£i nhuáº­n dÆ°Æ¡ng."
     elif profit_cv is not None and profit_cv > 0.65:
-        conclusion = "Có tính chu kỳ/biến động cao: lợi nhuận hiện tại cần chuẩn hóa qua nhiều kỳ."
+        conclusion = "CÃ³ tÃ­nh chu ká»³/biáº¿n Ä‘á»™ng cao: lá»£i nhuáº­n hiá»‡n táº¡i cáº§n chuáº©n hÃ³a qua nhiá»u ká»³."
     elif cfo_np is not None and cfo_np < 0.7:
-        conclusion = "Cần kiểm tra: lợi nhuận kế toán chưa chuyển hóa tốt thành dòng tiền."
+        conclusion = "Cáº§n kiá»ƒm tra: lá»£i nhuáº­n káº¿ toÃ¡n chÆ°a chuyá»ƒn hÃ³a tá»‘t thÃ nh dÃ²ng tiá»n."
     elif roic is not None and roic >= 15 and cfo_np is not None and cfo_np >= 0.8 and (profit_cv is None or profit_cv <= 0.45):
-        conclusion = "Khá bền vững: ROIC cao, dòng tiền hỗ trợ lợi nhuận và biến động lợi nhuận không quá lớn."
+        conclusion = "KhÃ¡ bá»n vá»¯ng: ROIC cao, dÃ²ng tiá»n há»— trá»£ lá»£i nhuáº­n vÃ  biáº¿n Ä‘á»™ng lá»£i nhuáº­n khÃ´ng quÃ¡ lá»›n."
     elif profit_cv is not None and profit_cv <= 0.45 and profit_pos is not None and profit_pos >= 0.8:
-        conclusion = "Tương đối bền vững nhưng cần theo dõi thêm dòng tiền và khả năng duy trì biên lợi nhuận."
+        conclusion = "TÆ°Æ¡ng Ä‘á»‘i bá»n vá»¯ng nhÆ°ng cáº§n theo dÃµi thÃªm dÃ²ng tiá»n vÃ  kháº£ nÄƒng duy trÃ¬ biÃªn lá»£i nhuáº­n."
     else:
-        conclusion = "Chưa đủ chắc chắn: cần kết hợp thêm BCTN, cơ cấu sản phẩm, chu kỳ ngành và bằng chứng internet."
+        conclusion = "ChÆ°a Ä‘á»§ cháº¯c cháº¯n: cáº§n káº¿t há»£p thÃªm BCTN, cÆ¡ cáº¥u sáº£n pháº©m, chu ká»³ ngÃ nh vÃ  báº±ng chá»©ng internet."
     principle = (
-        "Không dùng chung một nguyên tắc cho mọi mã: nếu lợi nhuận ổn định + CFO/LNST tốt thì ưu tiên earning power/Owner Earnings; "
-        "nếu lợi nhuận biến động mạnh thì dùng lợi nhuận chuẩn hóa qua chu kỳ; nếu lợi nhuận không đi kèm tiền thật thì giảm trọng số định giá theo earnings."
+        "KhÃ´ng dÃ¹ng chung má»™t nguyÃªn táº¯c cho má»i mÃ£: náº¿u lá»£i nhuáº­n á»•n Ä‘á»‹nh + CFO/LNST tá»‘t thÃ¬ Æ°u tiÃªn earning power/Owner Earnings; "
+        "náº¿u lá»£i nhuáº­n biáº¿n Ä‘á»™ng máº¡nh thÃ¬ dÃ¹ng lá»£i nhuáº­n chuáº©n hÃ³a qua chu ká»³; náº¿u lá»£i nhuáº­n khÃ´ng Ä‘i kÃ¨m tiá»n tháº­t thÃ¬ giáº£m trá»ng sá»‘ Ä‘á»‹nh giÃ¡ theo earnings."
     )
     return conclusion, facts, principle
 
@@ -1867,39 +1867,39 @@ def _infer_advantage_sources(company: object, annual_df: pd.DataFrame, moat_df: 
     sources = []
     evidence = []
     if gross_margin is not None and gross_margin >= 25 and (margin_cv is None or margin_cv <= 0.25):
-        sources.append("khác biệt hóa/pricing power")
-        evidence.append(f"biên gộp trung vị {_pct(gross_margin)} và biến động biên gộp {_pct(None if margin_cv is None else margin_cv*100)}")
+        sources.append("khÃ¡c biá»‡t hÃ³a/pricing power")
+        evidence.append(f"biÃªn gá»™p trung vá»‹ {_pct(gross_margin)} vÃ  biáº¿n Ä‘á»™ng biÃªn gá»™p {_pct(None if margin_cv is None else margin_cv*100)}")
     elif gross_margin is not None and gross_margin < 15 and asset_turnover is not None and asset_turnover >= 1.0:
-        sources.append("hiệu quả chi phí/vòng quay")
-        evidence.append(f"biên gộp thấp {_pct(gross_margin)} nhưng vòng quay tài sản {_ratio(asset_turnover)}")
+        sources.append("hiá»‡u quáº£ chi phÃ­/vÃ²ng quay")
+        evidence.append(f"biÃªn gá»™p tháº¥p {_pct(gross_margin)} nhÆ°ng vÃ²ng quay tÃ i sáº£n {_ratio(asset_turnover)}")
     if roic is not None and roic >= 15:
-        sources.append("hiệu quả vốn/khả năng tái đầu tư")
-        evidence.append(f"ROIC trung vị {_pct(roic)}")
+        sources.append("hiá»‡u quáº£ vá»‘n/kháº£ nÄƒng tÃ¡i Ä‘áº§u tÆ°")
+        evidence.append(f"ROIC trung vá»‹ {_pct(roic)}")
     if cfo_np is not None and cfo_np >= 0.8 and fcf_np is not None and fcf_np >= 0:
-        sources.append("mô hình tạo tiền tốt")
+        sources.append("mÃ´ hÃ¬nh táº¡o tiá»n tá»‘t")
         evidence.append(f"CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}")
     if rev_cagr is not None and rev_cagr > 0.05 and roic is not None and roic >= 12:
-        sources.append("quy mô/phân phối hoặc nhu cầu thị trường thuận lợi")
-        evidence.append(f"CAGR doanh thu {_pct(rev_cagr*100)} đi cùng ROIC {_pct(roic)}")
+        sources.append("quy mÃ´/phÃ¢n phá»‘i hoáº·c nhu cáº§u thá»‹ trÆ°á»ng thuáº­n lá»£i")
+        evidence.append(f"CAGR doanh thu {_pct(rev_cagr*100)} Ä‘i cÃ¹ng ROIC {_pct(roic)}")
     if debt is not None and equity is not None and equity > 0 and debt / equity < 0.5:
-        sources.append("bảng cân đối thận trọng")
-        evidence.append(f"nợ vay/vốn chủ khoảng {_ratio(debt/equity)}")
-    if any(k in industry for k in ["dược", "pharma", "điện", "power", "nước", "water", "cảng", "port"]):
-        sources.append("giấy phép/tài sản đặc thù ngành")
-        evidence.append(f"ngành/phân ngành: {getattr(company, 'industry', '')} {getattr(company, 'sub_industry', '')}")
+        sources.append("báº£ng cÃ¢n Ä‘á»‘i tháº­n trá»ng")
+        evidence.append(f"ná»£ vay/vá»‘n chá»§ khoáº£ng {_ratio(debt/equity)}")
+    if any(k in industry for k in ["dÆ°á»£c", "pharma", "Ä‘iá»‡n", "power", "nÆ°á»›c", "water", "cáº£ng", "port"]):
+        sources.append("giáº¥y phÃ©p/tÃ i sáº£n Ä‘áº·c thÃ¹ ngÃ nh")
+        evidence.append(f"ngÃ nh/phÃ¢n ngÃ nh: {getattr(company, 'industry', '')} {getattr(company, 'sub_industry', '')}")
 
-    # Không khẳng định switching cost/thương hiệu nếu chỉ có số tài chính.
-    direct_lack = "Thương hiệu, switching cost, giấy phép độc quyền và kênh phân phối cần đối chiếu thêm với BCTN/tin IR; hệ thống không tự khẳng định nếu chưa có bằng chứng định tính."
+    # KhÃ´ng kháº³ng Ä‘á»‹nh switching cost/thÆ°Æ¡ng hiá»‡u náº¿u chá»‰ cÃ³ sá»‘ tÃ i chÃ­nh.
+    direct_lack = "ThÆ°Æ¡ng hiá»‡u, switching cost, giáº¥y phÃ©p Ä‘á»™c quyá»n vÃ  kÃªnh phÃ¢n phá»‘i cáº§n Ä‘á»‘i chiáº¿u thÃªm vá»›i BCTN/tin IR; há»‡ thá»‘ng khÃ´ng tá»± kháº³ng Ä‘á»‹nh náº¿u chÆ°a cÃ³ báº±ng chá»©ng Ä‘á»‹nh tÃ­nh."
     if not sources:
-        sources = ["chưa xác định rõ nguồn moat"]
-        evidence.append("chỉ số hiện tại chưa đủ mạnh hoặc thiếu dữ liệu so sánh ngang ngành")
-    # loại trùng nhưng giữ thứ tự
+        sources = ["chÆ°a xÃ¡c Ä‘á»‹nh rÃµ nguá»“n moat"]
+        evidence.append("chá»‰ sá»‘ hiá»‡n táº¡i chÆ°a Ä‘á»§ máº¡nh hoáº·c thiáº¿u dá»¯ liá»‡u so sÃ¡nh ngang ngÃ nh")
+    # loáº¡i trÃ¹ng nhÆ°ng giá»¯ thá»© tá»±
     uniq_sources = list(dict.fromkeys(sources))
     conclusion = "; ".join(uniq_sources)
     facts = "; ".join(evidence) + ". " + direct_lack
     principle = (
-        "Theo Porter, lợi thế cạnh tranh phải truy về hoạt động cụ thể trong chuỗi giá trị: tạo chi phí thấp hơn, tạo khác biệt hóa được khách hàng trả tiền, hoặc tạo rào cản khó bắt chước. "
-        "Vì vậy kết luận này thay đổi theo số liệu từng doanh nghiệp và không dùng chung một checklist cố định."
+        "Theo Porter, lá»£i tháº¿ cáº¡nh tranh pháº£i truy vá» hoáº¡t Ä‘á»™ng cá»¥ thá»ƒ trong chuá»—i giÃ¡ trá»‹: táº¡o chi phÃ­ tháº¥p hÆ¡n, táº¡o khÃ¡c biá»‡t hÃ³a Ä‘Æ°á»£c khÃ¡ch hÃ ng tráº£ tiá»n, hoáº·c táº¡o rÃ o cáº£n khÃ³ báº¯t chÆ°á»›c. "
+        "VÃ¬ váº­y káº¿t luáº­n nÃ y thay Ä‘á»•i theo sá»‘ liá»‡u tá»«ng doanh nghiá»‡p vÃ  khÃ´ng dÃ¹ng chung má»™t checklist cá»‘ Ä‘á»‹nh."
     )
     return conclusion, facts, principle
 
@@ -1907,7 +1907,7 @@ def _infer_advantage_sources(company: object, annual_df: pd.DataFrame, moat_df: 
 def _roic_moat_vs_cycle_assessment(company: object, annual_df: pd.DataFrame, cls_name: str) -> tuple[str, str, str]:
     industry = f"{getattr(company, 'industry', '')} {getattr(company, 'sub_industry', '')}".lower()
     roic = _median_pct_for_note(annual_df, ["roic_standard_pct", "roic_pct"])
-    # ROCE fallback: EBIT/capital employed nếu có; nếu không dùng ROIC proxy nhưng nói rõ.
+    # ROCE fallback: EBIT/capital employed náº¿u cÃ³; náº¿u khÃ´ng dÃ¹ng ROIC proxy nhÆ°ng nÃ³i rÃµ.
     latest = _latest_dict(annual_df)
     ebit = _parse_num(latest.get("ebit_bil")) or _parse_num(latest.get("operating_profit_bil")) or _parse_num(latest.get("pretax_profit_bil"))
     total_assets = _parse_num(latest.get("total_assets_bil"))
@@ -1923,27 +1923,27 @@ def _roic_moat_vs_cycle_assessment(company: object, annual_df: pd.DataFrame, cls
     profit_cv = _cv2(annual_df, "net_profit_bil")
     gross_cv = _cv2(annual_df, "gross_margin_pct")
     rev_cagr = _cagr2(annual_df, "revenue_bil")
-    cyc_keywords = ["thép", "steel", "phân bón", "fertil", "hóa chất", "chemical", "cao su", "rubber", "dầu", "oil", "bất động sản", "real estate", "commodity", "than", "coal"]
+    cyc_keywords = ["thÃ©p", "steel", "phÃ¢n bÃ³n", "fertil", "hÃ³a cháº¥t", "chemical", "cao su", "rubber", "dáº§u", "oil", "báº¥t Ä‘á»™ng sáº£n", "real estate", "commodity", "than", "coal"]
     cyclic_flag = any(k in industry for k in cyc_keywords) or (profit_cv is not None and profit_cv > 0.65)
     facts = (
-        f"ROIC trung vị {_pct(roic)}, ROCE kỳ mới nhất {_pct(roce)}" + (f" = EBIT/Pretax {_bil(ebit)} / capital employed {_bil(capital_employed)}" if roce is not None else " (chưa đủ dữ liệu EBIT/current liabilities để tính ROCE riêng, dùng ROIC làm proxy)") +
-        f"; CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}, biến động LNST {_pct(None if profit_cv is None else profit_cv*100)}, biến động biên gộp {_pct(None if gross_cv is None else gross_cv*100)}, CAGR doanh thu {_pct(None if rev_cagr is None else rev_cagr*100)}."
+        f"ROIC trung vá»‹ {_pct(roic)}, ROCE ká»³ má»›i nháº¥t {_pct(roce)}" + (f" = EBIT/Pretax {_bil(ebit)} / capital employed {_bil(capital_employed)}" if roce is not None else " (chÆ°a Ä‘á»§ dá»¯ liá»‡u EBIT/current liabilities Ä‘á»ƒ tÃ­nh ROCE riÃªng, dÃ¹ng ROIC lÃ m proxy)") +
+        f"; CFO/LNST {_ratio(cfo_np)}, FCF/LNST {_ratio(fcf_np)}, biáº¿n Ä‘á»™ng LNST {_pct(None if profit_cv is None else profit_cv*100)}, biáº¿n Ä‘á»™ng biÃªn gá»™p {_pct(None if gross_cv is None else gross_cv*100)}, CAGR doanh thu {_pct(None if rev_cagr is None else rev_cagr*100)}."
     )
     if roic is None:
-        conclusion = "Chưa kết luận: thiếu ROIC/ROCE nhiều kỳ."
+        conclusion = "ChÆ°a káº¿t luáº­n: thiáº¿u ROIC/ROCE nhiá»u ká»³."
     elif roic >= 15 and not cyclic_flag and (profit_cv is None or profit_cv <= 0.45) and (cfo_np is None or cfo_np >= 0.8):
-        conclusion = "ROIC cao nghiêng về moat thật/hiệu quả hoạt động bền vững hơn là chu kỳ ngắn hạn."
+        conclusion = "ROIC cao nghiÃªng vá» moat tháº­t/hiá»‡u quáº£ hoáº¡t Ä‘á»™ng bá»n vá»¯ng hÆ¡n lÃ  chu ká»³ ngáº¯n háº¡n."
     elif roic >= 15 and cyclic_flag:
-        conclusion = "ROIC cao nhưng có rủi ro đến từ chu kỳ/ngành đang thuận lợi; cần chuẩn hóa qua chu kỳ trước khi trả premium."
+        conclusion = "ROIC cao nhÆ°ng cÃ³ rá»§i ro Ä‘áº¿n tá»« chu ká»³/ngÃ nh Ä‘ang thuáº­n lá»£i; cáº§n chuáº©n hÃ³a qua chu ká»³ trÆ°á»›c khi tráº£ premium."
     elif roic >= 15 and cfo_np is not None and cfo_np < 0.7:
-        conclusion = "ROIC cao nhưng dòng tiền chưa hỗ trợ đủ; cần kiểm tra vốn lưu động, phải thu, tồn kho và capex."
+        conclusion = "ROIC cao nhÆ°ng dÃ²ng tiá»n chÆ°a há»— trá»£ Ä‘á»§; cáº§n kiá»ƒm tra vá»‘n lÆ°u Ä‘á»™ng, pháº£i thu, tá»“n kho vÃ  capex."
     elif roic >= 10:
-        conclusion = "ROIC khá, nhưng chưa đủ bằng chứng để gọi là moat mạnh."
+        conclusion = "ROIC khÃ¡, nhÆ°ng chÆ°a Ä‘á»§ báº±ng chá»©ng Ä‘á»ƒ gá»i lÃ  moat máº¡nh."
     else:
-        conclusion = "ROIC/ROCE chưa cao; lợi thế cạnh tranh nếu có cần chứng minh bằng tài sản, giấy phép hoặc phục hồi chu kỳ."
+        conclusion = "ROIC/ROCE chÆ°a cao; lá»£i tháº¿ cáº¡nh tranh náº¿u cÃ³ cáº§n chá»©ng minh báº±ng tÃ i sáº£n, giáº¥y phÃ©p hoáº·c phá»¥c há»“i chu ká»³."
     principle = (
-        "Hệ thống không mặc định ROIC cao là moat. ROIC chỉ được xem là moat thật khi duy trì nhiều kỳ, ít biến động, có dòng tiền hỗ trợ và không chỉ xuất hiện đúng lúc ngành thuận lợi. "
-        "Với doanh nghiệp chu kỳ, dùng trung vị nhiều kỳ và đánh giá downside trước."
+        "Há»‡ thá»‘ng khÃ´ng máº·c Ä‘á»‹nh ROIC cao lÃ  moat. ROIC chá»‰ Ä‘Æ°á»£c xem lÃ  moat tháº­t khi duy trÃ¬ nhiá»u ká»³, Ã­t biáº¿n Ä‘á»™ng, cÃ³ dÃ²ng tiá»n há»— trá»£ vÃ  khÃ´ng chá»‰ xuáº¥t hiá»‡n Ä‘Ãºng lÃºc ngÃ nh thuáº­n lá»£i. "
+        "Vá»›i doanh nghiá»‡p chu ká»³, dÃ¹ng trung vá»‹ nhiá»u ká»³ vÃ  Ä‘Ã¡nh giÃ¡ downside trÆ°á»›c."
     )
     return conclusion, facts, principle
 
@@ -1952,24 +1952,24 @@ def _mos_assessment(value_range, current_price: float | None, cls_name: str, cls
     mos = value_range.mos_to_weighted_pct
     target_mos_pct = 30.0 if target_mos_pct is None else float(target_mos_pct)
     buy_price = value_range.weighted_vnd * (1 - target_mos_pct / 100) if getattr(value_range, 'weighted_vnd', None) else None
-    facts = f"Giá hiện tại {_money(current_price, ' đ/cp')}; giá trị thấp {_money(value_range.low_vnd, ' đ/cp')}; giá trị cơ sở {_money(value_range.base_vnd, ' đ/cp')}; giá trị cao {_money(value_range.high_vnd, ' đ/cp')}; giá trị trọng số {_money(value_range.weighted_vnd, ' đ/cp')}; MOS hiện tại {_pct(mos)}; MOS yêu cầu {target_mos_pct:.0f}%; giá mua tối đa theo MOS chọn {_money(buy_price, ' đ/cp')}; độ tin cậy phân loại {cls_conf:,.0f}/100."
+    facts = f"GiÃ¡ hiá»‡n táº¡i {_money(current_price, ' Ä‘/cp')}; giÃ¡ trá»‹ tháº¥p {_money(value_range.low_vnd, ' Ä‘/cp')}; giÃ¡ trá»‹ cÆ¡ sá»Ÿ {_money(value_range.base_vnd, ' Ä‘/cp')}; giÃ¡ trá»‹ cao {_money(value_range.high_vnd, ' Ä‘/cp')}; giÃ¡ trá»‹ trá»ng sá»‘ {_money(value_range.weighted_vnd, ' Ä‘/cp')}; MOS hiá»‡n táº¡i {_pct(mos)}; MOS yÃªu cáº§u {target_mos_pct:.0f}%; giÃ¡ mua tá»‘i Ä‘a theo MOS chá»n {_money(buy_price, ' Ä‘/cp')}; Ä‘á»™ tin cáº­y phÃ¢n loáº¡i {cls_conf:,.0f}/100."
     if mos is None:
-        conclusion = "Chưa đủ dữ liệu để kết luận biên an toàn."
+        conclusion = "ChÆ°a Ä‘á»§ dá»¯ liá»‡u Ä‘á»ƒ káº¿t luáº­n biÃªn an toÃ n."
     elif mos >= target_mos_pct:
-        conclusion = f"Đạt MOS yêu cầu {target_mos_pct:.0f}% so với giá trị weighted."
+        conclusion = f"Äáº¡t MOS yÃªu cáº§u {target_mos_pct:.0f}% so vá»›i giÃ¡ trá»‹ weighted."
     elif mos >= 30:
-        conclusion = f"Có biên an toàn đáng chú ý nhưng chưa đạt MOS yêu cầu {target_mos_pct:.0f}%."
+        conclusion = f"CÃ³ biÃªn an toÃ n Ä‘Ã¡ng chÃº Ã½ nhÆ°ng chÆ°a Ä‘áº¡t MOS yÃªu cáº§u {target_mos_pct:.0f}%."
     elif mos >= 15:
-        conclusion = "Có biên an toàn vừa phải; phù hợp theo dõi thêm, chưa quá rẻ nếu dữ liệu không thật mạnh."
+        conclusion = "CÃ³ biÃªn an toÃ n vá»«a pháº£i; phÃ¹ há»£p theo dÃµi thÃªm, chÆ°a quÃ¡ ráº» náº¿u dá»¯ liá»‡u khÃ´ng tháº­t máº¡nh."
     elif mos >= 0:
-        conclusion = "Biên an toàn mỏng; giá không còn rẻ rõ ràng so với giá trị nội tại weighted."
+        conclusion = "BiÃªn an toÃ n má»ng; giÃ¡ khÃ´ng cÃ²n ráº» rÃµ rÃ ng so vá»›i giÃ¡ trá»‹ ná»™i táº¡i weighted."
     else:
-        conclusion = "Giá thị trường cao hơn giá trị weighted; chưa có biên an toàn theo mô hình hiện tại."
+        conclusion = "GiÃ¡ thá»‹ trÆ°á»ng cao hÆ¡n giÃ¡ trá»‹ weighted; chÆ°a cÃ³ biÃªn an toÃ n theo mÃ´ hÃ¬nh hiá»‡n táº¡i."
     if "Cyclical" in cls_name and mos is not None and mos < 50:
-        conclusion += " Do có tính chu kỳ, nên yêu cầu MOS cao hơn doanh nghiệp ổn định."
+        conclusion += " Do cÃ³ tÃ­nh chu ká»³, nÃªn yÃªu cáº§u MOS cao hÆ¡n doanh nghiá»‡p á»•n Ä‘á»‹nh."
     if "Quality" in cls_name and mos is not None and mos >= 20:
-        conclusion += " Với compounder chất lượng, MOS không nhất thiết phải cực sâu nhưng phải xác nhận được khả năng tái đầu tư và moat."
-    principle = f"Theo Graham/Li Lu, biên an toàn là lớp bảo vệ khi ước tính giá trị có thể sai. Trong lần chạy này, app dùng MOS yêu cầu {target_mos_pct:.0f}% do người dùng chọn; các giá mua MOS và kết luận đủ/chưa đủ MOS được tính lại theo mức này."
+        conclusion += " Vá»›i compounder cháº¥t lÆ°á»£ng, MOS khÃ´ng nháº¥t thiáº¿t pháº£i cá»±c sÃ¢u nhÆ°ng pháº£i xÃ¡c nháº­n Ä‘Æ°á»£c kháº£ nÄƒng tÃ¡i Ä‘áº§u tÆ° vÃ  moat."
+    principle = f"Theo Graham/Li Lu, biÃªn an toÃ n lÃ  lá»›p báº£o vá»‡ khi Æ°á»›c tÃ­nh giÃ¡ trá»‹ cÃ³ thá»ƒ sai. Trong láº§n cháº¡y nÃ y, app dÃ¹ng MOS yÃªu cáº§u {target_mos_pct:.0f}% do ngÆ°á»i dÃ¹ng chá»n; cÃ¡c giÃ¡ mua MOS vÃ  káº¿t luáº­n Ä‘á»§/chÆ°a Ä‘á»§ MOS Ä‘Æ°á»£c tÃ­nh láº¡i theo má»©c nÃ y."
     return conclusion, facts, principle
 
 
@@ -1982,13 +1982,13 @@ def _build_strategic_assessment_table(company: object, annual_df: pd.DataFrame, 
     roic_c, roic_f, roic_p = _roic_moat_vs_cycle_assessment(company, annual_df, cls_name)
     mos_c, mos_f, mos_p = _mos_assessment(value_range, current_price, cls_name, cls_conf, target_mos_pct)
     cls_facts = "; ".join(getattr(cls, "reasons", [])[:5]) or _company_snapshot()
-    cls_principle = "Phân loại dùng dữ liệu chính của mã đang phân tích: ngành/phân ngành, ROIC/ROE, CFO/LNST, FCF, CAGR doanh thu, độ biến động lợi nhuận, P/B và tài sản ngắn hạn ròng. Do đó mỗi doanh nghiệp sẽ ra kết luận khác nhau."
+    cls_principle = "PhÃ¢n loáº¡i dÃ¹ng dá»¯ liá»‡u chÃ­nh cá»§a mÃ£ Ä‘ang phÃ¢n tÃ­ch: ngÃ nh/phÃ¢n ngÃ nh, ROIC/ROE, CFO/LNST, FCF, CAGR doanh thu, Ä‘á»™ biáº¿n Ä‘á»™ng lá»£i nhuáº­n, P/B vÃ  tÃ i sáº£n ngáº¯n háº¡n rÃ²ng. Do Ä‘Ã³ má»—i doanh nghiá»‡p sáº½ ra káº¿t luáº­n khÃ¡c nhau."
     return pd.DataFrame([
-        {"Câu hỏi đánh giá": "1. Doanh nghiệp thuộc loại nào?", "Kết luận theo mã": f"{cls_name} (độ tin cậy {cls_conf:.0f}/100)", "Số liệu/chứng cứ chính": cls_facts, "Nguyên tắc áp dụng riêng": cls_principle},
-        {"Câu hỏi đánh giá": "2. Lợi nhuận hiện tại có bền vững không?", "Kết luận theo mã": profit_c, "Số liệu/chứng cứ chính": profit_f, "Nguyên tắc áp dụng riêng": profit_p},
-        {"Câu hỏi đánh giá": "3. Lợi thế cạnh tranh đến từ đâu?", "Kết luận theo mã": adv_c, "Số liệu/chứng cứ chính": adv_f, "Nguyên tắc áp dụng riêng": adv_p},
-        {"Câu hỏi đánh giá": "4. ROIC/ROCE cao do moat thật hay chu kỳ?", "Kết luận theo mã": roic_c, "Số liệu/chứng cứ chính": roic_f, "Nguyên tắc áp dụng riêng": roic_p},
-        {"Câu hỏi đánh giá": "5. Giá hiện tại có đủ biên an toàn không?", "Kết luận theo mã": mos_c, "Số liệu/chứng cứ chính": mos_f, "Nguyên tắc áp dụng riêng": mos_p},
+        {"CÃ¢u há»i Ä‘Ã¡nh giÃ¡": "1. Doanh nghiá»‡p thuá»™c loáº¡i nÃ o?", "Káº¿t luáº­n theo mÃ£": f"{cls_name} (Ä‘á»™ tin cáº­y {cls_conf:.0f}/100)", "Sá»‘ liá»‡u/chá»©ng cá»© chÃ­nh": cls_facts, "NguyÃªn táº¯c Ã¡p dá»¥ng riÃªng": cls_principle},
+        {"CÃ¢u há»i Ä‘Ã¡nh giÃ¡": "2. Lá»£i nhuáº­n hiá»‡n táº¡i cÃ³ bá»n vá»¯ng khÃ´ng?", "Káº¿t luáº­n theo mÃ£": profit_c, "Sá»‘ liá»‡u/chá»©ng cá»© chÃ­nh": profit_f, "NguyÃªn táº¯c Ã¡p dá»¥ng riÃªng": profit_p},
+        {"CÃ¢u há»i Ä‘Ã¡nh giÃ¡": "3. Lá»£i tháº¿ cáº¡nh tranh Ä‘áº¿n tá»« Ä‘Ã¢u?", "Káº¿t luáº­n theo mÃ£": adv_c, "Sá»‘ liá»‡u/chá»©ng cá»© chÃ­nh": adv_f, "NguyÃªn táº¯c Ã¡p dá»¥ng riÃªng": adv_p},
+        {"CÃ¢u há»i Ä‘Ã¡nh giÃ¡": "4. ROIC/ROCE cao do moat tháº­t hay chu ká»³?", "Káº¿t luáº­n theo mÃ£": roic_c, "Sá»‘ liá»‡u/chá»©ng cá»© chÃ­nh": roic_f, "NguyÃªn táº¯c Ã¡p dá»¥ng riÃªng": roic_p},
+        {"CÃ¢u há»i Ä‘Ã¡nh giÃ¡": "5. GiÃ¡ hiá»‡n táº¡i cÃ³ Ä‘á»§ biÃªn an toÃ n khÃ´ng?", "Káº¿t luáº­n theo mÃ£": mos_c, "Sá»‘ liá»‡u/chá»©ng cá»© chÃ­nh": mos_f, "NguyÃªn táº¯c Ã¡p dá»¥ng riÃªng": mos_p},
     ])
 
 
@@ -1998,9 +1998,9 @@ def _canonical_company_type_key(cls_text: object) -> str:
     low = raw.lower()
     if not low:
         return "Normal Business"
-    if "chưa có dữ liệu" in low or "không có dữ liệu" in low:
-        return "Chưa có dữ liệu tài chính"
-    if "financial" in low or "bank" in low or "insurance" in low or "ngân hàng" in low or "bảo hiểm" in low:
+    if "chÆ°a cÃ³ dá»¯ liá»‡u" in low or "khÃ´ng cÃ³ dá»¯ liá»‡u" in low:
+        return "ChÆ°a cÃ³ dá»¯ liá»‡u tÃ i chÃ­nh"
+    if "financial" in low or "bank" in low or "insurance" in low or "ngÃ¢n hÃ ng" in low or "báº£o hiá»ƒm" in low:
         return "Bank/Insurance"
     if "asset" in low or "deep value" in low or "net-net" in low or "ncav" in low or "nla" in low:
         return "Asset Play"
@@ -2008,9 +2008,9 @@ def _canonical_company_type_key(cls_text: object) -> str:
         return "Quality Compounder"
     if "compounder" in low:
         return "Compounder"
-    if "cyclical" in low or "chu kỳ" in low:
+    if "cyclical" in low or "chu ká»³" in low:
         return "Cyclical"
-    if "turnaround" in low or "phục hồi" in low:
+    if "turnaround" in low or "phá»¥c há»“i" in low:
         return "Turnaround"
     key = next((k for k in COMPANY_TYPE_GUIDANCE.keys() if raw.lower().startswith(k.lower())), None)
     if key is None:
@@ -2026,37 +2026,37 @@ def _company_type_info(cls_text: object) -> tuple[str, dict]:
 def _company_type_guidance_for_note(cls_text: str) -> str:
     key, info = _company_type_info(cls_text)
     return "\n".join([
-        f"DIỄN GIẢI THEO LOẠI DOANH NGHIỆP: {key}",
-        f"- Cơ sở tư duy: {info.get('Cơ sở tư duy', 'N/A')}",
-        f"- Đặc điểm cần kiểm tra: {info.get('Đặc điểm cần kiểm tra', 'N/A')}",
-        f"- Cần phân tích thêm: {info.get('Cần phân tích thêm', 'N/A')}",
-        f"- Định giá nên ưu tiên: {info.get('Định giá nên ưu tiên', 'N/A')}",
+        f"DIá»„N GIáº¢I THEO LOáº I DOANH NGHIá»†P: {key}",
+        f"- CÆ¡ sá»Ÿ tÆ° duy: {info.get('CÆ¡ sá»Ÿ tÆ° duy', 'N/A')}",
+        f"- Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra: {info.get('Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra', 'N/A')}",
+        f"- Cáº§n phÃ¢n tÃ­ch thÃªm: {info.get('Cáº§n phÃ¢n tÃ­ch thÃªm', 'N/A')}",
+        f"- Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn: {info.get('Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn', 'N/A')}",
     ])
 
 
 def _strategic_assessment_note(rowd: dict) -> str:
-    question = str(rowd.get("Câu hỏi đánh giá", "Đánh giá trọng yếu"))
-    conclusion = str(rowd.get('Kết luận theo mã', 'N/A'))
+    question = str(rowd.get("CÃ¢u há»i Ä‘Ã¡nh giÃ¡", "ÄÃ¡nh giÃ¡ trá»ng yáº¿u"))
+    conclusion = str(rowd.get('Káº¿t luáº­n theo mÃ£', 'N/A'))
     extra_type_guidance = ""
-    if "Doanh nghiệp thuộc loại nào" in question:
+    if "Doanh nghiá»‡p thuá»™c loáº¡i nÃ o" in question:
         extra_type_guidance = "\n\n" + _company_type_guidance_for_note(conclusion)
     return "\n".join([
         _company_snapshot(),
         "",
         question,
-        f"Kết luận theo mã: {conclusion}",
+        f"Káº¿t luáº­n theo mÃ£: {conclusion}",
         "",
-        "Số liệu/chứng cứ chính:",
-        str(rowd.get("Số liệu/chứng cứ chính", "N/A")),
+        "Sá»‘ liá»‡u/chá»©ng cá»© chÃ­nh:",
+        str(rowd.get("Sá»‘ liá»‡u/chá»©ng cá»© chÃ­nh", "N/A")),
         "",
-        "Nguyên tắc áp dụng riêng cho doanh nghiệp này:",
-        str(rowd.get("Nguyên tắc áp dụng riêng", "N/A")) + extra_type_guidance,
+        "NguyÃªn táº¯c Ã¡p dá»¥ng riÃªng cho doanh nghiá»‡p nÃ y:",
+        str(rowd.get("NguyÃªn táº¯c Ã¡p dá»¥ng riÃªng", "N/A")) + extra_type_guidance,
         "",
-        "Số liệu cụ thể bổ sung từ chuỗi BCTC:",
+        "Sá»‘ liá»‡u cá»¥ thá»ƒ bá»• sung tá»« chuá»—i BCTC:",
         _module2_numeric_evidence_for_note(question),
         "",
-        "Cách ra kết luận: app lấy dữ liệu Tổng quan doanh nghiệp đã chuẩn hóa, đọc nhóm chỉ tiêu liên quan đến câu hỏi này, so với ngưỡng trong engine, sau đó kết hợp phân loại doanh nghiệp và MOS yêu cầu hiện tại. Kết luận không dùng một nguyên tắc chung mà phụ thuộc trực tiếp vào ROIC/ROE, CFO/LNST, FCF/LNST, CAGR doanh thu, độ biến động LNST, nợ vay, WACC và MOS của chính mã đang xem.",
-        "Lưu ý: đây là đánh giá tự động dựa trên dữ liệu đang có trong từng phần 1 + Định giá chuyên sâu. Khi evidence internet/BCTN được cập nhật, phần moat/nguồn lợi thế cần được đối chiếu lại với bằng chứng định tính."
+        "CÃ¡ch ra káº¿t luáº­n: app láº¥y dá»¯ liá»‡u Tá»•ng quan doanh nghiá»‡p Ä‘Ã£ chuáº©n hÃ³a, Ä‘á»c nhÃ³m chá»‰ tiÃªu liÃªn quan Ä‘áº¿n cÃ¢u há»i nÃ y, so vá»›i ngÆ°á»¡ng trong engine, sau Ä‘Ã³ káº¿t há»£p phÃ¢n loáº¡i doanh nghiá»‡p vÃ  MOS yÃªu cáº§u hiá»‡n táº¡i. Káº¿t luáº­n khÃ´ng dÃ¹ng má»™t nguyÃªn táº¯c chung mÃ  phá»¥ thuá»™c trá»±c tiáº¿p vÃ o ROIC/ROE, CFO/LNST, FCF/LNST, CAGR doanh thu, Ä‘á»™ biáº¿n Ä‘á»™ng LNST, ná»£ vay, WACC vÃ  MOS cá»§a chÃ­nh mÃ£ Ä‘ang xem.",
+        "LÆ°u Ã½: Ä‘Ã¢y lÃ  Ä‘Ã¡nh giÃ¡ tá»± Ä‘á»™ng dá»±a trÃªn dá»¯ liá»‡u Ä‘ang cÃ³ trong tá»«ng pháº§n 1 + Äá»‹nh giÃ¡ chuyÃªn sÃ¢u. Khi evidence internet/BCTN Ä‘Æ°á»£c cáº­p nháº­t, pháº§n moat/nguá»“n lá»£i tháº¿ cáº§n Ä‘Æ°á»£c Ä‘á»‘i chiáº¿u láº¡i vá»›i báº±ng chá»©ng Ä‘á»‹nh tÃ­nh."
     ])
 
 
@@ -2065,7 +2065,7 @@ def _beneish_note(rowd: dict) -> str:
     c = _ctx().get("company")
     annual = _ctx().get("annual_df", pd.DataFrame())
     latest = _latest_dict(annual)
-    period = str(rowd.get("Kỳ", "N/A"))
+    period = str(rowd.get("Ká»³", "N/A"))
     mscore = _parse_num(rowd.get("M-Score"))
     dsri = _parse_num(rowd.get("DSRI"))
     gmi = _parse_num(rowd.get("GMI"))
@@ -2078,34 +2078,34 @@ def _beneish_note(rowd: dict) -> str:
     return "\n".join([
         _company_snapshot(),
         "",
-        f"BENEISH M-SCORE - KỲ ĐANG CHỌN: {period}",
-        f"M-Score: {_format_note_value(mscore)} | Ngưỡng cảnh báo: -2.22 | Mức cảnh báo: {rowd.get('Mức cảnh báo', 'N/A')}",
+        f"BENEISH M-SCORE - Ká»² ÄANG CHá»ŒN: {period}",
+        f"M-Score: {_format_note_value(mscore)} | NgÆ°á»¡ng cáº£nh bÃ¡o: -2.22 | Má»©c cáº£nh bÃ¡o: {rowd.get('Má»©c cáº£nh bÃ¡o', 'N/A')}",
         "",
-        "Công thức sử dụng:",
-        "M = -4.84 + 0.920×DSRI + 0.528×GMI + 0.404×AQI + 0.892×SGI + 0.115×DEPI - 0.172×SGAI + 4.679×TATA - 0.327×LVGI.",
-        "Nếu M-Score > -2.22, mô hình gắn cờ rủi ro thao túng lợi nhuận. Đây là cảnh báo định lượng, không phải kết luận pháp lý về gian lận.",
+        "CÃ´ng thá»©c sá»­ dá»¥ng:",
+        "M = -4.84 + 0.920Ã—DSRI + 0.528Ã—GMI + 0.404Ã—AQI + 0.892Ã—SGI + 0.115Ã—DEPI - 0.172Ã—SGAI + 4.679Ã—TATA - 0.327Ã—LVGI.",
+        "Náº¿u M-Score > -2.22, mÃ´ hÃ¬nh gáº¯n cá» rá»§i ro thao tÃºng lá»£i nhuáº­n. ÄÃ¢y lÃ  cáº£nh bÃ¡o Ä‘á»‹nh lÆ°á»£ng, khÃ´ng pháº£i káº¿t luáº­n phÃ¡p lÃ½ vá» gian láº­n.",
         "",
-        "8 biến đầu vào và ý nghĩa theo dữ liệu doanh nghiệp:",
-        f"- DSRI {_format_note_value(dsri)}: phải thu/doanh thu kỳ hiện tại so với kỳ trước. DSRI cao có thể báo hiệu doanh thu ghi nhận lỏng hoặc thu tiền chậm.",
-        f"- GMI {_format_note_value(gmi)}: biên gộp kỳ trước / biên gộp kỳ hiện tại. GMI > 1 nghĩa là biên gộp suy giảm, tăng áp lực làm đẹp lợi nhuận.",
-        f"- AQI {_format_note_value(aqi)}: tỷ trọng tài sản chất lượng thấp/chi phí hoãn lại tăng. AQI > 1 cần soi tài sản dài hạn, chi phí vốn hóa, khoản phải thu/tồn kho.",
-        f"- SGI {_format_note_value(sgi)}: tăng trưởng doanh thu. Tăng trưởng cao có thể tạo áp lực duy trì kỳ vọng.",
-        f"- DEPI {_format_note_value(depi)}: tỷ lệ khấu hao giảm hay không. DEPI > 1 cần kiểm tra thay đổi thời gian hữu dụng/phương pháp khấu hao.",
-        f"- SGAI {_format_note_value(sgai)}: chi phí bán hàng & quản lý/doanh thu. SGAI > 1 phản ánh chi phí vận hành tăng nhanh hơn doanh thu.",
-        f"- TATA {_format_note_value(tata)}: tổng accruals/tổng tài sản. TATA dương cao nghĩa là lợi nhuận phụ thuộc accruals nhiều hơn tiền thật.",
-        f"- LVGI {_format_note_value(lvgi)}: đòn bẩy kỳ hiện tại so với kỳ trước. LVGI > 1 có thể tăng động cơ đáp ứng covenant hoặc mục tiêu nợ.",
+        "8 biáº¿n Ä‘áº§u vÃ o vÃ  Ã½ nghÄ©a theo dá»¯ liá»‡u doanh nghiá»‡p:",
+        f"- DSRI {_format_note_value(dsri)}: pháº£i thu/doanh thu ká»³ hiá»‡n táº¡i so vá»›i ká»³ trÆ°á»›c. DSRI cao cÃ³ thá»ƒ bÃ¡o hiá»‡u doanh thu ghi nháº­n lá»ng hoáº·c thu tiá»n cháº­m.",
+        f"- GMI {_format_note_value(gmi)}: biÃªn gá»™p ká»³ trÆ°á»›c / biÃªn gá»™p ká»³ hiá»‡n táº¡i. GMI > 1 nghÄ©a lÃ  biÃªn gá»™p suy giáº£m, tÄƒng Ã¡p lá»±c lÃ m Ä‘áº¹p lá»£i nhuáº­n.",
+        f"- AQI {_format_note_value(aqi)}: tá»· trá»ng tÃ i sáº£n cháº¥t lÆ°á»£ng tháº¥p/chi phÃ­ hoÃ£n láº¡i tÄƒng. AQI > 1 cáº§n soi tÃ i sáº£n dÃ i háº¡n, chi phÃ­ vá»‘n hÃ³a, khoáº£n pháº£i thu/tá»“n kho.",
+        f"- SGI {_format_note_value(sgi)}: tÄƒng trÆ°á»Ÿng doanh thu. TÄƒng trÆ°á»Ÿng cao cÃ³ thá»ƒ táº¡o Ã¡p lá»±c duy trÃ¬ ká»³ vá»ng.",
+        f"- DEPI {_format_note_value(depi)}: tá»· lá»‡ kháº¥u hao giáº£m hay khÃ´ng. DEPI > 1 cáº§n kiá»ƒm tra thay Ä‘á»•i thá»i gian há»¯u dá»¥ng/phÆ°Æ¡ng phÃ¡p kháº¥u hao.",
+        f"- SGAI {_format_note_value(sgai)}: chi phÃ­ bÃ¡n hÃ ng & quáº£n lÃ½/doanh thu. SGAI > 1 pháº£n Ã¡nh chi phÃ­ váº­n hÃ nh tÄƒng nhanh hÆ¡n doanh thu.",
+        f"- TATA {_format_note_value(tata)}: tá»•ng accruals/tá»•ng tÃ i sáº£n. TATA dÆ°Æ¡ng cao nghÄ©a lÃ  lá»£i nhuáº­n phá»¥ thuá»™c accruals nhiá»u hÆ¡n tiá»n tháº­t.",
+        f"- LVGI {_format_note_value(lvgi)}: Ä‘Ã²n báº©y ká»³ hiá»‡n táº¡i so vá»›i ká»³ trÆ°á»›c. LVGI > 1 cÃ³ thá»ƒ tÄƒng Ä‘á»™ng cÆ¡ Ä‘Ã¡p á»©ng covenant hoáº·c má»¥c tiÃªu ná»£.",
         "",
-        "Biến nổi bật/cần kiểm tra:",
-        str(rowd.get("Biến nổi bật/cần kiểm tra", "N/A")),
+        "Biáº¿n ná»•i báº­t/cáº§n kiá»ƒm tra:",
+        str(rowd.get("Biáº¿n ná»•i báº­t/cáº§n kiá»ƒm tra", "N/A")),
         "",
-        "Biến thiếu/cần kiểm tra:",
-        str(rowd.get("Biến thiếu/cần kiểm tra", "N/A")),
+        "Biáº¿n thiáº¿u/cáº§n kiá»ƒm tra:",
+        str(rowd.get("Biáº¿n thiáº¿u/cáº§n kiá»ƒm tra", "N/A")),
         "",
-        "Số liệu kỳ mới nhất trong app để đối chiếu chất lượng lợi nhuận:",
+        "Sá»‘ liá»‡u ká»³ má»›i nháº¥t trong app Ä‘á»ƒ Ä‘á»‘i chiáº¿u cháº¥t lÆ°á»£ng lá»£i nhuáº­n:",
         f"- Doanh thu: {_bil(latest.get('revenue_bil'))}; LNST: {_bil(latest.get('net_profit_bil'))}; CFO: {_bil(latest.get('cfo_bil'))}; CFO/LNST: {_ratio(latest.get('cfo_to_net_profit'))}.",
-        f"- Phải thu: {_bil(latest.get('accounts_receivable_bil'))}; Tồn kho: {_bil(latest.get('inventory_bil'))}; Tổng tài sản: {_bil(latest.get('total_assets_bil'))}; Nợ phải trả: {_bil(latest.get('liabilities_bil'))}.",
+        f"- Pháº£i thu: {_bil(latest.get('accounts_receivable_bil'))}; Tá»“n kho: {_bil(latest.get('inventory_bil'))}; Tá»•ng tÃ i sáº£n: {_bil(latest.get('total_assets_bil'))}; Ná»£ pháº£i tráº£: {_bil(latest.get('liabilities_bil'))}.",
         "",
-        "Cách dùng trong đầu tư giá trị: nếu Beneish cảnh báo cao, app không kết luận doanh nghiệp gian lận; thay vào đó giảm độ tin cậy của lợi nhuận/định giá, yêu cầu đọc BCTC kiểm toán, thuyết minh doanh thu, phải thu, tồn kho, khấu hao, giao dịch bên liên quan và so sánh với dòng tiền."
+        "CÃ¡ch dÃ¹ng trong Ä‘áº§u tÆ° giÃ¡ trá»‹: náº¿u Beneish cáº£nh bÃ¡o cao, app khÃ´ng káº¿t luáº­n doanh nghiá»‡p gian láº­n; thay vÃ o Ä‘Ã³ giáº£m Ä‘á»™ tin cáº­y cá»§a lá»£i nhuáº­n/Ä‘á»‹nh giÃ¡, yÃªu cáº§u Ä‘á»c BCTC kiá»ƒm toÃ¡n, thuyáº¿t minh doanh thu, pháº£i thu, tá»“n kho, kháº¥u hao, giao dá»‹ch bÃªn liÃªn quan vÃ  so sÃ¡nh vá»›i dÃ²ng tiá»n."
     ])
 
 
@@ -2115,63 +2115,63 @@ def _financial_manipulation_layer_note(rowd: dict, layer_name: str) -> str:
     lines = [
         _company_snapshot(),
         "",
-        f"{layer_name.upper()} - KỲ ĐANG CHỌN: {rowd.get('Kỳ', 'N/A')}",
-        f"Mức cảnh báo: {rowd.get('Mức cảnh báo', 'N/A')} | Điểm nhiệt: {_format_note_value(rowd.get('Điểm nhiệt'))}",
+        f"{layer_name.upper()} - Ká»² ÄANG CHá»ŒN: {rowd.get('Ká»³', 'N/A')}",
+        f"Má»©c cáº£nh bÃ¡o: {rowd.get('Má»©c cáº£nh bÃ¡o', 'N/A')} | Äiá»ƒm nhiá»‡t: {_format_note_value(rowd.get('Äiá»ƒm nhiá»‡t'))}",
         "",
-        "Công thức/logic app đang dùng:",
-        str(rowd.get("Công thức/logic", "N/A")),
+        "CÃ´ng thá»©c/logic app Ä‘ang dÃ¹ng:",
+        str(rowd.get("CÃ´ng thá»©c/logic", "N/A")),
         "",
-        "Số liệu/cách tính trên dòng đang chọn:",
+        "Sá»‘ liá»‡u/cÃ¡ch tÃ­nh trÃªn dÃ²ng Ä‘ang chá»n:",
     ]
     for key, val in rowd.items():
-        if key in {"Nguồn/logic", "Công thức/logic"}:
+        if key in {"Nguá»“n/logic", "CÃ´ng thá»©c/logic"}:
             continue
         lines.append(f"- {key}: {_format_note_value(val)}")
     lines += [
         "",
-        "Diễn giải kết quả:",
-        str(rowd.get("Tín hiệu", "N/A")),
+        "Diá»…n giáº£i káº¿t quáº£:",
+        str(rowd.get("TÃ­n hiá»‡u", "N/A")),
         "",
-        "Cần kiểm tra sâu:",
-        str(rowd.get("Cần kiểm tra", "N/A")),
+        "Cáº§n kiá»ƒm tra sÃ¢u:",
+        str(rowd.get("Cáº§n kiá»ƒm tra", "N/A")),
         "",
-        "Lưu ý sử dụng:",
-        "Các mô hình thao túng tài chính chỉ là cờ đỏ định lượng. App không kết luận doanh nghiệp gian lận; kết quả được dùng để giảm độ tin cậy của lợi nhuận kế toán, yêu cầu đọc thuyết minh, BCTC kiểm toán, biến động vốn lưu động, giao dịch bên liên quan và so sánh với dòng tiền thật.",
+        "LÆ°u Ã½ sá»­ dá»¥ng:",
+        "CÃ¡c mÃ´ hÃ¬nh thao tÃºng tÃ i chÃ­nh chá»‰ lÃ  cá» Ä‘á» Ä‘á»‹nh lÆ°á»£ng. App khÃ´ng káº¿t luáº­n doanh nghiá»‡p gian láº­n; káº¿t quáº£ Ä‘Æ°á»£c dÃ¹ng Ä‘á»ƒ giáº£m Ä‘á»™ tin cáº­y cá»§a lá»£i nhuáº­n káº¿ toÃ¡n, yÃªu cáº§u Ä‘á»c thuyáº¿t minh, BCTC kiá»ƒm toÃ¡n, biáº¿n Ä‘á»™ng vá»‘n lÆ°u Ä‘á»™ng, giao dá»‹ch bÃªn liÃªn quan vÃ  so sÃ¡nh vá»›i dÃ²ng tiá»n tháº­t.",
     ]
     if "Accrual" in layer_name or "Sloan" in layer_name:
         lines += [
             "",
-            "Ngưỡng tham chiếu nội bộ:",
-            "- Sloan accrual ratio > 7% tài sản bình quân: cần theo dõi; > 12%: rủi ro cao.",
-            "- CFO/LNST < 0.8: lợi nhuận chưa chuyển hóa tốt thành tiền; < 0.5 hoặc CFO âm: rủi ro cao hơn.",
+            "NgÆ°á»¡ng tham chiáº¿u ná»™i bá»™:",
+            "- Sloan accrual ratio > 7% tÃ i sáº£n bÃ¬nh quÃ¢n: cáº§n theo dÃµi; > 12%: rá»§i ro cao.",
+            "- CFO/LNST < 0.8: lá»£i nhuáº­n chÆ°a chuyá»ƒn hÃ³a tá»‘t thÃ nh tiá»n; < 0.5 hoáº·c CFO Ã¢m: rá»§i ro cao hÆ¡n.",
         ]
     elif "Jones" in layer_name or "Kothari" in layer_name:
         lines += [
             "",
-            "Ngưỡng tham chiếu nội bộ:",
-            "- |DA| > 7% tổng tài sản đầu kỳ: cần theo dõi; |DA| > 12%: rủi ro cao.",
-            "- DA dương thường là accruals làm tăng lợi nhuận; DA âm sâu có thể là big-bath/ghi nhận chi phí trước.",
+            "NgÆ°á»¡ng tham chiáº¿u ná»™i bá»™:",
+            "- |DA| > 7% tá»•ng tÃ i sáº£n Ä‘áº§u ká»³: cáº§n theo dÃµi; |DA| > 12%: rá»§i ro cao.",
+            "- DA dÆ°Æ¡ng thÆ°á»ng lÃ  accruals lÃ m tÄƒng lá»£i nhuáº­n; DA Ã¢m sÃ¢u cÃ³ thá»ƒ lÃ  big-bath/ghi nháº­n chi phÃ­ trÆ°á»›c.",
         ]
     elif "Real" in layer_name or "REM" in layer_name:
         lines += [
             "",
-            "Ngưỡng tham chiếu nội bộ:",
-            "- Abnormal CFO âm: nghi ngờ kéo doanh thu bằng giảm giá/nới tín dụng.",
-            "- Abnormal PROD dương: nghi ngờ sản xuất dư/làm giảm giá vốn đơn vị/tồn kho tăng.",
-            "- Abnormal DISEXP âm: nghi ngờ cắt chi phí tùy ý như quảng cáo, R&D, bảo trì để nâng lợi nhuận ngắn hạn.",
+            "NgÆ°á»¡ng tham chiáº¿u ná»™i bá»™:",
+            "- Abnormal CFO Ã¢m: nghi ngá» kÃ©o doanh thu báº±ng giáº£m giÃ¡/ná»›i tÃ­n dá»¥ng.",
+            "- Abnormal PROD dÆ°Æ¡ng: nghi ngá» sáº£n xuáº¥t dÆ°/lÃ m giáº£m giÃ¡ vá»‘n Ä‘Æ¡n vá»‹/tá»“n kho tÄƒng.",
+            "- Abnormal DISEXP Ã¢m: nghi ngá» cáº¯t chi phÃ­ tÃ¹y Ã½ nhÆ° quáº£ng cÃ¡o, R&D, báº£o trÃ¬ Ä‘á»ƒ nÃ¢ng lá»£i nhuáº­n ngáº¯n háº¡n.",
         ]
     return "\n".join(lines)
 
 def _render_big_recommendation(text: str) -> None:
     """Render a highly visible recommendation block using inline CSS so it survives Streamlit CSS isolation."""
-    message = html.escape(str(text or "Chưa có khuyến nghị"))
+    message = html.escape(str(text or "ChÆ°a cÃ³ khuyáº¿n nghá»‹"))
     st.markdown(
         f"""
         <div style="border:3px solid #0B7F75; border-left:11px solid #F5B21B; border-radius:18px;
                     padding:16px 20px; margin:14px 0 16px 0;
                     background:linear-gradient(135deg,#FFF176 0%,#FFD54F 46%,#FFF3B0 100%);
                     box-shadow:0 10px 24px rgba(11,127,117,.18), 0 0 0 3px rgba(245,178,27,.12);">
-          <div style="font-size:18px; font-weight:1000; color:#0B7F75; margin-bottom:6px; letter-spacing:-.01em;">📌 CẢNH BÁO / KHUYẾN NGHỊ NỔI BẬT</div>
+          <div style="font-size:18px; font-weight:1000; color:#0B7F75; margin-bottom:6px; letter-spacing:-.01em;">ðŸ“Œ Cáº¢NH BÃO / KHUYáº¾N NGHá»Š Ná»”I Báº¬T</div>
           <div style="font-size:17px; font-weight:950; color:#3B2600; line-height:1.35;">{message}</div>
         </div>
         """,
@@ -2184,26 +2184,26 @@ def _latest_financial_manipulation_layer_summary(layer_name: str, df: pd.DataFra
     src = df.copy() if isinstance(df, pd.DataFrame) else pd.DataFrame()
     if src.empty:
         return {
-            "Lớp": layer_name,
-            "Kỳ": "N/A",
-            "Chỉ tiêu chính": metric_candidates[0] if metric_candidates else "N/A",
-            "Giá trị": "N/A",
-            "Mức cảnh báo": "Chưa đủ dữ liệu",
-            "Điểm nhiệt": "N/A",
-            "Tín hiệu": "Chưa đủ dữ liệu để tính lớp cảnh báo này.",
-            "Cần kiểm tra": "Bổ sung dữ liệu BCTC theo năm, đặc biệt doanh thu, phải thu, tài sản, CFO, tồn kho, chi phí và khấu hao.",
+            "Lá»›p": layer_name,
+            "Ká»³": "N/A",
+            "Chá»‰ tiÃªu chÃ­nh": metric_candidates[0] if metric_candidates else "N/A",
+            "GiÃ¡ trá»‹": "N/A",
+            "Má»©c cáº£nh bÃ¡o": "ChÆ°a Ä‘á»§ dá»¯ liá»‡u",
+            "Äiá»ƒm nhiá»‡t": "N/A",
+            "TÃ­n hiá»‡u": "ChÆ°a Ä‘á»§ dá»¯ liá»‡u Ä‘á»ƒ tÃ­nh lá»›p cáº£nh bÃ¡o nÃ y.",
+            "Cáº§n kiá»ƒm tra": "Bá»• sung dá»¯ liá»‡u BCTC theo nÄƒm, Ä‘áº·c biá»‡t doanh thu, pháº£i thu, tÃ i sáº£n, CFO, tá»“n kho, chi phÃ­ vÃ  kháº¥u hao.",
         }
     latest = src.iloc[-1].to_dict()
-    metric_name = next((m for m in metric_candidates if m in latest), metric_candidates[0] if metric_candidates else "Chỉ tiêu")
+    metric_name = next((m for m in metric_candidates if m in latest), metric_candidates[0] if metric_candidates else "Chá»‰ tiÃªu")
     return {
-        "Lớp": layer_name,
-        "Kỳ": latest.get("Kỳ", latest.get("period", "N/A")),
-        "Chỉ tiêu chính": metric_name,
-        "Giá trị": latest.get(metric_name, "N/A"),
-        "Mức cảnh báo": latest.get("Mức cảnh báo", "N/A"),
-        "Điểm nhiệt": latest.get("Điểm nhiệt", "N/A"),
-        "Tín hiệu": latest.get("Tín hiệu", latest.get("Nhận xét", "N/A")),
-        "Cần kiểm tra": latest.get("Cần kiểm tra", latest.get("Biến nổi bật/cần kiểm tra", latest.get("Biến thiếu/cần kiểm tra", "N/A"))),
+        "Lá»›p": layer_name,
+        "Ká»³": latest.get("Ká»³", latest.get("period", "N/A")),
+        "Chá»‰ tiÃªu chÃ­nh": metric_name,
+        "GiÃ¡ trá»‹": latest.get(metric_name, "N/A"),
+        "Má»©c cáº£nh bÃ¡o": latest.get("Má»©c cáº£nh bÃ¡o", "N/A"),
+        "Äiá»ƒm nhiá»‡t": latest.get("Äiá»ƒm nhiá»‡t", "N/A"),
+        "TÃ­n hiá»‡u": latest.get("TÃ­n hiá»‡u", latest.get("Nháº­n xÃ©t", "N/A")),
+        "Cáº§n kiá»ƒm tra": latest.get("Cáº§n kiá»ƒm tra", latest.get("Biáº¿n ná»•i báº­t/cáº§n kiá»ƒm tra", latest.get("Biáº¿n thiáº¿u/cáº§n kiá»ƒm tra", "N/A"))),
     }
 
 
@@ -2218,7 +2218,7 @@ def _build_financial_manipulation_summary_df(
         _latest_financial_manipulation_layer_summary("1. Beneish M-Score", beneish_df, ["M-Score"]),
         _latest_financial_manipulation_layer_summary("2. Accrual Quality/Sloan", accrual_quality_df, ["Sloan accrual ratio", "CFO/LNST", "FCF/LNST"]),
         _latest_financial_manipulation_layer_summary("3. Modified Jones/Kothari", modified_jones_df, ["DA Modified Jones", "DA Kothari"]),
-        _latest_financial_manipulation_layer_summary("4. REM - hoạt động thật", rem_df, ["REM Score", "Abnormal CFO", "Abnormal PROD", "Abnormal DISEXP"]),
+        _latest_financial_manipulation_layer_summary("4. REM - hoáº¡t Ä‘á»™ng tháº­t", rem_df, ["REM Score", "Abnormal CFO", "Abnormal PROD", "Abnormal DISEXP"]),
     ]
     return pd.DataFrame(rows)
 
@@ -2227,56 +2227,56 @@ def _financial_manipulation_summary_note(rowd: dict) -> str:
     return "\n".join([
         _company_snapshot(),
         "",
-        "TỔNG HỢP THAO TÚNG TÀI CHÍNH 4 LỚP",
-        f"Lớp: {rowd.get('Lớp', 'N/A')}",
-        f"Kỳ mới nhất: {rowd.get('Kỳ', 'N/A')}",
-        f"Chỉ tiêu chính: {rowd.get('Chỉ tiêu chính', 'N/A')} = {_format_note_value(rowd.get('Giá trị', 'N/A'))}",
-        f"Mức cảnh báo: {rowd.get('Mức cảnh báo', 'N/A')} | Điểm nhiệt: {_format_note_value(rowd.get('Điểm nhiệt', 'N/A'))}",
+        "Tá»”NG Há»¢P THAO TÃšNG TÃ€I CHÃNH 4 Lá»šP",
+        f"Lá»›p: {rowd.get('Lá»›p', 'N/A')}",
+        f"Ká»³ má»›i nháº¥t: {rowd.get('Ká»³', 'N/A')}",
+        f"Chá»‰ tiÃªu chÃ­nh: {rowd.get('Chá»‰ tiÃªu chÃ­nh', 'N/A')} = {_format_note_value(rowd.get('GiÃ¡ trá»‹', 'N/A'))}",
+        f"Má»©c cáº£nh bÃ¡o: {rowd.get('Má»©c cáº£nh bÃ¡o', 'N/A')} | Äiá»ƒm nhiá»‡t: {_format_note_value(rowd.get('Äiá»ƒm nhiá»‡t', 'N/A'))}",
         "",
-        "Tín hiệu:",
-        str(rowd.get("Tín hiệu", "N/A")),
+        "TÃ­n hiá»‡u:",
+        str(rowd.get("TÃ­n hiá»‡u", "N/A")),
         "",
-        "Cần kiểm tra:",
-        str(rowd.get("Cần kiểm tra", "N/A")),
+        "Cáº§n kiá»ƒm tra:",
+        str(rowd.get("Cáº§n kiá»ƒm tra", "N/A")),
         "",
-        "Cách đọc: bảng này gom kỳ mới nhất của 4 lớp để xem nhanh lớp nào đang phát tín hiệu mạnh nhất. Khi một hoặc nhiều lớp cảnh báo cao, cần giảm độ tin cậy của lợi nhuận kế toán và đối chiếu kỹ CFO/LNST/FCF, thuyết minh doanh thu, phải thu, tồn kho, khấu hao, vốn hóa chi phí, giao dịch bên liên quan và ý kiến kiểm toán.",
+        "CÃ¡ch Ä‘á»c: báº£ng nÃ y gom ká»³ má»›i nháº¥t cá»§a 4 lá»›p Ä‘á»ƒ xem nhanh lá»›p nÃ o Ä‘ang phÃ¡t tÃ­n hiá»‡u máº¡nh nháº¥t. Khi má»™t hoáº·c nhiá»u lá»›p cáº£nh bÃ¡o cao, cáº§n giáº£m Ä‘á»™ tin cáº­y cá»§a lá»£i nhuáº­n káº¿ toÃ¡n vÃ  Ä‘á»‘i chiáº¿u ká»¹ CFO/LNST/FCF, thuyáº¿t minh doanh thu, pháº£i thu, tá»“n kho, kháº¥u hao, vá»‘n hÃ³a chi phÃ­, giao dá»‹ch bÃªn liÃªn quan vÃ  Ã½ kiáº¿n kiá»ƒm toÃ¡n.",
     ])
 
 def _build_row_note(row: pd.Series, table_kind: str) -> str:
     rowd = row.to_dict()
-    if "Câu hỏi đánh giá" in rowd:
+    if "CÃ¢u há»i Ä‘Ã¡nh giÃ¡" in rowd:
         return _strategic_assessment_note(rowd)
-    if "Phương pháp" in rowd:
+    if "PhÆ°Æ¡ng phÃ¡p" in rowd:
         return _valuation_method_note(rowd)
-    if "Nhóm Porter/Moat" in rowd:
+    if "NhÃ³m Porter/Moat" in rowd:
         return _moat_note(rowd)
-    if "Hoạt động chuỗi giá trị" in rowd:
+    if "Hoáº¡t Ä‘á»™ng chuá»—i giÃ¡ trá»‹" in rowd:
         return _value_chain_note(rowd)
-    if "Kịch bản" in rowd:
+    if "Ká»‹ch báº£n" in rowd:
         return _scenario_note(rowd)
     if "M-Score" in rowd and "DSRI" in rowd:
         return _beneish_note(rowd)
     if table_kind == "financial_manipulation_summary":
         return _financial_manipulation_summary_note(rowd)
     if table_kind == "accrual_quality" or "Sloan accrual ratio" in rowd:
-        return _financial_manipulation_layer_note(rowd, "Lớp 2 - Accrual Quality/Sloan")
+        return _financial_manipulation_layer_note(rowd, "Lá»›p 2 - Accrual Quality/Sloan")
     if table_kind == "modified_jones" or "DA Modified Jones" in rowd:
-        return _financial_manipulation_layer_note(rowd, "Lớp 3 - Modified Jones/Kothari")
+        return _financial_manipulation_layer_note(rowd, "Lá»›p 3 - Modified Jones/Kothari")
     if table_kind == "real_earnings_management" or "Abnormal CFO" in rowd:
-        return _financial_manipulation_layer_note(rowd, "Lớp 4 - Real Earnings Management")
-    if "Chỉ tiêu" in rowd and "Giá trị/cp" in rowd:
+        return _financial_manipulation_layer_note(rowd, "Lá»›p 4 - Real Earnings Management")
+    if "Chá»‰ tiÃªu" in rowd and "GiÃ¡ trá»‹/cp" in rowd:
         return _valuation_range_note(rowd)
-    if "Chỉ tiêu" in rowd and "Giá trị" in rowd:
+    if "Chá»‰ tiÃªu" in rowd and "GiÃ¡ trá»‹" in rowd:
         return _latest_card_note(rowd)
-    if "Mã" in rowd and "Điểm tổng hợp" in rowd:
+    if "MÃ£" in rowd and "Äiá»ƒm tá»•ng há»£p" in rowd:
         return _build_peer_row_note(rowd)
-    return "\n".join([_company_snapshot(), "", "DỮ LIỆU DÒNG ĐANG CHỌN:", "\n".join([f"- {k}: {_format_note_value(v)}" for k, v in rowd.items()])])
+    return "\n".join([_company_snapshot(), "", "Dá»® LIá»†U DÃ’NG ÄANG CHá»ŒN:", "\n".join([f"- {k}: {_format_note_value(v)}" for k, v in rowd.items()])])
 
 
 def _render_explainable_table(df: pd.DataFrame, table_kind: str = "", height: int = 420) -> None:
-    """Bảng HTML có bắt sự kiện click một lần để hiện note theo dữ liệu doanh nghiệp."""
+    """Báº£ng HTML cÃ³ báº¯t sá»± kiá»‡n click má»™t láº§n Ä‘á»ƒ hiá»‡n note theo dá»¯ liá»‡u doanh nghiá»‡p."""
     if df is None or df.empty:
-        st.info("Chưa có dữ liệu.")
+        st.info("ChÆ°a cÃ³ dá»¯ liá»‡u.")
         return
     raw_df = df.copy()
     notes = [_build_row_note(row, table_kind) for _, row in raw_df.iterrows()]
@@ -2286,29 +2286,29 @@ def _render_explainable_table(df: pd.DataFrame, table_kind: str = "", height: in
     if table_kind in {"beneish_mscore", "accrual_quality", "modified_jones", "real_earnings_management"}:
         # V23.58: hide source/logic and redundant layer columns in the financial manipulation detail tables.
         # The layer is already visible in the sub-tab title; source/logic remains available in row notes.
-        display_df = display_df.drop(columns=[c for c in ["Nguồn/logic", "Nguồn / logic", "Lớp"] if c in display_df.columns], errors="ignore")
+        display_df = display_df.drop(columns=[c for c in ["Nguá»“n/logic", "Nguá»“n / logic", "Lá»›p"] if c in display_df.columns], errors="ignore")
     # Internal marker for highlighting the company currently under analysis in peer comparison.
     if table_kind == "peer_compare":
-        drop_internal = [c for c in ["Mã đang phân tích", "Nguồn dữ liệu", "source", "Source", "Ngành", "Phân ngành"] if c in display_df.columns]
+        drop_internal = [c for c in ["MÃ£ Ä‘ang phÃ¢n tÃ­ch", "Nguá»“n dá»¯ liá»‡u", "source", "Source", "NgÃ nh", "PhÃ¢n ngÃ nh"] if c in display_df.columns]
         if drop_internal:
             display_df = display_df.drop(columns=drop_internal)
     table_id = "tbl_" + str(abs(hash((table_kind, tuple(display_df.columns), len(display_df), APP_VERSION))))[0:10]
     full_table = table_kind == "strategic_assessment"
     if full_table:
-        # V23.36: bảng đánh giá trọng yếu chỉ có vài dòng nhưng phần note rất dài.
-        # Giữ bảng gọn để không tạo khoảng trống lớn, đồng thời cho note có vùng cuộn riêng.
+        # V23.36: báº£ng Ä‘Ã¡nh giÃ¡ trá»ng yáº¿u chá»‰ cÃ³ vÃ i dÃ²ng nhÆ°ng pháº§n note ráº¥t dÃ i.
+        # Giá»¯ báº£ng gá»n Ä‘á»ƒ khÃ´ng táº¡o khoáº£ng trá»‘ng lá»›n, Ä‘á»“ng thá»i cho note cÃ³ vÃ¹ng cuá»™n riÃªng.
         table_max_height = min(max(230, 140 + len(display_df) * 34), 300)
         wrap_css = f"max-height:{table_max_height}px; overflow:auto;"
         note_css_extra = "min-height:220px; max-height:360px; overflow-y:auto;"
         component_height = 720
     elif table_kind in {"valuation_range", "valuation_methods"}:
-        # V23.38: tăng 20% vùng bảng và note cho Dải giá trị nội tại / Bảng định giá theo phương pháp.
+        # V23.38: tÄƒng 20% vÃ¹ng báº£ng vÃ  note cho Dáº£i giÃ¡ trá»‹ ná»™i táº¡i / Báº£ng Ä‘á»‹nh giÃ¡ theo phÆ°Æ¡ng phÃ¡p.
         wrap_css = f"max-height:{height}px; overflow:auto;"
         note_css_extra = "min-height:240px; max-height:432px; overflow-y:auto;"
         component_height = min(max(height + 312, 516), 1128)
     elif table_kind in {"beneish_mscore", "accrual_quality", "modified_jones", "real_earnings_management"}:
-        # V23.55: thao túng tài chính có note dài vì phải diễn giải công thức, biến đầu vào,
-        # ngưỡng cảnh báo và cách dùng. Tăng vùng đọc cho cả 4 lớp.
+        # V23.55: thao tÃºng tÃ i chÃ­nh cÃ³ note dÃ i vÃ¬ pháº£i diá»…n giáº£i cÃ´ng thá»©c, biáº¿n Ä‘áº§u vÃ o,
+        # ngÆ°á»¡ng cáº£nh bÃ¡o vÃ  cÃ¡ch dÃ¹ng. TÄƒng vÃ¹ng Ä‘á»c cho cáº£ 4 lá»›p.
         wrap_css = f"max-height:{height}px; overflow:auto;"
         note_css_extra = "min-height:430px; max-height:860px; overflow-y:auto; font-size:14px; line-height:1.62;"
         component_height = min(max(height + 660, 1000), 1660)
@@ -2318,7 +2318,7 @@ def _render_explainable_table(df: pd.DataFrame, table_kind: str = "", height: in
         component_height = min(max(height + 260, 430), 940)
     header_cells = []
     for c in display_df.columns:
-        hcls = "summary-layer-header" if table_kind == "financial_manipulation_summary" and str(c).strip() == "Lớp" else ""
+        hcls = "summary-layer-header" if table_kind == "financial_manipulation_summary" and str(c).strip() == "Lá»›p" else ""
         header_cells.append(f"<th class='{hcls}'>{html.escape(str(c))}</th>")
     headers = "".join(header_cells)
     rows_html = []
@@ -2327,17 +2327,17 @@ def _render_explainable_table(df: pd.DataFrame, table_kind: str = "", height: in
         raw_rowd = raw_df.iloc[i].to_dict() if i < len(raw_df) else {}
         row_is_current = False
         if table_kind == "peer_compare":
-            marker_val = raw_rowd.get("Mã đang phân tích")
-            row_is_current = bool(marker_val is True or str(marker_val).strip().lower() in {"true", "1", "yes", "mã gốc", "ma goc"})
-            row_is_current = row_is_current or (_safe_ticker(str(raw_rowd.get("Mã", ""))) == current_ticker_for_highlight and current_ticker_for_highlight != "")
+            marker_val = raw_rowd.get("MÃ£ Ä‘ang phÃ¢n tÃ­ch")
+            row_is_current = bool(marker_val is True or str(marker_val).strip().lower() in {"true", "1", "yes", "mÃ£ gá»‘c", "ma goc"})
+            row_is_current = row_is_current or (_safe_ticker(str(raw_rowd.get("MÃ£", ""))) == current_ticker_for_highlight and current_ticker_for_highlight != "")
         row_class = "base-peer-row" if row_is_current else ""
         tds = []
         for c in display_df.columns:
             val = row.get(c)
             text = _format_note_value(val)
-            cls = _signal_class(val) if c in {"Tín hiệu", "Mức độ", "Mức cảnh báo", "Tình trạng", "Khuyến nghị", "Kết luận", "Kết luận theo mã", "Moat level", "Mức moat", "Độ tin cậy", "Đánh giá sơ bộ", "Loại lợi thế", "Vai trò"} else ""
+            cls = _signal_class(val) if c in {"TÃ­n hiá»‡u", "Má»©c Ä‘á»™", "Má»©c cáº£nh bÃ¡o", "TÃ¬nh tráº¡ng", "Khuyáº¿n nghá»‹", "Káº¿t luáº­n", "Káº¿t luáº­n theo mÃ£", "Moat level", "Má»©c moat", "Äá»™ tin cáº­y", "ÄÃ¡nh giÃ¡ sÆ¡ bá»™", "Loáº¡i lá»£i tháº¿", "Vai trÃ²"} else ""
             num = _parse_num(val)
-            if table_kind == "peer_compare" and str(c).strip() == "Điểm tổng hợp" and num is not None:
+            if table_kind == "peer_compare" and str(c).strip() == "Äiá»ƒm tá»•ng há»£p" and num is not None:
                 if num >= 80:
                     cls = "heat-green-strong"
                 elif num >= 65:
@@ -2348,19 +2348,19 @@ def _render_explainable_table(df: pd.DataFrame, table_kind: str = "", height: in
                     cls = "heat-orange"
                 else:
                     cls = "heat-red"
-            elif not cls and num is not None and any(k in str(c).lower() for k in ["giá", "mos", "điểm", "điểm nhiệt", "trọng", "%", "value", "score"]):
+            elif not cls and num is not None and any(k in str(c).lower() for k in ["giÃ¡", "mos", "Ä‘iá»ƒm", "Ä‘iá»ƒm nhiá»‡t", "trá»ng", "%", "value", "score"]):
                 cls = "pos" if num > 0 else "neg" if num < 0 else ""
             tds.append(f"<td class='{cls}'>{html.escape(text)}</td>")
         rows_html.append(f"<tr class='{row_class}' data-note='{html.escape(json.dumps(notes[i], ensure_ascii=False), quote=True)}'>{''.join(tds)}</tr>")
     html_doc = f"""
-    <div class='hint'>💡 Nhấp một lần vào một dòng/chỉ tiêu để xem note giải thích theo chính dữ liệu của doanh nghiệp.</div>
+    <div class='hint'>ðŸ’¡ Nháº¥p má»™t láº§n vÃ o má»™t dÃ²ng/chá»‰ tiÃªu Ä‘á»ƒ xem note giáº£i thÃ­ch theo chÃ­nh dá»¯ liá»‡u cá»§a doanh nghiá»‡p.</div>
     <div class='wrap'>
       <table id='{table_id}'>
         <thead><tr>{headers}</tr></thead>
         <tbody>{''.join(rows_html)}</tbody>
       </table>
     </div>
-    <div id='{table_id}_note' class='note'>Chưa chọn chỉ tiêu. Hãy nhấp một lần vào một dòng trong bảng.</div>
+    <div id='{table_id}_note' class='note'>ChÆ°a chá»n chá»‰ tiÃªu. HÃ£y nháº¥p má»™t láº§n vÃ o má»™t dÃ²ng trong báº£ng.</div>
     <script>
       const table = document.getElementById('{table_id}');
       const note = document.getElementById('{table_id}_note');
@@ -2408,138 +2408,138 @@ def _render_explainable_table(df: pd.DataFrame, table_kind: str = "", height: in
 
 
 GLOSSARY_TERMS = {
-    "Asset Play": "Doanh nghiệp có giá thị trường thấp so với tài sản có thể định giá/thu hồi. Trọng tâm là chất lượng tài sản, khả năng thu hồi tiền, tài sản ẩn, nợ tiềm tàng và downside protection.",
-    "Bank/Insurance": "Ngân hàng/bảo hiểm có BCTC đặc thù. Không nên dùng FCF/working capital như doanh nghiệp sản xuất; ưu tiên ROE, P/B, chất lượng tài sản, NIM, CASA, NPL, dự phòng và biên an toàn vốn.",
-    "Base/Median": "Giá trị cơ sở/trung vị của các phương pháp định giá hợp lệ. Dùng để tránh phụ thuộc vào một mô hình duy nhất.",
-    "Beta": "Mức nhạy của cổ phiếu/doanh nghiệp với thị trường hoặc proxy rủi ro. Nếu thiếu dữ liệu giá lịch sử, app chỉ dùng beta proxy và phải ghi rõ chất lượng thấp hơn beta thị trường.",
-    "BVPS": "Book Value per Share - giá trị sổ sách trên mỗi cổ phiếu = vốn chủ sở hữu / số cổ phiếu.",
-    "Capex": "Capital Expenditure - chi đầu tư tài sản cố định/capex. Capex có thể là duy trì hoặc mở rộng; định giá Owner Earnings cần ước tính capex duy trì.",
-    "Capital Employed": "Vốn sử dụng cho hoạt động. Có thể tính bằng tổng tài sản - nợ ngắn hạn, hoặc tài sản cố định + vốn lưu động; phải dùng nhất quán.",
-    "CCC": "Cash Conversion Cycle - chu kỳ chuyển đổi tiền = DSO + DIO - DPO. CCC thấp thường tốt hơn, nhưng phải đọc theo mô hình kinh doanh.",
-    "CFO": "Cash Flow from Operations - dòng tiền thuần từ hoạt động kinh doanh. CFO/LNST cao thường cho thấy lợi nhuận kế toán chuyển hóa tốt thành tiền.",
-    "CFO/LNST": "Tỷ lệ CFO trên lợi nhuận sau thuế. Nếu thấp kéo dài, lợi nhuận kế toán có thể chưa chuyển hóa thành tiền.",
-    "Beneish M-Score": "Mô hình 8 biến dùng để cảnh báo khả năng thao túng lợi nhuận. M-Score > -2.22 là vùng cảnh báo; đây là tín hiệu định lượng, không phải kết luận pháp lý về gian lận.",
-    "Earnings Management": "Quản trị/thao túng lợi nhuận - việc ban điều hành sử dụng xét đoán kế toán, ước tính hoặc cấu trúc giao dịch để làm lợi nhuận trình bày khác với chất lượng kinh tế thực. Trong app chỉ gọi là cờ đỏ/cần kiểm tra, không kết luận gian lận nếu chưa có bằng chứng pháp lý hoặc kiểm toán.",
-    "Thao túng tài chính": "Nhóm dấu hiệu cho thấy số liệu tài chính có thể bị làm đẹp hoặc trình bày chưa phản ánh đúng bản chất kinh tế, ví dụ doanh thu ghi nhận sớm, phải thu tăng nhanh, vốn hóa chi phí, thay đổi khấu hao, hoàn nhập dự phòng hoặc lợi nhuận không đi kèm dòng tiền.",
-    "Thao túng lợi nhuận": "Một dạng thao túng tài chính tập trung vào chỉ tiêu lợi nhuận. Dấu hiệu thường gặp là LNST tăng nhưng CFO/FCF yếu, accruals cao, biên lợi nhuận bất thường, thay đổi chính sách kế toán hoặc nhiều khoản mục ước tính.",
-    "Accruals": "Các khoản dồn tích kế toán làm lợi nhuận khác dòng tiền. Accruals cao không mặc nhiên xấu, nhưng nếu kéo dài hoặc tăng đột biến thì cần kiểm tra chất lượng lợi nhuận.",
-    "Accrual-based Earnings Management (AEM)": "Quản trị lợi nhuận qua accruals: dùng xét đoán kế toán, ước tính, dự phòng, ghi nhận doanh thu/chi phí để điều chỉnh lợi nhuận kế toán mà chưa nhất thiết làm thay đổi dòng tiền ngay.",
-    "Real Earnings Management (REM)": "Quản trị lợi nhuận qua hoạt động thật: thay đổi quyết định kinh doanh như giảm giá/nới tín dụng để kéo doanh thu, sản xuất dư để giảm giá vốn đơn vị, hoặc cắt chi phí quảng cáo/R&D/bảo trì để làm đẹp lợi nhuận ngắn hạn.",
-    "Sloan accrual ratio": "Chỉ tiêu chất lượng lợi nhuận = (LNST - CFO) / Tổng tài sản bình quân. Tỷ lệ dương cao cho thấy lợi nhuận phụ thuộc nhiều vào accruals hơn dòng tiền thật.",
-    "Discretionary Accruals (DA)": "Phần accruals bất thường do mô hình ước lượng không giải thích được bởi tăng trưởng doanh thu, thay đổi phải thu, PPE/TSCĐ và hiệu quả hoạt động. DA dương cao thường là cờ đỏ làm tăng lợi nhuận.",
-    "Modified Jones Model": "Mô hình ước lượng discretionary accruals: TA/A(t-1)=α0+α1(1/A(t-1))+α2((ΔREV-ΔREC)/A(t-1))+α3(PPE/A(t-1))+ε. Residual ε là DA.",
-    "Kothari Model": "Bản mở rộng của Modified Jones, thêm ROA để kiểm soát hiệu quả hoạt động. Mục tiêu là tránh gắn cờ sai các doanh nghiệp tăng trưởng/hiệu quả cao nhưng accruals tăng do kinh doanh thật.",
-    "Abnormal CFO": "Phần CFO bất thường sau khi kiểm soát doanh thu và tăng trưởng doanh thu. Abnormal CFO âm có thể báo hiệu kéo doanh thu bằng giảm giá hoặc nới điều kiện tín dụng.",
-    "Abnormal PROD": "Chi phí sản xuất bất thường. Trong app, PROD = Giá vốn hàng bán + ΔTồn kho. Abnormal PROD dương có thể báo hiệu sản xuất dư/tồn kho tăng để giảm giá vốn đơn vị.",
-    "Abnormal DISEXP": "Chi phí tùy ý bất thường. DISEXP thường gồm R&D, quảng cáo, SG&A; app dùng SG&A/chi phí bán hàng + quản lý làm proxy nếu thiếu chi tiết. Abnormal DISEXP âm có thể là cắt chi phí để nâng lợi nhuận ngắn hạn.",
-    "AQI proxy": "Cách tính thay thế khi nguồn dữ liệu không tách được TSCĐ/PPE thuần. App dùng tỷ trọng tài sản dài hạn/tổng tài sản làm đại diện và ghi rõ proxy để tránh nhầm với AQI chuẩn của Beneish.",
-    "PP&E/TSCĐ thuần": "Property, Plant and Equipment - tài sản cố định hữu hình thuần sau khấu hao. Đây là biến đầu vào tốt hơn tài sản dài hạn khi tính AQI chuẩn.",
-    "Doanh thu ghi nhận sớm": "Rủi ro doanh nghiệp ghi nhận doanh thu trước khi hoàn tất nghĩa vụ hoặc trước khi khả năng thu tiền đủ chắc chắn. Trong app thường thể hiện qua DSRI/DSO tăng, phải thu tăng nhanh hơn doanh thu và CFO yếu.",
-    "Chất lượng lợi nhuận": "Mức độ lợi nhuận kế toán được hỗ trợ bởi dòng tiền thật, biên lợi nhuận bền vững, chính sách kế toán thận trọng và ít phụ thuộc khoản mục một lần/ước tính chủ quan.",
-    "Bút toán cuối kỳ": "Các bút toán điều chỉnh gần cuối kỳ hoặc sau ngày khóa sổ. Nếu có giá trị lớn, lặp lại bất thường hoặc thiếu giải thích, cần xem xét rủi ro làm đẹp lợi nhuận.",
-    "Management Override": "Rủi ro ban điều hành vượt qua kiểm soát nội bộ để điều chỉnh số liệu kế toán, ước tính hoặc bút toán. Đây là nhóm rủi ro kiểm toán trọng yếu và cần đối chiếu với kiểm soát nội bộ/ý kiến kiểm toán.",
-    "Revenue Recognition": "Ghi nhận doanh thu. Đây là khu vực dễ phát sinh rủi ro thao túng lợi nhuận, cần kiểm tra điều kiện ghi nhận, cutoff, phải thu, hoàn trả, chiết khấu, bên liên quan và dòng tiền thu từ khách hàng.",
-    "Cutoff": "Kiểm tra doanh thu/chi phí có được ghi nhận đúng kỳ hay không. Sai cutoff có thể làm doanh thu/lợi nhuận kỳ hiện tại bị đẩy lên hoặc đẩy xuống không đúng bản chất.",
-    "Capitalized Expense": "Chi phí được vốn hóa thành tài sản thay vì ghi nhận vào chi phí kỳ hiện tại. Nếu vốn hóa quá mức, lợi nhuận hiện tại có thể bị thổi phồng và AQI/TATA thường cần được soi kỹ.",
-    "One-off Income": "Thu nhập bất thường/không lặp lại như thanh lý tài sản, hoàn nhập lớn, lãi đánh giá lại. Cần tách khỏi earnings power khi định giá.",
-    "Restatement": "Việc điều chỉnh lại BCTC đã công bố. Đây là cờ đỏ cần kiểm tra nguyên nhân, quy mô điều chỉnh và ảnh hưởng đến lợi nhuận, vốn chủ, dòng tiền.",
-    "DSRI": "Days Sales in Receivables Index - chỉ số phải thu/doanh thu kỳ hiện tại so với kỳ trước. DSRI cao có thể báo hiệu doanh thu ghi nhận lỏng hoặc thu tiền chậm.",
-    "GMI": "Gross Margin Index - biên gộp kỳ trước chia biên gộp kỳ hiện tại. GMI > 1 nghĩa là biên gộp suy giảm, tăng động cơ làm đẹp lợi nhuận.",
-    "AQI": "Asset Quality Index - chỉ số chất lượng tài sản. AQI > 1 có thể cho thấy tài sản kém thanh khoản/chi phí hoãn lại tăng.",
-    "SGI": "Sales Growth Index - chỉ số tăng trưởng doanh thu. Tăng trưởng cao có thể tạo áp lực duy trì mục tiêu lợi nhuận.",
-    "DEPI": "Depreciation Index - chỉ số khấu hao. DEPI > 1 có thể cho thấy tỷ lệ khấu hao giảm, cần kiểm tra thời gian hữu dụng/phương pháp khấu hao.",
-    "SGAI": "SG&A Expense Index - chỉ số chi phí bán hàng và quản lý/doanh thu. SGAI > 1 phản ánh chi phí vận hành tăng nhanh hơn doanh thu.",
-    "TATA": "Total Accruals to Total Assets - tổng accruals/tổng tài sản. TATA dương cao cho thấy lợi nhuận phụ thuộc accruals nhiều hơn dòng tiền.",
-    "LVGI": "Leverage Index - chỉ số đòn bẩy. LVGI > 1 nghĩa là đòn bẩy tăng, có thể tăng động cơ làm đẹp BCTC để đáp ứng covenant/nợ.",
-    "Compounder": "Doanh nghiệp chất lượng có thể tái đầu tư lợi nhuận với ROIC cao trong thời gian dài, từ đó làm giá trị nội tại tăng kép.",
-    "Cost Advantage": "Lợi thế chi phí - khả năng sản xuất/phân phối/vận hành với chi phí thấp hơn đối thủ một cách bền vững.",
-    "Cyclical": "Doanh nghiệp chu kỳ, lợi nhuận phụ thuộc mạnh vào giá hàng hóa, cung cầu ngành, công suất, tồn kho hoặc chu kỳ kinh tế.",
-    "Deployed Capital": "Vốn triển khai vào hoạt động kinh doanh, thường loại bớt tiền/đầu tư tài chính dư thừa để nhìn hiệu quả vốn vận hành.",
-    "Differentiation": "Khác biệt hóa - khả năng tạo giá trị cho khách hàng để duy trì biên lợi nhuận, thương hiệu, giá bán hoặc lòng trung thành.",
-    "DIO": "Days Inventory Outstanding - số ngày tồn kho bình quân. DIO cao/tăng có thể báo hiệu hàng chậm luân chuyển.",
-    "DPO": "Days Payable Outstanding - số ngày phải trả bình quân. DPO cao có thể hỗ trợ dòng tiền nhưng cũng có thể phản ánh áp lực thanh toán.",
-    "DSO": "Days Sales Outstanding - số ngày phải thu bình quân. DSO tăng mạnh có thể báo hiệu rủi ro thu tiền.",
-    "EBIT": "Earnings Before Interest and Taxes - lợi nhuận trước lãi vay và thuế. Dùng để đo lợi nhuận hoạt động trước tác động cấu trúc vốn.",
-    "EBITDA": "EBIT + khấu hao và phân bổ. Hữu ích để tham khảo khả năng tạo lợi nhuận trước capex, nhưng không thay thế dòng tiền thật.",
-    "EPS": "Earnings per Share - lợi nhuận trên mỗi cổ phiếu = LNST thuộc cổ đông công ty mẹ / số cổ phiếu.",
-    "FCF": "Free Cash Flow - dòng tiền tự do. Trong app thường tính FCF = CFO - Capex. Cần phân biệt FCF âm do mở rộng hiệu quả với FCF âm do mô hình kinh doanh hút tiền.",
-    "FCF/LNST": "Tỷ lệ FCF trên lợi nhuận sau thuế. Dùng để kiểm tra lợi nhuận có đi kèm dòng tiền tự do hay không.",
-    "Giá trị nội tại": "Ước tính giá trị kinh tế của một cổ phiếu dựa trên lợi nhuận, dòng tiền, tài sản và chất lượng doanh nghiệp; không phải một con số tuyệt đối.",
-    "High": "Kịch bản giá trị cao trong dải định giá. Chỉ nên dùng khi chất lượng dữ liệu, moat và triển vọng tăng trưởng đủ thuyết phục.",
-    "Kd": "Cost of Debt - chi phí nợ vay trước thuế = chi phí lãi vay / nợ vay chịu lãi bình quân.",
-    "Ke": "Cost of Equity - chi phí vốn chủ sở hữu. App dùng mô hình: lãi suất phi rủi ro + beta x phần bù rủi ro thị trường, hoặc proxy khi thiếu dữ liệu thị trường.",
-    "Low": "Kịch bản giá trị thấp trong dải định giá. Dùng để kiểm tra downside và mức chịu đựng khi giả định xấu hơn xảy ra.",
-    "Maintenance Capex": "Capex duy trì - phần vốn đầu tư cần thiết để giữ năng lực cạnh tranh và sản lượng dài hạn hiện tại.",
-    "Moat": "Lợi thế cạnh tranh bền vững giúp doanh nghiệp duy trì lợi nhuận cao trên vốn trong thời gian dài.",
-    "MOS": "Margin of Safety - biên an toàn. MOS hiện tại = (giá trị nội tại - giá thị trường) / giá trị nội tại. MOS yêu cầu là mức chiết khấu người dùng chọn trước khi xem xét mua.",
-    "NCAV": "Net Current Asset Value - giá trị tài sản ngắn hạn ròng, thường dùng trong định giá tài sản theo Graham.",
-    "NLA": "Net Liquid Assets - tài sản thanh khoản ròng = tiền + chứng khoán thanh khoản + phải thu có thể thu hồi - nợ ngắn hạn/nợ phải trả liên quan.",
-    "NOPAT": "Net Operating Profit After Tax - lợi nhuận hoạt động sau thuế = EBIT x (1 - thuế suất). Dùng làm tử số phổ biến khi tính ROIC.",
-    "OEPS": "Owner Earnings per Share - Owner Earnings trên mỗi cổ phiếu = Owner Earnings / số cổ phiếu lưu hành.",
-    "Owner Earnings": "Lợi nhuận chủ sở hữu theo Buffett: lợi nhuận báo cáo + khấu hao và chi phí phi tiền mặt - capex duy trì cần thiết ± thay đổi vốn lưu động vận hành cần thiết.",
-    "P/B": "Price to Book - giá / giá trị sổ sách. Hữu ích hơn với ngân hàng, bảo hiểm, asset play hoặc doanh nghiệp tài sản lớn.",
-    "P/E": "Price to Earnings - giá / EPS. Dùng tốt hơn với doanh nghiệp có EPS ổn định, ít chu kỳ, lợi nhuận kế toán đáng tin.",
-    "Porter Value Chain": "Chuỗi giá trị Porter - phân rã doanh nghiệp thành các hoạt động cụ thể để tìm nguồn gốc lợi thế chi phí/khác biệt hóa.",
-    "QoQ": "Quarter over Quarter - tăng/giảm so với quý liền trước.",
-    "ROCE": "Return on Capital Employed - lợi nhuận trên capital employed. Thường tính EBIT / capital employed.",
-    "ROIC": "Return on Invested Capital - lợi nhuận trên vốn đầu tư. App ưu tiên ROIC Operating Profit = NOPAT / vốn đầu tư bình quân.",
-    "ROIC Operating Profit": "ROIC dựa trên lợi nhuận hoạt động: NOPAT chia cho vốn đầu tư/capital employed bình quân. Dùng để so sánh với WACC.",
-    "Switching Cost": "Chi phí chuyển đổi - mức khó khăn/chi phí khi khách hàng chuyển sang nhà cung cấp khác.",
-    "TTM": "Trailing Twelve Months - số liệu 12 tháng gần nhất, thường cộng 4 quý gần nhất để có cái nhìn cập nhật hơn năm tài chính cũ.",
-    "Turnaround": "Doanh nghiệp đang trong quá trình phục hồi; định giá cần kịch bản và biên an toàn lớn hơn do rủi ro thực thi.",
-    "WACC": "Weighted Average Cost of Capital - chi phí vốn bình quân gia quyền = We x Ke + Wd x Kd x (1 - thuế suất). Dùng so sánh với ROIC, nhưng cần dữ liệu nợ vay, chi phí lãi vay, vốn hóa và chi phí vốn chủ.",
-    "Weighted": "Giá trị nội tại trung bình trọng số từ các phương pháp định giá hợp lệ. Trọng số cao hơn được trao cho phương pháp phù hợp hơn với loại doanh nghiệp và chất lượng dữ liệu.",
-    "YoY": "Year over Year - tăng/giảm so với cùng kỳ năm trước.",
+    "Asset Play": "Doanh nghiá»‡p cÃ³ giÃ¡ thá»‹ trÆ°á»ng tháº¥p so vá»›i tÃ i sáº£n cÃ³ thá»ƒ Ä‘á»‹nh giÃ¡/thu há»“i. Trá»ng tÃ¢m lÃ  cháº¥t lÆ°á»£ng tÃ i sáº£n, kháº£ nÄƒng thu há»“i tiá»n, tÃ i sáº£n áº©n, ná»£ tiá»m tÃ ng vÃ  downside protection.",
+    "Bank/Insurance": "NgÃ¢n hÃ ng/báº£o hiá»ƒm cÃ³ BCTC Ä‘áº·c thÃ¹. KhÃ´ng nÃªn dÃ¹ng FCF/working capital nhÆ° doanh nghiá»‡p sáº£n xuáº¥t; Æ°u tiÃªn ROE, P/B, cháº¥t lÆ°á»£ng tÃ i sáº£n, NIM, CASA, NPL, dá»± phÃ²ng vÃ  biÃªn an toÃ n vá»‘n.",
+    "Base/Median": "GiÃ¡ trá»‹ cÆ¡ sá»Ÿ/trung vá»‹ cá»§a cÃ¡c phÆ°Æ¡ng phÃ¡p Ä‘á»‹nh giÃ¡ há»£p lá»‡. DÃ¹ng Ä‘á»ƒ trÃ¡nh phá»¥ thuá»™c vÃ o má»™t mÃ´ hÃ¬nh duy nháº¥t.",
+    "Beta": "Má»©c nháº¡y cá»§a cá»• phiáº¿u/doanh nghiá»‡p vá»›i thá»‹ trÆ°á»ng hoáº·c proxy rá»§i ro. Náº¿u thiáº¿u dá»¯ liá»‡u giÃ¡ lá»‹ch sá»­, app chá»‰ dÃ¹ng beta proxy vÃ  pháº£i ghi rÃµ cháº¥t lÆ°á»£ng tháº¥p hÆ¡n beta thá»‹ trÆ°á»ng.",
+    "BVPS": "Book Value per Share - giÃ¡ trá»‹ sá»• sÃ¡ch trÃªn má»—i cá»• phiáº¿u = vá»‘n chá»§ sá»Ÿ há»¯u / sá»‘ cá»• phiáº¿u.",
+    "Capex": "Capital Expenditure - chi Ä‘áº§u tÆ° tÃ i sáº£n cá»‘ Ä‘á»‹nh/capex. Capex cÃ³ thá»ƒ lÃ  duy trÃ¬ hoáº·c má»Ÿ rá»™ng; Ä‘á»‹nh giÃ¡ Owner Earnings cáº§n Æ°á»›c tÃ­nh capex duy trÃ¬.",
+    "Capital Employed": "Vá»‘n sá»­ dá»¥ng cho hoáº¡t Ä‘á»™ng. CÃ³ thá»ƒ tÃ­nh báº±ng tá»•ng tÃ i sáº£n - ná»£ ngáº¯n háº¡n, hoáº·c tÃ i sáº£n cá»‘ Ä‘á»‹nh + vá»‘n lÆ°u Ä‘á»™ng; pháº£i dÃ¹ng nháº¥t quÃ¡n.",
+    "CCC": "Cash Conversion Cycle - chu ká»³ chuyá»ƒn Ä‘á»•i tiá»n = DSO + DIO - DPO. CCC tháº¥p thÆ°á»ng tá»‘t hÆ¡n, nhÆ°ng pháº£i Ä‘á»c theo mÃ´ hÃ¬nh kinh doanh.",
+    "CFO": "Cash Flow from Operations - dÃ²ng tiá»n thuáº§n tá»« hoáº¡t Ä‘á»™ng kinh doanh. CFO/LNST cao thÆ°á»ng cho tháº¥y lá»£i nhuáº­n káº¿ toÃ¡n chuyá»ƒn hÃ³a tá»‘t thÃ nh tiá»n.",
+    "CFO/LNST": "Tá»· lá»‡ CFO trÃªn lá»£i nhuáº­n sau thuáº¿. Náº¿u tháº¥p kÃ©o dÃ i, lá»£i nhuáº­n káº¿ toÃ¡n cÃ³ thá»ƒ chÆ°a chuyá»ƒn hÃ³a thÃ nh tiá»n.",
+    "Beneish M-Score": "MÃ´ hÃ¬nh 8 biáº¿n dÃ¹ng Ä‘á»ƒ cáº£nh bÃ¡o kháº£ nÄƒng thao tÃºng lá»£i nhuáº­n. M-Score > -2.22 lÃ  vÃ¹ng cáº£nh bÃ¡o; Ä‘Ã¢y lÃ  tÃ­n hiá»‡u Ä‘á»‹nh lÆ°á»£ng, khÃ´ng pháº£i káº¿t luáº­n phÃ¡p lÃ½ vá» gian láº­n.",
+    "Earnings Management": "Quáº£n trá»‹/thao tÃºng lá»£i nhuáº­n - viá»‡c ban Ä‘iá»u hÃ nh sá»­ dá»¥ng xÃ©t Ä‘oÃ¡n káº¿ toÃ¡n, Æ°á»›c tÃ­nh hoáº·c cáº¥u trÃºc giao dá»‹ch Ä‘á»ƒ lÃ m lá»£i nhuáº­n trÃ¬nh bÃ y khÃ¡c vá»›i cháº¥t lÆ°á»£ng kinh táº¿ thá»±c. Trong app chá»‰ gá»i lÃ  cá» Ä‘á»/cáº§n kiá»ƒm tra, khÃ´ng káº¿t luáº­n gian láº­n náº¿u chÆ°a cÃ³ báº±ng chá»©ng phÃ¡p lÃ½ hoáº·c kiá»ƒm toÃ¡n.",
+    "Thao tÃºng tÃ i chÃ­nh": "NhÃ³m dáº¥u hiá»‡u cho tháº¥y sá»‘ liá»‡u tÃ i chÃ­nh cÃ³ thá»ƒ bá»‹ lÃ m Ä‘áº¹p hoáº·c trÃ¬nh bÃ y chÆ°a pháº£n Ã¡nh Ä‘Ãºng báº£n cháº¥t kinh táº¿, vÃ­ dá»¥ doanh thu ghi nháº­n sá»›m, pháº£i thu tÄƒng nhanh, vá»‘n hÃ³a chi phÃ­, thay Ä‘á»•i kháº¥u hao, hoÃ n nháº­p dá»± phÃ²ng hoáº·c lá»£i nhuáº­n khÃ´ng Ä‘i kÃ¨m dÃ²ng tiá»n.",
+    "Thao tÃºng lá»£i nhuáº­n": "Má»™t dáº¡ng thao tÃºng tÃ i chÃ­nh táº­p trung vÃ o chá»‰ tiÃªu lá»£i nhuáº­n. Dáº¥u hiá»‡u thÆ°á»ng gáº·p lÃ  LNST tÄƒng nhÆ°ng CFO/FCF yáº¿u, accruals cao, biÃªn lá»£i nhuáº­n báº¥t thÆ°á»ng, thay Ä‘á»•i chÃ­nh sÃ¡ch káº¿ toÃ¡n hoáº·c nhiá»u khoáº£n má»¥c Æ°á»›c tÃ­nh.",
+    "Accruals": "CÃ¡c khoáº£n dá»“n tÃ­ch káº¿ toÃ¡n lÃ m lá»£i nhuáº­n khÃ¡c dÃ²ng tiá»n. Accruals cao khÃ´ng máº·c nhiÃªn xáº¥u, nhÆ°ng náº¿u kÃ©o dÃ i hoáº·c tÄƒng Ä‘á»™t biáº¿n thÃ¬ cáº§n kiá»ƒm tra cháº¥t lÆ°á»£ng lá»£i nhuáº­n.",
+    "Accrual-based Earnings Management (AEM)": "Quáº£n trá»‹ lá»£i nhuáº­n qua accruals: dÃ¹ng xÃ©t Ä‘oÃ¡n káº¿ toÃ¡n, Æ°á»›c tÃ­nh, dá»± phÃ²ng, ghi nháº­n doanh thu/chi phÃ­ Ä‘á»ƒ Ä‘iá»u chá»‰nh lá»£i nhuáº­n káº¿ toÃ¡n mÃ  chÆ°a nháº¥t thiáº¿t lÃ m thay Ä‘á»•i dÃ²ng tiá»n ngay.",
+    "Real Earnings Management (REM)": "Quáº£n trá»‹ lá»£i nhuáº­n qua hoáº¡t Ä‘á»™ng tháº­t: thay Ä‘á»•i quyáº¿t Ä‘á»‹nh kinh doanh nhÆ° giáº£m giÃ¡/ná»›i tÃ­n dá»¥ng Ä‘á»ƒ kÃ©o doanh thu, sáº£n xuáº¥t dÆ° Ä‘á»ƒ giáº£m giÃ¡ vá»‘n Ä‘Æ¡n vá»‹, hoáº·c cáº¯t chi phÃ­ quáº£ng cÃ¡o/R&D/báº£o trÃ¬ Ä‘á»ƒ lÃ m Ä‘áº¹p lá»£i nhuáº­n ngáº¯n háº¡n.",
+    "Sloan accrual ratio": "Chá»‰ tiÃªu cháº¥t lÆ°á»£ng lá»£i nhuáº­n = (LNST - CFO) / Tá»•ng tÃ i sáº£n bÃ¬nh quÃ¢n. Tá»· lá»‡ dÆ°Æ¡ng cao cho tháº¥y lá»£i nhuáº­n phá»¥ thuá»™c nhiá»u vÃ o accruals hÆ¡n dÃ²ng tiá»n tháº­t.",
+    "Discretionary Accruals (DA)": "Pháº§n accruals báº¥t thÆ°á»ng do mÃ´ hÃ¬nh Æ°á»›c lÆ°á»£ng khÃ´ng giáº£i thÃ­ch Ä‘Æ°á»£c bá»Ÿi tÄƒng trÆ°á»Ÿng doanh thu, thay Ä‘á»•i pháº£i thu, PPE/TSCÄ vÃ  hiá»‡u quáº£ hoáº¡t Ä‘á»™ng. DA dÆ°Æ¡ng cao thÆ°á»ng lÃ  cá» Ä‘á» lÃ m tÄƒng lá»£i nhuáº­n.",
+    "Modified Jones Model": "MÃ´ hÃ¬nh Æ°á»›c lÆ°á»£ng discretionary accruals: TA/A(t-1)=Î±0+Î±1(1/A(t-1))+Î±2((Î”REV-Î”REC)/A(t-1))+Î±3(PPE/A(t-1))+Îµ. Residual Îµ lÃ  DA.",
+    "Kothari Model": "Báº£n má»Ÿ rá»™ng cá»§a Modified Jones, thÃªm ROA Ä‘á»ƒ kiá»ƒm soÃ¡t hiá»‡u quáº£ hoáº¡t Ä‘á»™ng. Má»¥c tiÃªu lÃ  trÃ¡nh gáº¯n cá» sai cÃ¡c doanh nghiá»‡p tÄƒng trÆ°á»Ÿng/hiá»‡u quáº£ cao nhÆ°ng accruals tÄƒng do kinh doanh tháº­t.",
+    "Abnormal CFO": "Pháº§n CFO báº¥t thÆ°á»ng sau khi kiá»ƒm soÃ¡t doanh thu vÃ  tÄƒng trÆ°á»Ÿng doanh thu. Abnormal CFO Ã¢m cÃ³ thá»ƒ bÃ¡o hiá»‡u kÃ©o doanh thu báº±ng giáº£m giÃ¡ hoáº·c ná»›i Ä‘iá»u kiá»‡n tÃ­n dá»¥ng.",
+    "Abnormal PROD": "Chi phÃ­ sáº£n xuáº¥t báº¥t thÆ°á»ng. Trong app, PROD = GiÃ¡ vá»‘n hÃ ng bÃ¡n + Î”Tá»“n kho. Abnormal PROD dÆ°Æ¡ng cÃ³ thá»ƒ bÃ¡o hiá»‡u sáº£n xuáº¥t dÆ°/tá»“n kho tÄƒng Ä‘á»ƒ giáº£m giÃ¡ vá»‘n Ä‘Æ¡n vá»‹.",
+    "Abnormal DISEXP": "Chi phÃ­ tÃ¹y Ã½ báº¥t thÆ°á»ng. DISEXP thÆ°á»ng gá»“m R&D, quáº£ng cÃ¡o, SG&A; app dÃ¹ng SG&A/chi phÃ­ bÃ¡n hÃ ng + quáº£n lÃ½ lÃ m proxy náº¿u thiáº¿u chi tiáº¿t. Abnormal DISEXP Ã¢m cÃ³ thá»ƒ lÃ  cáº¯t chi phÃ­ Ä‘á»ƒ nÃ¢ng lá»£i nhuáº­n ngáº¯n háº¡n.",
+    "AQI proxy": "CÃ¡ch tÃ­nh thay tháº¿ khi nguá»“n dá»¯ liá»‡u khÃ´ng tÃ¡ch Ä‘Æ°á»£c TSCÄ/PPE thuáº§n. App dÃ¹ng tá»· trá»ng tÃ i sáº£n dÃ i háº¡n/tá»•ng tÃ i sáº£n lÃ m Ä‘áº¡i diá»‡n vÃ  ghi rÃµ proxy Ä‘á»ƒ trÃ¡nh nháº§m vá»›i AQI chuáº©n cá»§a Beneish.",
+    "PP&E/TSCÄ thuáº§n": "Property, Plant and Equipment - tÃ i sáº£n cá»‘ Ä‘á»‹nh há»¯u hÃ¬nh thuáº§n sau kháº¥u hao. ÄÃ¢y lÃ  biáº¿n Ä‘áº§u vÃ o tá»‘t hÆ¡n tÃ i sáº£n dÃ i háº¡n khi tÃ­nh AQI chuáº©n.",
+    "Doanh thu ghi nháº­n sá»›m": "Rá»§i ro doanh nghiá»‡p ghi nháº­n doanh thu trÆ°á»›c khi hoÃ n táº¥t nghÄ©a vá»¥ hoáº·c trÆ°á»›c khi kháº£ nÄƒng thu tiá»n Ä‘á»§ cháº¯c cháº¯n. Trong app thÆ°á»ng thá»ƒ hiá»‡n qua DSRI/DSO tÄƒng, pháº£i thu tÄƒng nhanh hÆ¡n doanh thu vÃ  CFO yáº¿u.",
+    "Cháº¥t lÆ°á»£ng lá»£i nhuáº­n": "Má»©c Ä‘á»™ lá»£i nhuáº­n káº¿ toÃ¡n Ä‘Æ°á»£c há»— trá»£ bá»Ÿi dÃ²ng tiá»n tháº­t, biÃªn lá»£i nhuáº­n bá»n vá»¯ng, chÃ­nh sÃ¡ch káº¿ toÃ¡n tháº­n trá»ng vÃ  Ã­t phá»¥ thuá»™c khoáº£n má»¥c má»™t láº§n/Æ°á»›c tÃ­nh chá»§ quan.",
+    "BÃºt toÃ¡n cuá»‘i ká»³": "CÃ¡c bÃºt toÃ¡n Ä‘iá»u chá»‰nh gáº§n cuá»‘i ká»³ hoáº·c sau ngÃ y khÃ³a sá»•. Náº¿u cÃ³ giÃ¡ trá»‹ lá»›n, láº·p láº¡i báº¥t thÆ°á»ng hoáº·c thiáº¿u giáº£i thÃ­ch, cáº§n xem xÃ©t rá»§i ro lÃ m Ä‘áº¹p lá»£i nhuáº­n.",
+    "Management Override": "Rá»§i ro ban Ä‘iá»u hÃ nh vÆ°á»£t qua kiá»ƒm soÃ¡t ná»™i bá»™ Ä‘á»ƒ Ä‘iá»u chá»‰nh sá»‘ liá»‡u káº¿ toÃ¡n, Æ°á»›c tÃ­nh hoáº·c bÃºt toÃ¡n. ÄÃ¢y lÃ  nhÃ³m rá»§i ro kiá»ƒm toÃ¡n trá»ng yáº¿u vÃ  cáº§n Ä‘á»‘i chiáº¿u vá»›i kiá»ƒm soÃ¡t ná»™i bá»™/Ã½ kiáº¿n kiá»ƒm toÃ¡n.",
+    "Revenue Recognition": "Ghi nháº­n doanh thu. ÄÃ¢y lÃ  khu vá»±c dá»… phÃ¡t sinh rá»§i ro thao tÃºng lá»£i nhuáº­n, cáº§n kiá»ƒm tra Ä‘iá»u kiá»‡n ghi nháº­n, cutoff, pháº£i thu, hoÃ n tráº£, chiáº¿t kháº¥u, bÃªn liÃªn quan vÃ  dÃ²ng tiá»n thu tá»« khÃ¡ch hÃ ng.",
+    "Cutoff": "Kiá»ƒm tra doanh thu/chi phÃ­ cÃ³ Ä‘Æ°á»£c ghi nháº­n Ä‘Ãºng ká»³ hay khÃ´ng. Sai cutoff cÃ³ thá»ƒ lÃ m doanh thu/lá»£i nhuáº­n ká»³ hiá»‡n táº¡i bá»‹ Ä‘áº©y lÃªn hoáº·c Ä‘áº©y xuá»‘ng khÃ´ng Ä‘Ãºng báº£n cháº¥t.",
+    "Capitalized Expense": "Chi phÃ­ Ä‘Æ°á»£c vá»‘n hÃ³a thÃ nh tÃ i sáº£n thay vÃ¬ ghi nháº­n vÃ o chi phÃ­ ká»³ hiá»‡n táº¡i. Náº¿u vá»‘n hÃ³a quÃ¡ má»©c, lá»£i nhuáº­n hiá»‡n táº¡i cÃ³ thá»ƒ bá»‹ thá»•i phá»“ng vÃ  AQI/TATA thÆ°á»ng cáº§n Ä‘Æ°á»£c soi ká»¹.",
+    "One-off Income": "Thu nháº­p báº¥t thÆ°á»ng/khÃ´ng láº·p láº¡i nhÆ° thanh lÃ½ tÃ i sáº£n, hoÃ n nháº­p lá»›n, lÃ£i Ä‘Ã¡nh giÃ¡ láº¡i. Cáº§n tÃ¡ch khá»i earnings power khi Ä‘á»‹nh giÃ¡.",
+    "Restatement": "Viá»‡c Ä‘iá»u chá»‰nh láº¡i BCTC Ä‘Ã£ cÃ´ng bá»‘. ÄÃ¢y lÃ  cá» Ä‘á» cáº§n kiá»ƒm tra nguyÃªn nhÃ¢n, quy mÃ´ Ä‘iá»u chá»‰nh vÃ  áº£nh hÆ°á»Ÿng Ä‘áº¿n lá»£i nhuáº­n, vá»‘n chá»§, dÃ²ng tiá»n.",
+    "DSRI": "Days Sales in Receivables Index - chá»‰ sá»‘ pháº£i thu/doanh thu ká»³ hiá»‡n táº¡i so vá»›i ká»³ trÆ°á»›c. DSRI cao cÃ³ thá»ƒ bÃ¡o hiá»‡u doanh thu ghi nháº­n lá»ng hoáº·c thu tiá»n cháº­m.",
+    "GMI": "Gross Margin Index - biÃªn gá»™p ká»³ trÆ°á»›c chia biÃªn gá»™p ká»³ hiá»‡n táº¡i. GMI > 1 nghÄ©a lÃ  biÃªn gá»™p suy giáº£m, tÄƒng Ä‘á»™ng cÆ¡ lÃ m Ä‘áº¹p lá»£i nhuáº­n.",
+    "AQI": "Asset Quality Index - chá»‰ sá»‘ cháº¥t lÆ°á»£ng tÃ i sáº£n. AQI > 1 cÃ³ thá»ƒ cho tháº¥y tÃ i sáº£n kÃ©m thanh khoáº£n/chi phÃ­ hoÃ£n láº¡i tÄƒng.",
+    "SGI": "Sales Growth Index - chá»‰ sá»‘ tÄƒng trÆ°á»Ÿng doanh thu. TÄƒng trÆ°á»Ÿng cao cÃ³ thá»ƒ táº¡o Ã¡p lá»±c duy trÃ¬ má»¥c tiÃªu lá»£i nhuáº­n.",
+    "DEPI": "Depreciation Index - chá»‰ sá»‘ kháº¥u hao. DEPI > 1 cÃ³ thá»ƒ cho tháº¥y tá»· lá»‡ kháº¥u hao giáº£m, cáº§n kiá»ƒm tra thá»i gian há»¯u dá»¥ng/phÆ°Æ¡ng phÃ¡p kháº¥u hao.",
+    "SGAI": "SG&A Expense Index - chá»‰ sá»‘ chi phÃ­ bÃ¡n hÃ ng vÃ  quáº£n lÃ½/doanh thu. SGAI > 1 pháº£n Ã¡nh chi phÃ­ váº­n hÃ nh tÄƒng nhanh hÆ¡n doanh thu.",
+    "TATA": "Total Accruals to Total Assets - tá»•ng accruals/tá»•ng tÃ i sáº£n. TATA dÆ°Æ¡ng cao cho tháº¥y lá»£i nhuáº­n phá»¥ thuá»™c accruals nhiá»u hÆ¡n dÃ²ng tiá»n.",
+    "LVGI": "Leverage Index - chá»‰ sá»‘ Ä‘Ã²n báº©y. LVGI > 1 nghÄ©a lÃ  Ä‘Ã²n báº©y tÄƒng, cÃ³ thá»ƒ tÄƒng Ä‘á»™ng cÆ¡ lÃ m Ä‘áº¹p BCTC Ä‘á»ƒ Ä‘Ã¡p á»©ng covenant/ná»£.",
+    "Compounder": "Doanh nghiá»‡p cháº¥t lÆ°á»£ng cÃ³ thá»ƒ tÃ¡i Ä‘áº§u tÆ° lá»£i nhuáº­n vá»›i ROIC cao trong thá»i gian dÃ i, tá»« Ä‘Ã³ lÃ m giÃ¡ trá»‹ ná»™i táº¡i tÄƒng kÃ©p.",
+    "Cost Advantage": "Lá»£i tháº¿ chi phÃ­ - kháº£ nÄƒng sáº£n xuáº¥t/phÃ¢n phá»‘i/váº­n hÃ nh vá»›i chi phÃ­ tháº¥p hÆ¡n Ä‘á»‘i thá»§ má»™t cÃ¡ch bá»n vá»¯ng.",
+    "Cyclical": "Doanh nghiá»‡p chu ká»³, lá»£i nhuáº­n phá»¥ thuá»™c máº¡nh vÃ o giÃ¡ hÃ ng hÃ³a, cung cáº§u ngÃ nh, cÃ´ng suáº¥t, tá»“n kho hoáº·c chu ká»³ kinh táº¿.",
+    "Deployed Capital": "Vá»‘n triá»ƒn khai vÃ o hoáº¡t Ä‘á»™ng kinh doanh, thÆ°á»ng loáº¡i bá»›t tiá»n/Ä‘áº§u tÆ° tÃ i chÃ­nh dÆ° thá»«a Ä‘á»ƒ nhÃ¬n hiá»‡u quáº£ vá»‘n váº­n hÃ nh.",
+    "Differentiation": "KhÃ¡c biá»‡t hÃ³a - kháº£ nÄƒng táº¡o giÃ¡ trá»‹ cho khÃ¡ch hÃ ng Ä‘á»ƒ duy trÃ¬ biÃªn lá»£i nhuáº­n, thÆ°Æ¡ng hiá»‡u, giÃ¡ bÃ¡n hoáº·c lÃ²ng trung thÃ nh.",
+    "DIO": "Days Inventory Outstanding - sá»‘ ngÃ y tá»“n kho bÃ¬nh quÃ¢n. DIO cao/tÄƒng cÃ³ thá»ƒ bÃ¡o hiá»‡u hÃ ng cháº­m luÃ¢n chuyá»ƒn.",
+    "DPO": "Days Payable Outstanding - sá»‘ ngÃ y pháº£i tráº£ bÃ¬nh quÃ¢n. DPO cao cÃ³ thá»ƒ há»— trá»£ dÃ²ng tiá»n nhÆ°ng cÅ©ng cÃ³ thá»ƒ pháº£n Ã¡nh Ã¡p lá»±c thanh toÃ¡n.",
+    "DSO": "Days Sales Outstanding - sá»‘ ngÃ y pháº£i thu bÃ¬nh quÃ¢n. DSO tÄƒng máº¡nh cÃ³ thá»ƒ bÃ¡o hiá»‡u rá»§i ro thu tiá»n.",
+    "EBIT": "Earnings Before Interest and Taxes - lá»£i nhuáº­n trÆ°á»›c lÃ£i vay vÃ  thuáº¿. DÃ¹ng Ä‘á»ƒ Ä‘o lá»£i nhuáº­n hoáº¡t Ä‘á»™ng trÆ°á»›c tÃ¡c Ä‘á»™ng cáº¥u trÃºc vá»‘n.",
+    "EBITDA": "EBIT + kháº¥u hao vÃ  phÃ¢n bá»•. Há»¯u Ã­ch Ä‘á»ƒ tham kháº£o kháº£ nÄƒng táº¡o lá»£i nhuáº­n trÆ°á»›c capex, nhÆ°ng khÃ´ng thay tháº¿ dÃ²ng tiá»n tháº­t.",
+    "EPS": "Earnings per Share - lá»£i nhuáº­n trÃªn má»—i cá»• phiáº¿u = LNST thuá»™c cá»• Ä‘Ã´ng cÃ´ng ty máº¹ / sá»‘ cá»• phiáº¿u.",
+    "FCF": "Free Cash Flow - dÃ²ng tiá»n tá»± do. Trong app thÆ°á»ng tÃ­nh FCF = CFO - Capex. Cáº§n phÃ¢n biá»‡t FCF Ã¢m do má»Ÿ rá»™ng hiá»‡u quáº£ vá»›i FCF Ã¢m do mÃ´ hÃ¬nh kinh doanh hÃºt tiá»n.",
+    "FCF/LNST": "Tá»· lá»‡ FCF trÃªn lá»£i nhuáº­n sau thuáº¿. DÃ¹ng Ä‘á»ƒ kiá»ƒm tra lá»£i nhuáº­n cÃ³ Ä‘i kÃ¨m dÃ²ng tiá»n tá»± do hay khÃ´ng.",
+    "GiÃ¡ trá»‹ ná»™i táº¡i": "Æ¯á»›c tÃ­nh giÃ¡ trá»‹ kinh táº¿ cá»§a má»™t cá»• phiáº¿u dá»±a trÃªn lá»£i nhuáº­n, dÃ²ng tiá»n, tÃ i sáº£n vÃ  cháº¥t lÆ°á»£ng doanh nghiá»‡p; khÃ´ng pháº£i má»™t con sá»‘ tuyá»‡t Ä‘á»‘i.",
+    "High": "Ká»‹ch báº£n giÃ¡ trá»‹ cao trong dáº£i Ä‘á»‹nh giÃ¡. Chá»‰ nÃªn dÃ¹ng khi cháº¥t lÆ°á»£ng dá»¯ liá»‡u, moat vÃ  triá»ƒn vá»ng tÄƒng trÆ°á»Ÿng Ä‘á»§ thuyáº¿t phá»¥c.",
+    "Kd": "Cost of Debt - chi phÃ­ ná»£ vay trÆ°á»›c thuáº¿ = chi phÃ­ lÃ£i vay / ná»£ vay chá»‹u lÃ£i bÃ¬nh quÃ¢n.",
+    "Ke": "Cost of Equity - chi phÃ­ vá»‘n chá»§ sá»Ÿ há»¯u. App dÃ¹ng mÃ´ hÃ¬nh: lÃ£i suáº¥t phi rá»§i ro + beta x pháº§n bÃ¹ rá»§i ro thá»‹ trÆ°á»ng, hoáº·c proxy khi thiáº¿u dá»¯ liá»‡u thá»‹ trÆ°á»ng.",
+    "Low": "Ká»‹ch báº£n giÃ¡ trá»‹ tháº¥p trong dáº£i Ä‘á»‹nh giÃ¡. DÃ¹ng Ä‘á»ƒ kiá»ƒm tra downside vÃ  má»©c chá»‹u Ä‘á»±ng khi giáº£ Ä‘á»‹nh xáº¥u hÆ¡n xáº£y ra.",
+    "Maintenance Capex": "Capex duy trÃ¬ - pháº§n vá»‘n Ä‘áº§u tÆ° cáº§n thiáº¿t Ä‘á»ƒ giá»¯ nÄƒng lá»±c cáº¡nh tranh vÃ  sáº£n lÆ°á»£ng dÃ i háº¡n hiá»‡n táº¡i.",
+    "Moat": "Lá»£i tháº¿ cáº¡nh tranh bá»n vá»¯ng giÃºp doanh nghiá»‡p duy trÃ¬ lá»£i nhuáº­n cao trÃªn vá»‘n trong thá»i gian dÃ i.",
+    "MOS": "Margin of Safety - biÃªn an toÃ n. MOS hiá»‡n táº¡i = (giÃ¡ trá»‹ ná»™i táº¡i - giÃ¡ thá»‹ trÆ°á»ng) / giÃ¡ trá»‹ ná»™i táº¡i. MOS yÃªu cáº§u lÃ  má»©c chiáº¿t kháº¥u ngÆ°á»i dÃ¹ng chá»n trÆ°á»›c khi xem xÃ©t mua.",
+    "NCAV": "Net Current Asset Value - giÃ¡ trá»‹ tÃ i sáº£n ngáº¯n háº¡n rÃ²ng, thÆ°á»ng dÃ¹ng trong Ä‘á»‹nh giÃ¡ tÃ i sáº£n theo Graham.",
+    "NLA": "Net Liquid Assets - tÃ i sáº£n thanh khoáº£n rÃ²ng = tiá»n + chá»©ng khoÃ¡n thanh khoáº£n + pháº£i thu cÃ³ thá»ƒ thu há»“i - ná»£ ngáº¯n háº¡n/ná»£ pháº£i tráº£ liÃªn quan.",
+    "NOPAT": "Net Operating Profit After Tax - lá»£i nhuáº­n hoáº¡t Ä‘á»™ng sau thuáº¿ = EBIT x (1 - thuáº¿ suáº¥t). DÃ¹ng lÃ m tá»­ sá»‘ phá»• biáº¿n khi tÃ­nh ROIC.",
+    "OEPS": "Owner Earnings per Share - Owner Earnings trÃªn má»—i cá»• phiáº¿u = Owner Earnings / sá»‘ cá»• phiáº¿u lÆ°u hÃ nh.",
+    "Owner Earnings": "Lá»£i nhuáº­n chá»§ sá»Ÿ há»¯u theo Buffett: lá»£i nhuáº­n bÃ¡o cÃ¡o + kháº¥u hao vÃ  chi phÃ­ phi tiá»n máº·t - capex duy trÃ¬ cáº§n thiáº¿t Â± thay Ä‘á»•i vá»‘n lÆ°u Ä‘á»™ng váº­n hÃ nh cáº§n thiáº¿t.",
+    "P/B": "Price to Book - giÃ¡ / giÃ¡ trá»‹ sá»• sÃ¡ch. Há»¯u Ã­ch hÆ¡n vá»›i ngÃ¢n hÃ ng, báº£o hiá»ƒm, asset play hoáº·c doanh nghiá»‡p tÃ i sáº£n lá»›n.",
+    "P/E": "Price to Earnings - giÃ¡ / EPS. DÃ¹ng tá»‘t hÆ¡n vá»›i doanh nghiá»‡p cÃ³ EPS á»•n Ä‘á»‹nh, Ã­t chu ká»³, lá»£i nhuáº­n káº¿ toÃ¡n Ä‘Ã¡ng tin.",
+    "Porter Value Chain": "Chuá»—i giÃ¡ trá»‹ Porter - phÃ¢n rÃ£ doanh nghiá»‡p thÃ nh cÃ¡c hoáº¡t Ä‘á»™ng cá»¥ thá»ƒ Ä‘á»ƒ tÃ¬m nguá»“n gá»‘c lá»£i tháº¿ chi phÃ­/khÃ¡c biá»‡t hÃ³a.",
+    "QoQ": "Quarter over Quarter - tÄƒng/giáº£m so vá»›i quÃ½ liá»n trÆ°á»›c.",
+    "ROCE": "Return on Capital Employed - lá»£i nhuáº­n trÃªn capital employed. ThÆ°á»ng tÃ­nh EBIT / capital employed.",
+    "ROIC": "Return on Invested Capital - lá»£i nhuáº­n trÃªn vá»‘n Ä‘áº§u tÆ°. App Æ°u tiÃªn ROIC Operating Profit = NOPAT / vá»‘n Ä‘áº§u tÆ° bÃ¬nh quÃ¢n.",
+    "ROIC Operating Profit": "ROIC dá»±a trÃªn lá»£i nhuáº­n hoáº¡t Ä‘á»™ng: NOPAT chia cho vá»‘n Ä‘áº§u tÆ°/capital employed bÃ¬nh quÃ¢n. DÃ¹ng Ä‘á»ƒ so sÃ¡nh vá»›i WACC.",
+    "Switching Cost": "Chi phÃ­ chuyá»ƒn Ä‘á»•i - má»©c khÃ³ khÄƒn/chi phÃ­ khi khÃ¡ch hÃ ng chuyá»ƒn sang nhÃ  cung cáº¥p khÃ¡c.",
+    "TTM": "Trailing Twelve Months - sá»‘ liá»‡u 12 thÃ¡ng gáº§n nháº¥t, thÆ°á»ng cá»™ng 4 quÃ½ gáº§n nháº¥t Ä‘á»ƒ cÃ³ cÃ¡i nhÃ¬n cáº­p nháº­t hÆ¡n nÄƒm tÃ i chÃ­nh cÅ©.",
+    "Turnaround": "Doanh nghiá»‡p Ä‘ang trong quÃ¡ trÃ¬nh phá»¥c há»“i; Ä‘á»‹nh giÃ¡ cáº§n ká»‹ch báº£n vÃ  biÃªn an toÃ n lá»›n hÆ¡n do rá»§i ro thá»±c thi.",
+    "WACC": "Weighted Average Cost of Capital - chi phÃ­ vá»‘n bÃ¬nh quÃ¢n gia quyá»n = We x Ke + Wd x Kd x (1 - thuáº¿ suáº¥t). DÃ¹ng so sÃ¡nh vá»›i ROIC, nhÆ°ng cáº§n dá»¯ liá»‡u ná»£ vay, chi phÃ­ lÃ£i vay, vá»‘n hÃ³a vÃ  chi phÃ­ vá»‘n chá»§.",
+    "Weighted": "GiÃ¡ trá»‹ ná»™i táº¡i trung bÃ¬nh trá»ng sá»‘ tá»« cÃ¡c phÆ°Æ¡ng phÃ¡p Ä‘á»‹nh giÃ¡ há»£p lá»‡. Trá»ng sá»‘ cao hÆ¡n Ä‘Æ°á»£c trao cho phÆ°Æ¡ng phÃ¡p phÃ¹ há»£p hÆ¡n vá»›i loáº¡i doanh nghiá»‡p vÃ  cháº¥t lÆ°á»£ng dá»¯ liá»‡u.",
+    "YoY": "Year over Year - tÄƒng/giáº£m so vá»›i cÃ¹ng ká»³ nÄƒm trÆ°á»›c.",
 }
 
 COMPANY_TYPE_GUIDANCE = {
     "Quality Compounder": {
-        "Cơ sở tư duy": "Buffett/Munger + ROIC/Moat + Owner Earnings",
-        "Đặc điểm cần kiểm tra": "ROIC/ROCE cao và ổn định; biên lợi nhuận bền; CFO/LNST và FCF/LNST tốt; tái đầu tư được với lợi suất cao; nợ vay kiểm soát; moat đến từ thương hiệu, phân phối, quy mô, switching cost hoặc chi phí thấp.",
-        "Cần phân tích thêm": "Runway tái đầu tư còn dài không; ROIC cao có bị kéo xuống khi mở rộng không; Owner Earnings có thật không hay bị capex duy trì lớn; ban lãnh đạo phân bổ vốn có kỷ luật không.",
-        "Định giá nên ưu tiên": "Owner Earnings, Earnings Power, ROIC Reinvestment, FCF Yield; chỉ trả premium khi moat và tăng trưởng thật sự bền.",
+        "CÆ¡ sá»Ÿ tÆ° duy": "Buffett/Munger + ROIC/Moat + Owner Earnings",
+        "Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra": "ROIC/ROCE cao vÃ  á»•n Ä‘á»‹nh; biÃªn lá»£i nhuáº­n bá»n; CFO/LNST vÃ  FCF/LNST tá»‘t; tÃ¡i Ä‘áº§u tÆ° Ä‘Æ°á»£c vá»›i lá»£i suáº¥t cao; ná»£ vay kiá»ƒm soÃ¡t; moat Ä‘áº¿n tá»« thÆ°Æ¡ng hiá»‡u, phÃ¢n phá»‘i, quy mÃ´, switching cost hoáº·c chi phÃ­ tháº¥p.",
+        "Cáº§n phÃ¢n tÃ­ch thÃªm": "Runway tÃ¡i Ä‘áº§u tÆ° cÃ²n dÃ i khÃ´ng; ROIC cao cÃ³ bá»‹ kÃ©o xuá»‘ng khi má»Ÿ rá»™ng khÃ´ng; Owner Earnings cÃ³ tháº­t khÃ´ng hay bá»‹ capex duy trÃ¬ lá»›n; ban lÃ£nh Ä‘áº¡o phÃ¢n bá»• vá»‘n cÃ³ ká»· luáº­t khÃ´ng.",
+        "Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn": "Owner Earnings, Earnings Power, ROIC Reinvestment, FCF Yield; chá»‰ tráº£ premium khi moat vÃ  tÄƒng trÆ°á»Ÿng tháº­t sá»± bá»n.",
     },
     "Compounder": {
-        "Cơ sở tư duy": "Buffett/Munger + ROIC/Moat + Owner Earnings",
-        "Đặc điểm cần kiểm tra": "ROIC cao hơn chi phí vốn; dòng tiền tốt; doanh thu/lợi nhuận tăng đều; doanh nghiệp có khả năng tái đầu tư; lợi thế cạnh tranh không phụ thuộc vào một chu kỳ ngắn.",
-        "Cần phân tích thêm": "Tăng trưởng đến từ sản lượng, giá bán, mở rộng kênh hay M&A; chất lượng lợi nhuận; capex duy trì; rủi ro pha loãng; sức mạnh định giá.",
-        "Định giá nên ưu tiên": "Owner Earnings, FCF, Earnings Power; kiểm tra MOS bằng dải giá trị thay vì một con số duy nhất.",
+        "CÆ¡ sá»Ÿ tÆ° duy": "Buffett/Munger + ROIC/Moat + Owner Earnings",
+        "Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra": "ROIC cao hÆ¡n chi phÃ­ vá»‘n; dÃ²ng tiá»n tá»‘t; doanh thu/lá»£i nhuáº­n tÄƒng Ä‘á»u; doanh nghiá»‡p cÃ³ kháº£ nÄƒng tÃ¡i Ä‘áº§u tÆ°; lá»£i tháº¿ cáº¡nh tranh khÃ´ng phá»¥ thuá»™c vÃ o má»™t chu ká»³ ngáº¯n.",
+        "Cáº§n phÃ¢n tÃ­ch thÃªm": "TÄƒng trÆ°á»Ÿng Ä‘áº¿n tá»« sáº£n lÆ°á»£ng, giÃ¡ bÃ¡n, má»Ÿ rá»™ng kÃªnh hay M&A; cháº¥t lÆ°á»£ng lá»£i nhuáº­n; capex duy trÃ¬; rá»§i ro pha loÃ£ng; sá»©c máº¡nh Ä‘á»‹nh giÃ¡.",
+        "Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn": "Owner Earnings, FCF, Earnings Power; kiá»ƒm tra MOS báº±ng dáº£i giÃ¡ trá»‹ thay vÃ¬ má»™t con sá»‘ duy nháº¥t.",
     },
     "Cyclical": {
-        "Cơ sở tư duy": "Peter Lynch về cổ phiếu chu kỳ + Howard Marks về chu kỳ/rủi ro + Graham về chuẩn hóa lợi nhuận",
-        "Đặc điểm cần kiểm tra": "Lợi nhuận biến động theo giá hàng hóa, cung cầu ngành, công suất, tồn kho, lãi suất hoặc chu kỳ đầu tư. P/E thấp ở đỉnh chu kỳ có thể là bẫy; P/E cao ở đáy chu kỳ chưa chắc là đắt.",
-        "Cần phân tích thêm": "Đang ở giai đoạn nào của chu kỳ; biên lợi nhuận hiện tại so với trung bình 5-10 năm; sản lượng/công suất; tồn kho; nợ vay; capex lớn có rơi vào cuối chu kỳ không; lợi nhuận chuẩn hóa là bao nhiêu.",
-        "Định giá nên ưu tiên": "Normalized earnings, P/B, ROCE qua chu kỳ, EV/EBITDA chuẩn hóa, asset value; MOS cần rộng hơn doanh nghiệp ổn định.",
+        "CÆ¡ sá»Ÿ tÆ° duy": "Peter Lynch vá» cá»• phiáº¿u chu ká»³ + Howard Marks vá» chu ká»³/rá»§i ro + Graham vá» chuáº©n hÃ³a lá»£i nhuáº­n",
+        "Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra": "Lá»£i nhuáº­n biáº¿n Ä‘á»™ng theo giÃ¡ hÃ ng hÃ³a, cung cáº§u ngÃ nh, cÃ´ng suáº¥t, tá»“n kho, lÃ£i suáº¥t hoáº·c chu ká»³ Ä‘áº§u tÆ°. P/E tháº¥p á»Ÿ Ä‘á»‰nh chu ká»³ cÃ³ thá»ƒ lÃ  báº«y; P/E cao á»Ÿ Ä‘Ã¡y chu ká»³ chÆ°a cháº¯c lÃ  Ä‘áº¯t.",
+        "Cáº§n phÃ¢n tÃ­ch thÃªm": "Äang á»Ÿ giai Ä‘oáº¡n nÃ o cá»§a chu ká»³; biÃªn lá»£i nhuáº­n hiá»‡n táº¡i so vá»›i trung bÃ¬nh 5-10 nÄƒm; sáº£n lÆ°á»£ng/cÃ´ng suáº¥t; tá»“n kho; ná»£ vay; capex lá»›n cÃ³ rÆ¡i vÃ o cuá»‘i chu ká»³ khÃ´ng; lá»£i nhuáº­n chuáº©n hÃ³a lÃ  bao nhiÃªu.",
+        "Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn": "Normalized earnings, P/B, ROCE qua chu ká»³, EV/EBITDA chuáº©n hÃ³a, asset value; MOS cáº§n rá»™ng hÆ¡n doanh nghiá»‡p á»•n Ä‘á»‹nh.",
     },
     "Asset Play": {
-        "Cơ sở tư duy": "Graham/Dodd + Li Lu Timberland case + Net Liquid Assets",
-        "Đặc điểm cần kiểm tra": "Giá thị trường thấp so với tài sản hữu hình/thanh khoản; downside được bảo vệ bởi tiền, tài sản, bất động sản, vốn lưu động hoặc giá trị thanh lý.",
-        "Cần phân tích thêm": "Chất lượng tài sản; khoản phải thu/tồn kho có thu hồi được không; tài sản ẩn; nợ tiềm tàng; giao dịch bên liên quan; khả năng hiện thực hóa giá trị; quản trị có thân thiện cổ đông không.",
-        "Định giá nên ưu tiên": "Book Value điều chỉnh, NCAV, NLA, Liquidation Value, P/B; không nên trả cao chỉ vì tài sản lớn nếu tài sản khó chuyển thành tiền.",
+        "CÆ¡ sá»Ÿ tÆ° duy": "Graham/Dodd + Li Lu Timberland case + Net Liquid Assets",
+        "Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra": "GiÃ¡ thá»‹ trÆ°á»ng tháº¥p so vá»›i tÃ i sáº£n há»¯u hÃ¬nh/thanh khoáº£n; downside Ä‘Æ°á»£c báº£o vá»‡ bá»Ÿi tiá»n, tÃ i sáº£n, báº¥t Ä‘á»™ng sáº£n, vá»‘n lÆ°u Ä‘á»™ng hoáº·c giÃ¡ trá»‹ thanh lÃ½.",
+        "Cáº§n phÃ¢n tÃ­ch thÃªm": "Cháº¥t lÆ°á»£ng tÃ i sáº£n; khoáº£n pháº£i thu/tá»“n kho cÃ³ thu há»“i Ä‘Æ°á»£c khÃ´ng; tÃ i sáº£n áº©n; ná»£ tiá»m tÃ ng; giao dá»‹ch bÃªn liÃªn quan; kháº£ nÄƒng hiá»‡n thá»±c hÃ³a giÃ¡ trá»‹; quáº£n trá»‹ cÃ³ thÃ¢n thiá»‡n cá»• Ä‘Ã´ng khÃ´ng.",
+        "Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn": "Book Value Ä‘iá»u chá»‰nh, NCAV, NLA, Liquidation Value, P/B; khÃ´ng nÃªn tráº£ cao chá»‰ vÃ¬ tÃ i sáº£n lá»›n náº¿u tÃ i sáº£n khÃ³ chuyá»ƒn thÃ nh tiá»n.",
     },
     "Turnaround": {
-        "Cơ sở tư duy": "Graham về bảo vệ downside + Howard Marks về kiểm soát rủi ro",
-        "Đặc điểm cần kiểm tra": "Doanh nghiệp đang phục hồi từ suy giảm, lỗ, tái cấu trúc hoặc thay đổi chiến lược. Rủi ro thực thi cao và dữ liệu quá khứ có thể chưa đại diện tương lai.",
-        "Cần phân tích thêm": "Nguyên nhân suy giảm đã xử lý chưa; dòng tiền có đủ sống sót không; nợ vay/đáo hạn; tài sản có bán được không; ban lãnh đạo mới; dấu hiệu cải thiện biên lợi nhuận và vòng quay vốn.",
-        "Định giá nên ưu tiên": "Downside asset value, bear/base/bull scenario, normalized earnings sau phục hồi; yêu cầu MOS rất rộng.",
+        "CÆ¡ sá»Ÿ tÆ° duy": "Graham vá» báº£o vá»‡ downside + Howard Marks vá» kiá»ƒm soÃ¡t rá»§i ro",
+        "Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra": "Doanh nghiá»‡p Ä‘ang phá»¥c há»“i tá»« suy giáº£m, lá»—, tÃ¡i cáº¥u trÃºc hoáº·c thay Ä‘á»•i chiáº¿n lÆ°á»£c. Rá»§i ro thá»±c thi cao vÃ  dá»¯ liá»‡u quÃ¡ khá»© cÃ³ thá»ƒ chÆ°a Ä‘áº¡i diá»‡n tÆ°Æ¡ng lai.",
+        "Cáº§n phÃ¢n tÃ­ch thÃªm": "NguyÃªn nhÃ¢n suy giáº£m Ä‘Ã£ xá»­ lÃ½ chÆ°a; dÃ²ng tiá»n cÃ³ Ä‘á»§ sá»‘ng sÃ³t khÃ´ng; ná»£ vay/Ä‘Ã¡o háº¡n; tÃ i sáº£n cÃ³ bÃ¡n Ä‘Æ°á»£c khÃ´ng; ban lÃ£nh Ä‘áº¡o má»›i; dáº¥u hiá»‡u cáº£i thiá»‡n biÃªn lá»£i nhuáº­n vÃ  vÃ²ng quay vá»‘n.",
+        "Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn": "Downside asset value, bear/base/bull scenario, normalized earnings sau phá»¥c há»“i; yÃªu cáº§u MOS ráº¥t rá»™ng.",
     },
     "Bank/Insurance": {
-        "Cơ sở tư duy": "Peter Lynch/regional banks + tiêu chí ngân hàng trong bộ nguồn",
-        "Đặc điểm cần kiểm tra": "BCTC đặc thù; đòn bẩy cao; ROE/P/B quan trọng hơn FCF; chất lượng tài sản và quản trị rủi ro quyết định giá trị.",
-        "Cần phân tích thêm": "NIM, CASA, tăng trưởng tín dụng, NPL, nợ nhóm 2, bao phủ nợ xấu, chi phí tín dụng, CAR, chất lượng trái phiếu/tài sản đầu tư, governance.",
-        "Định giá nên ưu tiên": "P/B so với ROE bền vững, residual income/earning power, chất lượng tài sản; không dùng FCF công nghiệp làm phương pháp lõi.",
+        "CÆ¡ sá»Ÿ tÆ° duy": "Peter Lynch/regional banks + tiÃªu chÃ­ ngÃ¢n hÃ ng trong bá»™ nguá»“n",
+        "Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra": "BCTC Ä‘áº·c thÃ¹; Ä‘Ã²n báº©y cao; ROE/P/B quan trá»ng hÆ¡n FCF; cháº¥t lÆ°á»£ng tÃ i sáº£n vÃ  quáº£n trá»‹ rá»§i ro quyáº¿t Ä‘á»‹nh giÃ¡ trá»‹.",
+        "Cáº§n phÃ¢n tÃ­ch thÃªm": "NIM, CASA, tÄƒng trÆ°á»Ÿng tÃ­n dá»¥ng, NPL, ná»£ nhÃ³m 2, bao phá»§ ná»£ xáº¥u, chi phÃ­ tÃ­n dá»¥ng, CAR, cháº¥t lÆ°á»£ng trÃ¡i phiáº¿u/tÃ i sáº£n Ä‘áº§u tÆ°, governance.",
+        "Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn": "P/B so vá»›i ROE bá»n vá»¯ng, residual income/earning power, cháº¥t lÆ°á»£ng tÃ i sáº£n; khÃ´ng dÃ¹ng FCF cÃ´ng nghiá»‡p lÃ m phÆ°Æ¡ng phÃ¡p lÃµi.",
     },
-    "Chưa có dữ liệu tài chính": {
-        "Cơ sở tư duy": "Nguyên tắc audit dữ liệu: không định giá khi chưa có BCTC nhiều kỳ đủ kiểm chứng",
-        "Đặc điểm cần kiểm tra": "Chưa đủ chuỗi BCTC năm/quý để phân loại đáng tin cậy; cần kiểm tra nguồn dữ liệu, mã chứng khoán, kỳ báo cáo và file import/crawler.",
-        "Cần phân tích thêm": "Tải hoặc import BCTC nhiều kỳ; đối chiếu doanh thu, LNST, CFO, capex, ROE/ROIC, nợ vay và vốn chủ trước khi chạy định giá.",
-        "Định giá nên ưu tiên": "Tạm dừng định giá tự động; chỉ mở lại P/E, P/B, FCF, Owner Earnings, MOS khi dữ liệu đã đủ và có kiểm chứng nội bộ.",
+    "ChÆ°a cÃ³ dá»¯ liá»‡u tÃ i chÃ­nh": {
+        "CÆ¡ sá»Ÿ tÆ° duy": "NguyÃªn táº¯c audit dá»¯ liá»‡u: khÃ´ng Ä‘á»‹nh giÃ¡ khi chÆ°a cÃ³ BCTC nhiá»u ká»³ Ä‘á»§ kiá»ƒm chá»©ng",
+        "Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra": "ChÆ°a Ä‘á»§ chuá»—i BCTC nÄƒm/quÃ½ Ä‘á»ƒ phÃ¢n loáº¡i Ä‘Ã¡ng tin cáº­y; cáº§n kiá»ƒm tra nguá»“n dá»¯ liá»‡u, mÃ£ chá»©ng khoÃ¡n, ká»³ bÃ¡o cÃ¡o vÃ  file import/crawler.",
+        "Cáº§n phÃ¢n tÃ­ch thÃªm": "Táº£i hoáº·c import BCTC nhiá»u ká»³; Ä‘á»‘i chiáº¿u doanh thu, LNST, CFO, capex, ROE/ROIC, ná»£ vay vÃ  vá»‘n chá»§ trÆ°á»›c khi cháº¡y Ä‘á»‹nh giÃ¡.",
+        "Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn": "Táº¡m dá»«ng Ä‘á»‹nh giÃ¡ tá»± Ä‘á»™ng; chá»‰ má»Ÿ láº¡i P/E, P/B, FCF, Owner Earnings, MOS khi dá»¯ liá»‡u Ä‘Ã£ Ä‘á»§ vÃ  cÃ³ kiá»ƒm chá»©ng ná»™i bá»™.",
     },
     "Normal Business": {
-        "Cơ sở tư duy": "Graham/Buffett/Peter Lynch kết hợp",
-        "Đặc điểm cần kiểm tra": "Doanh nghiệp chưa đủ bằng chứng để xếp compounder, cyclical, asset play hay turnaround. Cần đọc chất lượng lợi nhuận và lợi thế cạnh tranh trước khi trả premium.",
-        "Cần phân tích thêm": "ROIC so với WACC; CFO/LNST; FCF; tăng trưởng doanh thu/lợi nhuận; biến động biên lợi nhuận; nợ vay; ngành có cạnh tranh gay gắt không; có moat thật không.",
-        "Định giá nên ưu tiên": "Kết hợp P/E chuẩn hóa, FCF, Earnings Power, P/B; giảm trọng số các phương pháp thiếu dữ liệu và yêu cầu MOS phù hợp mức bất định.",
+        "CÆ¡ sá»Ÿ tÆ° duy": "Graham/Buffett/Peter Lynch káº¿t há»£p",
+        "Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra": "Doanh nghiá»‡p chÆ°a Ä‘á»§ báº±ng chá»©ng Ä‘á»ƒ xáº¿p compounder, cyclical, asset play hay turnaround. Cáº§n Ä‘á»c cháº¥t lÆ°á»£ng lá»£i nhuáº­n vÃ  lá»£i tháº¿ cáº¡nh tranh trÆ°á»›c khi tráº£ premium.",
+        "Cáº§n phÃ¢n tÃ­ch thÃªm": "ROIC so vá»›i WACC; CFO/LNST; FCF; tÄƒng trÆ°á»Ÿng doanh thu/lá»£i nhuáº­n; biáº¿n Ä‘á»™ng biÃªn lá»£i nhuáº­n; ná»£ vay; ngÃ nh cÃ³ cáº¡nh tranh gay gáº¯t khÃ´ng; cÃ³ moat tháº­t khÃ´ng.",
+        "Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn": "Káº¿t há»£p P/E chuáº©n hÃ³a, FCF, Earnings Power, P/B; giáº£m trá»ng sá»‘ cÃ¡c phÆ°Æ¡ng phÃ¡p thiáº¿u dá»¯ liá»‡u vÃ  yÃªu cáº§u MOS phÃ¹ há»£p má»©c báº¥t Ä‘á»‹nh.",
     },
 }
 
@@ -2547,41 +2547,41 @@ COMPANY_TYPE_GUIDANCE = {
 def _render_company_type_guidance(current_type: str | None = None) -> None:
     raw_type = str(current_type or "Normal Business")
     current_type, info = _company_type_info(raw_type)
-    st.subheader("Diễn giải loại hình doanh nghiệp & điểm cần phân tích thêm")
+    st.subheader("Diá»…n giáº£i loáº¡i hÃ¬nh doanh nghiá»‡p & Ä‘iá»ƒm cáº§n phÃ¢n tÃ­ch thÃªm")
     st.markdown(
         f"""
         <div class='note-card'>
-        <b style='color:#0B7F75;font-size:1.05rem'>Loại hiện tại: {html.escape(current_type)}</b><br>
-        <b>Cơ sở tư duy:</b> {html.escape(info['Cơ sở tư duy'])}<br>
-        <b>Đặc điểm cần kiểm tra:</b> {html.escape(info['Đặc điểm cần kiểm tra'])}<br>
-        <b>Cần phân tích thêm:</b> {html.escape(info['Cần phân tích thêm'])}<br>
-        <b>Định giá nên ưu tiên:</b> {html.escape(info['Định giá nên ưu tiên'])}
+        <b style='color:#0B7F75;font-size:1.05rem'>Loáº¡i hiá»‡n táº¡i: {html.escape(current_type)}</b><br>
+        <b>CÆ¡ sá»Ÿ tÆ° duy:</b> {html.escape(info['CÆ¡ sá»Ÿ tÆ° duy'])}<br>
+        <b>Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra:</b> {html.escape(info['Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra'])}<br>
+        <b>Cáº§n phÃ¢n tÃ­ch thÃªm:</b> {html.escape(info['Cáº§n phÃ¢n tÃ­ch thÃªm'])}<br>
+        <b>Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn:</b> {html.escape(info['Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn'])}
         </div>
         """,
         unsafe_allow_html=True,
     )
     type_df = pd.DataFrame([
-        {"Loại doanh nghiệp": k, **v} for k, v in COMPANY_TYPE_GUIDANCE.items()
-    ]).sort_values("Loại doanh nghiệp").reset_index(drop=True)
+        {"Loáº¡i doanh nghiá»‡p": k, **v} for k, v in COMPANY_TYPE_GUIDANCE.items()
+    ]).sort_values("Loáº¡i doanh nghiá»‡p").reset_index(drop=True)
     type_df.insert(0, "STT", range(1, len(type_df) + 1))
-    st.download_button("⬇️ Tải bảng loại hình doanh nghiệp", type_df.to_csv(index=False, encoding="utf-8-sig"), file_name="company_type_guidance.csv", mime="text/csv", use_container_width=True)
+    st.download_button("â¬‡ï¸ Táº£i báº£ng loáº¡i hÃ¬nh doanh nghiá»‡p", type_df.to_csv(index=False, encoding="utf-8-sig"), file_name="company_type_guidance.csv", mime="text/csv", use_container_width=True)
     rows_html = []
     for _, r in type_df.iterrows():
         rows_html.append(
             "<tr>"
             f"<td>{html.escape(str(r.get('STT','')))}</td>"
-            f"<td class='type-name'>{html.escape(str(r.get('Loại doanh nghiệp','')))}</td>"
-            f"<td>{html.escape(str(r.get('Cơ sở tư duy','')))}</td>"
-            f"<td>{html.escape(str(r.get('Đặc điểm cần kiểm tra','')))}</td>"
-            f"<td>{html.escape(str(r.get('Cần phân tích thêm','')))}</td>"
-            f"<td>{html.escape(str(r.get('Định giá nên ưu tiên','')))}</td>"
+            f"<td class='type-name'>{html.escape(str(r.get('Loáº¡i doanh nghiá»‡p','')))}</td>"
+            f"<td>{html.escape(str(r.get('CÆ¡ sá»Ÿ tÆ° duy','')))}</td>"
+            f"<td>{html.escape(str(r.get('Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra','')))}</td>"
+            f"<td>{html.escape(str(r.get('Cáº§n phÃ¢n tÃ­ch thÃªm','')))}</td>"
+            f"<td>{html.escape(str(r.get('Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn','')))}</td>"
             "</tr>"
         )
     st.markdown(
         """
         <div style='overflow-x:auto; border:1px solid rgba(11,127,117,.22); border-radius:14px;'>
         <table class='type-fit-table'>
-          <thead><tr><th>STT</th><th>Loại doanh nghiệp</th><th>Cơ sở tư duy</th><th>Đặc điểm cần kiểm tra</th><th>Cần phân tích thêm</th><th>Định giá nên ưu tiên</th></tr></thead>
+          <thead><tr><th>STT</th><th>Loáº¡i doanh nghiá»‡p</th><th>CÆ¡ sá»Ÿ tÆ° duy</th><th>Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra</th><th>Cáº§n phÃ¢n tÃ­ch thÃªm</th><th>Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn</th></tr></thead>
           <tbody>{rows}</tbody>
         </table>
         </div>
@@ -2609,23 +2609,23 @@ def _render_company_type_summary_callout(classification: object | None = None, c
         reasons = []
         preferred = []
     guide_type, info = _company_type_info(raw_type)
-    confidence_text = f" · độ tin cậy {float(confidence):.0f}/100" if confidence is not None else ""
+    confidence_text = f" Â· Ä‘á»™ tin cáº­y {float(confidence):.0f}/100" if confidence is not None else ""
     reason_items = "".join(f"<li>{html.escape(reason)}</li>" for reason in reasons)
     if not reason_items:
-        reason_items = "<li>Chưa có đủ dữ liệu định lượng để giải thích phân loại; cần cập nhật BCTC/nguồn dữ liệu trước khi kết luận.</li>"
-    preferred_text = "; ".join(preferred) if preferred else info.get("Định giá nên ưu tiên", "N/A")
+        reason_items = "<li>ChÆ°a cÃ³ Ä‘á»§ dá»¯ liá»‡u Ä‘á»‹nh lÆ°á»£ng Ä‘á»ƒ giáº£i thÃ­ch phÃ¢n loáº¡i; cáº§n cáº­p nháº­t BCTC/nguá»“n dá»¯ liá»‡u trÆ°á»›c khi káº¿t luáº­n.</li>"
+    preferred_text = "; ".join(preferred) if preferred else info.get("Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn", "N/A")
     st.markdown(
         f"""
         <div style="border:2px solid rgba(245,178,27,.65); border-left:12px solid #F5B21B; border-radius:18px;
                     padding:15px 18px; margin:10px 0 16px 0; background:linear-gradient(135deg,#FFF9E8 0%,#FFF3C4 100%);
                     color:#5F3B00; font-weight:900; line-height:1.58; box-shadow:0 9px 22px rgba(245,178,27,.13);">
-          <div style="font-size:1.08rem; color:#0B7F75; font-weight:1000; margin-bottom:6px;">📌 Phân loại doanh nghiệp: {html.escape(raw_type)}{html.escape(confidence_text)}</div>
-          <div style="font-size:.90rem; color:#7A4B00; margin-bottom:8px;"><b>Nhóm hướng dẫn áp dụng:</b> {html.escape(guide_type)}</div>
-          <div><b style="color:#9A6600;">Đặc điểm cần kiểm tra:</b> {html.escape(info.get('Đặc điểm cần kiểm tra','N/A'))}</div>
-          <div><b style="color:#9A6600;">Cần phân tích thêm:</b> {html.escape(info.get('Cần phân tích thêm','N/A'))}</div>
-          <div><b style="color:#9A6600;">Định giá nên ưu tiên:</b> {html.escape(preferred_text)}</div>
+          <div style="font-size:1.08rem; color:#0B7F75; font-weight:1000; margin-bottom:6px;">ðŸ“Œ PhÃ¢n loáº¡i doanh nghiá»‡p: {html.escape(raw_type)}{html.escape(confidence_text)}</div>
+          <div style="font-size:.90rem; color:#7A4B00; margin-bottom:8px;"><b>NhÃ³m hÆ°á»›ng dáº«n Ã¡p dá»¥ng:</b> {html.escape(guide_type)}</div>
+          <div><b style="color:#9A6600;">Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra:</b> {html.escape(info.get('Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra','N/A'))}</div>
+          <div><b style="color:#9A6600;">Cáº§n phÃ¢n tÃ­ch thÃªm:</b> {html.escape(info.get('Cáº§n phÃ¢n tÃ­ch thÃªm','N/A'))}</div>
+          <div><b style="color:#9A6600;">Äá»‹nh giÃ¡ nÃªn Æ°u tiÃªn:</b> {html.escape(preferred_text)}</div>
           <div style="margin-top:10px; padding-top:9px; border-top:1px solid rgba(154,102,0,.22);">
-            <div style="font-size:1.02rem; color:#8A5A00; font-weight:1000; margin-bottom:4px;">🟡 Lý do phân loại theo dữ liệu mã đang phân tích</div>
+            <div style="font-size:1.02rem; color:#8A5A00; font-weight:1000; margin-bottom:4px;">ðŸŸ¡ LÃ½ do phÃ¢n loáº¡i theo dá»¯ liá»‡u mÃ£ Ä‘ang phÃ¢n tÃ­ch</div>
             <ul style="margin:6px 0 0 20px; padding:0;">{reason_items}</ul>
           </div>
         </div>
@@ -2635,30 +2635,30 @@ def _render_company_type_summary_callout(classification: object | None = None, c
 
 
 def _augment_auto_summary_with_checklist(summary: object, current_type: str | None = None) -> str:
-    """Không chèn Đặc điểm cần kiểm tra vào card đỏ Tóm tắt tự động."""
+    """KhÃ´ng chÃ¨n Äáº·c Ä‘iá»ƒm cáº§n kiá»ƒm tra vÃ o card Ä‘á» TÃ³m táº¯t tá»± Ä‘á»™ng."""
     return "" if summary is None else str(summary)
 
 
 def _render_glossary_panel() -> None:
-    st.subheader("Diễn giải thuật ngữ và từ viết tắt")
-    st.caption("Bảng thuật ngữ được sắp xếp theo thứ tự chữ cái; cột Thuật ngữ tự ôm sát nội dung, cột Diễn giải mở rộng và xuống dòng để dễ đọc.")
-    glossary_df = pd.DataFrame([{"Thuật ngữ": k, "Diễn giải": v} for k, v in GLOSSARY_TERMS.items()])
-    glossary_df = glossary_df.sort_values("Thuật ngữ", key=lambda s: s.str.lower()).reset_index(drop=True)
+    st.subheader("Diá»…n giáº£i thuáº­t ngá»¯ vÃ  tá»« viáº¿t táº¯t")
+    st.caption("Báº£ng thuáº­t ngá»¯ Ä‘Æ°á»£c sáº¯p xáº¿p theo thá»© tá»± chá»¯ cÃ¡i; cá»™t Thuáº­t ngá»¯ tá»± Ã´m sÃ¡t ná»™i dung, cá»™t Diá»…n giáº£i má»Ÿ rá»™ng vÃ  xuá»‘ng dÃ²ng Ä‘á»ƒ dá»… Ä‘á»c.")
+    glossary_df = pd.DataFrame([{"Thuáº­t ngá»¯": k, "Diá»…n giáº£i": v} for k, v in GLOSSARY_TERMS.items()])
+    glossary_df = glossary_df.sort_values("Thuáº­t ngá»¯", key=lambda s: s.str.lower()).reset_index(drop=True)
     glossary_df.insert(0, "STT", range(1, len(glossary_df) + 1))
-    st.download_button("⬇️ Tải bảng thuật ngữ", glossary_df.to_csv(index=False, encoding="utf-8-sig"), file_name="glossary.csv", mime="text/csv", use_container_width=True)
+    st.download_button("â¬‡ï¸ Táº£i báº£ng thuáº­t ngá»¯", glossary_df.to_csv(index=False, encoding="utf-8-sig"), file_name="glossary.csv", mime="text/csv", use_container_width=True)
     rows = []
     for _, r in glossary_df.iterrows():
         rows.append(
             "<tr>"
             f"<td class='stt'>{html.escape(str(r.get('STT', '')))}</td>"
-            f"<td class='term'>{html.escape(str(r.get('Thuật ngữ', '')))}</td>"
-            f"<td class='desc'>{html.escape(str(r.get('Diễn giải', '')))}</td>"
+            f"<td class='term'>{html.escape(str(r.get('Thuáº­t ngá»¯', '')))}</td>"
+            f"<td class='desc'>{html.escape(str(r.get('Diá»…n giáº£i', '')))}</td>"
             "</tr>"
         )
     table_html = """
     <div style='max-height:560px; overflow:auto; border-radius:14px; box-shadow:0 8px 20px rgba(11,127,117,.07);'>
       <table class='glossary-fit-table'>
-        <thead><tr><th class='stt'>STT</th><th class='term'>Thuật ngữ</th><th class='desc'>Diễn giải</th></tr></thead>
+        <thead><tr><th class='stt'>STT</th><th class='term'>Thuáº­t ngá»¯</th><th class='desc'>Diá»…n giáº£i</th></tr></thead>
         <tbody>{rows}</tbody>
       </table>
     </div>
@@ -2669,30 +2669,30 @@ def _render_no_data(ticker: str, source: str, available_tickers: list[str], erro
     info = _listed_ticker_info_cached(str(BUNDLED_XLSM), ticker) if BUNDLED_XLSM.exists() else {}
     name = info.get("company_name", ticker)
     exchange = info.get("exchange", "")
-    st.error(f"Chưa có dữ liệu BCTC nhiều kỳ để định giá mã {ticker} từ nguồn '{source}'.")
+    st.error(f"ChÆ°a cÃ³ dá»¯ liá»‡u BCTC nhiá»u ká»³ Ä‘á»ƒ Ä‘á»‹nh giÃ¡ mÃ£ {ticker} tá»« nguá»“n '{source}'.")
     if info:
-        st.info(f"Đã nhận diện mã {ticker}: {name} ({exchange}). Tuy nhiên dữ liệu tích hợp hiện chưa có block BCTC nhiều kỳ cho mã này.")
+        st.info(f"ÄÃ£ nháº­n diá»‡n mÃ£ {ticker}: {name} ({exchange}). Tuy nhiÃªn dá»¯ liá»‡u tÃ­ch há»£p hiá»‡n chÆ°a cÃ³ block BCTC nhiá»u ká»³ cho mÃ£ nÃ y.")
     if error:
         st.warning(error)
     st.markdown(
         f"""
         <div class='warn-card'>
-        <b>Ý nghĩa màn hình này:</b><br>
-        App không bị treo. Định giá chuyên sâu đang chặn việc định giá khi chưa có đủ BCTC, để tránh hiện N/A hoặc chấm moat ảo.<br><br>
-        <b>Cách xử lý:</b><br>
-        1) Chọn một mã có dữ liệu trong danh sách bên trái để test ngay.<br>
-        2) Với mã <b>{ticker}</b>, chọn chế độ <b>Tự động</b> hoặc <b>Dữ liệu ưu tiên</b> để app dùng lại bộ BCTC đã chuẩn hóa của Tổng quan doanh nghiệp.<br>
-        3) Nếu dữ liệu chưa đủ, có thể thử chế độ <b>Dữ liệu trực tuyến</b> hoặc cập nhật/import file dữ liệu tích hợp có chứa block BCTC của mã này rồi chạy lại.
+        <b>Ã nghÄ©a mÃ n hÃ¬nh nÃ y:</b><br>
+        App khÃ´ng bá»‹ treo. Äá»‹nh giÃ¡ chuyÃªn sÃ¢u Ä‘ang cháº·n viá»‡c Ä‘á»‹nh giÃ¡ khi chÆ°a cÃ³ Ä‘á»§ BCTC, Ä‘á»ƒ trÃ¡nh hiá»‡n N/A hoáº·c cháº¥m moat áº£o.<br><br>
+        <b>CÃ¡ch xá»­ lÃ½:</b><br>
+        1) Chá»n má»™t mÃ£ cÃ³ dá»¯ liá»‡u trong danh sÃ¡ch bÃªn trÃ¡i Ä‘á»ƒ test ngay.<br>
+        2) Vá»›i mÃ£ <b>{ticker}</b>, chá»n cháº¿ Ä‘á»™ <b>Tá»± Ä‘á»™ng</b> hoáº·c <b>Dá»¯ liá»‡u Æ°u tiÃªn</b> Ä‘á»ƒ app dÃ¹ng láº¡i bá»™ BCTC Ä‘Ã£ chuáº©n hÃ³a cá»§a Tá»•ng quan doanh nghiá»‡p.<br>
+        3) Náº¿u dá»¯ liá»‡u chÆ°a Ä‘á»§, cÃ³ thá»ƒ thá»­ cháº¿ Ä‘á»™ <b>Dá»¯ liá»‡u trá»±c tuyáº¿n</b> hoáº·c cáº­p nháº­t/import file dá»¯ liá»‡u tÃ­ch há»£p cÃ³ chá»©a block BCTC cá»§a mÃ£ nÃ y rá»“i cháº¡y láº¡i.
         </div>
         """,
         unsafe_allow_html=True,
     )
     if available_tickers:
-        st.success("Các mã có đủ dữ liệu tích hợp: " + ", ".join(available_tickers))
+        st.success("CÃ¡c mÃ£ cÃ³ Ä‘á»§ dá»¯ liá»‡u tÃ­ch há»£p: " + ", ".join(available_tickers))
 
 
 def _update_module2_web_evidence(company) -> None:
-    """Tìm evidence internet và lưu vào session cho đúng mã đang phân tích."""
+    """TÃ¬m evidence internet vÃ  lÆ°u vÃ o session cho Ä‘Ãºng mÃ£ Ä‘ang phÃ¢n tÃ­ch."""
     try:
         ticker = _safe_ticker(getattr(company, "ticker", ""))
         company_name = str(getattr(company, "company_name", "") or "")
@@ -2702,10 +2702,10 @@ def _update_module2_web_evidence(company) -> None:
         st.session_state["module2_web_ticker"] = ticker
         st.session_state["module2_web_updated_at"] = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
         st.session_state["module2_auto_update_status"] = (
-            f"Đã cập nhật BCTC/cache Tổng quan doanh nghiệp → Định giá chuyên sâu và evidence internet cho {ticker} lúc {st.session_state['module2_web_updated_at']}"
+            f"ÄÃ£ cáº­p nháº­t BCTC/cache Tá»•ng quan doanh nghiá»‡p â†’ Äá»‹nh giÃ¡ chuyÃªn sÃ¢u vÃ  evidence internet cho {ticker} lÃºc {st.session_state['module2_web_updated_at']}"
         )
     except Exception as exc:
-        st.session_state["module2_auto_update_status"] = f"Không cập nhật được evidence internet: {exc}"
+        st.session_state["module2_auto_update_status"] = f"KhÃ´ng cáº­p nháº­t Ä‘Æ°á»£c evidence internet: {exc}"
 
 
 
@@ -2755,29 +2755,29 @@ def _normalize_peer_universe(df: pd.DataFrame | None) -> pd.DataFrame:
     rename = {}
     for c in out.columns:
         lc = str(c).strip().lower()
-        if lc in {"mã", "ma", "ma_cp", "mã cp", "mã cổ phiếu", "code", "symbol"}:
+        if lc in {"mÃ£", "ma", "ma_cp", "mÃ£ cp", "mÃ£ cá»• phiáº¿u", "code", "symbol"}:
             rename[c] = "ticker"
-        elif lc in {"tên", "ten", "company", "company_name", "tên doanh nghiệp", "doanh nghiệp"}:
+        elif lc in {"tÃªn", "ten", "company", "company_name", "tÃªn doanh nghiá»‡p", "doanh nghiá»‡p"}:
             rename[c] = "company_name"
-        elif lc in {"sàn", "san", "exchange"}:
+        elif lc in {"sÃ n", "san", "exchange"}:
             rename[c] = "exchange"
-        elif lc in {"ngành", "nganh", "industry"}:
+        elif lc in {"ngÃ nh", "nganh", "industry"}:
             rename[c] = "industry"
-        elif lc in {"phân ngành", "phan nganh", "sub_industry", "sub industry"}:
+        elif lc in {"phÃ¢n ngÃ nh", "phan nganh", "sub_industry", "sub industry"}:
             rename[c] = "sub_industry"
-        elif lc in {"nhóm ngành", "nhom nganh", "peer_group", "group"}:
+        elif lc in {"nhÃ³m ngÃ nh", "nhom nganh", "peer_group", "group"}:
             rename[c] = "peer_group"
-        elif lc in {"nguồn", "nguon", "source"}:
+        elif lc in {"nguá»“n", "nguon", "source"}:
             rename[c] = "source"
-        elif lc in {"ghi chú", "ghi chu", "note"}:
+        elif lc in {"ghi chÃº", "ghi chu", "note"}:
             rename[c] = "note"
-        elif lc in {"giá hiện tại", "gia hien tai", "current_price", "last_price", "price"}:
+        elif lc in {"giÃ¡ hiá»‡n táº¡i", "gia hien tai", "current_price", "last_price", "price"}:
             rename[c] = "current_price"
-        elif lc in {"biến động giá", "bien dong gia", "price_change_pct", "change_pct", "thay đổi giá %"}:
+        elif lc in {"biáº¿n Ä‘á»™ng giÃ¡", "bien dong gia", "price_change_pct", "change_pct", "thay Ä‘á»•i giÃ¡ %"}:
             rename[c] = "price_change_pct"
-        elif lc in {"7 ngày", "7 ngay", "7d", "change_7d_pct"}:
+        elif lc in {"7 ngÃ y", "7 ngay", "7d", "change_7d_pct"}:
             rename[c] = "change_7d_pct"
-        elif lc in {"1 năm", "1 nam", "1y", "change_1y_pct"}:
+        elif lc in {"1 nÄƒm", "1 nam", "1y", "change_1y_pct"}:
             rename[c] = "change_1y_pct"
         elif lc in {"p/e", "pe"}:
             rename[c] = "pe"
@@ -2785,13 +2785,13 @@ def _normalize_peer_universe(df: pd.DataFrame | None) -> pd.DataFrame:
             rename[c] = "pb"
         elif lc in {"roe", "roe %", "roe_pct"}:
             rename[c] = "roe_pct"
-        elif lc in {"t.trưởng lnst 3 năm dự phóng", "tang truong lnst 3 nam du phong", "forecast_profit_growth_3y_pct"}:
+        elif lc in {"t.trÆ°á»Ÿng lnst 3 nÄƒm dá»± phÃ³ng", "tang truong lnst 3 nam du phong", "forecast_profit_growth_3y_pct"}:
             rename[c] = "forecast_profit_growth_3y_pct"
-        elif lc in {"tỷ suất cổ tức", "ty suat co tuc", "dividend_yield_pct"}:
+        elif lc in {"tá»· suáº¥t cá»• tá»©c", "ty suat co tuc", "dividend_yield_pct"}:
             rename[c] = "dividend_yield_pct"
-        elif lc in {"vốn hóa", "von hoa", "market_cap", "market_cap_bil", "vốn hóa (tỷ đồng)"}:
+        elif lc in {"vá»‘n hÃ³a", "von hoa", "market_cap", "market_cap_bil", "vá»‘n hÃ³a (tá»· Ä‘á»“ng)"}:
             rename[c] = "market_cap_bil"
-        elif lc in {"biểu đồ giá 30d", "bieu do gia 30d", "chart_30d"}:
+        elif lc in {"biá»ƒu Ä‘á»“ giÃ¡ 30d", "bieu do gia 30d", "chart_30d"}:
             rename[c] = "chart_30d"
     out = out.rename(columns=rename)
     for c in base_cols:
@@ -2804,9 +2804,9 @@ def _normalize_peer_universe(df: pd.DataFrame | None) -> pd.DataFrame:
         if num_col in out.columns:
             out[num_col] = pd.to_numeric(out[num_col], errors="coerce")
     out["peer_group"] = out["peer_group"].replace({None: ""}).astype(str)
-    fallback_group = out["industry"].fillna("").astype(str).where(out["industry"].fillna("").astype(str).str.len() > 0, "Chưa phân nhóm")
+    fallback_group = out["industry"].fillna("").astype(str).where(out["industry"].fillna("").astype(str).str.len() > 0, "ChÆ°a phÃ¢n nhÃ³m")
     out["peer_group"] = out["peer_group"].where(out["peer_group"].str.strip().str.len() > 0, fallback_group)
-    # Giữ bản ghi đầy đủ nhất khi trùng mã; tránh dòng mã đang phân tích bị trống do cache cũ/row kỹ thuật ghi đè dữ liệu cùng ngành.
+    # Giá»¯ báº£n ghi Ä‘áº§y Ä‘á»§ nháº¥t khi trÃ¹ng mÃ£; trÃ¡nh dÃ²ng mÃ£ Ä‘ang phÃ¢n tÃ­ch bá»‹ trá»‘ng do cache cÅ©/row ká»¹ thuáº­t ghi Ä‘Ã¨ dá»¯ liá»‡u cÃ¹ng ngÃ nh.
     non_empty = out.replace("", pd.NA).notna().sum(axis=1)
     out = out.assign(_complete_score=non_empty).sort_values(["ticker", "_complete_score"]).drop_duplicates(subset=["ticker"], keep="last").drop(columns=["_complete_score"])
     if "market_cap_bil" in out.columns and pd.to_numeric(out["market_cap_bil"], errors="coerce").notna().any():
@@ -2840,20 +2840,20 @@ def _simplize_industry_peers_cached(ticker: str, raw_dir: str, industry_url: str
 def _load_simplize_peer_rows(ticker: str, industry_url: str = "") -> tuple[pd.DataFrame, str, str]:
     ticker = _safe_ticker(ticker)
     if not ticker:
-        return _empty_peer_universe(), "Chưa có mã cổ phiếu để lấy danh sách ngành.", ""
+        return _empty_peer_universe(), "ChÆ°a cÃ³ mÃ£ cá»• phiáº¿u Ä‘á»ƒ láº¥y danh sÃ¡ch ngÃ nh.", ""
     try:
         return _simplize_industry_peers_cached(ticker, str(RAW_DIR), industry_url or "")
     except Exception as exc:
-        return _empty_peer_universe(), f"Không cập nhật được danh sách cùng ngành cho {ticker}: {_public_text(exc)}", ""
+        return _empty_peer_universe(), f"KhÃ´ng cáº­p nháº­t Ä‘Æ°á»£c danh sÃ¡ch cÃ¹ng ngÃ nh cho {ticker}: {_public_text(exc)}", ""
 
 
 def _company_peer_group(company) -> str:
     sub = _display_industry_value(getattr(company, "sub_industry", ""))
     ind = _display_industry_value(getattr(company, "industry", ""))
-    return (sub if sub != "N/A" else "") or (ind if ind != "N/A" else "") or "Chưa phân nhóm"
+    return (sub if sub != "N/A" else "") or (ind if ind != "N/A" else "") or "ChÆ°a phÃ¢n nhÃ³m"
 
 
-def _company_to_peer_row(company, source_label: str = "Mã đang phân tích", note: str = "") -> dict:
+def _company_to_peer_row(company, source_label: str = "MÃ£ Ä‘ang phÃ¢n tÃ­ch", note: str = "") -> dict:
     ticker = _safe_ticker(str(getattr(company, "ticker", "")))
     return {
         "ticker": ticker,
@@ -2881,7 +2881,7 @@ def _merge_peer_rows(base: pd.DataFrame, rows: list[dict]) -> pd.DataFrame:
 def _ensure_current_peer_row(df: pd.DataFrame, company) -> pd.DataFrame:
     """Ensure the base ticker row is never blank and remains visible in the peer list."""
     out = _normalize_peer_universe(df)
-    cur = _company_to_peer_row(company, "Mã đang phân tích", "Dòng mã gốc được ghim và tick mặc định")
+    cur = _company_to_peer_row(company, "MÃ£ Ä‘ang phÃ¢n tÃ­ch", "DÃ²ng mÃ£ gá»‘c Ä‘Æ°á»£c ghim vÃ  tick máº·c Ä‘á»‹nh")
     ticker = _safe_ticker(cur.get("ticker"))
     if not ticker:
         return out
@@ -2976,7 +2976,7 @@ def _peer_snapshot(ticker: str, source_for_peer: str, assumptions: dict, target_
     try:
         c, annual, quarterly, label, _paths = _load_data(ticker, source_for_peer)
         if not _has_real_financial_data(annual):
-            raise RuntimeError("Không có dữ liệu tài chính nhiều kỳ hợp lệ")
+            raise RuntimeError("KhÃ´ng cÃ³ dá»¯ liá»‡u tÃ i chÃ­nh nhiá»u ká»³ há»£p lá»‡")
         valuation = build_module2_valuation_table(c, annual, assumptions)
         current_price = _parse_num(getattr(c, "current_price", None))
         value_range = build_valuation_range(valuation, current_price, float(target_mos_pct))
@@ -3002,76 +3002,76 @@ def _peer_snapshot(ticker: str, source_for_peer: str, assumptions: dict, target_
         risk_penalty = 10 if net_debt_equity is not None and net_debt_equity > 1.5 else 0
         total_score = max(0.0, min(100.0, 0.30 * quality_score + 0.25 * cash_score + 0.25 * moat_score + 0.20 * valuation_score - risk_penalty))
         if total_score >= 80 and mos is not None and mos >= float(target_mos_pct):
-            conclusion = "Ưu tiên cao: chất lượng/định giá cùng thuận lợi, cần xác nhận thêm bằng BCTN và rủi ro ngành."
+            conclusion = "Æ¯u tiÃªn cao: cháº¥t lÆ°á»£ng/Ä‘á»‹nh giÃ¡ cÃ¹ng thuáº­n lá»£i, cáº§n xÃ¡c nháº­n thÃªm báº±ng BCTN vÃ  rá»§i ro ngÃ nh."
         elif total_score >= 72 and (mos or -999) >= 0:
-            conclusion = "Theo dõi tốt: chất lượng tương đối cao nhưng cần kiểm tra MOS/chu kỳ trước khi giải ngân."
+            conclusion = "Theo dÃµi tá»‘t: cháº¥t lÆ°á»£ng tÆ°Æ¡ng Ä‘á»‘i cao nhÆ°ng cáº§n kiá»ƒm tra MOS/chu ká»³ trÆ°á»›c khi giáº£i ngÃ¢n."
         elif total_score >= 60:
-            conclusion = "Trung bình: chỉ nên xem là mã đối chiếu hoặc chờ giá/triển vọng rõ hơn."
+            conclusion = "Trung bÃ¬nh: chá»‰ nÃªn xem lÃ  mÃ£ Ä‘á»‘i chiáº¿u hoáº·c chá» giÃ¡/triá»ƒn vá»ng rÃµ hÆ¡n."
         else:
-            conclusion = "Thận trọng: điểm tổng hợp yếu hoặc dữ liệu/rủi ro chưa ủng hộ."
+            conclusion = "Tháº­n trá»ng: Ä‘iá»ƒm tá»•ng há»£p yáº¿u hoáº·c dá»¯ liá»‡u/rá»§i ro chÆ°a á»§ng há»™."
         row = {
-            "Mã": ticker,
-            "Tên doanh nghiệp": getattr(c, "company_name", ""),
-            "Sàn": getattr(c, "exchange", ""),
-            "Ngành": getattr(c, "industry", ""),
-            "Phân ngành": getattr(c, "sub_industry", ""),
-            "Loại DN": cls.company_type,
-            "Giá hiện tại": current_price,
-            "Giá trị weighted": value_range.weighted_vnd,
-            "MOS hiện tại %": mos,
+            "MÃ£": ticker,
+            "TÃªn doanh nghiá»‡p": getattr(c, "company_name", ""),
+            "SÃ n": getattr(c, "exchange", ""),
+            "NgÃ nh": getattr(c, "industry", ""),
+            "PhÃ¢n ngÃ nh": getattr(c, "sub_industry", ""),
+            "Loáº¡i DN": cls.company_type,
+            "GiÃ¡ hiá»‡n táº¡i": current_price,
+            "GiÃ¡ trá»‹ weighted": value_range.weighted_vnd,
+            "MOS hiá»‡n táº¡i %": mos,
             "P/E": pe,
             "P/B": pb,
             "ROE %": roe,
             "ROIC %": roic,
-            "Biên gộp %": gross_margin,
-            "Biên ròng %": net_margin,
+            "BiÃªn gá»™p %": gross_margin,
+            "BiÃªn rÃ²ng %": net_margin,
             "CAGR DT 5Y %": revenue_cagr,
             "CAGR LNST 5Y %": profit_cagr,
             "CFO/LNST": cfo_np,
             "FCF/LNST": fcf_np,
-            "Nợ ròng/VCSH": net_debt_equity,
-            "Vốn hóa (tỷ đồng)": _parse_num(getattr(c, "market_cap_bil", None)),
+            "Ná»£ rÃ²ng/VCSH": net_debt_equity,
+            "Vá»‘n hÃ³a (tá»· Ä‘á»“ng)": _parse_num(getattr(c, "market_cap_bil", None)),
             "Moat score": moat_score,
             "Moat level": moat.attrs.get("level", "N/A"),
-            "Điểm chất lượng": quality_score,
-            "Điểm dòng tiền": cash_score,
-            "Điểm định giá": valuation_score,
-            "Điểm tổng hợp": total_score,
-            "Xếp hạng": None,
-            "Kết luận so sánh": conclusion,
+            "Äiá»ƒm cháº¥t lÆ°á»£ng": quality_score,
+            "Äiá»ƒm dÃ²ng tiá»n": cash_score,
+            "Äiá»ƒm Ä‘á»‹nh giÃ¡": valuation_score,
+            "Äiá»ƒm tá»•ng há»£p": total_score,
+            "Xáº¿p háº¡ng": None,
+            "Káº¿t luáº­n so sÃ¡nh": conclusion,
         }
-        return row, _company_to_peer_row(c, label, "Đã cập nhật từ lệnh so sánh")
+        return row, _company_to_peer_row(c, label, "ÄÃ£ cáº­p nháº­t tá»« lá»‡nh so sÃ¡nh")
     except Exception as exc:
         return {
-            "Mã": ticker,
-            "Tên doanh nghiệp": "",
-            "Sàn": "",
-            "Ngành": "",
-            "Phân ngành": "",
-            "Loại DN": "Không đủ dữ liệu",
-            "Giá hiện tại": None,
-            "Giá trị weighted": None,
-            "MOS hiện tại %": None,
+            "MÃ£": ticker,
+            "TÃªn doanh nghiá»‡p": "",
+            "SÃ n": "",
+            "NgÃ nh": "",
+            "PhÃ¢n ngÃ nh": "",
+            "Loáº¡i DN": "KhÃ´ng Ä‘á»§ dá»¯ liá»‡u",
+            "GiÃ¡ hiá»‡n táº¡i": None,
+            "GiÃ¡ trá»‹ weighted": None,
+            "MOS hiá»‡n táº¡i %": None,
             "P/E": None,
             "P/B": None,
             "ROE %": None,
             "ROIC %": None,
-            "Biên gộp %": None,
-            "Biên ròng %": None,
+            "BiÃªn gá»™p %": None,
+            "BiÃªn rÃ²ng %": None,
             "CAGR DT 5Y %": None,
             "CAGR LNST 5Y %": None,
             "CFO/LNST": None,
             "FCF/LNST": None,
-            "Nợ ròng/VCSH": None,
-            "Vốn hóa (tỷ đồng)": None,
+            "Ná»£ rÃ²ng/VCSH": None,
+            "Vá»‘n hÃ³a (tá»· Ä‘á»“ng)": None,
             "Moat score": None,
             "Moat level": "N/A",
-            "Điểm chất lượng": None,
-            "Điểm dòng tiền": None,
-            "Điểm định giá": None,
-            "Điểm tổng hợp": 0,
-            "Xếp hạng": None,
-            "Kết luận so sánh": f"Không so sánh được: {exc}",
+            "Äiá»ƒm cháº¥t lÆ°á»£ng": None,
+            "Äiá»ƒm dÃ²ng tiá»n": None,
+            "Äiá»ƒm Ä‘á»‹nh giÃ¡": None,
+            "Äiá»ƒm tá»•ng há»£p": 0,
+            "Xáº¿p háº¡ng": None,
+            "Káº¿t luáº­n so sÃ¡nh": f"KhÃ´ng so sÃ¡nh Ä‘Æ°á»£c: {exc}",
         }, None
 
 
@@ -3079,76 +3079,76 @@ def _rank_peer_comparison(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
     out = df.copy()
-    out["Điểm tổng hợp"] = pd.to_numeric(out.get("Điểm tổng hợp"), errors="coerce").fillna(0)
-    out["_mos_sort"] = pd.to_numeric(out.get("MOS hiện tại %"), errors="coerce").fillna(-999)
+    out["Äiá»ƒm tá»•ng há»£p"] = pd.to_numeric(out.get("Äiá»ƒm tá»•ng há»£p"), errors="coerce").fillna(0)
+    out["_mos_sort"] = pd.to_numeric(out.get("MOS hiá»‡n táº¡i %"), errors="coerce").fillna(-999)
     out["_moat_sort"] = pd.to_numeric(out.get("Moat score"), errors="coerce").fillna(-999)
-    out = out.sort_values(["Điểm tổng hợp", "_mos_sort", "_moat_sort"], ascending=[False, False, False]).drop(columns=["_mos_sort", "_moat_sort"]).reset_index(drop=True)
-    out["Xếp hạng"] = range(1, len(out) + 1)
+    out = out.sort_values(["Äiá»ƒm tá»•ng há»£p", "_mos_sort", "_moat_sort"], ascending=[False, False, False]).drop(columns=["_mos_sort", "_moat_sort"]).reset_index(drop=True)
+    out["Xáº¿p háº¡ng"] = range(1, len(out) + 1)
     return out
 
 
 def _peer_comparison_summary(df: pd.DataFrame, target_mos_pct: float) -> str:
     if df is None or df.empty:
-        return "Chưa có kết quả so sánh."
-    ok = df[pd.to_numeric(df.get("Điểm tổng hợp"), errors="coerce").fillna(0) > 0].copy()
+        return "ChÆ°a cÃ³ káº¿t quáº£ so sÃ¡nh."
+    ok = df[pd.to_numeric(df.get("Äiá»ƒm tá»•ng há»£p"), errors="coerce").fillna(0) > 0].copy()
     if ok.empty:
-        return "Các mã đã chọn chưa có đủ dữ liệu để so sánh."
-    top = ok.sort_values("Điểm tổng hợp", ascending=False).iloc[0]
-    moat_leaders = ok.sort_values("Moat score", ascending=False).head(3)["Mã"].astype(str).tolist() if "Moat score" in ok else []
-    mos_candidates = ok[pd.to_numeric(ok.get("MOS hiện tại %"), errors="coerce").fillna(-999) >= float(target_mos_pct)]["Mã"].astype(str).tolist()
+        return "CÃ¡c mÃ£ Ä‘Ã£ chá»n chÆ°a cÃ³ Ä‘á»§ dá»¯ liá»‡u Ä‘á»ƒ so sÃ¡nh."
+    top = ok.sort_values("Äiá»ƒm tá»•ng há»£p", ascending=False).iloc[0]
+    moat_leaders = ok.sort_values("Moat score", ascending=False).head(3)["MÃ£"].astype(str).tolist() if "Moat score" in ok else []
+    mos_candidates = ok[pd.to_numeric(ok.get("MOS hiá»‡n táº¡i %"), errors="coerce").fillna(-999) >= float(target_mos_pct)]["MÃ£"].astype(str).tolist()
     text = (
-        f"Mã đứng đầu theo điểm tổng hợp là **{top.get('Mã')}** với {top.get('Điểm tổng hợp', 0):,.1f}/100. "
-        f"Các mã có moat score nổi bật: {', '.join(moat_leaders) if moat_leaders else 'chưa đủ dữ liệu'}. "
-        f"Các mã đạt MOS yêu cầu {float(target_mos_pct):.0f}%: {', '.join(mos_candidates) if mos_candidates else 'chưa có mã nào đạt'}. "
-        "Cách đọc: bảng này chỉ là bộ lọc tương đối trong cùng ngành; quyết định cuối cùng vẫn phải kiểm tra BCTC gốc, lợi thế cạnh tranh, chu kỳ ngành và sự kiện bất thường."
+        f"MÃ£ Ä‘á»©ng Ä‘áº§u theo Ä‘iá»ƒm tá»•ng há»£p lÃ  **{top.get('MÃ£')}** vá»›i {top.get('Äiá»ƒm tá»•ng há»£p', 0):,.1f}/100. "
+        f"CÃ¡c mÃ£ cÃ³ moat score ná»•i báº­t: {', '.join(moat_leaders) if moat_leaders else 'chÆ°a Ä‘á»§ dá»¯ liá»‡u'}. "
+        f"CÃ¡c mÃ£ Ä‘áº¡t MOS yÃªu cáº§u {float(target_mos_pct):.0f}%: {', '.join(mos_candidates) if mos_candidates else 'chÆ°a cÃ³ mÃ£ nÃ o Ä‘áº¡t'}. "
+        "CÃ¡ch Ä‘á»c: báº£ng nÃ y chá»‰ lÃ  bá»™ lá»c tÆ°Æ¡ng Ä‘á»‘i trong cÃ¹ng ngÃ nh; quyáº¿t Ä‘á»‹nh cuá»‘i cÃ¹ng váº«n pháº£i kiá»ƒm tra BCTC gá»‘c, lá»£i tháº¿ cáº¡nh tranh, chu ká»³ ngÃ nh vÃ  sá»± kiá»‡n báº¥t thÆ°á»ng."
     )
     return text
 
 
 def _build_peer_row_note(rowd: dict) -> str:
     return "\n".join([
-        f"SO SÁNH CÙNG NGÀNH: {rowd.get('Mã', 'N/A')} - {rowd.get('Tên doanh nghiệp', '')}",
-        f"- Xếp hạng: {rowd.get('Xếp hạng', 'N/A')}; điểm tổng hợp: {_format_note_value(rowd.get('Điểm tổng hợp'))}/100.",
-        f"- Chất lượng vốn: ROE {_format_note_value(rowd.get('ROE %'))}%; ROIC {_format_note_value(rowd.get('ROIC %'))}%; biên gộp {_format_note_value(rowd.get('Biên gộp %'))}%.",
-        f"- Chất lượng dòng tiền: CFO/LNST {_format_note_value(rowd.get('CFO/LNST'))}; FCF/LNST {_format_note_value(rowd.get('FCF/LNST'))}.",
-        f"- Định giá: giá hiện tại {_format_note_value(rowd.get('Giá hiện tại'))}; giá trị weighted {_format_note_value(rowd.get('Giá trị weighted'))}; MOS {_format_note_value(rowd.get('MOS hiện tại %'))}%; P/E {_format_note_value(rowd.get('P/E'))}; P/B {_format_note_value(rowd.get('P/B'))}.",
+        f"SO SÃNH CÃ™NG NGÃ€NH: {rowd.get('MÃ£', 'N/A')} - {rowd.get('TÃªn doanh nghiá»‡p', '')}",
+        f"- Xáº¿p háº¡ng: {rowd.get('Xáº¿p háº¡ng', 'N/A')}; Ä‘iá»ƒm tá»•ng há»£p: {_format_note_value(rowd.get('Äiá»ƒm tá»•ng há»£p'))}/100.",
+        f"- Cháº¥t lÆ°á»£ng vá»‘n: ROE {_format_note_value(rowd.get('ROE %'))}%; ROIC {_format_note_value(rowd.get('ROIC %'))}%; biÃªn gá»™p {_format_note_value(rowd.get('BiÃªn gá»™p %'))}%.",
+        f"- Cháº¥t lÆ°á»£ng dÃ²ng tiá»n: CFO/LNST {_format_note_value(rowd.get('CFO/LNST'))}; FCF/LNST {_format_note_value(rowd.get('FCF/LNST'))}.",
+        f"- Äá»‹nh giÃ¡: giÃ¡ hiá»‡n táº¡i {_format_note_value(rowd.get('GiÃ¡ hiá»‡n táº¡i'))}; giÃ¡ trá»‹ weighted {_format_note_value(rowd.get('GiÃ¡ trá»‹ weighted'))}; MOS {_format_note_value(rowd.get('MOS hiá»‡n táº¡i %'))}%; P/E {_format_note_value(rowd.get('P/E'))}; P/B {_format_note_value(rowd.get('P/B'))}.",
         f"- Porter/Moat: {rowd.get('Moat score', 'N/A')}/100 - {rowd.get('Moat level', 'N/A')}.",
-        f"- Kết luận tự động: {rowd.get('Kết luận so sánh', 'N/A')}",
-        "Nguyên tắc: điểm tổng hợp = 30% chất lượng sinh lời/vốn + 25% chất lượng dòng tiền + 25% Porter Moat + 20% định giá/MOS, có phạt rủi ro nếu đòn bẩy cao. Đây là bộ lọc tương đối, không thay thế phân tích riêng từng mã.",
+        f"- Káº¿t luáº­n tá»± Ä‘á»™ng: {rowd.get('Káº¿t luáº­n so sÃ¡nh', 'N/A')}",
+        "NguyÃªn táº¯c: Ä‘iá»ƒm tá»•ng há»£p = 30% cháº¥t lÆ°á»£ng sinh lá»i/vá»‘n + 25% cháº¥t lÆ°á»£ng dÃ²ng tiá»n + 25% Porter Moat + 20% Ä‘á»‹nh giÃ¡/MOS, cÃ³ pháº¡t rá»§i ro náº¿u Ä‘Ã²n báº©y cao. ÄÃ¢y lÃ  bá»™ lá»c tÆ°Æ¡ng Ä‘á»‘i, khÃ´ng thay tháº¿ phÃ¢n tÃ­ch riÃªng tá»«ng mÃ£.",
     ])
 
 
 def _render_value_chain_spider_chart(value_chain_df: pd.DataFrame, company=None) -> None:
     """Render radar/spider chart from Porter value-chain heat scores."""
-    if value_chain_df is None or value_chain_df.empty or "Hoạt động chuỗi giá trị" not in value_chain_df.columns or "Điểm nhiệt" not in value_chain_df.columns:
-        st.info("Chưa đủ dữ liệu điểm nhiệt để vẽ biểu đồ màng nhện chuỗi giá trị.")
+    if value_chain_df is None or value_chain_df.empty or "Hoáº¡t Ä‘á»™ng chuá»—i giÃ¡ trá»‹" not in value_chain_df.columns or "Äiá»ƒm nhiá»‡t" not in value_chain_df.columns:
+        st.info("ChÆ°a Ä‘á»§ dá»¯ liá»‡u Ä‘iá»ƒm nhiá»‡t Ä‘á»ƒ váº½ biá»ƒu Ä‘á»“ mÃ ng nhá»‡n chuá»—i giÃ¡ trá»‹.")
         return
-    chart_df = value_chain_df[["Hoạt động chuỗi giá trị", "Điểm nhiệt", "Đánh giá sơ bộ", "Mức độ"]].copy()
-    chart_df["Điểm nhiệt"] = pd.to_numeric(chart_df["Điểm nhiệt"], errors="coerce").fillna(0).clip(0, 100)
-    theta = chart_df["Hoạt động chuỗi giá trị"].astype(str).tolist()
-    r = chart_df["Điểm nhiệt"].astype(float).tolist()
+    chart_df = value_chain_df[["Hoáº¡t Ä‘á»™ng chuá»—i giÃ¡ trá»‹", "Äiá»ƒm nhiá»‡t", "ÄÃ¡nh giÃ¡ sÆ¡ bá»™", "Má»©c Ä‘á»™"]].copy()
+    chart_df["Äiá»ƒm nhiá»‡t"] = pd.to_numeric(chart_df["Äiá»ƒm nhiá»‡t"], errors="coerce").fillna(0).clip(0, 100)
+    theta = chart_df["Hoáº¡t Ä‘á»™ng chuá»—i giÃ¡ trá»‹"].astype(str).tolist()
+    r = chart_df["Äiá»ƒm nhiá»‡t"].astype(float).tolist()
     custom = [
-        f"{act}<br>Điểm nhiệt: {score:.1f}/100<br>Đánh giá: {rating}<br>Mức độ: {level}"
-        for act, score, rating, level in zip(chart_df["Hoạt động chuỗi giá trị"], chart_df["Điểm nhiệt"], chart_df["Đánh giá sơ bộ"], chart_df["Mức độ"])
+        f"{act}<br>Äiá»ƒm nhiá»‡t: {score:.1f}/100<br>ÄÃ¡nh giÃ¡: {rating}<br>Má»©c Ä‘á»™: {level}"
+        for act, score, rating, level in zip(chart_df["Hoáº¡t Ä‘á»™ng chuá»—i giÃ¡ trá»‹"], chart_df["Äiá»ƒm nhiá»‡t"], chart_df["ÄÃ¡nh giÃ¡ sÆ¡ bá»™"], chart_df["Má»©c Ä‘á»™"])
     ]
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(
         r=r + r[:1],
         theta=theta + theta[:1],
         fill="toself",
-        name=str(getattr(company, "ticker", "Chuỗi giá trị") or "Chuỗi giá trị"),
+        name=str(getattr(company, "ticker", "Chuá»—i giÃ¡ trá»‹") or "Chuá»—i giÃ¡ trá»‹"),
         text=custom + custom[:1],
         hovertemplate="%{text}<extra></extra>",
     ))
     fig.update_layout(
-        title="Biểu đồ màng nhện điểm nhiệt Chuỗi giá trị Porter",
+        title="Biá»ƒu Ä‘á»“ mÃ ng nhá»‡n Ä‘iá»ƒm nhiá»‡t Chuá»—i giÃ¡ trá»‹ Porter",
         polar=dict(radialaxis=dict(visible=True, range=[0, 100], tickfont=dict(size=10))),
         showlegend=False,
         height=520,
         margin=dict(l=50, r=50, t=70, b=45),
     )
     st.plotly_chart(fig, use_container_width=True)
-    st.caption("Điểm nhiệt lấy trực tiếp từ bảng 'Bản đồ chuỗi giá trị theo Porter': Tốt = 100, Trung bình = 55, Yếu = 15, Chưa đủ dữ liệu/Cần bổ sung = 35.")
+    st.caption("Äiá»ƒm nhiá»‡t láº¥y trá»±c tiáº¿p tá»« báº£ng 'Báº£n Ä‘á»“ chuá»—i giÃ¡ trá»‹ theo Porter': Tá»‘t = 100, Trung bÃ¬nh = 55, Yáº¿u = 15, ChÆ°a Ä‘á»§ dá»¯ liá»‡u/Cáº§n bá»• sung = 35.")
 
 
 
@@ -3162,9 +3162,9 @@ def _render_value_chain_yellow_assessment_card(value_chain_df: pd.DataFrame) -> 
             <div style="border:2px solid rgba(245,178,27,.72); border-left:12px solid #F5B21B; border-radius:18px;
                         padding:15px 18px; margin:10px 0 14px 0; background:linear-gradient(135deg,#FFF9E8 0%,#FEF3C7 100%);
                         color:#7A4A00; font-weight:850; line-height:1.55; box-shadow:0 9px 22px rgba(245,178,27,.16);">
-              <div style="font-size:1.12rem; color:#0B7F75; font-weight:1000; margin-bottom:6px;">🟡 Đánh giá chuỗi giá trị Porter</div>
-              <div><b>Trạng thái:</b> Chưa có dữ liệu để tổng hợp.</div>
-              <div><b>Cần bổ sung:</b> BCTC/BCTN/tin IR hoặc dữ liệu định lượng từ Tổng quan doanh nghiệp để nhận diện hoạt động nào tạo lợi thế chi phí, khác biệt hóa hoặc rào cản khó bắt chước.</div>
+              <div style="font-size:1.12rem; color:#0B7F75; font-weight:1000; margin-bottom:6px;">ðŸŸ¡ ÄÃ¡nh giÃ¡ chuá»—i giÃ¡ trá»‹ Porter</div>
+              <div><b>Tráº¡ng thÃ¡i:</b> ChÆ°a cÃ³ dá»¯ liá»‡u Ä‘á»ƒ tá»•ng há»£p.</div>
+              <div><b>Cáº§n bá»• sung:</b> BCTC/BCTN/tin IR hoáº·c dá»¯ liá»‡u Ä‘á»‹nh lÆ°á»£ng tá»« Tá»•ng quan doanh nghiá»‡p Ä‘á»ƒ nháº­n diá»‡n hoáº¡t Ä‘á»™ng nÃ o táº¡o lá»£i tháº¿ chi phÃ­, khÃ¡c biá»‡t hÃ³a hoáº·c rÃ o cáº£n khÃ³ báº¯t chÆ°á»›c.</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -3172,14 +3172,14 @@ def _render_value_chain_yellow_assessment_card(value_chain_df: pd.DataFrame) -> 
         return
 
     df = value_chain_df.copy()
-    score_series = pd.to_numeric(df.get("Điểm nhiệt", pd.Series(dtype=float)), errors="coerce").dropna()
+    score_series = pd.to_numeric(df.get("Äiá»ƒm nhiá»‡t", pd.Series(dtype=float)), errors="coerce").dropna()
     avg_score = float(score_series.mean()) if not score_series.empty else 0.0
-    rating_series = df.get("Đánh giá sơ bộ", pd.Series(dtype=object)).fillna("").astype(str)
+    rating_series = df.get("ÄÃ¡nh giÃ¡ sÆ¡ bá»™", pd.Series(dtype=object)).fillna("").astype(str)
 
-    good_mask = rating_series.str.contains("Tốt", case=False, na=False)
-    medium_mask = rating_series.str.contains("Trung bình", case=False, na=False)
-    weak_mask = rating_series.str.contains("Yếu", case=False, na=False)
-    missing_mask = rating_series.str.contains("Chưa đủ|Cần bổ sung|Thiếu", case=False, regex=True, na=False)
+    good_mask = rating_series.str.contains("Tá»‘t", case=False, na=False)
+    medium_mask = rating_series.str.contains("Trung bÃ¬nh", case=False, na=False)
+    weak_mask = rating_series.str.contains("Yáº¿u", case=False, na=False)
+    missing_mask = rating_series.str.contains("ChÆ°a Ä‘á»§|Cáº§n bá»• sung|Thiáº¿u", case=False, regex=True, na=False)
 
     good_count = int(good_mask.sum())
     medium_count = int(medium_mask.sum())
@@ -3187,31 +3187,31 @@ def _render_value_chain_yellow_assessment_card(value_chain_df: pd.DataFrame) -> 
     missing_count = int(missing_mask.sum())
 
     def _items(mask, limit: int = 4) -> list[str]:
-        if "Hoạt động chuỗi giá trị" not in df.columns:
+        if "Hoáº¡t Ä‘á»™ng chuá»—i giÃ¡ trá»‹" not in df.columns:
             return []
-        return df.loc[mask, "Hoạt động chuỗi giá trị"].dropna().astype(str).head(limit).tolist()
+        return df.loc[mask, "Hoáº¡t Ä‘á»™ng chuá»—i giÃ¡ trá»‹"].dropna().astype(str).head(limit).tolist()
 
-    strengths = _items(good_mask) or ["Chưa có hoạt động được chấm Tốt"]
-    risk_items = (_items(weak_mask) + _items(missing_mask & ~weak_mask)) or ["Chưa có điểm yếu nổi bật từ bảng hiện tại"]
+    strengths = _items(good_mask) or ["ChÆ°a cÃ³ hoáº¡t Ä‘á»™ng Ä‘Æ°á»£c cháº¥m Tá»‘t"]
+    risk_items = (_items(weak_mask) + _items(missing_mask & ~weak_mask)) or ["ChÆ°a cÃ³ Ä‘iá»ƒm yáº¿u ná»•i báº­t tá»« báº£ng hiá»‡n táº¡i"]
 
     if avg_score >= 75 and weak_count == 0:
-        level = "Chuỗi giá trị mạnh"
-        conclusion = "Nhiều hoạt động có tín hiệu lợi thế rõ; có thể xem là điểm cộng cho moat nếu bằng chứng định tính trong BCTN/IR xác nhận được tính bền vững."
+        level = "Chuá»—i giÃ¡ trá»‹ máº¡nh"
+        conclusion = "Nhiá»u hoáº¡t Ä‘á»™ng cÃ³ tÃ­n hiá»‡u lá»£i tháº¿ rÃµ; cÃ³ thá»ƒ xem lÃ  Ä‘iá»ƒm cá»™ng cho moat náº¿u báº±ng chá»©ng Ä‘á»‹nh tÃ­nh trong BCTN/IR xÃ¡c nháº­n Ä‘Æ°á»£c tÃ­nh bá»n vá»¯ng."
     elif avg_score >= 55:
-        level = "Chuỗi giá trị khá / cần kiểm chứng"
-        conclusion = "Có tín hiệu lợi thế ở một số hoạt động, nhưng chưa nên kết luận moat mạnh nếu còn nhiều khâu thiếu bằng chứng hoặc chỉ số định lượng chưa đồng thuận."
+        level = "Chuá»—i giÃ¡ trá»‹ khÃ¡ / cáº§n kiá»ƒm chá»©ng"
+        conclusion = "CÃ³ tÃ­n hiá»‡u lá»£i tháº¿ á»Ÿ má»™t sá»‘ hoáº¡t Ä‘á»™ng, nhÆ°ng chÆ°a nÃªn káº¿t luáº­n moat máº¡nh náº¿u cÃ²n nhiá»u khÃ¢u thiáº¿u báº±ng chá»©ng hoáº·c chá»‰ sá»‘ Ä‘á»‹nh lÆ°á»£ng chÆ°a Ä‘á»“ng thuáº­n."
     elif avg_score >= 40:
-        level = "Chuỗi giá trị trung bình / chưa rõ moat"
-        conclusion = "Lợi thế cạnh tranh chưa đủ rõ; cần ưu tiên kiểm tra hoạt động tạo chi phí thấp, khác biệt hóa và khả năng duy trì ROIC/biên lợi nhuận qua chu kỳ."
+        level = "Chuá»—i giÃ¡ trá»‹ trung bÃ¬nh / chÆ°a rÃµ moat"
+        conclusion = "Lá»£i tháº¿ cáº¡nh tranh chÆ°a Ä‘á»§ rÃµ; cáº§n Æ°u tiÃªn kiá»ƒm tra hoáº¡t Ä‘á»™ng táº¡o chi phÃ­ tháº¥p, khÃ¡c biá»‡t hÃ³a vÃ  kháº£ nÄƒng duy trÃ¬ ROIC/biÃªn lá»£i nhuáº­n qua chu ká»³."
     else:
-        level = "Cảnh báo chuỗi giá trị yếu"
-        conclusion = "Các tín hiệu hiện tại nghiêng về yếu hoặc thiếu dữ liệu; không nên gán moat nếu chưa có bằng chứng mạnh từ báo cáo gốc và so sánh ngành."
+        level = "Cáº£nh bÃ¡o chuá»—i giÃ¡ trá»‹ yáº¿u"
+        conclusion = "CÃ¡c tÃ­n hiá»‡u hiá»‡n táº¡i nghiÃªng vá» yáº¿u hoáº·c thiáº¿u dá»¯ liá»‡u; khÃ´ng nÃªn gÃ¡n moat náº¿u chÆ°a cÃ³ báº±ng chá»©ng máº¡nh tá»« bÃ¡o cÃ¡o gá»‘c vÃ  so sÃ¡nh ngÃ nh."
 
     evidence_lines: list[str] = []
-    evidence_col = "Bằng chứng hiện có/cần tìm"
+    evidence_col = "Báº±ng chá»©ng hiá»‡n cÃ³/cáº§n tÃ¬m"
     if evidence_col in df.columns:
         for _, row in df.head(8).iterrows():
-            act = str(row.get("Hoạt động chuỗi giá trị", "")).strip()
+            act = str(row.get("Hoáº¡t Ä‘á»™ng chuá»—i giÃ¡ trá»‹", "")).strip()
             ev = str(row.get(evidence_col, "")).strip()
             if act and ev:
                 evidence_lines.append(f"<li><b>{html.escape(act)}:</b> {html.escape(ev)}</li>")
@@ -3223,9 +3223,9 @@ def _render_value_chain_yellow_assessment_card(value_chain_df: pd.DataFrame) -> 
         evidence_html = "<ul style='margin:10px 0 5px 18px; padding:0; line-height:1.45;'>" + "".join(evidence_lines) + "</ul>"
 
     note = (
-        "Theo Porter, lợi thế cạnh tranh phải truy về các hoạt động cụ thể trong chuỗi giá trị: "
-        "hoạt động nào làm chi phí thấp hơn, hoạt động nào tạo khác biệt hóa được khách hàng trả tiền, "
-        "và hoạt động nào khó bị đối thủ sao chép. Card này là đánh giá tự động; click/chọn từng dòng trong bảng để xem note chi tiết."
+        "Theo Porter, lá»£i tháº¿ cáº¡nh tranh pháº£i truy vá» cÃ¡c hoáº¡t Ä‘á»™ng cá»¥ thá»ƒ trong chuá»—i giÃ¡ trá»‹: "
+        "hoáº¡t Ä‘á»™ng nÃ o lÃ m chi phÃ­ tháº¥p hÆ¡n, hoáº¡t Ä‘á»™ng nÃ o táº¡o khÃ¡c biá»‡t hÃ³a Ä‘Æ°á»£c khÃ¡ch hÃ ng tráº£ tiá»n, "
+        "vÃ  hoáº¡t Ä‘á»™ng nÃ o khÃ³ bá»‹ Ä‘á»‘i thá»§ sao chÃ©p. Card nÃ y lÃ  Ä‘Ã¡nh giÃ¡ tá»± Ä‘á»™ng; click/chá»n tá»«ng dÃ²ng trong báº£ng Ä‘á»ƒ xem note chi tiáº¿t."
     )
 
     st.markdown(
@@ -3235,24 +3235,24 @@ def _render_value_chain_yellow_assessment_card(value_chain_df: pd.DataFrame) -> 
                     color:#7A4A00; font-weight:850; line-height:1.55; box-shadow:0 10px 25px rgba(245,178,27,.18);">
             <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
                 <div>
-                    <div style="font-size:1.16rem; color:#0B7F75; font-weight:1000; margin-bottom:4px;">🟡 Đánh giá tổng hợp chuỗi giá trị Porter</div>
-                    <div style="font-size:.97rem; color:#7A4A00; font-weight:900;">Mức đánh giá: <b>{html.escape(level)}</b></div>
+                    <div style="font-size:1.16rem; color:#0B7F75; font-weight:1000; margin-bottom:4px;">ðŸŸ¡ ÄÃ¡nh giÃ¡ tá»•ng há»£p chuá»—i giÃ¡ trá»‹ Porter</div>
+                    <div style="font-size:.97rem; color:#7A4A00; font-weight:900;">Má»©c Ä‘Ã¡nh giÃ¡: <b>{html.escape(level)}</b></div>
                 </div>
                 <div style="min-width:142px; text-align:center; border:1.8px solid rgba(245,178,27,.75); border-radius:18px; padding:10px 13px; background:rgba(255,255,255,.84);">
-                    <div style="font-size:.78rem; color:#64748B; font-weight:950; text-transform:uppercase;">Điểm nhiệt TB</div>
+                    <div style="font-size:.78rem; color:#64748B; font-weight:950; text-transform:uppercase;">Äiá»ƒm nhiá»‡t TB</div>
                     <div style="font-size:1.74rem; line-height:1.05; color:#064E47; font-weight:1000;">{avg_score:.1f}/100</div>
                 </div>
             </div>
             <div style="display:grid; grid-template-columns:repeat(4,minmax(110px,1fr)); gap:10px; margin:12px 0 11px 0;">
-                <div style="border-radius:14px; padding:9px 10px; background:rgba(255,255,255,.76); border:1px solid rgba(245,178,27,.42);"><b>{good_count}</b><br><span style="font-size:.84rem;">Hoạt động tốt</span></div>
-                <div style="border-radius:14px; padding:9px 10px; background:rgba(255,255,255,.76); border:1px solid rgba(245,178,27,.42);"><b>{medium_count}</b><br><span style="font-size:.84rem;">Trung bình</span></div>
-                <div style="border-radius:14px; padding:9px 10px; background:rgba(255,255,255,.76); border:1px solid rgba(245,178,27,.42);"><b>{weak_count}</b><br><span style="font-size:.84rem;">Cảnh báo yếu</span></div>
-                <div style="border-radius:14px; padding:9px 10px; background:rgba(255,255,255,.76); border:1px solid rgba(245,178,27,.42);"><b>{missing_count}</b><br><span style="font-size:.84rem;">Cần bổ sung</span></div>
+                <div style="border-radius:14px; padding:9px 10px; background:rgba(255,255,255,.76); border:1px solid rgba(245,178,27,.42);"><b>{good_count}</b><br><span style="font-size:.84rem;">Hoáº¡t Ä‘á»™ng tá»‘t</span></div>
+                <div style="border-radius:14px; padding:9px 10px; background:rgba(255,255,255,.76); border:1px solid rgba(245,178,27,.42);"><b>{medium_count}</b><br><span style="font-size:.84rem;">Trung bÃ¬nh</span></div>
+                <div style="border-radius:14px; padding:9px 10px; background:rgba(255,255,255,.76); border:1px solid rgba(245,178,27,.42);"><b>{weak_count}</b><br><span style="font-size:.84rem;">Cáº£nh bÃ¡o yáº¿u</span></div>
+                <div style="border-radius:14px; padding:9px 10px; background:rgba(255,255,255,.76); border:1px solid rgba(245,178,27,.42);"><b>{missing_count}</b><br><span style="font-size:.84rem;">Cáº§n bá»• sung</span></div>
             </div>
             <div>
-                <b>Hoạt động nổi bật:</b> {html.escape(', '.join(strengths[:5]))}<br>
-                <b>Điểm yếu/cần kiểm tra:</b> {html.escape(', '.join(risk_items[:5]))}<br>
-                <b>Kết luận tự động:</b> {html.escape(conclusion)}
+                <b>Hoáº¡t Ä‘á»™ng ná»•i báº­t:</b> {html.escape(', '.join(strengths[:5]))}<br>
+                <b>Äiá»ƒm yáº¿u/cáº§n kiá»ƒm tra:</b> {html.escape(', '.join(risk_items[:5]))}<br>
+                <b>Káº¿t luáº­n tá»± Ä‘á»™ng:</b> {html.escape(conclusion)}
             </div>
             {evidence_html}
             <div style="font-size:.88rem; color:#475569; margin-top:9px;">{html.escape(note)}</div>
@@ -3264,27 +3264,27 @@ def _render_value_chain_yellow_assessment_card(value_chain_df: pd.DataFrame) -> 
 def _render_moat_spider_chart(moat_df: pd.DataFrame, company=None) -> None:
     """Render radar/spider chart from Porter moat score heat values.
 
-    Điểm nhiệt của bảng moat được chuẩn hóa = Điểm đạt / Trọng số * 100. Như vậy mỗi trục
-    đều nằm trong thang 0-100, không bị méo vì mỗi nhóm Porter có trọng số khác nhau.
+    Äiá»ƒm nhiá»‡t cá»§a báº£ng moat Ä‘Æ°á»£c chuáº©n hÃ³a = Äiá»ƒm Ä‘áº¡t / Trá»ng sá»‘ * 100. NhÆ° váº­y má»—i trá»¥c
+    Ä‘á»u náº±m trong thang 0-100, khÃ´ng bá»‹ mÃ©o vÃ¬ má»—i nhÃ³m Porter cÃ³ trá»ng sá»‘ khÃ¡c nhau.
     """
-    if moat_df is None or moat_df.empty or "Nhóm Porter/Moat" not in moat_df.columns:
-        st.info("Chưa đủ dữ liệu để vẽ biểu đồ màng nhện Porter Moat Score.")
+    if moat_df is None or moat_df.empty or "NhÃ³m Porter/Moat" not in moat_df.columns:
+        st.info("ChÆ°a Ä‘á»§ dá»¯ liá»‡u Ä‘á»ƒ váº½ biá»ƒu Ä‘á»“ mÃ ng nhá»‡n Porter Moat Score.")
         return
     chart_df = moat_df.copy()
-    if "Trọng số %" not in chart_df.columns or "Điểm đạt" not in chart_df.columns:
-        st.info("Bảng Porter Moat chưa có cột Trọng số %/Điểm đạt để vẽ điểm nhiệt.")
+    if "Trá»ng sá»‘ %" not in chart_df.columns or "Äiá»ƒm Ä‘áº¡t" not in chart_df.columns:
+        st.info("Báº£ng Porter Moat chÆ°a cÃ³ cá»™t Trá»ng sá»‘ %/Äiá»ƒm Ä‘áº¡t Ä‘á»ƒ váº½ Ä‘iá»ƒm nhiá»‡t.")
         return
-    chart_df["_weight"] = pd.to_numeric(chart_df["Trọng số %"], errors="coerce")
-    chart_df["_score"] = pd.to_numeric(chart_df["Điểm đạt"], errors="coerce")
-    chart_df["Điểm nhiệt"] = (chart_df["_score"] / chart_df["_weight"].replace(0, pd.NA) * 100).clip(0, 100).fillna(0)
-    theta = chart_df["Nhóm Porter/Moat"].astype(str).tolist()
-    r = chart_df["Điểm nhiệt"].astype(float).tolist()
+    chart_df["_weight"] = pd.to_numeric(chart_df["Trá»ng sá»‘ %"], errors="coerce")
+    chart_df["_score"] = pd.to_numeric(chart_df["Äiá»ƒm Ä‘áº¡t"], errors="coerce")
+    chart_df["Äiá»ƒm nhiá»‡t"] = (chart_df["_score"] / chart_df["_weight"].replace(0, pd.NA) * 100).clip(0, 100).fillna(0)
+    theta = chart_df["NhÃ³m Porter/Moat"].astype(str).tolist()
+    r = chart_df["Äiá»ƒm nhiá»‡t"].astype(float).tolist()
     custom = []
     for _, row in chart_df.iterrows():
         custom.append(
-            f"{row.get('Nhóm Porter/Moat','')}<br>Điểm nhiệt: {row.get('Điểm nhiệt',0):.1f}/100"
-            f"<br>Điểm đạt: {row.get('Điểm đạt','N/A')}/{row.get('Trọng số %','N/A')}"
-            f"<br>Tín hiệu: {row.get('Tín hiệu','N/A')}"
+            f"{row.get('NhÃ³m Porter/Moat','')}<br>Äiá»ƒm nhiá»‡t: {row.get('Äiá»ƒm nhiá»‡t',0):.1f}/100"
+            f"<br>Äiá»ƒm Ä‘áº¡t: {row.get('Äiá»ƒm Ä‘áº¡t','N/A')}/{row.get('Trá»ng sá»‘ %','N/A')}"
+            f"<br>TÃ­n hiá»‡u: {row.get('TÃ­n hiá»‡u','N/A')}"
         )
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(
@@ -3296,14 +3296,14 @@ def _render_moat_spider_chart(moat_df: pd.DataFrame, company=None) -> None:
         hovertemplate="%{text}<extra></extra>",
     ))
     fig.update_layout(
-        title="Biểu đồ màng nhện điểm nhiệt Porter Moat Score",
+        title="Biá»ƒu Ä‘á»“ mÃ ng nhá»‡n Ä‘iá»ƒm nhiá»‡t Porter Moat Score",
         polar=dict(radialaxis=dict(visible=True, range=[0, 100], tickfont=dict(size=10))),
         showlegend=False,
         height=520,
         margin=dict(l=50, r=50, t=70, b=45),
     )
     st.plotly_chart(fig, use_container_width=True)
-    st.caption("Điểm nhiệt = Điểm đạt / Trọng số của từng nhóm Porter, quy đổi về thang 0-100 để so sánh trực quan.")
+    st.caption("Äiá»ƒm nhiá»‡t = Äiá»ƒm Ä‘áº¡t / Trá»ng sá»‘ cá»§a tá»«ng nhÃ³m Porter, quy Ä‘á»•i vá» thang 0-100 Ä‘á»ƒ so sÃ¡nh trá»±c quan.")
 
 
 def _simplize_peer_display_df(df: pd.DataFrame, current_ticker: str = "") -> pd.DataFrame:
@@ -3311,25 +3311,25 @@ def _simplize_peer_display_df(df: pd.DataFrame, current_ticker: str = "") -> pd.
         return pd.DataFrame()
     src = _normalize_peer_universe(df)
     out = pd.DataFrame({
-        "Mã cổ phiếu": src.get("ticker", pd.Series(dtype=str)),
-        "Tên doanh nghiệp": src.get("company_name", pd.Series(dtype=str)),
-        "Giá hiện tại": src.get("current_price", pd.Series(dtype=float)),
-        "Vốn hóa (tỷ đồng)": src.get("market_cap_bil", pd.Series(dtype=float)),
-        "Biến động giá %": src.get("price_change_pct", pd.Series(dtype=float)),
-        "7 ngày %": src.get("change_7d_pct", pd.Series(dtype=float)),
-        "1 năm %": src.get("change_1y_pct", pd.Series(dtype=float)),
+        "MÃ£ cá»• phiáº¿u": src.get("ticker", pd.Series(dtype=str)),
+        "TÃªn doanh nghiá»‡p": src.get("company_name", pd.Series(dtype=str)),
+        "GiÃ¡ hiá»‡n táº¡i": src.get("current_price", pd.Series(dtype=float)),
+        "Vá»‘n hÃ³a (tá»· Ä‘á»“ng)": src.get("market_cap_bil", pd.Series(dtype=float)),
+        "Biáº¿n Ä‘á»™ng giÃ¡ %": src.get("price_change_pct", pd.Series(dtype=float)),
+        "7 ngÃ y %": src.get("change_7d_pct", pd.Series(dtype=float)),
+        "1 nÄƒm %": src.get("change_1y_pct", pd.Series(dtype=float)),
         "P/E": src.get("pe", pd.Series(dtype=float)),
         "P/B": src.get("pb", pd.Series(dtype=float)),
         "ROE %": src.get("roe_pct", pd.Series(dtype=float)),
-        "T.trưởng LNST 3Y dự phóng %": src.get("forecast_profit_growth_3y_pct", pd.Series(dtype=float)),
-        "Tỷ suất cổ tức %": src.get("dividend_yield_pct", pd.Series(dtype=float)),
-        "Sàn": src.get("exchange", pd.Series(dtype=str)),
+        "T.trÆ°á»Ÿng LNST 3Y dá»± phÃ³ng %": src.get("forecast_profit_growth_3y_pct", pd.Series(dtype=float)),
+        "Tá»· suáº¥t cá»• tá»©c %": src.get("dividend_yield_pct", pd.Series(dtype=float)),
+        "SÃ n": src.get("exchange", pd.Series(dtype=str)),
     })
     current = _safe_ticker(current_ticker)
-    out["_active"] = out["Mã cổ phiếu"].astype(str).map(_safe_ticker).eq(current)
-    # Chỉ hiển thị tối đa 100 mã như yêu cầu; ưu tiên mã đang phân tích đứng đầu, sau đó theo vốn hóa giảm dần.
-    cap = pd.to_numeric(out.get("Vốn hóa (tỷ đồng)"), errors="coerce")
-    out = out.assign(_cap_sort=cap.fillna(-1)).sort_values(["_active", "_cap_sort", "Mã cổ phiếu"], ascending=[False, False, True]).drop(columns=["_cap_sort"]).head(100).reset_index(drop=True)
+    out["_active"] = out["MÃ£ cá»• phiáº¿u"].astype(str).map(_safe_ticker).eq(current)
+    # Chá»‰ hiá»ƒn thá»‹ tá»‘i Ä‘a 100 mÃ£ nhÆ° yÃªu cáº§u; Æ°u tiÃªn mÃ£ Ä‘ang phÃ¢n tÃ­ch Ä‘á»©ng Ä‘áº§u, sau Ä‘Ã³ theo vá»‘n hÃ³a giáº£m dáº§n.
+    cap = pd.to_numeric(out.get("Vá»‘n hÃ³a (tá»· Ä‘á»“ng)"), errors="coerce")
+    out = out.assign(_cap_sort=cap.fillna(-1)).sort_values(["_active", "_cap_sort", "MÃ£ cá»• phiáº¿u"], ascending=[False, False, True]).drop(columns=["_cap_sort"]).head(100).reset_index(drop=True)
     return out
 
 
@@ -3337,21 +3337,21 @@ def _render_simplize_peer_sortable_table(df: pd.DataFrame, current_ticker: str =
     """Render a sortable/selectable peer list and return edited rows."""
     display_df = _simplize_peer_display_df(df, current_ticker)
     if display_df.empty:
-        st.info("Chưa có danh sách cổ phiếu cùng ngành.")
+        st.info("ChÆ°a cÃ³ danh sÃ¡ch cá»• phiáº¿u cÃ¹ng ngÃ nh.")
         return pd.DataFrame()
     current = _safe_ticker(current_ticker)
     active_mask = display_df.get("_active", pd.Series(False, index=display_df.index)).fillna(False).astype(bool)
-    display_df.insert(0, "Chọn", active_mask)
+    display_df.insert(0, "Chá»n", active_mask)
     if "_active" in display_df.columns:
-        # Đảm bảo dòng mã gốc luôn hiện đủ ticker/tên, không còn dòng trống chỉ có icon.
-        display_df.loc[active_mask, "Mã cổ phiếu"] = display_df.loc[active_mask, "Mã cổ phiếu"].replace("", current)
-        display_df.loc[active_mask & display_df["Tên doanh nghiệp"].astype(str).str.strip().isin(["", "nan", "None"]), "Tên doanh nghiệp"] = current + " - mã đang phân tích"
-        display_df.loc[active_mask, "Mã cổ phiếu"] = display_df.loc[active_mask, "Mã cổ phiếu"].astype(str).str.replace("🎯", "", regex=False).str.strip().replace("", current)
-        display_df.loc[active_mask, "Tên doanh nghiệp"] = display_df.loc[active_mask, "Tên doanh nghiệp"].astype(str).map(lambda x: ("🎯 " + x.replace("🎯", "").strip()) if x.replace("🎯", "").strip() else "🎯 " + current + " - mã đang phân tích")
+        # Äáº£m báº£o dÃ²ng mÃ£ gá»‘c luÃ´n hiá»‡n Ä‘á»§ ticker/tÃªn, khÃ´ng cÃ²n dÃ²ng trá»‘ng chá»‰ cÃ³ icon.
+        display_df.loc[active_mask, "MÃ£ cá»• phiáº¿u"] = display_df.loc[active_mask, "MÃ£ cá»• phiáº¿u"].replace("", current)
+        display_df.loc[active_mask & display_df["TÃªn doanh nghiá»‡p"].astype(str).str.strip().isin(["", "nan", "None"]), "TÃªn doanh nghiá»‡p"] = current + " - mÃ£ Ä‘ang phÃ¢n tÃ­ch"
+        display_df.loc[active_mask, "MÃ£ cá»• phiáº¿u"] = display_df.loc[active_mask, "MÃ£ cá»• phiáº¿u"].astype(str).str.replace("ðŸŽ¯", "", regex=False).str.strip().replace("", current)
+        display_df.loc[active_mask, "TÃªn doanh nghiá»‡p"] = display_df.loc[active_mask, "TÃªn doanh nghiá»‡p"].astype(str).map(lambda x: ("ðŸŽ¯ " + x.replace("ðŸŽ¯", "").strip()) if x.replace("ðŸŽ¯", "").strip() else "ðŸŽ¯ " + current + " - mÃ£ Ä‘ang phÃ¢n tÃ­ch")
     editor_df = display_df.drop(columns=["_active"], errors="ignore")
-    st.caption("Bảng danh sách cùng ngành, tối đa 100 mã. Dòng có ký hiệu 🎯 là mã đang phân tích, được tick mặc định và tô vàng thương hiệu; có thể bấm tiêu đề cột để sort tăng/giảm trong bảng.")
+    st.caption("Báº£ng danh sÃ¡ch cÃ¹ng ngÃ nh, tá»‘i Ä‘a 100 mÃ£. DÃ²ng cÃ³ kÃ½ hiá»‡u ðŸŽ¯ lÃ  mÃ£ Ä‘ang phÃ¢n tÃ­ch, Ä‘Æ°á»£c tick máº·c Ä‘á»‹nh vÃ  tÃ´ vÃ ng thÆ°Æ¡ng hiá»‡u; cÃ³ thá»ƒ báº¥m tiÃªu Ä‘á» cá»™t Ä‘á»ƒ sort tÄƒng/giáº£m trong báº£ng.")
     def _active_peer_row_style(row: pd.Series) -> list[str]:
-        code = _safe_ticker(str(row.get("Mã cổ phiếu", "")).replace("🎯", ""))
+        code = _safe_ticker(str(row.get("MÃ£ cá»• phiáº¿u", "")).replace("ðŸŽ¯", ""))
         if code == current:
             return ["background-color:#FFF4C7; color:#3B2600; font-weight:900; border-top:2px solid #F5B21B; border-bottom:2px solid #F5B21B;" for _ in row]
         return ["" for _ in row]
@@ -3361,32 +3361,32 @@ def _render_simplize_peer_sortable_table(df: pd.DataFrame, current_ticker: str =
         use_container_width=True,
         height=620,
         hide_index=True,
-        disabled=[c for c in editor_df.columns if c != "Chọn"],
+        disabled=[c for c in editor_df.columns if c != "Chá»n"],
         key=f"simplize_peer_selector_{current}_{len(editor_df)}",
         column_config={
-            "Chọn": st.column_config.CheckboxColumn("Chọn", help="Tick để đưa mã vào danh sách so sánh", default=False),
-            "Giá hiện tại": st.column_config.NumberColumn("Giá hiện tại", format="%d"),
-            "Biến động giá %": st.column_config.NumberColumn("Biến động giá %", format="%.2f%%"),
-            "7 ngày %": st.column_config.NumberColumn("7 ngày %", format="%.2f%%"),
-            "1 năm %": st.column_config.NumberColumn("1 năm %", format="%.2f%%"),
+            "Chá»n": st.column_config.CheckboxColumn("Chá»n", help="Tick Ä‘á»ƒ Ä‘Æ°a mÃ£ vÃ o danh sÃ¡ch so sÃ¡nh", default=False),
+            "GiÃ¡ hiá»‡n táº¡i": st.column_config.NumberColumn("GiÃ¡ hiá»‡n táº¡i", format="%d"),
+            "Biáº¿n Ä‘á»™ng giÃ¡ %": st.column_config.NumberColumn("Biáº¿n Ä‘á»™ng giÃ¡ %", format="%.2f%%"),
+            "7 ngÃ y %": st.column_config.NumberColumn("7 ngÃ y %", format="%.2f%%"),
+            "1 nÄƒm %": st.column_config.NumberColumn("1 nÄƒm %", format="%.2f%%"),
             "P/E": st.column_config.NumberColumn("P/E", format="%.2f"),
             "P/B": st.column_config.NumberColumn("P/B", format="%.2f"),
             "ROE %": st.column_config.NumberColumn("ROE %", format="%.2f%%"),
-            "T.trưởng LNST 3Y dự phóng %": st.column_config.NumberColumn("T.trưởng LNST 3Y dự phóng %", format="%.2f%%"),
-            "Tỷ suất cổ tức %": st.column_config.NumberColumn("Tỷ suất cổ tức %", format="%.2f%%"),
-            "Vốn hóa (tỷ đồng)": st.column_config.NumberColumn("Vốn hóa (tỷ đồng)", format="%d"),
+            "T.trÆ°á»Ÿng LNST 3Y dá»± phÃ³ng %": st.column_config.NumberColumn("T.trÆ°á»Ÿng LNST 3Y dá»± phÃ³ng %", format="%.2f%%"),
+            "Tá»· suáº¥t cá»• tá»©c %": st.column_config.NumberColumn("Tá»· suáº¥t cá»• tá»©c %", format="%.2f%%"),
+            "Vá»‘n hÃ³a (tá»· Ä‘á»“ng)": st.column_config.NumberColumn("Vá»‘n hÃ³a (tá»· Ä‘á»“ng)", format="%d"),
         },
     )
     return pd.DataFrame(edited)
 
 def _render_peer_universe_and_comparison(company, source: str, assumptions: dict, target_mos_pct: float, available_tickers: list[str], *, auto_simplize: bool = False, simplize_industry_url: str = "") -> None:
-    st.subheader("So sánh doanh nghiệp cùng ngành")
-    st.caption("App tự lấy mã đang phân tích từ Tổng quan doanh nghiệp, cập nhật danh sách cổ phiếu cùng ngành, rồi cho chọn tối đa 10 doanh nghiệp để so sánh.")
-    universe = _ensure_current_peer_row(_merge_peer_rows(_load_peer_universe(), [_company_to_peer_row(company, "Mã đang phân tích", "Tự thêm vào peer universe")]), company)
+    st.subheader("So sÃ¡nh doanh nghiá»‡p cÃ¹ng ngÃ nh")
+    st.caption("App tá»± láº¥y mÃ£ Ä‘ang phÃ¢n tÃ­ch tá»« Tá»•ng quan doanh nghiá»‡p, cáº­p nháº­t danh sÃ¡ch cá»• phiáº¿u cÃ¹ng ngÃ nh, rá»“i cho chá»n tá»‘i Ä‘a 10 doanh nghiá»‡p Ä‘á»ƒ so sÃ¡nh.")
+    universe = _ensure_current_peer_row(_merge_peer_rows(_load_peer_universe(), [_company_to_peer_row(company, "MÃ£ Ä‘ang phÃ¢n tÃ­ch", "Tá»± thÃªm vÃ o peer universe")]), company)
     current_ticker = _safe_ticker(str(getattr(company, "ticker", "")))
     auto_peer_group = None
     if auto_simplize and current_ticker:
-        with st.spinner(f"Đang lấy danh sách cùng ngành cho {current_ticker}..."):
+        with st.spinner(f"Äang láº¥y danh sÃ¡ch cÃ¹ng ngÃ nh cho {current_ticker}..."):
             simplize_peers, peer_note, raw_peer_path = _load_simplize_peer_rows(current_ticker, simplize_industry_url)
         if not simplize_peers.empty:
             universe = _ensure_current_peer_row(_merge_peer_rows(universe, simplize_peers.to_dict("records")), company)
@@ -3399,7 +3399,7 @@ def _render_peer_universe_and_comparison(company, source: str, assumptions: dict
             pass
     col_fetch, col_clear = st.columns([0.55, 0.45])
     with col_fetch:
-        if st.button("🔄 Lấy danh sách cùng ngành", use_container_width=True):
+        if st.button("ðŸ”„ Láº¥y danh sÃ¡ch cÃ¹ng ngÃ nh", use_container_width=True):
             _simplize_industry_peers_cached.clear()
             simplize_peers, peer_note, raw_peer_path = _load_simplize_peer_rows(current_ticker, simplize_industry_url)
             if not simplize_peers.empty:
@@ -3412,65 +3412,65 @@ def _render_peer_universe_and_comparison(company, source: str, assumptions: dict
             if raw_peer_path:
                 pass
     with col_clear:
-        if st.button("🧹 Xóa kết quả so sánh tạm", use_container_width=True):
+        if st.button("ðŸ§¹ XÃ³a káº¿t quáº£ so sÃ¡nh táº¡m", use_container_width=True):
             st.session_state["peer_compare_result"] = pd.DataFrame()
-            st.info("Đã xóa kết quả so sánh tạm trong phiên hiện tại.")
+            st.info("ÄÃ£ xÃ³a káº¿t quáº£ so sÃ¡nh táº¡m trong phiÃªn hiá»‡n táº¡i.")
 
-    # V23.29: bỏ import CSV và phần thêm nhanh mã ngành. Mã thủ công chỉ nhập tại phần ra lệnh so sánh.
+    # V23.29: bá» import CSV vÃ  pháº§n thÃªm nhanh mÃ£ ngÃ nh. MÃ£ thá»§ cÃ´ng chá»‰ nháº­p táº¡i pháº§n ra lá»‡nh so sÃ¡nh.
 
     universe = _ensure_current_peer_row(universe, company)
     current_rows_for_group = universe[universe["ticker"].astype(str).map(_safe_ticker).eq(current_ticker)] if "ticker" in universe.columns else pd.DataFrame()
     current_group_from_row = str(current_rows_for_group.iloc[0].get("peer_group", "")).strip() if not current_rows_for_group.empty else ""
     current_group = auto_peer_group or current_group_from_row or _company_peer_group(company)
-    groups = ["Tất cả"] + sorted([g for g in universe["peer_group"].dropna().astype(str).unique().tolist() if g.strip()])
+    groups = ["Táº¥t cáº£"] + sorted([g for g in universe["peer_group"].dropna().astype(str).unique().tolist() if g.strip()])
     default_idx = groups.index(current_group) if current_group in groups else 0
-    selected_group = st.selectbox("Lọc nhóm ngành", groups, index=default_idx)
-    view_df = universe if selected_group == "Tất cả" else universe[universe["peer_group"].astype(str) == selected_group]
+    selected_group = st.selectbox("Lá»c nhÃ³m ngÃ nh", groups, index=default_idx)
+    view_df = universe if selected_group == "Táº¥t cáº£" else universe[universe["peer_group"].astype(str) == selected_group]
     if current_ticker and "ticker" in universe.columns and not view_df["ticker"].astype(str).map(_safe_ticker).eq(current_ticker).any():
         cur_row = universe[universe["ticker"].astype(str).map(_safe_ticker).eq(current_ticker)]
         if not cur_row.empty:
             view_df = pd.concat([cur_row, view_df], ignore_index=True)
 
-    st.subheader("Bảng danh sách cổ phiếu cùng ngành")
+    st.subheader("Báº£ng danh sÃ¡ch cá»• phiáº¿u cÃ¹ng ngÃ nh")
     selection_table = _render_simplize_peer_sortable_table(view_df, current_ticker)
 
     st.divider()
-    st.subheader("Chọn mã và ra lệnh so sánh")
+    st.subheader("Chá»n mÃ£ vÃ  ra lá»‡nh so sÃ¡nh")
     selected_from_ticks = []
-    if isinstance(selection_table, pd.DataFrame) and not selection_table.empty and "Chọn" in selection_table.columns:
-        mask = selection_table["Chọn"].fillna(False).astype(bool)
-        selected_from_ticks = [x for x in selection_table.loc[mask, "Mã cổ phiếu"].astype(str).str.replace("🎯", "", regex=False).map(_safe_ticker).tolist() if _is_probable_peer_ticker(x)]
-    manual_codes = st.text_input("Nhập thêm mã thủ công để so sánh, cách nhau bằng dấu ','", value="", placeholder="Ví dụ: CII, HAH, GMD, VSC")
+    if isinstance(selection_table, pd.DataFrame) and not selection_table.empty and "Chá»n" in selection_table.columns:
+        mask = selection_table["Chá»n"].fillna(False).astype(bool)
+        selected_from_ticks = [x for x in selection_table.loc[mask, "MÃ£ cá»• phiáº¿u"].astype(str).str.replace("ðŸŽ¯", "", regex=False).map(_safe_ticker).tolist() if _is_probable_peer_ticker(x)]
+    manual_codes = st.text_input("Nháº­p thÃªm mÃ£ thá»§ cÃ´ng Ä‘á»ƒ so sÃ¡nh, cÃ¡ch nhau báº±ng dáº¥u ','", value="", placeholder="VÃ­ dá»¥: CII, HAH, GMD, VSC")
     selected_manual = [_safe_ticker(x) for x in re.split(r"[,;\s]+", manual_codes.upper()) if _is_probable_peer_ticker(_safe_ticker(x))]
     selected_preview = list(dict.fromkeys([current_ticker] + [x for x in selected_from_ticks + selected_manual if x and x != current_ticker]))[:10]
-    st.caption(f"Danh sách sẽ so sánh: {', '.join(selected_preview) if selected_preview else 'chưa chọn'}")
+    st.caption(f"Danh sÃ¡ch sáº½ so sÃ¡nh: {', '.join(selected_preview) if selected_preview else 'chÆ°a chá»n'}")
     peer_source_options = list(PEER_SOURCE_DISPLAY_TO_INTERNAL.keys())
-    peer_source_display = st.selectbox("Chế độ dữ liệu khi chạy so sánh", peer_source_options, index=0, key="peer_compare_source")
+    peer_source_display = st.selectbox("Cháº¿ Ä‘á»™ dá»¯ liá»‡u khi cháº¡y so sÃ¡nh", peer_source_options, index=0, key="peer_compare_source")
     source_for_peer = _to_internal_peer_source(peer_source_display, source)
     total_requested = 1 + len([x for x in list(dict.fromkeys(selected_from_ticks + selected_manual)) if x and x != current_ticker])
     if total_requested > 10:
-        st.warning("Anh đang chọn/nhập quá 10 mã tính cả mã đang phân tích; app sẽ lấy mã gốc + 9 mã đầu tiên khi bấm so sánh.")
-    if st.button("⚖️ So sánh doanh nghiệp", use_container_width=True):
+        st.warning("Anh Ä‘ang chá»n/nháº­p quÃ¡ 10 mÃ£ tÃ­nh cáº£ mÃ£ Ä‘ang phÃ¢n tÃ­ch; app sáº½ láº¥y mÃ£ gá»‘c + 9 mÃ£ Ä‘áº§u tiÃªn khi báº¥m so sÃ¡nh.")
+    if st.button("âš–ï¸ So sÃ¡nh doanh nghiá»‡p", use_container_width=True):
         selected = selected_preview
         st.session_state["module3_base_ticker"] = current_ticker
         if len(selected) < 2:
-            st.error("Cần chọn hoặc nhập tối thiểu 1 mã so sánh ngoài mã đang phân tích.")
+            st.error("Cáº§n chá»n hoáº·c nháº­p tá»‘i thiá»ƒu 1 mÃ£ so sÃ¡nh ngoÃ i mÃ£ Ä‘ang phÃ¢n tÃ­ch.")
         else:
             rows, peer_rows = [], []
             preserve_keys = ["active_ticker", "module1_ticker", "module2_ticker", "shared_ticker", "active_overview_csv", "active_year_csv", "active_quarter_csv", "active_source_label", "module_sync_status"]
             preserved_state = {k: st.session_state.get(k) for k in preserve_keys if k in st.session_state}
-            progress = st.progress(0, text="Đang tải dữ liệu và tính điểm peer...")
+            progress = st.progress(0, text="Äang táº£i dá»¯ liá»‡u vÃ  tÃ­nh Ä‘iá»ƒm peer...")
             try:
                 for i, code in enumerate(selected, start=1):
                     row, peer_row = _peer_snapshot(code, source_for_peer, assumptions, float(target_mos_pct))
-                    row["Mã đang phân tích"] = (_safe_ticker(code) == current_ticker)
+                    row["MÃ£ Ä‘ang phÃ¢n tÃ­ch"] = (_safe_ticker(code) == current_ticker)
                     rows.append(row)
                     if peer_row:
                         peer_rows.append(peer_row)
-                    progress.progress(i / len(selected), text=f"Đã xử lý {i}/{len(selected)}: {code}")
+                    progress.progress(i / len(selected), text=f"ÄÃ£ xá»­ lÃ½ {i}/{len(selected)}: {code}")
             finally:
                 progress.empty()
-                # So sánh peer không được làm đổi mã/bộ dữ liệu chính đang hiển thị trên dashboard.
+                # So sÃ¡nh peer khÃ´ng Ä‘Æ°á»£c lÃ m Ä‘á»•i mÃ£/bá»™ dá»¯ liá»‡u chÃ­nh Ä‘ang hiá»ƒn thá»‹ trÃªn dashboard.
                 for k in preserve_keys:
                     if k in preserved_state:
                         st.session_state[k] = preserved_state[k]
@@ -3478,81 +3478,81 @@ def _render_peer_universe_and_comparison(company, source: str, assumptions: dict
             st.session_state["peer_compare_result"] = result
             if peer_rows:
                 _save_peer_universe(_merge_peer_rows(universe, peer_rows))
-            st.success("Đã hoàn tất so sánh peer.")
+            st.success("ÄÃ£ hoÃ n táº¥t so sÃ¡nh peer.")
 
     result = st.session_state.get("peer_compare_result", pd.DataFrame())
     if isinstance(result, pd.DataFrame) and not result.empty:
-        _render_important_red("Nhận định so sánh cùng ngành", _peer_comparison_summary(result, float(target_mos_pct)))
-        display_result = result.drop(columns=[c for c in ["Mã đang phân tích", "Nguồn dữ liệu", "source", "Source", "Ngành", "Phân ngành"] if c in result.columns], errors="ignore")
+        _render_important_red("Nháº­n Ä‘á»‹nh so sÃ¡nh cÃ¹ng ngÃ nh", _peer_comparison_summary(result, float(target_mos_pct)))
+        display_result = result.drop(columns=[c for c in ["MÃ£ Ä‘ang phÃ¢n tÃ­ch", "Nguá»“n dá»¯ liá»‡u", "source", "Source", "NgÃ nh", "PhÃ¢n ngÃ nh"] if c in result.columns], errors="ignore")
         _render_explainable_table(display_result, "peer_compare", height=520)
         export_result = display_result
-        st.download_button("Tải kết quả so sánh peer", export_result.to_csv(index=False, encoding="utf-8-sig"), file_name=f"peer_compare_{_safe_ticker(str(getattr(company, 'ticker', '')))}.csv", mime="text/csv", use_container_width=True)
+        st.download_button("Táº£i káº¿t quáº£ so sÃ¡nh peer", export_result.to_csv(index=False, encoding="utf-8-sig"), file_name=f"peer_compare_{_safe_ticker(str(getattr(company, 'ticker', '')))}.csv", mime="text/csv", use_container_width=True)
 
 
 def _render_tre_sidebar_nav() -> None:
     """Manual branded navigation so Streamlit never exposes the technical root page name 'app'."""
-    st.markdown("### Điều hướng")
-    st.page_link("app.py", label="Tổng quan doanh nghiệp", icon="📊")
-    st.page_link("pages/02_Dinh_gia_Porter_Moat.py", label="Định giá chuyên sâu", icon="🧠")
-    st.page_link("pages/03_So_sanh_doanh_nghiep.py", label="So sánh doanh nghiệp", icon="⚖️")
-    st.page_link("pages/04_Bao_cao_tong_hop.py", label="Báo cáo tổng hợp toàn bộ nội dung", icon="📄")
+    st.markdown("### Äiá»u hÆ°á»›ng")
+    st.page_link("app.py", label="Tá»•ng quan doanh nghiá»‡p", icon="ðŸ“Š")
+    st.page_link("pages/02_Dinh_gia_Porter_Moat.py", label="Äá»‹nh giÃ¡ chuyÃªn sÃ¢u", icon="ðŸ§ ")
+    st.page_link("pages/03_So_sanh_doanh_nghiep.py", label="So sÃ¡nh doanh nghiá»‡p", icon="âš–ï¸")
+    st.page_link("pages/04_Bao_cao_tong_hop.py", label="BÃ¡o cÃ¡o tá»•ng há»£p toÃ n bá»™ ná»™i dung", icon="ðŸ“„")
     st.divider()
 
 
 def render_dashboard() -> None:
     _inject_runtime_ui_css()
     _render_brand_page_header(
-        f"🧠 {APP_NAME}",
-        "Trecapital valuation dashboard | Tự đồng bộ BCTC Tổng quan doanh nghiệp ⇄ Định giá chuyên sâu, tìm evidence internet, định giá nhiều lớp và chấm lợi thế cạnh tranh theo Porter.",
+        f"ðŸ§  {APP_NAME}",
+        "Trecapital valuation dashboard | Tá»± Ä‘á»“ng bá»™ BCTC Tá»•ng quan doanh nghiá»‡p â‡„ Äá»‹nh giÃ¡ chuyÃªn sÃ¢u, tÃ¬m evidence internet, Ä‘á»‹nh giÃ¡ nhiá»u lá»›p vÃ  cháº¥m lá»£i tháº¿ cáº¡nh tranh theo Porter.",
     )
 
     available_tickers = _available_financial_tickers_cached(str(BUNDLED_XLSM)) if BUNDLED_XLSM.exists() else []
 
     with st.sidebar:
         _render_tre_sidebar_nav()
-        st.header("Thiết lập phân tích")
+        st.header("Thiáº¿t láº­p phÃ¢n tÃ­ch")
         source_display = st.selectbox(
-            "Chế độ dữ liệu tài chính",
+            "Cháº¿ Ä‘á»™ dá»¯ liá»‡u tÃ i chÃ­nh",
             list(DATA_SOURCE_DISPLAY_TO_INTERNAL.keys()),
             index=0,
         )
         source = _to_internal_source(source_display)
-        ticker = st.text_input("Mã cổ phiếu", value=st.session_state.get("module2_ticker", st.session_state.get("last_query_ticker", "DGC")), max_chars=12).upper()
+        ticker = st.text_input("MÃ£ cá»• phiáº¿u", value=st.session_state.get("module2_ticker", st.session_state.get("last_query_ticker", "DGC")), max_chars=12).upper()
         mos_canonical = _prepare_mos_widget("module2_mos_widget")
         target_mos_pct = st.selectbox(
-            "Mức MOS yêu cầu (%)",
+            "Má»©c MOS yÃªu cáº§u (%)",
             MOS_OPTIONS_GLOBAL,
             index=MOS_OPTIONS_GLOBAL.index(mos_canonical),
             key="module2_mos_widget",
             on_change=_commit_mos_widget,
             args=("module2_mos_widget",),
-            help="MOS dùng chung toàn app: chọn ở Định giá chuyên sâu sẽ tự đồng bộ sang Tổng quan doanh nghiệp và mọi công thức giá mua/kết luận sẽ nhảy theo.",
+            help="MOS dÃ¹ng chung toÃ n app: chá»n á»Ÿ Äá»‹nh giÃ¡ chuyÃªn sÃ¢u sáº½ tá»± Ä‘á»“ng bá»™ sang Tá»•ng quan doanh nghiá»‡p vÃ  má»i cÃ´ng thá»©c giÃ¡ mua/káº¿t luáº­n sáº½ nháº£y theo.",
         )
         target_mos_pct = float(st.session_state.get("target_mos_pct", target_mos_pct))
         if st.session_state.get("mos_sync_status"):
             st.caption(st.session_state["mos_sync_status"])
-        if source == "Financial tích hợp" and available_tickers:
-            chosen = st.selectbox("Mã có đủ BCTC trong dữ liệu tích hợp", ["-- Giữ mã đang nhập --"] + available_tickers, index=0)
-            if chosen != "-- Giữ mã đang nhập --":
+        if source == "Financial tÃ­ch há»£p" and available_tickers:
+            chosen = st.selectbox("MÃ£ cÃ³ Ä‘á»§ BCTC trong dá»¯ liá»‡u tÃ­ch há»£p", ["-- Giá»¯ mÃ£ Ä‘ang nháº­p --"] + available_tickers, index=0)
+            if chosen != "-- Giá»¯ mÃ£ Ä‘ang nháº­p --":
                 ticker = chosen
-        st.caption("Mặc định dùng chế độ Tự động: nhập mã ở Tổng quan doanh nghiệp hoặc Định giá chuyên sâu đều đồng bộ cùng một bộ BCTC/cache để định giá.")
-        st.caption("WACC được tự tính theo doanh nghiệp từ cơ cấu vốn, chi phí nợ, thuế và cost of equity proxy; không còn WACC tham chiếu nhập tay.")
-        run_all = st.button("🔎 Tìm kiếm/cập nhật tất cả", use_container_width=True, help="Một nút duy nhất: đồng bộ dữ liệu tài chính từ Tổng quan doanh nghiệp sang Định giá chuyên sâu và tìm bằng chứng định tính cho lợi thế/rủi ro/BCTC.")
+        st.caption("Máº·c Ä‘á»‹nh dÃ¹ng cháº¿ Ä‘á»™ Tá»± Ä‘á»™ng: nháº­p mÃ£ á»Ÿ Tá»•ng quan doanh nghiá»‡p hoáº·c Äá»‹nh giÃ¡ chuyÃªn sÃ¢u Ä‘á»u Ä‘á»“ng bá»™ cÃ¹ng má»™t bá»™ BCTC/cache Ä‘á»ƒ Ä‘á»‹nh giÃ¡.")
+        st.caption("WACC Ä‘Æ°á»£c tá»± tÃ­nh theo doanh nghiá»‡p tá»« cÆ¡ cáº¥u vá»‘n, chi phÃ­ ná»£, thuáº¿ vÃ  cost of equity proxy; khÃ´ng cÃ²n WACC tham chiáº¿u nháº­p tay.")
+        run_all = st.button("ðŸ”Ž TÃ¬m kiáº¿m/cáº­p nháº­t táº¥t cáº£", use_container_width=True, help="Má»™t nÃºt duy nháº¥t: Ä‘á»“ng bá»™ dá»¯ liá»‡u tÃ i chÃ­nh tá»« Tá»•ng quan doanh nghiá»‡p sang Äá»‹nh giÃ¡ chuyÃªn sÃ¢u vÃ  tÃ¬m báº±ng chá»©ng Ä‘á»‹nh tÃ­nh cho lá»£i tháº¿/rá»§i ro/BCTC.")
         if run_all:
             _export_module1_crawler_cached.clear()
             _export_bundled_financial_cached.clear()
             _load_overview_cached.clear()
             _load_timeseries_cached.clear()
             st.session_state["module2_run_all_requested"] = True
-            st.info("Đang cập nhật toàn bộ: dữ liệu tài chính Tổng quan doanh nghiệp → Định giá chuyên sâu + bằng chứng định tính.")
+            st.info("Äang cáº­p nháº­t toÃ n bá»™: dá»¯ liá»‡u tÃ i chÃ­nh Tá»•ng quan doanh nghiá»‡p â†’ Äá»‹nh giÃ¡ chuyÃªn sÃ¢u + báº±ng chá»©ng Ä‘á»‹nh tÃ­nh.")
         st.divider()
         terminal_growth = st.slider("Terminal growth (%)", 0.0, 6.0, 3.0, 0.5)
-        target_pe = st.slider("P/E mục tiêu thường", 5.0, 20.0, 10.0, 0.5)
+        target_pe = st.slider("P/E má»¥c tiÃªu thÆ°á»ng", 5.0, 20.0, 10.0, 0.5)
         st.session_state["module2_ticker"] = _safe_ticker(ticker) or "DGC"
 
     ticker = st.session_state["module2_ticker"]
     run_all_requested = bool(st.session_state.pop("module2_run_all_requested", False))
-    effective_source = "FireAnt + Vietstock" if run_all_requested and source == "Tự động từ dữ liệu tổng quan" else source
+    effective_source = "FireAnt + Vietstock" if run_all_requested and source == "Tá»± Ä‘á»™ng tá»« dá»¯ liá»‡u tá»•ng quan" else source
     load_error = None
     try:
         company, annual_df, quarterly_df, source_label, paths = _load_data(ticker, effective_source)
@@ -3563,11 +3563,11 @@ def render_dashboard() -> None:
 
     if not _has_real_financial_data(annual_df):
         _render_no_data(ticker, effective_source, available_tickers)
-        st.info("Chi tiết kỹ thuật đã được ghi trong nhật ký nội bộ.")
+        st.info("Chi tiáº¿t ká»¹ thuáº­t Ä‘Ã£ Ä‘Æ°á»£c ghi trong nháº­t kÃ½ ná»™i bá»™.")
         st.stop()
 
     if run_all_requested:
-        with st.spinner("Đang tìm bằng chứng định tính cho Định giá chuyên sâu..."):
+        with st.spinner("Äang tÃ¬m báº±ng chá»©ng Ä‘á»‹nh tÃ­nh cho Äá»‹nh giÃ¡ chuyÃªn sÃ¢u..."):
             _update_module2_web_evidence(company)
 
     assumptions = load_assumptions(ASSUMPTIONS_PATH)
@@ -3612,84 +3612,84 @@ def render_dashboard() -> None:
         <div class='ticker-title-card'>
             <div class='ticker-title-main'><span class='ticker-title-code'>{html.escape(str(company.ticker))}</span> - <span class='ticker-title-name'>{html.escape(str(company.company_name))}</span></div>
             <div class='current-price-inline-card'>
-                <div class='price-label'>Giá hiện tại</div>
+                <div class='price-label'>GiÃ¡ hiá»‡n táº¡i</div>
                 <div class='price-value'>{html.escape(current_price_text)}</div>
-                <div class='price-note'>Cập nhật: {updated_text}</div>
+                <div class='price-note'>Cáº­p nháº­t: {updated_text}</div>
             </div>
-            <div class='ticker-title-meta'><b>Phân loại sơ bộ:</b> {html.escape(str(cls.company_type))} &nbsp; | &nbsp; <b>Độ tin cậy:</b> {cls.confidence:.0f}/100</div>
+            <div class='ticker-title-meta'><b>PhÃ¢n loáº¡i sÆ¡ bá»™:</b> {html.escape(str(cls.company_type))} &nbsp; | &nbsp; <b>Äá»™ tin cáº­y:</b> {cls.confidence:.0f}/100</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
     cols = st.columns(5)
-    cols[0].metric("Giá trị weighted", f"{value_range.weighted_vnd:,.0f}" if value_range.weighted_vnd else "N/A")
-    cols[1].metric("MOS hiện tại", f"{value_range.mos_to_weighted_pct:,.1f}%" if value_range.mos_to_weighted_pct is not None else "N/A")
+    cols[0].metric("GiÃ¡ trá»‹ weighted", f"{value_range.weighted_vnd:,.0f}" if value_range.weighted_vnd else "N/A")
+    cols[1].metric("MOS hiá»‡n táº¡i", f"{value_range.mos_to_weighted_pct:,.1f}%" if value_range.mos_to_weighted_pct is not None else "N/A")
     cols[2].metric("Moat score", f"{moat_df.attrs.get('total_score', 0):,.1f}/100")
     cols[3].metric("Moat level", str(moat_df.attrs.get("level", "N/A")))
     latest_cards = latest_metric_cards(annual_df) if annual_df is not None and not annual_df.empty else {}
     cols[4].metric("Owner Earnings", latest_cards.get("Owner Earnings", "N/A"))
 
-    _render_important_red("Tóm tắt tự động", summary)
+    _render_important_red("TÃ³m táº¯t tá»± Ä‘á»™ng", summary)
 
-    # V23.39: đã bỏ nút/khung xuất báo cáo trong từng phần; chỉ còn trang Báo cáo tổng hợp toàn bộ nội dung ở sidebar.
+    # V23.39: Ä‘Ã£ bá» nÃºt/khung xuáº¥t bÃ¡o cÃ¡o trong tá»«ng pháº§n; chá»‰ cÃ²n trang BÃ¡o cÃ¡o tá»•ng há»£p toÃ n bá»™ ná»™i dung á»Ÿ sidebar.
 
     tab_val, tab_moat, tab_chain, tab_scenario, tab_beneish, tab_web, tab_data, tab_docs = st.tabs([
-        "Định giá chuyên sâu", "Porter Moat Score", "Chuỗi giá trị", "Kịch bản & rủi ro", "Thao túng tài chính", "Bằng chứng định tính", "Dữ liệu", "Công thức & giả định"
+        "Äá»‹nh giÃ¡ chuyÃªn sÃ¢u", "Porter Moat Score", "Chuá»—i giÃ¡ trá»‹", "Ká»‹ch báº£n & rá»§i ro", "Thao tÃºng tÃ i chÃ­nh", "Báº±ng chá»©ng Ä‘á»‹nh tÃ­nh", "Dá»¯ liá»‡u", "CÃ´ng thá»©c & giáº£ Ä‘á»‹nh"
     ])
 
     with tab_val:
         st.markdown("<div class='valuation-tab-compact'>", unsafe_allow_html=True)
         _render_company_type_summary_callout(cls)
-        st.subheader("Đánh giá trọng yếu theo dữ liệu doanh nghiệp")
+        st.subheader("ÄÃ¡nh giÃ¡ trá»ng yáº¿u theo dá»¯ liá»‡u doanh nghiá»‡p")
         assessment_df = _build_strategic_assessment_table(company, annual_df, cls, value_range, moat_df, float(target_mos_pct))
         _render_explainable_table(assessment_df, "strategic_assessment", height=240)
 
         _render_big_recommendation(value_range.recommendation)
-        st.subheader("Dải giá trị nội tại")
+        st.subheader("Dáº£i giÃ¡ trá»‹ ná»™i táº¡i")
         range_df = pd.DataFrame([
-            {"Chỉ tiêu": "Low", "Giá trị/cp": value_range.low_vnd},
-            {"Chỉ tiêu": "Base/Median", "Giá trị/cp": value_range.base_vnd},
-            {"Chỉ tiêu": "High", "Giá trị/cp": value_range.high_vnd},
-            {"Chỉ tiêu": "Weighted", "Giá trị/cp": value_range.weighted_vnd},
-            {"Chỉ tiêu": f"Giá mua theo MOS chọn {float(target_mos_pct):.0f}%", "Giá trị/cp": value_range.weighted_vnd * (1 - float(target_mos_pct) / 100) if value_range.weighted_vnd else None},
-            {"Chỉ tiêu": "MOS hiện tại %", "Giá trị/cp": value_range.mos_to_weighted_pct},
-            {"Chỉ tiêu": "MOS yêu cầu %", "Giá trị/cp": float(target_mos_pct)},
+            {"Chá»‰ tiÃªu": "Low", "GiÃ¡ trá»‹/cp": value_range.low_vnd},
+            {"Chá»‰ tiÃªu": "Base/Median", "GiÃ¡ trá»‹/cp": value_range.base_vnd},
+            {"Chá»‰ tiÃªu": "High", "GiÃ¡ trá»‹/cp": value_range.high_vnd},
+            {"Chá»‰ tiÃªu": "Weighted", "GiÃ¡ trá»‹/cp": value_range.weighted_vnd},
+            {"Chá»‰ tiÃªu": f"GiÃ¡ mua theo MOS chá»n {float(target_mos_pct):.0f}%", "GiÃ¡ trá»‹/cp": value_range.weighted_vnd * (1 - float(target_mos_pct) / 100) if value_range.weighted_vnd else None},
+            {"Chá»‰ tiÃªu": "MOS hiá»‡n táº¡i %", "GiÃ¡ trá»‹/cp": value_range.mos_to_weighted_pct},
+            {"Chá»‰ tiÃªu": "MOS yÃªu cáº§u %", "GiÃ¡ trá»‹/cp": float(target_mos_pct)},
         ])
         _render_explainable_table(range_df, "valuation_range", height=312)
-        st.subheader("Bảng định giá theo từng phương pháp")
+        st.subheader("Báº£ng Ä‘á»‹nh giÃ¡ theo tá»«ng phÆ°Æ¡ng phÃ¡p")
         _render_explainable_table(valuation_df, "valuation_methods", height=432)
-        st.caption("Không dùng một fair value duy nhất. Hệ thống chọn trọng số theo loại doanh nghiệp và dữ liệu sẵn có; các tham số có thể chỉnh tại sidebar hoặc cấu hình giả định nội bộ.")
+        st.caption("KhÃ´ng dÃ¹ng má»™t fair value duy nháº¥t. Há»‡ thá»‘ng chá»n trá»ng sá»‘ theo loáº¡i doanh nghiá»‡p vÃ  dá»¯ liá»‡u sáºµn cÃ³; cÃ¡c tham sá»‘ cÃ³ thá»ƒ chá»‰nh táº¡i sidebar hoáº·c cáº¥u hÃ¬nh giáº£ Ä‘á»‹nh ná»™i bá»™.")
         st.markdown("</div>", unsafe_allow_html=True)
 
     with tab_moat:
-        st.subheader("Bảng điểm lợi thế cạnh tranh theo Porter")
-        _render_important_red("Tổng điểm Porter Moat", f"{moat_df.attrs.get('total_score', 0):,.1f}/100 - {moat_df.attrs.get('level', 'N/A')}")
+        st.subheader("Báº£ng Ä‘iá»ƒm lá»£i tháº¿ cáº¡nh tranh theo Porter")
+        _render_important_red("Tá»•ng Ä‘iá»ƒm Porter Moat", f"{moat_df.attrs.get('total_score', 0):,.1f}/100 - {moat_df.attrs.get('level', 'N/A')}")
         _render_moat_spider_chart(moat_df, company)
         _render_explainable_table(moat_df, "moat_score", height=430)
 
     with tab_chain:
-        st.subheader("Bản đồ chuỗi giá trị theo Porter")
-        st.caption("Mỗi hoạt động được liên kết với tín hiệu định lượng hiện có và bằng chứng định tính cần tìm thêm trong báo cáo/tin doanh nghiệp.")
+        st.subheader("Báº£n Ä‘á»“ chuá»—i giÃ¡ trá»‹ theo Porter")
+        st.caption("Má»—i hoáº¡t Ä‘á»™ng Ä‘Æ°á»£c liÃªn káº¿t vá»›i tÃ­n hiá»‡u Ä‘á»‹nh lÆ°á»£ng hiá»‡n cÃ³ vÃ  báº±ng chá»©ng Ä‘á»‹nh tÃ­nh cáº§n tÃ¬m thÃªm trong bÃ¡o cÃ¡o/tin doanh nghiá»‡p.")
         _render_value_chain_yellow_assessment_card(value_chain_df)
         _render_value_chain_spider_chart(value_chain_df, company)
         _render_explainable_table(value_chain_df, "value_chain", height=480)
 
     with tab_scenario:
-        st.subheader("Kịch bản định giá và rủi ro")
+        st.subheader("Ká»‹ch báº£n Ä‘á»‹nh giÃ¡ vÃ  rá»§i ro")
         _render_explainable_table(scenario_df, "scenario", height=300)
-        st.subheader("Tín hiệu kỳ gần nhất")
+        st.subheader("TÃ­n hiá»‡u ká»³ gáº§n nháº¥t")
         cards = latest_metric_cards(annual_df)
-        card_df = pd.DataFrame([{"Chỉ tiêu": k, "Giá trị": v} for k, v in cards.items()])
+        card_df = pd.DataFrame([{"Chá»‰ tiÃªu": k, "GiÃ¡ trá»‹": v} for k, v in cards.items()])
         _render_explainable_table(card_df, "latest_cards", height=360)
 
     with tab_beneish:
-        st.subheader("Thao túng tài chính - 4 lớp cảnh báo định lượng")
+        st.subheader("Thao tÃºng tÃ i chÃ­nh - 4 lá»›p cáº£nh bÃ¡o Ä‘á»‹nh lÆ°á»£ng")
         st.markdown(
             """
             <div class='note-card'>
-            <b>Nguyên tắc:</b> app không kết luận doanh nghiệp gian lận. Bốn lớp dưới đây chỉ tạo cờ đỏ định lượng để kiểm tra sâu chất lượng BCTC: lợi nhuận có đi kèm tiền thật không, accruals có bất thường không, doanh thu/phải thu/tài sản có bị làm đẹp không và có dấu hiệu quản trị lợi nhuận qua hoạt động thật không.<br><br>
-            <b>Cách dùng trong app:</b> khi một hoặc nhiều lớp cảnh báo cao, hãy giảm độ tin cậy của lợi nhuận kế toán khi định giá; đọc kỹ thuyết minh doanh thu, phải thu, tồn kho, khấu hao, chi phí vốn hóa, giao dịch bên liên quan, ý kiến kiểm toán và đối chiếu CFO/LNST/FCF. Với doanh nghiệp tài chính/ngân hàng, các mô hình công nghiệp như Beneish/Jones/REM chỉ dùng tham khảo nếu dữ liệu đủ.
+            <b>NguyÃªn táº¯c:</b> app khÃ´ng káº¿t luáº­n doanh nghiá»‡p gian láº­n. Bá»‘n lá»›p dÆ°á»›i Ä‘Ã¢y chá»‰ táº¡o cá» Ä‘á» Ä‘á»‹nh lÆ°á»£ng Ä‘á»ƒ kiá»ƒm tra sÃ¢u cháº¥t lÆ°á»£ng BCTC: lá»£i nhuáº­n cÃ³ Ä‘i kÃ¨m tiá»n tháº­t khÃ´ng, accruals cÃ³ báº¥t thÆ°á»ng khÃ´ng, doanh thu/pháº£i thu/tÃ i sáº£n cÃ³ bá»‹ lÃ m Ä‘áº¹p khÃ´ng vÃ  cÃ³ dáº¥u hiá»‡u quáº£n trá»‹ lá»£i nhuáº­n qua hoáº¡t Ä‘á»™ng tháº­t khÃ´ng.<br><br>
+            <b>CÃ¡ch dÃ¹ng trong app:</b> khi má»™t hoáº·c nhiá»u lá»›p cáº£nh bÃ¡o cao, hÃ£y giáº£m Ä‘á»™ tin cáº­y cá»§a lá»£i nhuáº­n káº¿ toÃ¡n khi Ä‘á»‹nh giÃ¡; Ä‘á»c ká»¹ thuyáº¿t minh doanh thu, pháº£i thu, tá»“n kho, kháº¥u hao, chi phÃ­ vá»‘n hÃ³a, giao dá»‹ch bÃªn liÃªn quan, Ã½ kiáº¿n kiá»ƒm toÃ¡n vÃ  Ä‘á»‘i chiáº¿u CFO/LNST/FCF. Vá»›i doanh nghiá»‡p tÃ i chÃ­nh/ngÃ¢n hÃ ng, cÃ¡c mÃ´ hÃ¬nh cÃ´ng nghiá»‡p nhÆ° Beneish/Jones/REM chá»‰ dÃ¹ng tham kháº£o náº¿u dá»¯ liá»‡u Ä‘á»§.
             </div>
             """,
             unsafe_allow_html=True,
@@ -3700,99 +3700,99 @@ def render_dashboard() -> None:
             modified_jones_df,
             rem_df,
         )
-        st.subheader("Tổng hợp thao túng tài chính 4 lớp")
-        # V23.61: bảng tổng hợp nằm sát nhóm phân tích từng lớp; vẫn dùng format chuẩn,
-        # chỉ bỏ note/click của riêng bảng tổng hợp và in đậm cột Lớp.
+        st.subheader("Tá»•ng há»£p thao tÃºng tÃ i chÃ­nh 4 lá»›p")
+        # V23.61: báº£ng tá»•ng há»£p náº±m sÃ¡t nhÃ³m phÃ¢n tÃ­ch tá»«ng lá»›p; váº«n dÃ¹ng format chuáº©n,
+        # chá»‰ bá» note/click cá»§a riÃªng báº£ng tá»•ng há»£p vÃ  in Ä‘áº­m cá»™t Lá»›p.
         _render_static_html_table(financial_manipulation_summary_df, "financial_manipulation_summary", height=404)
 
         layer_beneish, layer_accrual, layer_jones, layer_rem = st.tabs([
             "1. Beneish M-Score",
             "2. Accrual Quality / Sloan",
             "3. Modified Jones / Kothari",
-            "4. REM - hoạt động thật",
+            "4. REM - hoáº¡t Ä‘á»™ng tháº­t",
         ])
 
         with layer_beneish:
-            st.subheader("Lớp 1 - Beneish M-Score: cảnh báo thao túng lợi nhuận bằng 8 biến")
+            st.subheader("Lá»›p 1 - Beneish M-Score: cáº£nh bÃ¡o thao tÃºng lá»£i nhuáº­n báº±ng 8 biáº¿n")
             latest_mscore = beneish_df.attrs.get("latest_score") if isinstance(beneish_df, pd.DataFrame) else None
             latest_risk = beneish_df.attrs.get("latest_risk", "N/A") if isinstance(beneish_df, pd.DataFrame) else "N/A"
             latest_period = beneish_df.attrs.get("latest_period", "N/A") if isinstance(beneish_df, pd.DataFrame) else "N/A"
             latest_note = beneish_df.attrs.get("latest_note", "N/A") if isinstance(beneish_df, pd.DataFrame) else "N/A"
             mscore_text = _format_note_value(latest_mscore) if latest_mscore is not None else "N/A"
             latest_missing = ""
-            if isinstance(beneish_df, pd.DataFrame) and not beneish_df.empty and "Biến thiếu/cần kiểm tra" in beneish_df.columns:
-                latest_missing = str(beneish_df.iloc[-1].get("Biến thiếu/cần kiểm tra") or "")
+            if isinstance(beneish_df, pd.DataFrame) and not beneish_df.empty and "Biáº¿n thiáº¿u/cáº§n kiá»ƒm tra" in beneish_df.columns:
+                latest_missing = str(beneish_df.iloc[-1].get("Biáº¿n thiáº¿u/cáº§n kiá»ƒm tra") or "")
             if latest_mscore is None:
                 _render_warning_card(
-                    "Tín hiệu Beneish M-Score",
-                    f"Kỳ mới nhất {latest_period}: chưa đủ 8 biến để tính M-Score chính thức. Biến thiếu/cần kiểm tra: {latest_missing or 'N/A'}. {latest_note}"
+                    "TÃ­n hiá»‡u Beneish M-Score",
+                    f"Ká»³ má»›i nháº¥t {latest_period}: chÆ°a Ä‘á»§ 8 biáº¿n Ä‘á»ƒ tÃ­nh M-Score chÃ­nh thá»©c. Biáº¿n thiáº¿u/cáº§n kiá»ƒm tra: {latest_missing or 'N/A'}. {latest_note}"
                 )
             else:
                 _render_important_red(
-                    "Tín hiệu Beneish M-Score",
-                    f"Kỳ mới nhất {latest_period}: M-Score {mscore_text}; mức cảnh báo: {latest_risk}. {latest_note}"
+                    "TÃ­n hiá»‡u Beneish M-Score",
+                    f"Ká»³ má»›i nháº¥t {latest_period}: M-Score {mscore_text}; má»©c cáº£nh bÃ¡o: {latest_risk}. {latest_note}"
                 )
-            st.caption("Công thức: M = -4.84 + 0.920×DSRI + 0.528×GMI + 0.404×AQI + 0.892×SGI + 0.115×DEPI - 0.172×SGAI + 4.679×TATA - 0.327×LVGI. Ngưỡng: M-Score > -2.22 là vùng cảnh báo. AQI ưu tiên TSCĐ/PPE thật; nếu nguồn chỉ có Tài sản dài hạn, app dùng AQI proxy và ghi chú rõ.")
+            st.caption("CÃ´ng thá»©c: M = -4.84 + 0.920Ã—DSRI + 0.528Ã—GMI + 0.404Ã—AQI + 0.892Ã—SGI + 0.115Ã—DEPI - 0.172Ã—SGAI + 4.679Ã—TATA - 0.327Ã—LVGI. NgÆ°á»¡ng: M-Score > -2.22 lÃ  vÃ¹ng cáº£nh bÃ¡o. AQI Æ°u tiÃªn TSCÄ/PPE tháº­t; náº¿u nguá»“n chá»‰ cÃ³ TÃ i sáº£n dÃ i háº¡n, app dÃ¹ng AQI proxy vÃ  ghi chÃº rÃµ.")
             _render_explainable_table(beneish_df, "beneish_mscore", height=470)
 
         with layer_accrual:
-            st.subheader("Lớp 2 - Accrual Quality/Sloan: lợi nhuận có đi kèm dòng tiền thật không")
+            st.subheader("Lá»›p 2 - Accrual Quality/Sloan: lá»£i nhuáº­n cÃ³ Ä‘i kÃ¨m dÃ²ng tiá»n tháº­t khÃ´ng")
             latest_risk = accrual_quality_df.attrs.get("latest_risk", "N/A") if isinstance(accrual_quality_df, pd.DataFrame) else "N/A"
             latest_score = accrual_quality_df.attrs.get("latest_score") if isinstance(accrual_quality_df, pd.DataFrame) else None
             latest_note = accrual_quality_df.attrs.get("latest_note", "N/A") if isinstance(accrual_quality_df, pd.DataFrame) else "N/A"
-            _render_warning_card("Tín hiệu Accrual Quality/Sloan", f"Kỳ mới nhất: Sloan accrual ratio {_format_note_value(latest_score)}; mức cảnh báo: {latest_risk}. {latest_note}")
-            st.caption("Công thức chính: Sloan accrual ratio = (LNST - CFO) / Tổng tài sản bình quân. App kiểm tra thêm CFO/LNST, FCF/LNST và Balance-sheet accruals = ΔCA - ΔCash - ΔCL + ΔSTD - Khấu hao.")
+            _render_warning_card("TÃ­n hiá»‡u Accrual Quality/Sloan", f"Ká»³ má»›i nháº¥t: Sloan accrual ratio {_format_note_value(latest_score)}; má»©c cáº£nh bÃ¡o: {latest_risk}. {latest_note}")
+            st.caption("CÃ´ng thá»©c chÃ­nh: Sloan accrual ratio = (LNST - CFO) / Tá»•ng tÃ i sáº£n bÃ¬nh quÃ¢n. App kiá»ƒm tra thÃªm CFO/LNST, FCF/LNST vÃ  Balance-sheet accruals = Î”CA - Î”Cash - Î”CL + Î”STD - Kháº¥u hao.")
             _render_explainable_table(accrual_quality_df, "accrual_quality", height=470)
 
         with layer_jones:
-            st.subheader("Lớp 3 - Modified Jones/Kothari: discretionary accruals")
+            st.subheader("Lá»›p 3 - Modified Jones/Kothari: discretionary accruals")
             latest_risk = modified_jones_df.attrs.get("latest_risk", "N/A") if isinstance(modified_jones_df, pd.DataFrame) else "N/A"
             latest_score = modified_jones_df.attrs.get("latest_score") if isinstance(modified_jones_df, pd.DataFrame) else None
             latest_note = modified_jones_df.attrs.get("latest_note", "N/A") if isinstance(modified_jones_df, pd.DataFrame) else "N/A"
-            _render_warning_card("Tín hiệu Modified Jones/Kothari", f"Kỳ mới nhất: DA Modified Jones {_format_note_value(latest_score)}; mức cảnh báo: {latest_risk}. {latest_note}")
-            st.caption("Modified Jones: TA/A(t-1)=α0+α1(1/A(t-1))+α2((ΔREV-ΔREC)/A(t-1))+α3(PPE/A(t-1))+ε. Kothari thêm ROA để kiểm soát hiệu quả hoạt động. DA=residual ε.")
+            _render_warning_card("TÃ­n hiá»‡u Modified Jones/Kothari", f"Ká»³ má»›i nháº¥t: DA Modified Jones {_format_note_value(latest_score)}; má»©c cáº£nh bÃ¡o: {latest_risk}. {latest_note}")
+            st.caption("Modified Jones: TA/A(t-1)=Î±0+Î±1(1/A(t-1))+Î±2((Î”REV-Î”REC)/A(t-1))+Î±3(PPE/A(t-1))+Îµ. Kothari thÃªm ROA Ä‘á»ƒ kiá»ƒm soÃ¡t hiá»‡u quáº£ hoáº¡t Ä‘á»™ng. DA=residual Îµ.")
             _render_explainable_table(modified_jones_df, "modified_jones", height=490)
 
         with layer_rem:
-            st.subheader("Lớp 4 - Real Earnings Management: quản trị lợi nhuận qua hoạt động thật")
+            st.subheader("Lá»›p 4 - Real Earnings Management: quáº£n trá»‹ lá»£i nhuáº­n qua hoáº¡t Ä‘á»™ng tháº­t")
             latest_risk = rem_df.attrs.get("latest_risk", "N/A") if isinstance(rem_df, pd.DataFrame) else "N/A"
             latest_score = rem_df.attrs.get("latest_score") if isinstance(rem_df, pd.DataFrame) else None
             latest_note = rem_df.attrs.get("latest_note", "N/A") if isinstance(rem_df, pd.DataFrame) else "N/A"
-            _render_warning_card("Tín hiệu REM", f"Kỳ mới nhất: REM Score {_format_note_value(latest_score)}; mức cảnh báo: {latest_risk}. {latest_note}")
-            st.caption("REM gồm 3 residual bất thường: Abnormal CFO, Abnormal PROD = COGS + ΔInventory, và Abnormal DISEXP. CFO âm bất thường, sản xuất dư/tồn kho cao bất thường hoặc cắt chi phí tùy ý là các cờ đỏ cần kiểm tra.")
+            _render_warning_card("TÃ­n hiá»‡u REM", f"Ká»³ má»›i nháº¥t: REM Score {_format_note_value(latest_score)}; má»©c cáº£nh bÃ¡o: {latest_risk}. {latest_note}")
+            st.caption("REM gá»“m 3 residual báº¥t thÆ°á»ng: Abnormal CFO, Abnormal PROD = COGS + Î”Inventory, vÃ  Abnormal DISEXP. CFO Ã¢m báº¥t thÆ°á»ng, sáº£n xuáº¥t dÆ°/tá»“n kho cao báº¥t thÆ°á»ng hoáº·c cáº¯t chi phÃ­ tÃ¹y Ã½ lÃ  cÃ¡c cá» Ä‘á» cáº§n kiá»ƒm tra.")
             _render_explainable_table(rem_df, "real_earnings_management", height=490)
 
 
     with tab_web:
-        st.subheader("Bằng chứng định tính cho lợi thế/rủi ro/BCTC")
+        st.subheader("Báº±ng chá»©ng Ä‘á»‹nh tÃ­nh cho lá»£i tháº¿/rá»§i ro/BCTC")
         st.markdown(
             """
             <div class='note-card'>
-            <b>Tab này là kho bằng chứng định tính phục vụ kiểm tra nhận định.</b><br>
-            App dùng nút <b>Tìm kiếm/cập nhật tất cả</b> để cập nhật thông tin liên quan đến: BCTC, báo cáo thường niên, tin công bố, moat/lợi thế cạnh tranh, rủi ro ngành, thị phần, quản trị và sự kiện bất thường.<br><br>
-            <b>Cách dùng:</b> dữ liệu BCTC số học vẫn ưu tiên bộ dữ liệu tài chính đã chuẩn hóa; bằng chứng định tính chủ yếu dùng để <b>đối chiếu, kiểm chứng và giải thích</b> các nhận định về lợi thế/rủi ro/BCTC. Không nên xem đây là căn cứ duy nhất để ra quyết định nếu chưa đối chiếu với tài liệu gốc.
+            <b>Tab nÃ y lÃ  kho báº±ng chá»©ng Ä‘á»‹nh tÃ­nh phá»¥c vá»¥ kiá»ƒm tra nháº­n Ä‘á»‹nh.</b><br>
+            App dÃ¹ng nÃºt <b>TÃ¬m kiáº¿m/cáº­p nháº­t táº¥t cáº£</b> Ä‘á»ƒ cáº­p nháº­t thÃ´ng tin liÃªn quan Ä‘áº¿n: BCTC, bÃ¡o cÃ¡o thÆ°á»ng niÃªn, tin cÃ´ng bá»‘, moat/lá»£i tháº¿ cáº¡nh tranh, rá»§i ro ngÃ nh, thá»‹ pháº§n, quáº£n trá»‹ vÃ  sá»± kiá»‡n báº¥t thÆ°á»ng.<br><br>
+            <b>CÃ¡ch dÃ¹ng:</b> dá»¯ liá»‡u BCTC sá»‘ há»c váº«n Æ°u tiÃªn bá»™ dá»¯ liá»‡u tÃ i chÃ­nh Ä‘Ã£ chuáº©n hÃ³a; báº±ng chá»©ng Ä‘á»‹nh tÃ­nh chá»§ yáº¿u dÃ¹ng Ä‘á»ƒ <b>Ä‘á»‘i chiáº¿u, kiá»ƒm chá»©ng vÃ  giáº£i thÃ­ch</b> cÃ¡c nháº­n Ä‘á»‹nh vá» lá»£i tháº¿/rá»§i ro/BCTC. KhÃ´ng nÃªn xem Ä‘Ã¢y lÃ  cÄƒn cá»© duy nháº¥t Ä‘á»ƒ ra quyáº¿t Ä‘á»‹nh náº¿u chÆ°a Ä‘á»‘i chiáº¿u vá»›i tÃ i liá»‡u gá»‘c.
             </div>
             """,
             unsafe_allow_html=True,
         )
-        st.caption("Bằng chứng định tính được cập nhật bằng nút duy nhất ở sidebar: 'Tìm kiếm/cập nhật tất cả'. Nếu anh tìm mã ở Tổng quan doanh nghiệp, dữ liệu này cũng được tự cập nhật sẵn cho Định giá chuyên sâu.")
+        st.caption("Báº±ng chá»©ng Ä‘á»‹nh tÃ­nh Ä‘Æ°á»£c cáº­p nháº­t báº±ng nÃºt duy nháº¥t á»Ÿ sidebar: 'TÃ¬m kiáº¿m/cáº­p nháº­t táº¥t cáº£'. Náº¿u anh tÃ¬m mÃ£ á»Ÿ Tá»•ng quan doanh nghiá»‡p, dá»¯ liá»‡u nÃ y cÅ©ng Ä‘Æ°á»£c tá»± cáº­p nháº­t sáºµn cho Äá»‹nh giÃ¡ chuyÃªn sÃ¢u.")
         if st.session_state.get("module2_auto_update_status"):
             st.info(_public_text(st.session_state["module2_auto_update_status"]))
         if st.session_state.get("module2_web_note"):
             st.success(_public_text(st.session_state["module2_web_note"]))
         web_ticker = st.session_state.get("module2_web_ticker")
         if web_ticker and _safe_ticker(str(web_ticker)) != _safe_ticker(company.ticker):
-            st.warning(f"Bằng chứng định tính hiện đang thuộc mã {web_ticker}; bấm 'Tìm kiếm/cập nhật tất cả' để cập nhật lại cho {company.ticker}.")
+            st.warning(f"Báº±ng chá»©ng Ä‘á»‹nh tÃ­nh hiá»‡n Ä‘ang thuá»™c mÃ£ {web_ticker}; báº¥m 'TÃ¬m kiáº¿m/cáº­p nháº­t táº¥t cáº£' Ä‘á»ƒ cáº­p nháº­t láº¡i cho {company.ticker}.")
         _show_table(st.session_state.get("module2_web_table", pd.DataFrame()), height=520)
 
     with tab_data:
-        st.subheader("Dữ liệu năm + TTM dùng cho Định giá chuyên sâu")
+        st.subheader("Dá»¯ liá»‡u nÄƒm + TTM dÃ¹ng cho Äá»‹nh giÃ¡ chuyÃªn sÃ¢u")
         _show_table(format_table_for_display(annual_df), height=480)
-        st.download_button("Tải dữ liệu năm + TTM", annual_df.to_csv(index=False, encoding="utf-8-sig"), file_name=f"{company.ticker}_dinh_gia_year_ttm.csv", mime="text/csv")
-        st.subheader("Dữ liệu quý")
+        st.download_button("Táº£i dá»¯ liá»‡u nÄƒm + TTM", annual_df.to_csv(index=False, encoding="utf-8-sig"), file_name=f"{company.ticker}_dinh_gia_year_ttm.csv", mime="text/csv")
+        st.subheader("Dá»¯ liá»‡u quÃ½")
         _show_table(format_table_for_display(quarterly_df), height=420)
         st.download_button(
-            "Tải dữ liệu quý",
+            "Táº£i dá»¯ liá»‡u quÃ½",
             quarterly_df.to_csv(index=False, encoding="utf-8-sig"),
             file_name=f"{company.ticker}_dinh_gia_quarter.csv",
             mime="text/csv",
@@ -3800,29 +3800,29 @@ def render_dashboard() -> None:
         )
 
     with tab_docs:
-        st.subheader("Công thức và giả định")
+        st.subheader("CÃ´ng thá»©c vÃ  giáº£ Ä‘á»‹nh")
         st.markdown(
             """
             <div class='note-card'>
-            <b>Khu vực này hiển thị công thức, giả định và nguyên tắc đánh giá.</b><br>
-            Các đường dẫn kỹ thuật, tên nhà cung cấp dữ liệu và nhật ký nội bộ không hiển thị trên giao diện để đảm bảo bảo mật vận hành.
+            <b>Khu vá»±c nÃ y hiá»ƒn thá»‹ cÃ´ng thá»©c, giáº£ Ä‘á»‹nh vÃ  nguyÃªn táº¯c Ä‘Ã¡nh giÃ¡.</b><br>
+            CÃ¡c Ä‘Æ°á»ng dáº«n ká»¹ thuáº­t, tÃªn nhÃ  cung cáº¥p dá»¯ liá»‡u vÃ  nháº­t kÃ½ ná»™i bá»™ khÃ´ng hiá»ƒn thá»‹ trÃªn giao diá»‡n Ä‘á»ƒ Ä‘áº£m báº£o báº£o máº­t váº­n hÃ nh.
             </div>
             """,
             unsafe_allow_html=True,
         )
-        st.markdown("### Tóm tắt công thức chính")
+        st.markdown("### TÃ³m táº¯t cÃ´ng thá»©c chÃ­nh")
         formula_df = pd.DataFrame([
-            {"Nhóm": "Giá trị nội tại", "Công thức/logic": "Dải giá trị Low - Base - High từ các phương pháp hợp lệ; Weighted là trung bình trọng số theo mức phù hợp dữ liệu và loại doanh nghiệp."},
-            {"Nhóm": "MOS", "Công thức/logic": "MOS hiện tại = (Giá trị nội tại - Giá thị trường) / Giá trị nội tại. Giá mua MOS = Giá trị nội tại x (1 - MOS yêu cầu)."},
-            {"Nhóm": "Owner Earnings", "Công thức/logic": "LNST + khấu hao và chi phí phi tiền mặt - capex duy trì ± thay đổi vốn lưu động vận hành cần thiết."},
-            {"Nhóm": "FCF", "Công thức/logic": "Dòng tiền tự do = CFO - Capex. Nếu Capex trong dữ liệu là số âm thì quy đổi đúng chiều dòng tiền trước khi tính."},
-            {"Nhóm": "ROIC/ROCE", "Công thức/logic": "ROIC chính = NOPAT / vốn đầu tư bình quân; ROCE = EBIT / capital employed khi đủ dữ liệu."},
-            {"Nhóm": "DuPont", "Công thức/logic": "ROE được tách thành biên lợi nhuận, vòng quay tài sản và đòn bẩy tài chính để nhận diện nguồn tạo ROE."},
-            {"Nhóm": "Porter Moat", "Công thức/logic": "Điểm moat là tổng trọng số các tiêu chí hiệu quả vốn, lợi thế chi phí/khác biệt hóa, cấu trúc ngành, runway, chất lượng tài chính và rủi ro."},
-            {"Nhóm": "Beneish M-Score", "Công thức/logic": "M = -4.84 + 0.920×DSRI + 0.528×GMI + 0.404×AQI + 0.892×SGI + 0.115×DEPI - 0.172×SGAI + 4.679×TATA - 0.327×LVGI. M > -2.22 là vùng cảnh báo thao túng lợi nhuận."},
-            {"Nhóm": "Accrual Quality/Sloan", "Công thức/logic": "Sloan accrual ratio = (LNST - CFO) / Tổng tài sản bình quân. Kiểm tra thêm CFO/LNST, FCF/LNST và Balance-sheet accruals = ΔCA - ΔCash - ΔCL + ΔSTD - Khấu hao."},
-            {"Nhóm": "Modified Jones/Kothari", "Công thức/logic": "TA/A(t-1)=α0+α1(1/A(t-1))+α2((ΔREV-ΔREC)/A(t-1))+α3(PPE/A(t-1))+ε. Kothari thêm ROA. DA = residual ε; DA dương cao là accruals làm tăng lợi nhuận."},
-            {"Nhóm": "Real Earnings Management", "Công thức/logic": "REM kiểm tra Abnormal CFO, Abnormal PROD và Abnormal DISEXP. PROD = COGS + ΔInventory; DISEXP dùng chi phí bán hàng + quản lý hoặc proxy SG&A khi thiếu chi tiết."},
+            {"NhÃ³m": "GiÃ¡ trá»‹ ná»™i táº¡i", "CÃ´ng thá»©c/logic": "Dáº£i giÃ¡ trá»‹ Low - Base - High tá»« cÃ¡c phÆ°Æ¡ng phÃ¡p há»£p lá»‡; Weighted lÃ  trung bÃ¬nh trá»ng sá»‘ theo má»©c phÃ¹ há»£p dá»¯ liá»‡u vÃ  loáº¡i doanh nghiá»‡p."},
+            {"NhÃ³m": "MOS", "CÃ´ng thá»©c/logic": "MOS hiá»‡n táº¡i = (GiÃ¡ trá»‹ ná»™i táº¡i - GiÃ¡ thá»‹ trÆ°á»ng) / GiÃ¡ trá»‹ ná»™i táº¡i. GiÃ¡ mua MOS = GiÃ¡ trá»‹ ná»™i táº¡i x (1 - MOS yÃªu cáº§u)."},
+            {"NhÃ³m": "Owner Earnings", "CÃ´ng thá»©c/logic": "LNST + kháº¥u hao vÃ  chi phÃ­ phi tiá»n máº·t - capex duy trÃ¬ Â± thay Ä‘á»•i vá»‘n lÆ°u Ä‘á»™ng váº­n hÃ nh cáº§n thiáº¿t."},
+            {"NhÃ³m": "FCF", "CÃ´ng thá»©c/logic": "DÃ²ng tiá»n tá»± do = CFO - Capex. Náº¿u Capex trong dá»¯ liá»‡u lÃ  sá»‘ Ã¢m thÃ¬ quy Ä‘á»•i Ä‘Ãºng chiá»u dÃ²ng tiá»n trÆ°á»›c khi tÃ­nh."},
+            {"NhÃ³m": "ROIC/ROCE", "CÃ´ng thá»©c/logic": "ROIC chÃ­nh = NOPAT / vá»‘n Ä‘áº§u tÆ° bÃ¬nh quÃ¢n; ROCE = EBIT / capital employed khi Ä‘á»§ dá»¯ liá»‡u."},
+            {"NhÃ³m": "DuPont", "CÃ´ng thá»©c/logic": "ROE Ä‘Æ°á»£c tÃ¡ch thÃ nh biÃªn lá»£i nhuáº­n, vÃ²ng quay tÃ i sáº£n vÃ  Ä‘Ã²n báº©y tÃ i chÃ­nh Ä‘á»ƒ nháº­n diá»‡n nguá»“n táº¡o ROE."},
+            {"NhÃ³m": "Porter Moat", "CÃ´ng thá»©c/logic": "Äiá»ƒm moat lÃ  tá»•ng trá»ng sá»‘ cÃ¡c tiÃªu chÃ­ hiá»‡u quáº£ vá»‘n, lá»£i tháº¿ chi phÃ­/khÃ¡c biá»‡t hÃ³a, cáº¥u trÃºc ngÃ nh, runway, cháº¥t lÆ°á»£ng tÃ i chÃ­nh vÃ  rá»§i ro."},
+            {"NhÃ³m": "Beneish M-Score", "CÃ´ng thá»©c/logic": "M = -4.84 + 0.920Ã—DSRI + 0.528Ã—GMI + 0.404Ã—AQI + 0.892Ã—SGI + 0.115Ã—DEPI - 0.172Ã—SGAI + 4.679Ã—TATA - 0.327Ã—LVGI. M > -2.22 lÃ  vÃ¹ng cáº£nh bÃ¡o thao tÃºng lá»£i nhuáº­n."},
+            {"NhÃ³m": "Accrual Quality/Sloan", "CÃ´ng thá»©c/logic": "Sloan accrual ratio = (LNST - CFO) / Tá»•ng tÃ i sáº£n bÃ¬nh quÃ¢n. Kiá»ƒm tra thÃªm CFO/LNST, FCF/LNST vÃ  Balance-sheet accruals = Î”CA - Î”Cash - Î”CL + Î”STD - Kháº¥u hao."},
+            {"NhÃ³m": "Modified Jones/Kothari", "CÃ´ng thá»©c/logic": "TA/A(t-1)=Î±0+Î±1(1/A(t-1))+Î±2((Î”REV-Î”REC)/A(t-1))+Î±3(PPE/A(t-1))+Îµ. Kothari thÃªm ROA. DA = residual Îµ; DA dÆ°Æ¡ng cao lÃ  accruals lÃ m tÄƒng lá»£i nhuáº­n."},
+            {"NhÃ³m": "Real Earnings Management", "CÃ´ng thá»©c/logic": "REM kiá»ƒm tra Abnormal CFO, Abnormal PROD vÃ  Abnormal DISEXP. PROD = COGS + Î”Inventory; DISEXP dÃ¹ng chi phÃ­ bÃ¡n hÃ ng + quáº£n lÃ½ hoáº·c proxy SG&A khi thiáº¿u chi tiáº¿t."},
         ])
         formula_headers = "".join(
             f"<th>{html.escape(str(col))}</th>" for col in formula_df.columns
@@ -3831,8 +3831,8 @@ def render_dashboard() -> None:
         for _, formula_row in formula_df.iterrows():
             formula_rows.append(
                 "<tr>"
-                f"<td class='formula-group'>{html.escape(str(formula_row.get('Nhóm', '')))}</td>"
-                f"<td>{html.escape(str(formula_row.get('Công thức/logic', '')))}</td>"
+                f"<td class='formula-group'>{html.escape(str(formula_row.get('NhÃ³m', '')))}</td>"
+                f"<td>{html.escape(str(formula_row.get('CÃ´ng thá»©c/logic', '')))}</td>"
                 "</tr>"
             )
         st.markdown(
@@ -3854,46 +3854,46 @@ def render_dashboard() -> None:
             unsafe_allow_html=True,
         )
 
-        st.markdown("### Giả định đang dùng")
+        st.markdown("### Giáº£ Ä‘á»‹nh Ä‘ang dÃ¹ng")
         try:
             assumption_items = load_assumptions(ASSUMPTIONS_PATH).__dict__
         except Exception:
             assumption_items = {}
         if assumption_items:
             assumption_label_map = {
-                "required_return_pct": "Tỷ suất sinh lời yêu cầu (%)",
-                "terminal_growth_pct": "Tăng trưởng dài hạn (%)",
-                "conservative_growth_pct": "Tăng trưởng thận trọng (%)",
-                "base_growth_cap_pct": "Trần tăng trưởng cơ sở (%)",
-                "high_growth_cap_pct": "Trần tăng trưởng cao (%)",
-                "mos_conservative_pct": "MOS thận trọng (%)",
-                "mos_base_pct": "MOS cơ sở (%)",
-                "target_pe_default": "P/E mục tiêu mặc định",
-                "target_pe_quality": "P/E mục tiêu doanh nghiệp chất lượng",
-                "target_pb_bank": "P/B mục tiêu ngân hàng/bảo hiểm",
-                "asset_haircut_cash_pct": "Haircut tiền (%)",
-                "asset_haircut_receivables_pct": "Haircut phải thu (%)",
-                "asset_haircut_inventory_pct": "Haircut tồn kho (%)",
-                "asset_haircut_fixed_assets_pct": "Haircut tài sản cố định (%)",
-                "min_required_years_for_high_confidence": "Số năm tối thiểu để tăng độ tin cậy",
+                "required_return_pct": "Tá»· suáº¥t sinh lá»i yÃªu cáº§u (%)",
+                "terminal_growth_pct": "TÄƒng trÆ°á»Ÿng dÃ i háº¡n (%)",
+                "conservative_growth_pct": "TÄƒng trÆ°á»Ÿng tháº­n trá»ng (%)",
+                "base_growth_cap_pct": "Tráº§n tÄƒng trÆ°á»Ÿng cÆ¡ sá»Ÿ (%)",
+                "high_growth_cap_pct": "Tráº§n tÄƒng trÆ°á»Ÿng cao (%)",
+                "mos_conservative_pct": "MOS tháº­n trá»ng (%)",
+                "mos_base_pct": "MOS cÆ¡ sá»Ÿ (%)",
+                "target_pe_default": "P/E má»¥c tiÃªu máº·c Ä‘á»‹nh",
+                "target_pe_quality": "P/E má»¥c tiÃªu doanh nghiá»‡p cháº¥t lÆ°á»£ng",
+                "target_pb_bank": "P/B má»¥c tiÃªu ngÃ¢n hÃ ng/báº£o hiá»ƒm",
+                "asset_haircut_cash_pct": "Haircut tiá»n (%)",
+                "asset_haircut_receivables_pct": "Haircut pháº£i thu (%)",
+                "asset_haircut_inventory_pct": "Haircut tá»“n kho (%)",
+                "asset_haircut_fixed_assets_pct": "Haircut tÃ i sáº£n cá»‘ Ä‘á»‹nh (%)",
+                "min_required_years_for_high_confidence": "Sá»‘ nÄƒm tá»‘i thiá»ƒu Ä‘á»ƒ tÄƒng Ä‘á»™ tin cáº­y",
             }
             assumption_df = pd.DataFrame([
-                {"Giả định": assumption_label_map.get(k, k), "Giá trị": v}
+                {"Giáº£ Ä‘á»‹nh": assumption_label_map.get(k, k), "GiÃ¡ trá»‹": v}
                 for k, v in assumption_items.items()
                 if not str(k).startswith("_")
             ])
             _show_table(assumption_df, height=300)
         else:
-            st.warning("Chưa đọc được bộ giả định định giá; app vẫn chạy với giá trị mặc định trong engine.")
+            st.warning("ChÆ°a Ä‘á»c Ä‘Æ°á»£c bá»™ giáº£ Ä‘á»‹nh Ä‘á»‹nh giÃ¡; app váº«n cháº¡y vá»›i giÃ¡ trá»‹ máº·c Ä‘á»‹nh trong engine.")
 
         _render_company_type_guidance(getattr(cls, "company_type", "Normal Business"))
         st.divider()
         _render_glossary_panel()
         st.divider()
-        if st.button("📄 Xuất báo cáo Markdown định giá", use_container_width=True):
+        if st.button("ðŸ“„ Xuáº¥t bÃ¡o cÃ¡o Markdown Ä‘á»‹nh giÃ¡", use_container_width=True):
             out_path = REPORT_DIR / f"{company.ticker}_Valuation_Porter_Report.md"
             export_module2_report_markdown(company, valuation_df, moat_df, value_chain_df, scenario_df, out_path, annual_df)
-            st.success("Đã xuất báo cáo Markdown vào thư mục báo cáo nội bộ.")
+            st.success("ÄÃ£ xuáº¥t bÃ¡o cÃ¡o Markdown vÃ o thÆ° má»¥c bÃ¡o cÃ¡o ná»™i bá»™.")
         docs = [
             APP_DIR / "docs" / "FORMULA_EXPLANATION_MODULE2.md",
             APP_DIR / "docs" / "PORTER_MOAT_SCORING_GUIDE.md",
@@ -3909,7 +3909,7 @@ def render_dashboard() -> None:
                     .replace("module", "phan")
                 )
                 with st.expander(doc_label, expanded=False):
-                    doc_text = doc.read_text(encoding="utf-8").replace("Module", "Phần").replace("module", "phần")
+                    doc_text = doc.read_text(encoding="utf-8").replace("Module", "Pháº§n").replace("module", "pháº§n")
                     st.markdown(doc_text)
 
 
@@ -3944,34 +3944,34 @@ def _minimal_company_for_ticker(ticker: str) -> CompanyOverview:
 
 
 def render_module3_comparison_dashboard() -> None:
-    """Standalone So sánh doanh nghiệp page: peer universe + 10-company comparison."""
+    """Standalone So sÃ¡nh doanh nghiá»‡p page: peer universe + 10-company comparison."""
     _inject_runtime_ui_css()
     _render_brand_page_header(
-        "⚖️ So sánh doanh nghiệp",
-        "Tự lấy mã từ Tổng quan doanh nghiệp, cập nhật danh sách doanh nghiệp cùng ngành, chọn tối đa 10 mã và chấm điểm so sánh theo định giá, chất lượng, dòng tiền và Porter Moat.",
+        "âš–ï¸ So sÃ¡nh doanh nghiá»‡p",
+        "Tá»± láº¥y mÃ£ tá»« Tá»•ng quan doanh nghiá»‡p, cáº­p nháº­t danh sÃ¡ch doanh nghiá»‡p cÃ¹ng ngÃ nh, chá»n tá»‘i Ä‘a 10 mÃ£ vÃ  cháº¥m Ä‘iá»ƒm so sÃ¡nh theo Ä‘á»‹nh giÃ¡, cháº¥t lÆ°á»£ng, dÃ²ng tiá»n vÃ  Porter Moat.",
     )
     if st.session_state.get("module_sync_status"):
         st.info(st.session_state.get("module_sync_status"))
 
     with st.sidebar:
         _render_tre_sidebar_nav()
-        st.markdown("### Tham số so sánh")
+        st.markdown("### Tham sá»‘ so sÃ¡nh")
         default_ticker = _module3_default_ticker()
-        ticker = st.text_input("Mã lấy từ Tổng quan doanh nghiệp / mã gốc để crawl cùng ngành", value=default_ticker, max_chars=12).upper()
-        source_options = ["Dữ liệu ưu tiên", "Dữ liệu tích hợp", "Dữ liệu mẫu"]
-        source_display = st.selectbox("Chế độ dữ liệu để định giá các mã peer", source_options, index=0)
-        source = {"Dữ liệu ưu tiên": "FireAnt", "Dữ liệu tích hợp": "Financial tích hợp", "Dữ liệu mẫu": "CSV mẫu tích hợp"}.get(source_display, "FireAnt")
+        ticker = st.text_input("MÃ£ láº¥y tá»« Tá»•ng quan doanh nghiá»‡p / mÃ£ gá»‘c Ä‘á»ƒ crawl cÃ¹ng ngÃ nh", value=default_ticker, max_chars=12).upper()
+        source_options = ["Dá»¯ liá»‡u Æ°u tiÃªn", "Dá»¯ liá»‡u tÃ­ch há»£p", "Dá»¯ liá»‡u máº«u"]
+        source_display = st.selectbox("Cháº¿ Ä‘á»™ dá»¯ liá»‡u Ä‘á»ƒ Ä‘á»‹nh giÃ¡ cÃ¡c mÃ£ peer", source_options, index=0)
+        source = {"Dá»¯ liá»‡u Æ°u tiÃªn": "FireAnt", "Dá»¯ liá»‡u tÃ­ch há»£p": "Financial tÃ­ch há»£p", "Dá»¯ liá»‡u máº«u": "CSV máº«u tÃ­ch há»£p"}.get(source_display, "FireAnt")
         simplize_default_url = str(st.session_state.get("module3_simplize_industry_url", ""))
         simplize_industry_url = st.text_input(
-            "URL nhóm ngành nếu muốn cố định",
+            "URL nhÃ³m ngÃ nh náº¿u muá»‘n cá»‘ Ä‘á»‹nh",
             value=simplize_default_url,
-            placeholder="Dán URL nhóm ngành nếu cần",
-            help="Có thể để trống; app sẽ tự tìm link ngành. Khi website đổi bố cục, dán trực tiếp URL nhóm ngành tại đây để lấy nhanh hơn."
+            placeholder="DÃ¡n URL nhÃ³m ngÃ nh náº¿u cáº§n",
+            help="CÃ³ thá»ƒ Ä‘á»ƒ trá»‘ng; app sáº½ tá»± tÃ¬m link ngÃ nh. Khi website Ä‘á»•i bá»‘ cá»¥c, dÃ¡n trá»±c tiáº¿p URL nhÃ³m ngÃ nh táº¡i Ä‘Ã¢y Ä‘á»ƒ láº¥y nhanh hÆ¡n."
         ).strip()
         st.session_state["module3_simplize_industry_url"] = simplize_industry_url
         assumptions = load_assumptions(ASSUMPTIONS_PATH)
         assumptions["required_return"] = assumptions.get("required_return_pct", 13.0) / 100
-        target_mos_pct = st.selectbox("MOS yêu cầu khi lọc peer (%)", MOS_OPTIONS_GLOBAL, index=MOS_OPTIONS_GLOBAL.index(_normalize_mos_value(st.session_state.get("target_mos_pct", 30), 30)))
+        target_mos_pct = st.selectbox("MOS yÃªu cáº§u khi lá»c peer (%)", MOS_OPTIONS_GLOBAL, index=MOS_OPTIONS_GLOBAL.index(_normalize_mos_value(st.session_state.get("target_mos_pct", 30), 30)))
         st.session_state["target_mos_pct"] = target_mos_pct
 
     ticker = _safe_ticker(ticker) or default_ticker
@@ -3985,24 +3985,25 @@ def render_module3_comparison_dashboard() -> None:
     try:
         company, annual_df, quarterly_df, source_label, paths = _load_data(ticker, source)
         if not _has_real_financial_data(annual_df):
-            raise RuntimeError("Chưa có BCTC nhiều kỳ cho mã gốc; vẫn có thể crawl danh sách cùng ngành và so sánh các mã khác.")
+            raise RuntimeError("ChÆ°a cÃ³ BCTC nhiá»u ká»³ cho mÃ£ gá»‘c; váº«n cÃ³ thá»ƒ crawl danh sÃ¡ch cÃ¹ng ngÃ nh vÃ  so sÃ¡nh cÃ¡c mÃ£ khÃ¡c.")
         st.markdown(
             f"""
             <div class='ticker-title-card'>
                 <div class='ticker-title-main'><span class='ticker-title-code'>{html.escape(str(company.ticker))}</span> - <span class='ticker-title-name'>{html.escape(str(company.company_name))}</span></div>
-                <div class='ticker-title-meta'><b>Chế độ dữ liệu mã gốc:</b> {html.escape(source_display)}</div>
+                <div class='ticker-title-meta'><b>Cháº¿ Ä‘á»™ dá»¯ liá»‡u mÃ£ gá»‘c:</b> {html.escape(source_display)}</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
     except Exception as exc:
         company = _minimal_company_for_ticker(ticker)
-        st.warning(f"Không tải được đầy đủ BCTC mã gốc {ticker}: {_public_text(exc)}. So sánh doanh nghiệp vẫn cập nhật danh sách cùng ngành và cho chọn mã để so sánh.")
+        st.warning(f"KhÃ´ng táº£i Ä‘Æ°á»£c Ä‘áº§y Ä‘á»§ BCTC mÃ£ gá»‘c {ticker}: {_public_text(exc)}. So sÃ¡nh doanh nghiá»‡p váº«n cáº­p nháº­t danh sÃ¡ch cÃ¹ng ngÃ nh vÃ  cho chá»n mÃ£ Ä‘á»ƒ so sÃ¡nh.")
 
     _render_peer_universe_and_comparison(company, source, assumptions, float(target_mos_pct), available_tickers, auto_simplize=True, simplize_industry_url=simplize_industry_url)
 
-    # V23.39: đã bỏ nút/khung xuất báo cáo trong từng phần; chỉ còn trang Báo cáo tổng hợp toàn bộ nội dung ở sidebar.
+    # V23.39: Ä‘Ã£ bá» nÃºt/khung xuáº¥t bÃ¡o cÃ¡o trong tá»«ng pháº§n; chá»‰ cÃ²n trang BÃ¡o cÃ¡o tá»•ng há»£p toÃ n bá»™ ná»™i dung á»Ÿ sidebar.
 
 
 if __name__ == "__main__":
     render_dashboard()
+
