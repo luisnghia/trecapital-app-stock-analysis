@@ -1,4 +1,8 @@
-from __future__ import annotations
+﻿from pathlib import Path
+
+p = Path("app.py")
+
+new_content = r'''from __future__ import annotations
 
 import streamlit as st
 
@@ -44,3 +48,7 @@ st.markdown(
 from module1_dashboard import render_dashboard
 
 render_dashboard()
+'''
+
+p.write_text(new_content, encoding="utf-8")
+print("Updated app.py with initial full-width CSS")
