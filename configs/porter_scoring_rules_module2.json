@@ -1,0 +1,19 @@
+{
+  "score_scale": 100,
+  "groups": [
+    {"name": "Hiệu quả vốn / ROIC", "weight": 20},
+    {"name": "Cost advantage", "weight": 15},
+    {"name": "Differentiation / Pricing power", "weight": 15},
+    {"name": "Cấu trúc ngành & chu kỳ", "weight": 15},
+    {"name": "Chất lượng dòng tiền", "weight": 15},
+    {"name": "Khả năng tái đầu tư", "weight": 10},
+    {"name": "Chuỗi giá trị vận hành", "weight": 10},
+    {"name": "Quản trị vốn & an toàn tài chính", "weight": 10}
+  ],
+  "levels": {
+    "80_100": "Moat mạnh",
+    "60_79": "Moat khá",
+    "40_59": "Moat trung bình",
+    "0_39": "Moat yếu/chưa rõ"
+  }
+}

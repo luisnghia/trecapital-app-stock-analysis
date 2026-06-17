@@ -1,0 +1,3 @@
+from module2_dashboard import render_module3_comparison_dashboard
+
+render_module3_comparison_dashboard()

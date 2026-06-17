@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Streamlit secrets - không commit token/API key
+.streamlit/secrets.toml
+.env
+
+# Runtime outputs/cache/logs
+*.log
+logs/
+Logs/
+Output/
+output/
+reports/*
+!reports/.gitkeep
+data_cache/*
+!data_cache/.gitkeep
+raw_data/*
+!raw_data/.gitkeep
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

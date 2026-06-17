@@ -1,0 +1,17 @@
+{
+  "required_return_pct": 13.0,
+  "terminal_growth_pct": 3.0,
+  "conservative_growth_pct": 0.0,
+  "base_growth_cap_pct": 8.0,
+  "high_growth_cap_pct": 12.0,
+  "mos_conservative_pct": 50.0,
+  "mos_base_pct": 30.0,
+  "target_pe_default": 10.0,
+  "target_pe_quality": 14.0,
+  "target_pb_bank": 1.2,
+  "asset_haircut_cash_pct": 0.0,
+  "asset_haircut_receivables_pct": 25.0,
+  "asset_haircut_inventory_pct": 50.0,
+  "asset_haircut_fixed_assets_pct": 60.0,
+  "min_required_years_for_high_confidence": 5
+}
