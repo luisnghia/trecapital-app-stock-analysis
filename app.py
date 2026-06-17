@@ -1,13 +1,7 @@
 from __future__ import annotations
 
+from module1_dashboard import render_dashboard
 import streamlit as st
-
-st.set_page_config(
-    page_title="Trecapital Stock Analysis",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
 
 st.markdown(
     """
@@ -40,7 +34,5 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-from module1_dashboard import render_dashboard
 
 render_dashboard()
