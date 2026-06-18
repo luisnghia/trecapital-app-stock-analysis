@@ -152,6 +152,10 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+from tre_full_width import apply_full_width
+apply_full_width()
+
+
 st.markdown(
     """
     <style>
