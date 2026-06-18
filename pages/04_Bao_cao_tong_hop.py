@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
+from tre_full_width import apply_full_width
 
 # Import module2_dashboard first: it owns the shared page config, theme CSS, data loaders and sidebar navigation.
 import module2_dashboard as md
@@ -125,3 +126,4 @@ def render_consolidated_report_page() -> None:
 
 
 render_consolidated_report_page()
+apply_full_width()
