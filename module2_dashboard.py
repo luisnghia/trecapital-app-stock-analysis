@@ -556,6 +556,7 @@ def _inject_runtime_ui_css() -> None:
         from ui_oaktree_theme import inject_oaktree_theme
 
         inject_oaktree_theme()
+        apply_full_width()
     except Exception:
         pass
     # V23.56: final override after theme injection so sidebar nav remains colored like tabs.
@@ -3505,6 +3506,7 @@ def _render_tre_sidebar_nav() -> None:
 
 def render_dashboard() -> None:
     _inject_runtime_ui_css()
+    apply_full_width()
     _render_brand_page_header(
         f"🧠 {APP_NAME}",
         "Trecapital valuation dashboard | Tự đồng bộ BCTC Tổng quan doanh nghiệp ⇄ Định giá chuyên sâu, tìm evidence internet, định giá nhiều lớp và chấm lợi thế cạnh tranh theo Porter.",
@@ -3950,6 +3952,7 @@ def _minimal_company_for_ticker(ticker: str) -> CompanyOverview:
 def render_module3_comparison_dashboard() -> None:
     """Standalone So sánh doanh nghiệp page: peer universe + 10-company comparison."""
     _inject_runtime_ui_css()
+    apply_full_width()
     _render_brand_page_header(
         "⚖️ So sánh doanh nghiệp",
         "Tự lấy mã từ Tổng quan doanh nghiệp, cập nhật danh sách doanh nghiệp cùng ngành, chọn tối đa 10 mã và chấm điểm so sánh theo định giá, chất lượng, dòng tiền và Porter Moat.",

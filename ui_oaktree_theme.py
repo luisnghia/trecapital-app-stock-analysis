@@ -35,7 +35,7 @@ def inject_oaktree_theme() -> None:
             color: var(--oak-ink) !important;
         }
         .main .block-container {
-            max-width: 1480px !important;
+            max-width: none !important; width: 100% !important;
             padding-top: 1.05rem !important;
             padding-bottom: 2.6rem !important;
         }

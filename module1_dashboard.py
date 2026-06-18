@@ -629,6 +629,7 @@ def _inject_runtime_ui_css() -> None:
         from ui_oaktree_theme import inject_oaktree_theme
 
         inject_oaktree_theme()
+        apply_full_width()
     except Exception:
         pass
     # V23.56: final override after theme injection so sidebar nav remains colored like tabs.
@@ -1748,6 +1749,7 @@ def _render_search_panel() -> tuple[int, int]:
 
 def render_dashboard() -> None:
     _inject_runtime_ui_css()
+    apply_full_width()
     # V23.33: logo chuyển ra page, không đặt trong sidebar để tránh bị ẩn khi sidebar thu gọn.
     _render_brand_page_header(
         "📊 Tổng quan doanh nghiệp",

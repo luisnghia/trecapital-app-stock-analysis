@@ -9,7 +9,11 @@ def apply_full_width() -> None:
         html, body, .stApp,
         [data-testid="stAppViewContainer"],
         [data-testid="stMain"],
-        [data-testid="stMainBlockContainer"] {
+        [data-testid="stMainBlockContainer"],
+        .stMainBlockContainer,
+        [class*="stMainBlockContainer"],
+        section.main,
+        section.main > div {
             width: 100% !important;
             max-width: none !important;
         }
@@ -17,7 +21,9 @@ def apply_full_width() -> None:
         .main .block-container,
         section.main > div,
         div[data-testid="stAppViewContainer"] .block-container,
-        div[data-testid="stMainBlockContainer"] {
+        div[data-testid="stMainBlockContainer"],
+        .block-container,
+        [class*="block-container"] {
             max-width: none !important;
             width: 100% !important;
             padding-left: 1.0rem !important;
@@ -28,7 +34,10 @@ def apply_full_width() -> None:
         div[data-testid="stVerticalBlock"],
         div[data-testid="stHorizontalBlock"],
         div[data-testid="column"],
-        div[data-testid="stElementContainer"] {
+        div[data-testid="stElementContainer"],
+        [class*="stVerticalBlock"],
+        [class*="stHorizontalBlock"],
+        [class*="stElementContainer"] {
             max-width: none !important;
         }
 
@@ -40,12 +49,16 @@ def apply_full_width() -> None:
         .note-card,
         .ok-card,
         .warn-card,
-        .big-warning-card {
+        .big-warning-card,
+        .tre-card,
+        .tre-section,
+        .tre-container {
             max-width: none !important;
             width: 100% !important;
         }
 
-        .hero-card p {
+        .hero-card p,
+        .page-hero-card p {
             max-width: none !important;
         }
 
