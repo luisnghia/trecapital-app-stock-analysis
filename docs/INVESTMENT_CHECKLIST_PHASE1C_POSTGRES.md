@@ -44,7 +44,8 @@ For Supabase, use the PostgreSQL connection string supplied by the project. Tran
 No manual SQL is required by the app. Repository initialization creates the Phase 1C schema and seeds:
 
 - 59 checklist questions;
-- 10 Table 1.1 screening criteria.
+- 10 Table 1.1 screening criteria;
+- a small `persistence_probes` operational table used only to prove data survives deployment restart/rebuild.
 
 The schema is in `modules/investment_checklist/db/postgres_schema.py`.
 
@@ -59,12 +60,38 @@ python scripts\migrate_checklist_sqlite_to_postgres.py --sqlite data_cache\inves
 
 The script preserves original IDs and versions, copies review/snapshot/audit history, resets PostgreSQL sequences, and performs the migration in one transaction. If any step fails, PostgreSQL is rolled back.
 
+## Production restart/rebuild persistence verification
+
+Use the dedicated two-stage probe. It never prints the database URL or password.
+
+Before restarting/rebuilding the deployment:
+
+```powershell
+python scripts\checklist_persistence_probe.py write --marker before-restart
+```
+
+Save the returned `PROBE_KEY`. Restart/rebuild the Streamlit deployment, then run from a fresh process using the same production secret:
+
+```powershell
+python scripts\checklist_persistence_probe.py verify --probe-key <PROBE_KEY>
+```
+
+Expected result:
+
+```text
+PERSISTENCE_OK
+```
+
+If the probe is missing after restart, verification exits non-zero and reports `PERSISTENCE_FAIL`. This detects a changed secret/database as well as non-durable storage.
+
 ## CI
 
-`.github/workflows/investment-checklist-phase1c.yml` starts PostgreSQL 16 and runs both:
+`.github/workflows/investment-checklist-phase1c.yml` starts PostgreSQL 16 and runs:
 
 - the existing SQLite regression suite;
-- real PostgreSQL persistence tests.
+- real PostgreSQL persistence tests;
+- SQLite → PostgreSQL migration tests;
+- a two-process persistence probe test that writes in one Python process and verifies from another.
 
 A green Phase 1C CI is required before merging any production persistence work.
 
