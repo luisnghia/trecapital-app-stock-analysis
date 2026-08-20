@@ -28,6 +28,7 @@ class HostContext:
     company: CompanyContext
     analyst: AnalystContext = field(default_factory=AnalystContext)
     shared_db_path: Optional[Path] = None
+    database_url: Optional[str] = None
     selected_as_of_date: Optional[str] = None
 
 
