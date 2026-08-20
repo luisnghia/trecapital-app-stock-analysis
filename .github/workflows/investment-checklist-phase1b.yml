@@ -1,0 +1,36 @@
+name: Investment Checklist Phase 1B CI
+
+on:
+  push:
+    branches:
+      - feature/investment-checklist-phase1b
+    paths:
+      - 'modules/investment_checklist/**'
+      - 'pages/05_Investment_Checklist.py'
+      - 'tre_sidebar_nav.py'
+      - '.github/workflows/investment-checklist-phase1b.yml'
+  pull_request:
+    paths:
+      - 'modules/investment_checklist/**'
+      - 'pages/05_Investment_Checklist.py'
+      - 'tre_sidebar_nav.py'
+
+jobs:
+  test-phase1b:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install app dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Compile checklist and page 05
+        run: |
+          python -m compileall -q modules/investment_checklist pages/05_Investment_Checklist.py tre_sidebar_nav.py
+      - name: Run Phase 1B tests
+        run: |
+          python -m pytest -q modules/investment_checklist/tests
