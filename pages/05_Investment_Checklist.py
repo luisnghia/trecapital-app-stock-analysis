@@ -17,8 +17,28 @@ from modules.investment_checklist.trecapital_bridge import CurrentRepoDataProvid
 from modules.investment_checklist.ui import render_investment_checklist
 
 APP_DIR = Path(__file__).resolve().parents[1]
-CHECKLIST_DB = APP_DIR / "data_cache" / "investment_checklist.db"  # Local/dev fallback only; production durable DB is Phase 1C.
+CHECKLIST_DB = APP_DIR / "data_cache" / "investment_checklist.db"  # Local/dev fallback only.
 ASSUMPTIONS_PATH = APP_DIR / "configs" / "valuation_assumptions.json"
+
+
+def _secret_database_url() -> str | None:
+    """Read durable DB URL from Streamlit secrets without ever rendering/logging it."""
+    for key in ("TREC_CHECKLIST_DATABASE_URL", "DATABASE_URL", "SUPABASE_DB_URL"):
+        try:
+            value = st.secrets.get(key)
+        except Exception:
+            value = None
+        if value and str(value).strip():
+            return str(value).strip()
+    try:
+        connections = st.secrets.get("connections", {})
+        pg = connections.get("postgresql", {}) if hasattr(connections, "get") else {}
+        value = pg.get("url") if hasattr(pg, "get") else None
+        if value and str(value).strip():
+            return str(value).strip()
+    except Exception:
+        pass
+    return None
 
 
 def _default_ticker() -> str:
@@ -60,10 +80,15 @@ def render_page() -> None:
         "Core Research System — Table 1.1, Table 1.2, Q01–Q59, versioning và snapshot lịch sử.",
     )
     ticker = _default_ticker()
+    database_url = _secret_database_url()
     with st.sidebar:
         render_tre_sidebar_nav()
         st.caption(f"Checklist dùng mã đang đồng bộ toàn app: **{ticker}**")
-        st.caption("Phase 1B chưa dùng AI; mọi assessment cuối cùng thuộc về analyst.")
+        st.caption("Phase 1C chưa dùng AI; mọi assessment cuối cùng thuộc về analyst.")
+        if database_url:
+            st.success("Lưu trữ Checklist: PostgreSQL/Supabase bền vững")
+        else:
+            st.warning("Lưu trữ Checklist: SQLite local/dev — chưa dùng cho dữ liệu production")
 
     overview_csv, year_csv, quarter_csv, _, active_ticker = m1._load_active_or_default(ticker)
     company = m1._load_overview_cached(str(overview_csv), active_ticker)
@@ -85,6 +110,7 @@ def render_page() -> None:
         ),
         analyst=AnalystContext(user_id="analyst", display_name="Analyst"),
         shared_db_path=CHECKLIST_DB,
+        database_url=database_url,
     )
     render_investment_checklist(
         host,
