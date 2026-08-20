@@ -4,13 +4,25 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 from ..contracts import HostContext, InventorySourceData, TrecapitalDataProvider
 from ..repositories.sqlite_repository import SQLiteChecklistRepository
+from ..repositories.postgres_repository import PostgresChecklistRepository
 
 MODULE_ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = MODULE_ROOT / "catalog" / "question_catalog_prd.csv"
+ChecklistRepository = Union[SQLiteChecklistRepository, PostgresChecklistRepository]
+
+
+def resolve_database_url(host: HostContext) -> Optional[str]:
+    if host.database_url and str(host.database_url).strip():
+        return str(host.database_url).strip()
+    for key in ("TREC_CHECKLIST_DATABASE_URL", "DATABASE_URL", "SUPABASE_DB_URL"):
+        value = os.getenv(key)
+        if value and value.strip():
+            return value.strip()
+    return None
 
 
 def resolve_db_path(host: HostContext) -> Path:
@@ -22,14 +34,22 @@ def resolve_db_path(host: HostContext) -> Path:
     return MODULE_ROOT / "data" / "checklist_phase1b_dev.db"
 
 
-def build_repository(host: HostContext) -> SQLiteChecklistRepository:
-    repo = SQLiteChecklistRepository(resolve_db_path(host), CATALOG_PATH)
+def build_repository(host: HostContext) -> ChecklistRepository:
+    database_url = resolve_database_url(host)
+    if database_url:
+        repo = PostgresChecklistRepository(database_url, CATALOG_PATH)
+    else:
+        repo = SQLiteChecklistRepository(resolve_db_path(host), CATALOG_PATH)
     repo.initialize()
     return repo
 
 
+def persistence_backend(host: HostContext) -> str:
+    return "postgresql" if resolve_database_url(host) else "sqlite-local"
+
+
 class ChecklistIntegrationService:
-    def __init__(self, repo: SQLiteChecklistRepository, host: HostContext,
+    def __init__(self, repo: ChecklistRepository, host: HostContext,
                  data_provider: Optional[TrecapitalDataProvider] = None):
         self.repo = repo
         self.host = host
