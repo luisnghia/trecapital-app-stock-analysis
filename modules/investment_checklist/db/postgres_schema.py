@@ -161,4 +161,11 @@ CREATE TABLE IF NOT EXISTS integration_sync_log(
     detail TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text
 );
+
+CREATE TABLE IF NOT EXISTS persistence_probes(
+    probe_key TEXT PRIMARY KEY,
+    deployment_marker TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
+    verified_at TEXT
+);
 '''
