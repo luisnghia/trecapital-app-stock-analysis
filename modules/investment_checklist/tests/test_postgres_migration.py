@@ -23,6 +23,8 @@ def _url():
 
 
 def _truncate_target(url: str):
+    # Ensure schema exists even when this file is collected before other PostgreSQL tests.
+    PostgresChecklistRepository(url, CATALOG).initialize()
     with psycopg.connect(url, autocommit=True) as conn:
         with conn.cursor() as cur:
             cur.execute("TRUNCATE TABLE checklist_company_refs RESTART IDENTITY CASCADE")
