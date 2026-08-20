@@ -3,7 +3,14 @@ from __future__ import annotations
 import argparse
 import os
 import sqlite3
+import sys
 from pathlib import Path
+
+# Allow direct execution via `python scripts/migrate_checklist_sqlite_to_postgres.py`
+# by adding the repository root to sys.path before importing the app package.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import psycopg
 from psycopg import sql
@@ -11,7 +18,7 @@ from psycopg.rows import dict_row
 
 from modules.investment_checklist.repositories.postgres_repository import PostgresChecklistRepository
 
-CATALOG = Path("modules/investment_checklist/catalog/question_catalog_prd.csv")
+CATALOG = ROOT / "modules" / "investment_checklist" / "catalog" / "question_catalog_prd.csv"
 
 TABLES = [
     "checklist_company_refs",
@@ -77,7 +84,7 @@ def reset_sequences(pg) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Safely migrate Phase 1B SQLite checklist history to PostgreSQL/Supabase.")
-    parser.add_argument("--sqlite", default="data_cache/investment_checklist.db", help="Source SQLite file")
+    parser.add_argument("--sqlite", default=str(ROOT / "data_cache" / "investment_checklist.db"), help="Source SQLite file")
     parser.add_argument("--database-url", default=os.getenv("TREC_CHECKLIST_DATABASE_URL") or os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DB_URL"))
     args = parser.parse_args()
     if not args.database_url:
