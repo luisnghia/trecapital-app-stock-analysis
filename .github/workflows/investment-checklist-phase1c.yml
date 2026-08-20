@@ -1,0 +1,53 @@
+name: Investment Checklist Phase 1C CI
+
+on:
+  push:
+    branches:
+      - feature/investment-checklist-phase1c
+    paths:
+      - 'modules/investment_checklist/**'
+      - 'pages/05_Investment_Checklist.py'
+      - 'requirements.txt'
+      - '.github/workflows/investment-checklist-phase1c.yml'
+  pull_request:
+    paths:
+      - 'modules/investment_checklist/**'
+      - 'pages/05_Investment_Checklist.py'
+      - 'requirements.txt'
+
+jobs:
+  test-phase1c-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trecapital
+          POSTGRES_PASSWORD: trecapital_ci
+          POSTGRES_DB: trecapital_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U trecapital -d trecapital_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      TEST_DATABASE_URL: postgresql://trecapital:trecapital_ci@localhost:5432/trecapital_test
+      TREC_CHECKLIST_DATABASE_URL: postgresql://trecapital:trecapital_ci@localhost:5432/trecapital_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install app dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Compile Phase 1C
+        run: |
+          python -m compileall -q modules/investment_checklist pages/05_Investment_Checklist.py
+      - name: Run SQLite regression and PostgreSQL integration tests
+        run: |
+          python -m pytest -q modules/investment_checklist/tests
