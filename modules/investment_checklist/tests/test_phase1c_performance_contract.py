@@ -31,7 +31,9 @@ def test_ui_renders_only_selected_section_and_blank_manual_overrides():
     assert "manual_value if manual_value is not None else auto_value" in source
     assert "value=None" in source
     assert "def base(k)" not in source
-    assert "Snapshot cũ không được dùng" not in source  # wording may evolve; behavior is enforced by no base(latest)
+    assert "Snapshot cũ không được dùng" not in source
+    assert "Proxy 10 năm gần nhất + TTM + lịch sử review" in source
+    assert "CCC" in source
 
 
 def test_normalized_data_layer_preserves_ebitda_support_fields():
@@ -43,9 +45,10 @@ def test_checklist_does_not_activate_stale_bundled_workbook_as_current_market_so
     source = Path("pages/05_Investment_Checklist.py").read_text(encoding="utf-8")
     assert "def _load_checklist_bundle" in source
     assert "FireAnt + Vietstock" in source
-    assert "Do NOT activate the workbook fallback" in source
     assert "def _sanitize_statement_only_fallback" in source
     assert '("current_price", "market_cap_bil", "shares_outstanding_mil", "pe", "pb", "ps")' in source
     assert '("current_price", "market_price_vnd", "year_end_price")' in source
     assert "_load_active_or_default(requested_ticker)" not in source
     assert "active_source_label" in source
+    assert "augment_debt_from_latest_fireant_raw" in source
+    assert '"Y", 11' in source
