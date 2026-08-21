@@ -193,6 +193,7 @@ def _render_table11(repo, cid, review, actor):
             if priors.get(c["criterion_code"]): repo.confirm_screening_unchanged(review["id"], c["criterion_code"], actor=actor)
         st.rerun()
     with st.form(f"screen_form_{review['id']}"):
+        batch_reason = st.text_area("Lý do cập nhật Table 1.1 *", help="Bắt buộc. Giải thích vì sao review này cần lưu/cập nhật các tiêu chí.")
         values=[]; options=["yes","no","unknown","na"]
         for c in criteria:
             old=cur.get(c["criterion_code"]); prior=priors.get(c["criterion_code"])
@@ -204,11 +205,26 @@ def _render_table11(repo, cid, review, actor):
             if prior: d.caption(f"Prior: {SCREENING_SYMBOL.get(prior['analyst_value'],'—')} · conf {prior['confidence'] or '—'}")
             values.append((c["criterion_code"],val,conf,note))
         if st.form_submit_button("Lưu Table 1.1 — tạo version mới", type="primary", use_container_width=True):
-            for code,val,conf,note in values: repo.save_screening(review_id=review["id"],criterion_code=code,analyst_value=val,confidence=conf,note=note,actor=actor)
-            st.rerun()
+            if not batch_reason.strip(): st.error("Bắt buộc nhập lý do cập nhật review trước khi lưu Table 1.1.")
+            else:
+                for code,val,conf,note in values:
+                    saved_note=f"Lý do review: {batch_reason.strip()}" + (f" | Bằng chứng: {note.strip()}" if note.strip() else "")
+                    repo.save_screening(review_id=review["id"],criterion_code=code,analyst_value=val,confidence=conf,note=saved_note,actor=actor)
+                st.rerun()
 
 
-def _render_table12_trend(repo, integration, cid):
+def _period_sort_date(period, current_as_of=None):
+    text=str(period or "").strip()
+    upper=text.upper()
+    if "TTM" in upper or "T12M" in upper:
+        text=str(current_as_of or date.today().isoformat())
+    if text.isdigit() and len(text)==4:
+        text=f"{text}-12-31"
+    dt=pd.to_datetime(text,errors="coerce")
+    return dt if pd.notna(dt) else pd.Timestamp.min
+
+
+def _render_table12_trend(repo, integration, cid, current_as_of=None):
     provider = integration.data_provider
     proxy = []
     getter = getattr(provider, "get_inventory_proxy_history", None)
@@ -216,12 +232,19 @@ def _render_table12_trend(repo, integration, cid):
         try: proxy = getter(10) or []
         except Exception as exc: st.caption(f"Chưa dựng được proxy lịch sử 10 năm: {exc}")
     rows=[]
-    for x in reversed(proxy): rows.append(_inventory_display_row(x, period_key="period", source=x.get("source_type","10Y proxy")))
-    for x in repo.inventory_history(cid): rows.append(_inventory_display_row(x, source=f"Review/snapshot #{x.get('last_review_id') or '—'} · {x.get('data_origin','snapshot')}"))
+    for x in proxy:
+        row=_inventory_display_row(x, period_key="period", source=x.get("source_type","10Y proxy"))
+        row["_sort_date"]=_period_sort_date(x.get("period"),current_as_of); row["_sort_kind"]=0; row["_sort_version"]=0
+        rows.append(row)
+    for x in repo.inventory_history(cid):
+        row=_inventory_display_row(x, source=f"Review/snapshot #{x.get('last_review_id') or '—'} · {x.get('data_origin','snapshot')} · v{x.get('version_no') or 1}")
+        row["_sort_date"]=_period_sort_date(x.get("as_of_date"),current_as_of); row["_sort_kind"]=1; row["_sort_version"]=int(x.get("version_no") or 0)
+        rows.append(row)
     if rows:
         st.markdown("##### Proxy 10 năm gần nhất + TTM + lịch sử review")
-        st.caption("Proxy lịch sử chỉ dùng dữ liệu Trecapital của đúng kỳ. Target/MOS lịch sử không được hồi tố; chỉ xuất hiện khi có snapshot/review thực tế. CCC dùng công thức Shearn DIO + DSO − DPO với số dư bình quân khi nguồn chưa có CCC trực tiếp.")
-        st.dataframe(_style_inventory(pd.DataFrame(rows)), use_container_width=True, hide_index=True, height=min(560, 38 * len(rows) + 75))
+        st.caption("Sắp xếp thống nhất mới nhất → cũ nhất, bao gồm cả proxy Trecapital và review/snapshot. Target/MOS lịch sử không hồi tố. CCC dùng DIO + DSO − DPO với số dư bình quân khi nguồn chưa có CCC trực tiếp.")
+        df=pd.DataFrame(rows).sort_values(["_sort_date","_sort_kind","_sort_version"],ascending=[False,False,False],kind="stable").drop(columns=["_sort_date","_sort_kind","_sort_version"])
+        st.dataframe(_style_inventory(df), use_container_width=True, hide_index=True, height=min(560, 38 * len(df) + 75))
     else: st.info("Chưa có đủ chuỗi 10 năm/review để dựng lịch sử Table 1.2.")
 
 
@@ -235,11 +258,14 @@ def _render_table12(repo, integration, cid, review, actor):
             _source_cards(pre); st.caption(f"Nguồn bridge: {pre.source_module} · kỳ dữ liệu: {pre.as_of_date}")
             debt_note = st.session_state.get("checklist_debt_source_note")
             if debt_note: st.caption("• " + str(debt_note))
-            if st.button("Lưu snapshot tự động hiện tại", key=f"host_inv_{cid}"):
-                integration.save_host_inventory_snapshot(company_ref_id=cid, review_id=review["id"] if review else None, data=pre); st.rerun()
+            with st.form(f"auto_snapshot_form_{cid}_{review['id'] if review else 0}"):
+                auto_reason=st.text_input("Lý do lưu snapshot tự động *",help="Bắt buộc để lịch sử review có thể giải thích được vì sao snapshot được tạo.")
+                if st.form_submit_button("Lưu snapshot tự động hiện tại",use_container_width=True):
+                    if not auto_reason.strip(): st.error("Bắt buộc nhập lý do trước khi lưu snapshot.")
+                    else: integration.save_host_inventory_snapshot(company_ref_id=cid, review_id=review["id"] if review else None, data=pre,note=auto_reason.strip()); st.rerun()
     else: st.warning("Checklist chưa nhận được dữ liệu tự động từ Trecapital Data Layer cho mã hiện tại.")
 
-    _render_table12_trend(repo, integration, cid)
+    _render_table12_trend(repo, integration, cid, pre.as_of_date if pre else None)
     auto = pre.__dict__ if pre else {}
     with st.expander("✏️ Điều chỉnh của nhà phân tích — để trống = dùng số tự động", expanded=False):
         st.markdown("<div class='checklist-auto-note'><b>Nguyên tắc override:</b> mọi ô mặc định để trống. Analyst chỉ nhập chỉ tiêu cần điều chỉnh; ô không nhập tự động dùng Trecapital. Snapshot lưu cả bộ giá trị hiệu lực để audit/history.</div>", unsafe_allow_html=True)
@@ -252,16 +278,18 @@ def _render_table12(repo, integration, cid, review, actor):
             c=st.columns([1,1,1,3]); ccc_o=_override_input(c[0],"Điều chỉnh CCC (ngày)",auto.get("ccc_days"),f"ov_ccc_{cid}",formatter=lambda v:"—" if v is None else f"{v:,.0f}")
             mos_auto_pct=None if auto.get("mos") is None else float(auto["mos"])*100
             mos_o=c[1].number_input("Điều chỉnh MOS (%)",value=None,step=.1,format="%.1f",key=f"ov_mos_{cid}",placeholder=f"Tự động: {'—' if mos_auto_pct is None else f'{mos_auto_pct:.1f}%'}",help="Để trống = dùng MOS tự động từ Module 2.")
-            thesis=c[2].selectbox("Δ Thesis",["unknown","up","flat","down"],format_func=lambda x:{"unknown":"?","up":"↑ Cải thiện","flat":"→ Không đổi","down":"↓ Suy giảm"}[x]); analyst_note=c[3].text_input("Ghi chú analyst",value="")
+            thesis=c[2].selectbox("Δ Thesis",["unknown","up","flat","down"],format_func=lambda x:{"unknown":"?","up":"↑ Cải thiện","flat":"→ Không đổi","down":"↓ Suy giảm"}[x]); analyst_note=c[3].text_input("Lý do review / điều chỉnh *",value="",help="Bắt buộc cho mọi snapshot analyst.")
             overrides={"tev":tev_o,"ebit":ebit_o,"ebitda":ebitda_o,"normalized_earnings":norm_o,"total_debt":debt_o,"interest_expense":interest_o,"fcf_current":fcf_o,"market_cap":mcap_o,"dividend_per_share":dps_o,"market_price":price_o,"fcf_estimate":fcf_est_o,"target_price":target_o,"ccc_days":ccc_o}
             if st.form_submit_button("Lưu Inventory Snapshot hiệu lực",type="primary",use_container_width=True):
-                effective={k:_effective(auto.get(k),v) for k,v in overrides.items()}; effective_mos=_effective(auto.get("mos"),None if mos_o is None else mos_o/100.0); changed=[k for k,v in overrides.items() if v is not None]
-                if mos_o is not None: changed.append("mos")
-                origin="mixed" if pre and changed else ("host_data_layer" if pre else "manual"); audit_note=analyst_note.strip()
-                if changed: audit_note=f"{audit_note} | Manual overrides: {', '.join(changed)}".strip(" |")
-                repo.save_inventory_snapshot(company_ref_id=cid,as_of_date=asof,review_id=review["id"] if review else None,mos=effective_mos,thesis_direction=thesis,note=audit_note,actor=actor,data_origin=origin,source_as_of_date=pre.as_of_date if pre else None,**effective); st.rerun()
+                if not analyst_note.strip(): st.error("Bắt buộc nhập lý do review/điều chỉnh trước khi lưu.")
+                else:
+                    effective={k:_effective(auto.get(k),v) for k,v in overrides.items()}; effective_mos=_effective(auto.get("mos"),None if mos_o is None else mos_o/100.0); changed=[k for k,v in overrides.items() if v is not None]
+                    if mos_o is not None: changed.append("mos")
+                    origin="mixed" if pre and changed else ("host_data_layer" if pre else "manual"); audit_note=analyst_note.strip()
+                    if changed: audit_note=f"{audit_note} | Manual overrides: {', '.join(changed)}".strip(" |")
+                    repo.save_inventory_snapshot(company_ref_id=cid,as_of_date=asof,review_id=review["id"] if review else None,mos=effective_mos,thesis_direction=thesis,note=audit_note,actor=actor,data_origin=origin,source_as_of_date=pre.as_of_date if pre else None,**effective); st.rerun()
 
-    st.markdown("##### Snapshot gần nhất đã lưu — history/audit"); st.caption("Snapshot cũ không ghi đè dữ liệu tự động hiện tại; mọi điều chỉnh phải được analyst nhập rõ và tạo version/snapshot mới."); _saved_inventory_table(repo)
+    st.markdown("##### Snapshot gần nhất đã lưu — history/audit"); st.caption("Snapshot cũ không ghi đè dữ liệu tự động hiện tại; mọi điều chỉnh phải có lý do và tạo version/snapshot mới."); _saved_inventory_table(repo)
     inv=repo.inventory_history(cid)
     if inv:
         with st.expander("Lịch sử chi tiết Table 1.2"):
@@ -289,10 +317,12 @@ def _render_workspace(repo,cid,review,actor):
             if status in {"answered","needs_review","research_gap"}:
                 cc=st.columns(2); conf=current["confidence"] if current and current["confidence"] else (prior["confidence"] if prior and prior["confidence"] else 3); mat=current["materiality"] if current and current["materiality"] else (prior["materiality"] if prior and prior["materiality"] else 3); confidence=cc[0].slider("Confidence",1,5,int(conf)); materiality=cc[1].slider("Materiality",1,5,int(mat))
             else: confidence=materiality=None
-            reason=st.text_input("Reason for Change",help="Bắt buộc nếu Assessment thay đổi so với version hiện tại.")
+            reason=st.text_input("Reason for Change *",help="Bắt buộc cho mọi phiên bản được lưu, kể cả khi kết luận không đổi.")
             if st.form_submit_button("Lưu phiên bản mới",type="primary",use_container_width=True):
-                try: repo.save_assessment(review_id=review["id"],question_id=qid,analyst_answer=answer,status=status,assessment=assessment,confidence=confidence,materiality=materiality,change_reason=reason,actor=actor); st.rerun()
-                except ValidationError as exc: st.error(str(exc))
+                if not reason.strip(): st.error("Bắt buộc nhập Reason for Change trước khi lưu phiên bản review.")
+                else:
+                    try: repo.save_assessment(review_id=review["id"],question_id=qid,analyst_answer=answer,status=status,assessment=assessment,confidence=confidence,materiality=materiality,change_reason=reason,actor=actor); st.rerun()
+                    except ValidationError as exc: st.error(str(exc))
     else: st.info("Review đã completed. Hãy tạo review mới để cập nhật.")
     hist=repo.assessment_history(cid,qid)
     if hist: st.dataframe(pd.DataFrame(hist),use_container_width=True,hide_index=True)
@@ -306,8 +336,11 @@ def _render_history(repo,cid,review,actor):
     if not review: st.info("Chưa có review."); return
     m=repo.review_metrics(review["id"]); c=st.columns(3); c[0].metric("Answered",m["answered"]); c[1].metric("Research gaps",m["research_gaps"]); c[2].metric("Completion",f"{m['research_completion']*100:.1f}%")
     if review["status"]!="completed":
+        finalize_reason=st.text_area("Lý do chốt/finalize review *",key=f"final_reason_{review['id']}",help="Bắt buộc và được lưu cùng review để audit lịch sử.")
         ok=st.checkbox("Tôi hiểu review sẽ bị khóa sau khi finalize.",key=f"fin_{review['id']}")
-        if st.button("🔒 Finalize & Create Immutable Snapshot",type="primary",disabled=not ok,key=f"final_{review['id']}"): repo.finalize_review(review["id"],actor=actor); st.rerun()
+        if st.button("🔒 Finalize & Create Immutable Snapshot",type="primary",disabled=not ok or not finalize_reason.strip(),key=f"final_{review['id']}"):
+            try: repo.finalize_review(review["id"],actor=actor,finalize_reason=finalize_reason); st.rerun()
+            except ValidationError as exc: st.error(str(exc))
     snaps=repo.list_snapshots(cid)
     if snaps:
         st.dataframe(pd.DataFrame(snaps),use_container_width=True,hide_index=True); sid=st.selectbox("View as-of snapshot",[s["id"] for s in snaps],format_func=lambda x:f"Snapshot #{x} — {next(s for s in snaps if s['id']==x)['as_of_date']}")
@@ -323,16 +356,18 @@ def render_investment_checklist(host:HostContext,*,repo:Optional[SQLiteChecklist
     if theme: theme.inject_module_css()
     else: st.markdown(FALLBACK_CSS,unsafe_allow_html=True)
     repo=repo or build_repository(host); integration=ChecklistIntegrationService(repo,host,data_provider); cid,company=_company_cached(integration,host); actor=host.analyst.user_id
-    st.markdown('<div class="checklist-module">',unsafe_allow_html=True); st.subheader("Investment Research & Checklist System"); st.caption("Phase 1C — Table 1.1 + Table 1.2 + Q01–Q59 + versioning + immutable snapshots. Không AI."); st.markdown(f"**{company['ticker']} — {company['company_name']}** · {company['industry_name'] or 'Chưa gán ngành'}"); st.markdown('<div class="principle"><b>Nguyên tắc:</b> Analyst tự trả lời, tự đánh giá; Unknown khác Neutral; mọi thay đổi được lưu version; review đã finalize là read-only.</div>',unsafe_allow_html=True)
+    st.markdown('<div class="checklist-module">',unsafe_allow_html=True); st.subheader("Investment Research & Checklist System"); st.caption("Phase 1C — Table 1.1 + Table 1.2 + Q01–Q59 + versioning + immutable snapshots. Không AI."); st.markdown(f"**{company['ticker']} — {company['company_name']}** · {company['industry_name'] or 'Chưa gán ngành'}"); st.markdown('<div class="principle"><b>Nguyên tắc:</b> Analyst tự trả lời, tự đánh giá; Unknown khác Neutral; mọi thay đổi được lưu version; mọi review mới phải có lý do; review đã finalize là read-only.</div>',unsafe_allow_html=True)
     reviews=repo.list_reviews(cid); review=None; left,right=st.columns([2.4,1])
     if reviews:
         ids=[r["id"] for r in reviews]; state=f"checklist_review_{company['host_company_key']}"; desired=st.session_state.get(state); index=ids.index(desired) if desired in ids else 0; rid=left.selectbox("Review",ids,index=index,format_func=lambda x:_review_label(next(r for r in reviews if r["id"]==x)),key=f"review_select_{cid}"); st.session_state[state]=rid; review=next(r for r in reviews if r["id"]==rid)
     else: left.info("Chưa có review cho mã này.")
     with right.popover("➕ Tạo review mới",use_container_width=True):
-        asof=st.date_input("As-of date",value=date.today(),key=f"new_review_date_{cid}"); rtype=st.selectbox("Loại review",["full","screening","delta"],key=f"new_review_type_{cid}")
-        if st.button("Tạo review",use_container_width=True,key=f"create_review_{cid}"): rid=repo.create_review(cid,asof,rtype,actor); st.session_state[f"checklist_review_{company['host_company_key']}"]=rid; st.rerun()
+        asof=st.date_input("As-of date",value=date.today(),key=f"new_review_date_{cid}"); rtype=st.selectbox("Loại review",["full","screening","delta"],key=f"new_review_type_{cid}"); review_reason=st.text_area("Lý do tạo review *",key=f"new_review_reason_{cid}",help="Bắt buộc: ví dụ cập nhật BCTC quý mới, thay đổi thesis, sự kiện trọng yếu hoặc review định kỳ.")
+        if st.button("Tạo review",use_container_width=True,key=f"create_review_{cid}",disabled=not review_reason.strip()):
+            try: rid=repo.create_review(cid,asof,rtype,actor,review_reason=review_reason); st.session_state[f"checklist_review_{company['host_company_key']}"]=rid; st.rerun()
+            except ValidationError as exc: st.error(str(exc))
     if review:
-        st.caption(f"Review #{review['id']} · {review['as_of_date']} · {review['review_type']} · {review['status']}")
+        st.caption(f"Review #{review['id']} · {review['as_of_date']} · {review['review_type']} · {review['status']} · Lý do: {review.get('review_reason') or 'Legacy — chưa ghi lý do'}")
         if review["status"]=="completed": st.markdown('<span class="locked">🔒 Completed — read only</span>',unsafe_allow_html=True)
     # st.tabs executes every tab body on every Streamlit rerun. Rendering only the selected section keeps Q01-Q59 fast.
     section = st.radio("Khu vực checklist", SECTIONS, horizontal=True, label_visibility="collapsed", key=f"checklist_section_{cid}")
