@@ -2,6 +2,7 @@ from pathlib import Path
 import inspect
 
 import pandas as pd
+from streamlit.testing.v1 import AppTest
 
 from modules.investment_checklist.ui.performance_v3 import metric_candidates_v3, _assessment_bundle
 
@@ -24,6 +25,42 @@ def test_formula_renderer_uses_st_html_not_markdown_code_path():
     assert "st.html(html)" in source
     assert "white-space:normal!important" in source
     assert "overflow-wrap:anywhere" in source
+
+
+def test_formula_page_streamlit_smoke_renders_without_exception():
+    app = r'''
+from types import SimpleNamespace
+from modules.investment_checklist.contracts import InventorySourceData
+from modules.investment_checklist.ui.performance_v3 import render_formula_assumptions_v3
+
+class Integration:
+    def get_inventory_prefill(self):
+        return InventorySourceData(
+            as_of_date="TTM",
+            tev=1000.0,
+            ebit=100.0,
+            ebitda=120.0,
+            normalized_earnings=90.0,
+            total_debt=200.0,
+            interest_expense=10.0,
+            fcf_current=80.0,
+            market_cap=900.0,
+            dividend_per_share=500.0,
+            market_price=10000.0,
+            target_price=12000.0,
+            mos=(12000.0 - 10000.0) / 12000.0,
+            ccc_days=50.0,
+            source_module="test_trecapital_data_layer",
+        )
+
+host = SimpleNamespace(company=SimpleNamespace(company_type="normal"))
+render_formula_assumptions_v3(Integration(), host)
+'''
+    at = AppTest.from_string(app, default_timeout=10).run()
+    assert len(at.exception) == 0
+    rendered_text = " ".join(x.value for x in at.markdown if hasattr(x, "value"))
+    assert "Công thức" in rendered_text
+    assert "Nguyên tắc Trecapital" in rendered_text
 
 
 def test_question_navigation_is_fragment_isolated_from_page_pipeline():
