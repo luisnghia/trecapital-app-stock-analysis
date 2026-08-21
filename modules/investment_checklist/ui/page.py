@@ -8,6 +8,7 @@ import streamlit as st
 
 from ..contracts import HostContext, TrecapitalDataProvider, TrecapitalThemeAdapter
 from ..repositories.sqlite_repository import SQLiteChecklistRepository, ValidationError
+from ..services.formulas import inventory_metrics
 from ..services.integration_service import ChecklistIntegrationService, build_repository
 from .present import ASSESSMENT_LABELS, SCREENING_SYMBOL, STATUS_LABELS, THESIS_SYMBOL, fmt_pct, fmt_price, fmt_vnd_bn
 
@@ -18,6 +19,7 @@ FALLBACK_CSS = """
 .checklist-module .principle{padding:.75rem .9rem;border:1px solid #D7CFBE;background:#F8F5ED;border-radius:8px;margin:.5rem 0}
 .checklist-value-card{padding:.72rem .82rem;border:1px solid rgba(11,127,117,.18);border-radius:12px;background:#fff;min-height:82px;margin-bottom:.45rem}
 .checklist-value-card .k{font-size:.78rem;color:#64748B;font-weight:750}.checklist-value-card .v{font-size:1.05rem;font-weight:900;margin-top:.2rem}.checklist-value-card .u{font-size:.72rem;color:#94A3B8}
+.checklist-auto-note{padding:.65rem .8rem;border-radius:10px;background:#F0FDF4;border:1px solid #BBF7D0;color:#166534;font-size:.84rem;margin:.35rem 0 .7rem}
 </style>
 """
 SECTIONS = ["🏠 Research Home", "📋 Table 1.1", "📊 Table 1.2", "🧠 Analyst Workspace Q01–Q59", "🕘 Snapshot & History"]
@@ -71,10 +73,20 @@ def _group_progress(repo, rid, qs):
     return pd.DataFrame(rows)
 
 
-def _inventory_table(repo):
+def _style_inventory(df: pd.DataFrame):
+    if df.empty:
+        return df.style
+    fm = {c: (lambda v: "—" if pd.isna(v) else f"{v:,.1f}x") for c in ["TEV/EBIT", "TEV/EBITDA", "TEV/Norm.E", "Debt/EBITDA", "EBIT/Interest"] if c in df}
+    fm.update({c: (lambda v: "—" if pd.isna(v) else f"{v:,.1f}%") for c in ["Pre-tax yield", "FCF Yield EV", "FCF Yield Mkt", "MOS"] if c in df})
+    fm.update({c: (lambda v: "—" if pd.isna(v) else f"{v:,.0f}") for c in ["Giá", "Target"] if c in df})
+    nums = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+    return df.style.format(fm, na_rep="—").map(_heat, subset=nums)
+
+
+def _saved_inventory_table(repo):
     rows = repo.latest_inventory_all()
     if not rows:
-        st.info("Chưa có dữ liệu Table 1.2.")
+        st.info("Chưa có snapshot Table 1.2 đã lưu.")
         return
     out = []
     for x in rows:
@@ -89,11 +101,29 @@ def _inventory_table(repo):
             "MOS": None if x.get("mos") is None else x["mos"] * 100, "Δ Thesis": THESIS_SYMBOL.get(x.get("thesis_direction"), "?")
         })
     df = pd.DataFrame(out)
-    fm = {c: (lambda v: "—" if pd.isna(v) else f"{v:,.1f}x") for c in ["TEV/EBIT", "TEV/EBITDA", "TEV/Norm.E", "Debt/EBITDA", "EBIT/Interest"]}
-    fm.update({c: (lambda v: "—" if pd.isna(v) else f"{v:,.1f}%") for c in ["Pre-tax yield", "FCF Yield EV", "FCF Yield Mkt", "MOS"]})
-    fm.update({c: (lambda v: "—" if pd.isna(v) else f"{v:,.0f}") for c in ["Giá", "Target"]})
-    nums = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
-    st.dataframe(df.style.format(fm, na_rep="—").map(_heat, subset=nums), use_container_width=True, hide_index=True)
+    st.dataframe(_style_inventory(df), use_container_width=True, hide_index=True)
+
+
+def _current_auto_metrics(pre):
+    if pre is None:
+        return
+    m = inventory_metrics(
+        tev=pre.tev, ebit=pre.ebit, ebitda=pre.ebitda, normalized_earnings=pre.normalized_earnings,
+        total_debt=pre.total_debt, interest_expense=pre.interest_expense, fcf_current=pre.fcf_current,
+        market_cap=pre.market_cap, dividend_per_share=pre.dividend_per_share, market_price=pre.market_price,
+        target_price=pre.target_price,
+    )
+    row = {
+        "As of": pre.as_of_date,
+        "TEV/EBIT": m["tev_ebit"], "TEV/EBITDA": m["tev_ebitda"], "TEV/Norm.E": m["tev_normalized_earnings"],
+        "Pre-tax yield": None if m["pretax_earnings_yield"] is None else m["pretax_earnings_yield"] * 100,
+        "Debt/EBITDA": m["debt_ebitda"], "EBIT/Interest": m["ebit_interest"],
+        "FCF Yield EV": None if m["fcf_yield_ev"] is None else m["fcf_yield_ev"] * 100,
+        "FCF Yield Mkt": None if m["fcf_yield_market"] is None else m["fcf_yield_market"] * 100,
+        "Giá": pre.market_price, "Target": pre.target_price,
+        "MOS": None if pre.mos is None else pre.mos * 100,
+    }
+    st.dataframe(_style_inventory(pd.DataFrame([row])), use_container_width=True, hide_index=True)
 
 
 def _source_cards(pre):
@@ -101,9 +131,9 @@ def _source_cards(pre):
         ("TEV", pre.tev, "tỷ đồng", fmt_vnd_bn), ("EBIT", pre.ebit, "tỷ đồng", fmt_vnd_bn), ("EBITDA", pre.ebitda, "tỷ đồng", fmt_vnd_bn),
         ("Normalized earnings", pre.normalized_earnings, "tỷ đồng", fmt_vnd_bn), ("Total debt", pre.total_debt, "tỷ đồng", fmt_vnd_bn),
         ("Interest expense", pre.interest_expense, "tỷ đồng", fmt_vnd_bn), ("Current FCF", pre.fcf_current, "tỷ đồng", fmt_vnd_bn),
-        ("Market cap", pre.market_cap, "tỷ đồng", fmt_vnd_bn), ("Dividend/share", pre.dividend_per_share, "VND/cp", fmt_price),
-        ("Market price", pre.market_price, "VND/cp", fmt_price), ("FCF Estimate", pre.fcf_estimate, "tỷ đồng", fmt_vnd_bn),
-        ("Target price", pre.target_price, "VND/cp", fmt_price), ("MOS", pre.mos, "%", fmt_pct),
+        ("Market cap", pre.market_cap, "tỷ đồng", fmt_vnd_bn), ("Shares outstanding", pre.shares_outstanding_mil, "triệu cp", fmt_vnd_bn),
+        ("Dividend/share", pre.dividend_per_share, "VND/cp", fmt_price), ("Market price", pre.market_price, "VND/cp", fmt_price),
+        ("FCF Estimate", pre.fcf_estimate, "tỷ đồng", fmt_vnd_bn), ("Target price", pre.target_price, "VND/cp", fmt_price), ("MOS", pre.mos, "%", fmt_pct),
     ]
     for start in range(0, len(items), 4):
         cols = st.columns(4)
@@ -113,10 +143,31 @@ def _source_cards(pre):
     missing = [name for name, val, _, _ in items if val is None]
     if missing:
         st.caption("Chưa có dữ liệu nguồn cho: " + ", ".join(missing) + ". App không tự bịa số liệu.")
+    for note in getattr(pre, "source_notes", ()) or ():
+        if str(note).startswith("CẢNH BÁO"):
+            st.warning(note)
+        else:
+            st.caption("• " + str(note))
 
 
-def _money_input(col, label, value, key):
-    return col.number_input(label, value=_float(value), step=1.0, format="%.0f", key=key, placeholder="Chưa có dữ liệu")
+def _auto_text(value, formatter=fmt_vnd_bn):
+    return "—" if value is None else formatter(value)
+
+
+def _override_input(col, label, auto_value, key, *, formatter=fmt_vnd_bn):
+    return col.number_input(
+        label,
+        value=None,
+        step=1.0,
+        format="%.0f",
+        key=key,
+        placeholder=f"Tự động: {_auto_text(auto_value, formatter)}",
+        help=f"Để trống = dùng số tự động của Trecapital ({_auto_text(auto_value, formatter)}). Chỉ nhập khi analyst muốn điều chỉnh.",
+    )
+
+
+def _effective(auto_value, manual_value):
+    return manual_value if manual_value is not None else auto_value
 
 
 def _company_cached(integration, host):
@@ -195,49 +246,84 @@ def _render_table11(repo, review, actor):
 def _render_table12(repo, integration, cid, review, actor):
     st.markdown("#### Table 1.2 — Opportunity Inventory")
     st.caption("Quy chuẩn hiển thị: tỷ đồng 0 số thập phân; % và hệ số 1 số thập phân; số âm đỏ, số dương xanh ngọc lục bảo.")
-    _inventory_table(repo)
     pre = integration.get_inventory_prefill()
+
     if pre:
-        with st.expander("🔗 Dữ liệu hiện có từ Trecapital Data Layer", expanded=True):
+        st.markdown("##### Chỉ tiêu hiệu lực hiện tại — tự động từ Trecapital")
+        _current_auto_metrics(pre)
+        with st.expander("🔗 Dữ liệu gốc đã chuẩn hóa từ Trecapital Data Layer", expanded=True):
             _source_cards(pre)
             st.caption(f"Nguồn bridge: {pre.source_module} · kỳ dữ liệu: {pre.as_of_date}")
-            if st.button("Lưu snapshot từ Data Layer", key=f"host_inv_{cid}"):
+            if st.button("Lưu snapshot tự động hiện tại", key=f"host_inv_{cid}"):
                 integration.save_host_inventory_snapshot(company_ref_id=cid, review_id=review["id"] if review else None, data=pre)
                 st.rerun()
-    inv = repo.inventory_history(cid)
-    latest = inv[0] if inv else {}
-    p = pre.__dict__ if pre else {}
-    def base(k):
-        return latest.get(k) if latest.get(k) is not None else p.get(k)
-    with st.expander("✏️ Manual override / Lưu Inventory Snapshot", expanded=False):
+    else:
+        st.warning("Checklist chưa nhận được dữ liệu tự động từ Trecapital Data Layer cho mã hiện tại.")
+
+    auto = pre.__dict__ if pre else {}
+    with st.expander("✏️ Điều chỉnh của nhà phân tích — để trống = dùng số tự động", expanded=False):
+        st.markdown("<div class='checklist-auto-note'><b>Nguyên tắc override:</b> mọi ô tài chính mặc định để trống. Analyst chỉ nhập chỉ tiêu cần điều chỉnh; ô không nhập sẽ tự động lấy đúng giá trị Trecapital ở phía trên. Snapshot lưu cả bộ giá trị hiệu lực để audit.</div>", unsafe_allow_html=True)
         with st.form(f"inv_form_{cid}"):
             default_date = date.fromisoformat(pre.as_of_date[:10]) if pre and len(pre.as_of_date) >= 10 and pre.as_of_date[:10].count("-") == 2 else (date.fromisoformat(review["as_of_date"]) if review else date.today())
             asof = st.date_input("As-of date", value=default_date)
             c = st.columns(4)
-            tev = _money_input(c[0], "TEV (tỷ)", base("tev"), f"inv_tev_{cid}")
-            ebit = _money_input(c[1], "EBIT (tỷ)", base("ebit"), f"inv_ebit_{cid}")
-            ebitda = _money_input(c[2], "EBITDA (tỷ)", base("ebitda"), f"inv_ebitda_{cid}")
-            norm = _money_input(c[3], "Normalized earnings (tỷ)", base("normalized_earnings"), f"inv_norm_{cid}")
+            tev_o = _override_input(c[0], "Điều chỉnh TEV (tỷ)", auto.get("tev"), f"ov_tev_{cid}")
+            ebit_o = _override_input(c[1], "Điều chỉnh EBIT (tỷ)", auto.get("ebit"), f"ov_ebit_{cid}")
+            ebitda_o = _override_input(c[2], "Điều chỉnh EBITDA (tỷ)", auto.get("ebitda"), f"ov_ebitda_{cid}")
+            norm_o = _override_input(c[3], "Điều chỉnh Normalized earnings (tỷ)", auto.get("normalized_earnings"), f"ov_norm_{cid}")
             c = st.columns(4)
-            debt = _money_input(c[0], "Total debt (tỷ)", base("total_debt"), f"inv_debt_{cid}")
-            interest = _money_input(c[1], "Interest expense (tỷ)", base("interest_expense"), f"inv_interest_{cid}")
-            fcf = _money_input(c[2], "Current FCF (tỷ)", base("fcf_current"), f"inv_fcf_{cid}")
-            mcap = _money_input(c[3], "Market cap (tỷ)", base("market_cap"), f"inv_mcap_{cid}")
+            debt_o = _override_input(c[0], "Điều chỉnh Total debt (tỷ)", auto.get("total_debt"), f"ov_debt_{cid}")
+            interest_o = _override_input(c[1], "Điều chỉnh Interest expense (tỷ)", auto.get("interest_expense"), f"ov_interest_{cid}")
+            fcf_o = _override_input(c[2], "Điều chỉnh Current FCF (tỷ)", auto.get("fcf_current"), f"ov_fcf_{cid}")
+            mcap_o = _override_input(c[3], "Điều chỉnh Market cap (tỷ)", auto.get("market_cap"), f"ov_mcap_{cid}")
             c = st.columns(4)
-            dps = _money_input(c[0], "Dividend/share (VND)", base("dividend_per_share"), f"inv_dps_{cid}")
-            price = _money_input(c[1], "Market price (VND)", base("market_price"), f"inv_price_{cid}")
-            fcf_est = _money_input(c[2], "FCF Estimate (tỷ)", base("fcf_estimate"), f"inv_fcf_est_{cid}")
-            target = _money_input(c[3], "Target price (VND)", base("target_price"), f"inv_target_{cid}")
+            dps_o = _override_input(c[0], "Điều chỉnh Dividend/share (VND)", auto.get("dividend_per_share"), f"ov_dps_{cid}", formatter=fmt_price)
+            price_o = _override_input(c[1], "Điều chỉnh Market price (VND)", auto.get("market_price"), f"ov_price_{cid}", formatter=fmt_price)
+            fcf_est_o = _override_input(c[2], "Điều chỉnh FCF Estimate (tỷ)", auto.get("fcf_estimate"), f"ov_fcf_est_{cid}")
+            target_o = _override_input(c[3], "Điều chỉnh Target price (VND)", auto.get("target_price"), f"ov_target_{cid}", formatter=fmt_price)
             c = st.columns([1, 1, 3])
-            md = latest.get("mos") if latest.get("mos") is not None else p.get("mos")
-            mos = c[0].number_input("MOS (%)", value=None if md is None else float(md) * 100, step=.1, format="%.1f", key=f"inv_mos_{cid}", placeholder="Chưa có dữ liệu")
-            thesis = c[1].selectbox("Δ Thesis", ["unknown", "up", "flat", "down"], index=_idx(["unknown", "up", "flat", "down"], latest.get("thesis_direction") or "unknown"), format_func=lambda x: {"unknown": "?", "up": "↑ Cải thiện", "flat": "→ Không đổi", "down": "↓ Suy giảm"}[x])
-            note = c[2].text_input("Ghi chú", value=latest.get("note") or "")
-            if st.form_submit_button("Lưu Inventory Snapshot", type="primary", use_container_width=True):
-                repo.save_inventory_snapshot(company_ref_id=cid, as_of_date=asof, review_id=review["id"] if review else None, tev=tev, ebit=ebit, ebitda=ebitda, normalized_earnings=norm, total_debt=debt, interest_expense=interest, fcf_current=fcf, market_cap=mcap, dividend_per_share=dps, market_price=price, fcf_estimate=fcf_est, target_price=target, mos=mos / 100 if mos is not None else None, thesis_direction=thesis, note=note, actor=actor, data_origin="mixed" if pre else "manual", source_as_of_date=pre.as_of_date if pre else None)
+            mos_auto_pct = None if auto.get("mos") is None else float(auto["mos"]) * 100
+            mos_o = c[0].number_input(
+                "Điều chỉnh MOS (%)", value=None, step=.1, format="%.1f", key=f"ov_mos_{cid}",
+                placeholder=f"Tự động: {'—' if mos_auto_pct is None else f'{mos_auto_pct:.1f}%'}",
+                help="Để trống = dùng MOS tự động từ Module 2.",
+            )
+            thesis = c[1].selectbox("Δ Thesis", ["unknown", "up", "flat", "down"], format_func=lambda x: {"unknown": "?", "up": "↑ Cải thiện", "flat": "→ Không đổi", "down": "↓ Suy giảm"}[x])
+            analyst_note = c[2].text_input("Ghi chú analyst", value="")
+
+            overrides = {
+                "tev": tev_o, "ebit": ebit_o, "ebitda": ebitda_o, "normalized_earnings": norm_o,
+                "total_debt": debt_o, "interest_expense": interest_o, "fcf_current": fcf_o, "market_cap": mcap_o,
+                "dividend_per_share": dps_o, "market_price": price_o, "fcf_estimate": fcf_est_o, "target_price": target_o,
+            }
+            if st.form_submit_button("Lưu Inventory Snapshot hiệu lực", type="primary", use_container_width=True):
+                effective = {k: _effective(auto.get(k), v) for k, v in overrides.items()}
+                effective_mos = _effective(auto.get("mos"), None if mos_o is None else mos_o / 100.0)
+                changed = [k for k, v in overrides.items() if v is not None]
+                if mos_o is not None:
+                    changed.append("mos")
+                if pre:
+                    origin = "mixed" if changed else "host_data_layer"
+                else:
+                    origin = "manual"
+                audit_note = analyst_note.strip()
+                if changed:
+                    tag = "Manual overrides: " + ", ".join(changed)
+                    audit_note = f"{audit_note} | {tag}".strip(" |")
+                repo.save_inventory_snapshot(
+                    company_ref_id=cid, as_of_date=asof, review_id=review["id"] if review else None,
+                    mos=effective_mos, thesis_direction=thesis, note=audit_note, actor=actor,
+                    data_origin=origin, source_as_of_date=pre.as_of_date if pre else None, **effective,
+                )
                 st.rerun()
+
+    st.markdown("##### Snapshot gần nhất đã lưu — chỉ để lịch sử/audit")
+    st.caption("Các snapshot cũ không được dùng để ghi đè dữ liệu tự động hiện tại. Muốn thay đổi chỉ tiêu, analyst phải nhập rõ trong phần Điều chỉnh ở trên.")
+    _saved_inventory_table(repo)
+
+    inv = repo.inventory_history(cid)
     if inv:
-        with st.expander("Lịch sử Table 1.2"):
+        with st.expander("Lịch sử chi tiết Table 1.2"):
             h = pd.DataFrame(inv)
             money = [c for c in ["tev", "ebit", "ebitda", "normalized_earnings", "total_debt", "interest_expense", "fcf_current", "market_cap", "dividend_per_share", "market_price", "fcf_estimate", "target_price"] if c in h]
             ratio = [c for c in ["tev_ebit", "tev_ebitda", "tev_normalized_earnings", "debt_ebitda", "ebit_interest"] if c in h]
