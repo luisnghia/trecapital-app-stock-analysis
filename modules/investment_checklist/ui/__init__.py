@@ -3,6 +3,7 @@ from ..formula_assumptions import EVALUATION_RULES, FORMULA_ROWS, GLOSSARY, SOUR
 from ..source_policy import SourcePolicyDataProvider
 from ..services.formulas import inventory_metrics
 from ..services.review_admin import delete_review_manually, review_delete_preview
+from .quant_tools import render_quantitative_tools
 
 
 SECTIONS = [
@@ -10,6 +11,7 @@ SECTIONS = [
     "📋 Table 1.1",
     "📊 Table 1.2",
     "🧠 Analyst Workspace Q01–Q59",
+    "🧮 Analytical Tools",
     "🕘 Snapshot & History",
     "📐 Công thức & giả định",
 ]
@@ -129,10 +131,7 @@ def _render_delete_review_popover(repo, reviews, selected_review, actor, state_k
         )
         reason = st.text_area("Lý do xóa review *", key=f"delete_reason_{selected_review['id']}")
         token = preview["confirmation_token"]
-        confirm = st.text_input(
-            f"Nhập đúng: {token}",
-            key=f"delete_confirm_{selected_review['id']}",
-        )
+        confirm = st.text_input(f"Nhập đúng: {token}", key=f"delete_confirm_{selected_review['id']}")
         if st.button(
             "Xóa vĩnh viễn review đã chọn",
             type="primary",
@@ -156,7 +155,7 @@ def _render_delete_review_popover(repo, reviews, selected_review, actor, state_k
 
 
 def render_investment_checklist(host, *, repo=None, data_provider=None, theme=None):
-    """Phase 1C UI wrapper: source policy + manual delete + formulas/assumptions."""
+    """Phase 2 UI: Phase 1C core + source policy + quantitative analytical tools."""
     st = _page.st
     if theme:
         theme.inject_module_css()
@@ -173,12 +172,12 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
 
     st.markdown('<div class="checklist-module">', unsafe_allow_html=True)
     st.subheader("Investment Research & Checklist System")
-    st.caption("Phase 1C — Table 1.1 + Table 1.2 + Q01–Q59 + versioning + immutable snapshots + formula audit. Không AI.")
+    st.caption("Phase 2 — Core Research System + Quantitative Analytical Tools. Không AI; tool cung cấp evidence, analyst giữ quyền kết luận.")
     st.markdown(f"**{company['ticker']} — {company['company_name']}** · {company['industry_name'] or 'Chưa gán ngành'}")
     st.markdown(
         '<div class="principle"><b>Nguyên tắc:</b> Analyst tự trả lời, tự đánh giá; Unknown khác Neutral; '
-        'mọi thay đổi được lưu version; completed review là read-only. Xóa review chỉ là thao tác admin thủ công, '
-        'phải có lý do + chuỗi xác nhận và được giữ audit tombstone.</div>',
+        'mọi thay đổi được lưu version; completed review là read-only. Quantitative Tools chỉ consume Trecapital Data Layer và '
+        'không tự ghi assessment. Xóa review là thao tác admin có lý do + xác nhận + audit tombstone.</div>',
         unsafe_allow_html=True,
     )
 
@@ -249,6 +248,8 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     elif section == SECTIONS[3]:
         _page._render_workspace(repo, cid, review, actor)
     elif section == SECTIONS[4]:
+        render_quantitative_tools(data_provider, company_type=host.company.company_type)
+    elif section == SECTIONS[5]:
         _page._render_history(repo, cid, review, actor)
     else:
         _render_formula_assumptions(integration, host)
