@@ -14,6 +14,7 @@ on:
       - 'modules/investment_checklist/**'
       - 'pages/05_Investment_Checklist.py'
       - 'requirements.txt'
+      - '.github/workflows/investment-checklist-phase1c.yml'
 
 jobs:
   test-phase1c-postgres:
