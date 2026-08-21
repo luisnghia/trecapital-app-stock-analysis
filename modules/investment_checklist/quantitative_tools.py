@@ -1,0 +1,543 @@
+from __future__ import annotations
+
+"""Phase 2 quantitative analytical tools based on Michael Shearn's source tables.
+
+Design rules:
+- consume Trecapital's normalized financial Data Layer; do not fetch a parallel source;
+- never convert missing data into zero;
+- keep Shearn analytical variants visibly separate from Trecapital standardized metrics;
+- preserve negative/weak economics as warnings instead of manufacturing a positive score;
+- tools support analyst judgment; they do not write checklist assessments automatically.
+"""
+
+from dataclasses import dataclass
+from typing import Any, Iterable
+import math
+
+import pandas as pd
+
+
+@dataclass(frozen=True)
+class ToolResult:
+    name: str
+    checklist_questions: tuple[str, ...]
+    source_tables: tuple[str, ...]
+    rows: list[dict[str, Any]]
+    notes: tuple[str, ...] = ()
+
+
+def _f(value: Any) -> float | None:
+    try:
+        if value is None or pd.isna(value):
+            return None
+        out = float(value)
+        return None if math.isnan(out) else out
+    except Exception:
+        return None
+
+
+def _n(row: dict[str, Any], *keys: str) -> float | None:
+    for key in keys:
+        if key in row:
+            value = _f(row.get(key))
+            if value is not None:
+                return value
+    return None
+
+
+def _period(row: dict[str, Any]) -> str:
+    return str(row.get("period") or row.get("year") or "—")
+
+
+def _is_ttm(row: dict[str, Any]) -> bool:
+    p = _period(row).upper()
+    return "TTM" in p or "T12M" in p
+
+
+def _annual_and_ttm_rows(df: pd.DataFrame, limit_years: int = 10) -> list[dict[str, Any]]:
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        return []
+    work = df.copy()
+    rows: list[dict[str, Any]] = []
+    for _, r in work.iterrows():
+        d = r.to_dict()
+        pt = str(d.get("period_type") or "").upper()
+        if pt == "Y" or _is_ttm(d) or not pt:
+            rows.append(d)
+
+    annual = [r for r in rows if not _is_ttm(r)]
+    ttm = [r for r in rows if _is_ttm(r)]
+
+    def year_key(r: dict[str, Any]) -> int:
+        y = _f(r.get("year"))
+        if y is not None:
+            return int(y)
+        p = _period(r)
+        return int(p[:4]) if len(p) >= 4 and p[:4].isdigit() else 0
+
+    annual.sort(key=year_key)
+    annual = annual[-limit_years:]
+    return annual + (ttm[-1:] if ttm else [])
+
+
+def _pct_change(current: float | None, previous: float | None) -> float | None:
+    if current is None or previous is None or previous == 0:
+        return None
+    return current / previous - 1.0
+
+
+def _safe_ratio(numerator: float | None, denominator: float | None, *, positive_denominator: bool = False) -> float | None:
+    if numerator is None or denominator is None or denominator == 0:
+        return None
+    if positive_denominator and denominator <= 0:
+        return None
+    return numerator / denominator
+
+
+def _ebit(row: dict[str, Any]) -> float | None:
+    direct = _n(row, "ebit_bil", "core_operating_profit_bil", "operating_profit_bil")
+    if direct is not None:
+        return direct
+    gross = _n(row, "gross_profit_bil")
+    selling = _n(row, "selling_expense_bil")
+    admin = _n(row, "admin_expense_bil")
+    if gross is not None and (selling is not None or admin is not None):
+        return gross - abs(selling or 0.0) - abs(admin or 0.0)
+    pretax = _n(row, "pretax_profit_bil")
+    interest = _interest(row)
+    return pretax + interest if pretax is not None and interest is not None else None
+
+
+def _ebitda(row: dict[str, Any]) -> float | None:
+    direct = _n(row, "ebitda_bil")
+    if direct is not None:
+        return direct
+    ebit = _ebit(row)
+    da = _n(row, "depreciation_bil", "depreciation_amortization_bil", "depreciation_and_amortization_bil", "da_bil")
+    return ebit + abs(da) if ebit is not None and da is not None else None
+
+
+def _interest(row: dict[str, Any]) -> float | None:
+    value = _n(row, "interest_expense_bil", "interest_paid_bil", "borrowing_cost_bil")
+    return abs(value) if value is not None else None
+
+
+def _debt(row: dict[str, Any]) -> float | None:
+    direct = _n(row, "interest_bearing_debt_bil")
+    components = [
+        _n(row, "short_term_debt_bil"),
+        _n(row, "current_portion_long_term_debt_bil"),
+        _n(row, "long_term_debt_bil"),
+        _n(row, "bonds_payable_bil"),
+        _n(row, "finance_lease_liabilities_bil", "lease_liabilities_bil"),
+    ]
+    present = [x for x in components if x is not None]
+    if direct is not None and direct > 0:
+        return abs(direct)
+    if present:
+        return sum(abs(x) for x in present)
+    generic = _n(row, "total_debt_bil", "borrowings_bil")
+    return abs(generic) if generic is not None else None
+
+
+def _cash(row: dict[str, Any]) -> float | None:
+    direct = _n(row, "cash_and_short_investments_bil")
+    if direct is not None:
+        return max(direct, 0.0)
+    cash = _n(row, "cash_equivalents_bil", "cash_bil")
+    sti = _n(row, "short_term_investments_bil")
+    if cash is None and sti is None:
+        return None
+    return max(cash or 0.0, 0.0) + max(sti or 0.0, 0.0)
+
+
+def balance_sheet_leverage(df: pd.DataFrame) -> ToolResult:
+    """Tables 5.1–5.2 → Q25: balance-sheet/leverage history."""
+    out: list[dict[str, Any]] = []
+    for row in _annual_and_ttm_rows(df):
+        debt = _debt(row)
+        cash = _cash(row)
+        ebitda = _ebitda(row)
+        ebit = _ebit(row)
+        interest = _interest(row)
+        out.append({
+            "Kỳ": _period(row),
+            "Total Debt": debt,
+            "Cash + STI": cash,
+            "Net Debt": None if debt is None or cash is None else debt - cash,
+            "EBITDA": ebitda,
+            "Debt/EBITDA": _safe_ratio(debt, ebitda, positive_denominator=True),
+            "EBIT": ebit,
+            "Interest": interest,
+            "EBIT/Interest": _safe_ratio(ebit, interest, positive_denominator=True),
+            "Current Assets": _n(row, "current_assets_bil"),
+            "Current Liabilities": _n(row, "current_liabilities_bil"),
+        })
+    return ToolResult(
+        name="Balance Sheet & Leverage Analyzer",
+        checklist_questions=("Q25",),
+        source_tables=("5.1", "5.2"),
+        rows=out,
+        notes=(
+            "Theo dõi nhiều kỳ thay vì kết luận từ một snapshot.",
+            "Debt là interest-bearing debt; thiếu cấu phần nợ thì để trống, không giả định bằng 0.",
+        ),
+    )
+
+
+def _tax_rate(row: dict[str, Any]) -> float | None:
+    pretax = _n(row, "pretax_profit_bil")
+    tax = _n(row, "income_tax_expense_bil", "tax_expense_bil")
+    if pretax is None or pretax <= 0 or tax is None:
+        return None
+    rate = abs(tax) / pretax
+    return min(max(rate, 0.0), 0.5)
+
+
+def _nopat(row: dict[str, Any]) -> float | None:
+    direct = _n(row, "nopat_bil")
+    if direct is not None:
+        return direct
+    ebit = _ebit(row)
+    rate = _tax_rate(row)
+    return ebit * (1.0 - rate) if ebit is not None and rate is not None else None
+
+
+def _invested_capital_standard(row: dict[str, Any]) -> float | None:
+    direct = _n(row, "invested_capital_bil", "capital_employed_bil")
+    if direct is not None:
+        return direct
+    equity = _n(row, "total_equity_bil", "equity_bil")
+    debt = _debt(row)
+    cash = _cash(row)
+    if equity is None or debt is None or cash is None:
+        return None
+    return equity + debt - cash
+
+
+def roic_quality(df: pd.DataFrame) -> ToolResult:
+    """Tables 5.3–5.4 → Q26: standardized ROIC plus explicit Shearn analytical views."""
+    rows = _annual_and_ttm_rows(df)
+    out: list[dict[str, Any]] = []
+    prior_base: float | None = None
+    prior_base_incl_cash: float | None = None
+    prior_base_ex_goodwill: float | None = None
+    for row in rows:
+        nopat = _nopat(row)
+        base = _invested_capital_standard(row)
+        cash = _cash(row)
+        goodwill = _n(row, "goodwill_bil", "goodwill_intangibles_bil")
+        base_incl_cash = None if base is None or cash is None else base + cash
+        base_ex_goodwill = None if base is None or goodwill is None else base - goodwill
+
+        avg_base = None if base is None else (base if prior_base is None else (base + prior_base) / 2.0)
+        avg_incl_cash = None if base_incl_cash is None else (base_incl_cash if prior_base_incl_cash is None else (base_incl_cash + prior_base_incl_cash) / 2.0)
+        avg_ex_goodwill = None if base_ex_goodwill is None else (base_ex_goodwill if prior_base_ex_goodwill is None else (base_ex_goodwill + prior_base_ex_goodwill) / 2.0)
+
+        standardized = _n(row, "roic_pct", "roic_standardized_pct", "roic")
+        if standardized is not None and abs(standardized) <= 2.0:
+            standardized *= 100.0
+
+        out.append({
+            "Kỳ": _period(row),
+            "ROIC Trecapital": standardized,
+            "NOPAT": nopat,
+            "Avg Invested Capital": avg_base,
+            "ROIC Shearn – Ex Cash": None if nopat is None or avg_base is None or avg_base <= 0 else nopat / avg_base * 100.0,
+            "ROIC Shearn – Incl Cash": None if nopat is None or avg_incl_cash is None or avg_incl_cash <= 0 else nopat / avg_incl_cash * 100.0,
+            "ROIC Shearn – Ex Goodwill": None if nopat is None or avg_ex_goodwill is None or avg_ex_goodwill <= 0 else nopat / avg_ex_goodwill * 100.0,
+            "Cash + STI": cash,
+            "Goodwill/Intangibles": goodwill,
+        })
+        if base is not None:
+            prior_base = base
+        if base_incl_cash is not None:
+            prior_base_incl_cash = base_incl_cash
+        if base_ex_goodwill is not None:
+            prior_base_ex_goodwill = base_ex_goodwill
+
+    return ToolResult(
+        name="ROIC Quality Analyzer",
+        checklist_questions=("Q26",),
+        source_tables=("5.3", "5.4"),
+        rows=out,
+        notes=(
+            "ROIC Trecapital là Single Source of Truth cho metric chuẩn hóa hiện hành.",
+            "Các cột 'ROIC Shearn' là analytical variants minh bạch để kiểm tra distortion do excess cash/goodwill; không âm thầm thay ROIC chuẩn.",
+            "Investment base dùng bình quân hai kỳ khi có dữ liệu, phù hợp tinh thần phân tích ROIC của Shearn.",
+        ),
+    )
+
+
+def operating_leverage(df: pd.DataFrame) -> ToolResult:
+    """Tables 6.3–6.5 → Q29–Q30: historical DOL and quantitative cost-structure evidence."""
+    rows = [r for r in _annual_and_ttm_rows(df) if not _is_ttm(r)]
+    out: list[dict[str, Any]] = []
+    prev_rev: float | None = None
+    prev_ebit: float | None = None
+    for row in rows:
+        rev = _n(row, "revenue_bil")
+        ebit = _ebit(row)
+        rev_g = _pct_change(rev, prev_rev)
+        ebit_g = _pct_change(ebit, prev_ebit)
+        # Ignore near-zero sales change; DOL would explode and become economically meaningless.
+        dol = None if rev_g is None or abs(rev_g) < 0.01 else _safe_ratio(ebit_g, rev_g)
+        total_assets = _n(row, "total_assets_bil")
+        ppe = _n(row, "net_ppe_bil", "property_plant_equipment_bil", "fixed_assets_bil")
+        sga = _n(row, "sga_bil", "selling_admin_expense_bil")
+        da = _n(row, "depreciation_bil", "depreciation_amortization_bil")
+        out.append({
+            "Kỳ": _period(row),
+            "Revenue": rev,
+            "Revenue growth": None if rev_g is None else rev_g * 100.0,
+            "EBIT": ebit,
+            "EBIT growth": None if ebit_g is None else ebit_g * 100.0,
+            "DOL": dol,
+            "PP&E / Assets": None if ppe is None or total_assets is None or total_assets == 0 else ppe / total_assets * 100.0,
+            "SG&A / Revenue": None if sga is None or rev is None or rev == 0 else abs(sga) / rev * 100.0,
+            "D&A / Revenue": None if da is None or rev is None or rev == 0 else abs(da) / rev * 100.0,
+        })
+        if rev is not None:
+            prev_rev = rev
+        if ebit is not None:
+            prev_ebit = ebit
+    return ToolResult(
+        name="Operating Leverage & Cost Structure Analyzer",
+        checklist_questions=("Q29", "Q30"),
+        source_tables=("6.3", "6.4", "6.5"),
+        rows=out,
+        notes=(
+            "DOL = %Δ EBIT / %Δ Revenue theo Shearn. Sales change dưới 1% bị loại để tránh ratio bùng nổ.",
+            "PP&E/Assets, SG&A/Revenue và D&A/Revenue chỉ là evidence định lượng; fixed/variable/semi-variable cuối cùng cần analyst đọc MD&A và tự phân loại.",
+        ),
+    )
+
+
+def operating_leverage_stress(df: pd.DataFrame, revenue_changes: Iterable[float] = (-0.05, -0.10, -0.20)) -> list[dict[str, Any]]:
+    """Trecapital extension: simple DOL stress test, not a Shearn source table."""
+    hist = operating_leverage(df).rows
+    valid = [float(r["DOL"]) for r in hist if _f(r.get("DOL")) is not None and abs(float(r["DOL"])) <= 20]
+    if not valid:
+        return []
+    dol = float(pd.Series(valid[-5:]).median())
+    base_rows = _annual_and_ttm_rows(df)
+    if not base_rows:
+        return []
+    base = base_rows[-1]
+    revenue = _n(base, "revenue_bil")
+    ebit = _ebit(base)
+    if revenue is None or ebit is None:
+        return []
+    out = []
+    for change in revenue_changes:
+        ebit_change = dol * float(change)
+        out.append({
+            "Revenue shock": float(change) * 100.0,
+            "DOL used": dol,
+            "Revenue stressed": revenue * (1.0 + float(change)),
+            "EBIT change": ebit_change * 100.0,
+            "EBIT stressed": ebit * (1.0 + ebit_change),
+        })
+    return out
+
+
+def working_capital(df: pd.DataFrame) -> ToolResult:
+    """Table 6.6 → Q31: DSO/DIO/DPO/CCC and cash absorbed/released by operating WC."""
+    rows = _annual_and_ttm_rows(df)
+    out: list[dict[str, Any]] = []
+    prev: dict[str, Any] | None = None
+    prev_owc: float | None = None
+    for row in rows:
+        rev = _n(row, "revenue_bil")
+        gross = _n(row, "gross_profit_bil")
+        cogs = None if rev is None or gross is None else rev - gross
+        ar = _n(row, "accounts_receivable_bil", "receivables_bil")
+        inv = _n(row, "inventory_bil")
+        ap = _n(row, "accounts_payable_bil", "payables_bil")
+
+        dso = dio = dpo = ccc = None
+        if prev is not None and rev is not None and rev > 0 and cogs is not None and cogs > 0:
+            p_ar = _n(prev, "accounts_receivable_bil", "receivables_bil")
+            p_inv = _n(prev, "inventory_bil")
+            p_ap = _n(prev, "accounts_payable_bil", "payables_bil")
+            if ar is not None and p_ar is not None:
+                dso = ((ar + p_ar) / 2.0) / rev * 365.0
+            if inv is not None and p_inv is not None:
+                dio = ((inv + p_inv) / 2.0) / cogs * 365.0
+            if ap is not None and p_ap is not None:
+                dpo = ((ap + p_ap) / 2.0) / cogs * 365.0
+            if dso is not None and dio is not None and dpo is not None:
+                ccc = dso + dio - dpo
+
+        direct_ccc = _n(row, "ccc_days", "cash_conversion_cycle_days")
+        direct_dso = _n(row, "dso_days")
+        direct_dio = _n(row, "dio_days")
+        direct_dpo = _n(row, "dpo_days")
+        if direct_dso is not None:
+            dso = direct_dso
+        if direct_dio is not None:
+            dio = direct_dio
+        if direct_dpo is not None:
+            dpo = direct_dpo
+        if direct_ccc is not None:
+            ccc = direct_ccc
+
+        owc = None if ar is None or inv is None or ap is None else ar + inv - ap
+        delta = None if owc is None or prev_owc is None else owc - prev_owc
+        out.append({
+            "Kỳ": _period(row),
+            "DSO": dso,
+            "DIO": dio,
+            "DPO": dpo,
+            "CCC": ccc,
+            "Operating WC": owc,
+            "Δ Operating WC": delta,
+            "ΔWC / Revenue": None if delta is None or rev is None or rev == 0 else delta / rev * 100.0,
+            "Cash released/(absorbed)": None if delta is None else -delta,
+        })
+        prev = row
+        if owc is not None:
+            prev_owc = owc
+    return ToolResult(
+        name="Working Capital / CCC Analyzer",
+        checklist_questions=("Q31",),
+        source_tables=("6.6",),
+        rows=out,
+        notes=(
+            "CCC = DIO + DSO − DPO; khi phải tính proxy, Inventory/AR/AP dùng số dư bình quân hai kỳ.",
+            "CCC giảm không tự động đồng nghĩa tốt hơn: cần xem liệu DPO tăng do kéo dài thanh toán nhà cung cấp hay hoạt động thật sự cải thiện.",
+        ),
+    )
+
+
+def buyback_dilution(df: pd.DataFrame) -> ToolResult:
+    """Tables 8.2–8.3 → Q46–Q47: share-count/EPS effect, with optional gross buyback/options fields."""
+    rows = _annual_and_ttm_rows(df)
+    out: list[dict[str, Any]] = []
+    prev_shares: float | None = None
+    for row in rows:
+        shares = _n(row, "shares_outstanding_mil", "weighted_avg_shares_mil")
+        net_income = _n(row, "net_profit_bil", "net_income_bil")
+        eps = _n(row, "eps_vnd", "basic_eps_vnd")
+        gross_buyback = _n(row, "shares_repurchased_mil", "buyback_shares_mil")
+        issued = _n(row, "shares_issued_mil", "esop_options_shares_mil", "stock_comp_shares_mil")
+        net_reduction = None if shares is None or prev_shares is None else prev_shares - shares
+        eps_without = None
+        if net_income is not None and prev_shares is not None and prev_shares > 0:
+            eps_without = net_income * 1000.0 / prev_shares
+        out.append({
+            "Kỳ": _period(row),
+            "Shares outstanding": shares,
+            "Net share reduction": net_reduction,
+            "Share count change": None if shares is None or prev_shares is None or prev_shares == 0 else (shares / prev_shares - 1.0) * 100.0,
+            "Gross buyback shares": gross_buyback,
+            "Shares issued / ESOP / options": issued,
+            "Net buyback after dilution": None if gross_buyback is None or issued is None else gross_buyback - issued,
+            "EPS actual": eps,
+            "EPS without share-count change": eps_without,
+            "EPS uplift from share-count change": None if eps is None or eps_without is None or eps_without == 0 else (eps / eps_without - 1.0) * 100.0,
+        })
+        if shares is not None and shares > 0:
+            prev_shares = shares
+    return ToolResult(
+        name="Buyback & Dilution Analyzer",
+        checklist_questions=("Q46", "Q47"),
+        source_tables=("8.2", "8.3"),
+        rows=out,
+        notes=(
+            "Net share reduction theo dõi hiệu ứng thực lên số cổ phiếu lưu hành; gross buyback phải trừ shares issued/ESOP/options khi nguồn có dữ liệu.",
+            "EPS without share-count change là analytical proxy dùng prior-period shares; không phải reported EPS.",
+        ),
+    )
+
+
+def operating_driver_eps(df: pd.DataFrame, driver_field: str = "revenue_bil", driver_label: str = "Revenue") -> ToolResult:
+    """Table 10.1 → Q53–Q57: place an operating driver next to EPS and compare direction."""
+    rows = _annual_and_ttm_rows(df)
+    out: list[dict[str, Any]] = []
+    prev_driver: float | None = None
+    prev_eps: float | None = None
+    for row in rows:
+        driver = _n(row, driver_field)
+        eps = _n(row, "eps_vnd", "basic_eps_vnd")
+        dg = _pct_change(driver, prev_driver)
+        eg = _pct_change(eps, prev_eps)
+        divergence = None
+        if dg is not None and eg is not None:
+            if dg < 0 < eg:
+                divergence = "EPS ↑ trong khi driver ↓ — cần kiểm tra nguồn tăng earnings khác"
+            elif dg > 0 > eg:
+                divergence = "Driver ↑ nhưng EPS ↓ — cần kiểm tra margin/cost/dilution"
+            else:
+                divergence = "Cùng hướng"
+        out.append({
+            "Kỳ": _period(row),
+            driver_label: driver,
+            f"{driver_label} growth": None if dg is None else dg * 100.0,
+            "EPS": eps,
+            "EPS growth": None if eg is None else eg * 100.0,
+            "Signal": divergence,
+        })
+        if driver is not None:
+            prev_driver = driver
+        if eps is not None:
+            prev_eps = eps
+    return ToolResult(
+        name="Operating Driver → EPS Analyzer",
+        checklist_questions=("Q53", "Q54", "Q55", "Q56", "Q57"),
+        source_tables=("10.1",),
+        rows=out,
+        notes=(
+            "Table 10.1 yêu cầu đặt EPS cạnh operating metric phù hợp của doanh nghiệp để phát hiện earnings tăng từ nguồn kém bền vững.",
+            "Revenue chỉ là driver mặc định. Industry-specific operating driver sẽ được mở rộng ở Phase 3 Industry Overlay.",
+        ),
+    )
+
+
+def accounting_quality_proxy(df: pd.DataFrame) -> ToolResult:
+    """Tables 6.1–6.2 → Q27: conservative reserve/earnings-quality evidence without recalculating Beneish."""
+    rows = _annual_and_ttm_rows(df)
+    out: list[dict[str, Any]] = []
+    prev_revenue: float | None = None
+    prev_ar: float | None = None
+    prev_inventory: float | None = None
+    for row in rows:
+        ni = _n(row, "net_profit_bil", "net_income_bil")
+        cfo = _n(row, "cfo_bil", "operating_cash_flow_bil")
+        revenue = _n(row, "revenue_bil")
+        ar = _n(row, "accounts_receivable_bil", "receivables_bil")
+        inventory = _n(row, "inventory_bil")
+        provision = _n(row, "bad_debt_provision_bil", "credit_loss_provision_bil", "provision_bil")
+        charge_off = _n(row, "charge_off_bil", "write_off_bil")
+        rev_growth = _pct_change(revenue, prev_revenue)
+        ar_growth = _pct_change(ar, prev_ar)
+        inv_growth = _pct_change(inventory, prev_inventory)
+        out.append({
+            "Kỳ": _period(row),
+            "Net income": ni,
+            "CFO": cfo,
+            "CFO / Net income": _safe_ratio(cfo, ni, positive_denominator=True),
+            "Provision": provision,
+            "Actual charge-off/write-off": charge_off,
+            "Provision / charge-off": _safe_ratio(provision, charge_off, positive_denominator=True),
+            "Revenue growth": None if rev_growth is None else rev_growth * 100.0,
+            "AR growth": None if ar_growth is None else ar_growth * 100.0,
+            "Inventory growth": None if inv_growth is None else inv_growth * 100.0,
+        })
+        if revenue is not None:
+            prev_revenue = revenue
+        if ar is not None:
+            prev_ar = ar
+        if inventory is not None:
+            prev_inventory = inventory
+    return ToolResult(
+        name="Accounting Reserve Quality Analyzer",
+        checklist_questions=("Q27",),
+        source_tables=("6.1", "6.2"),
+        rows=out,
+        notes=(
+            "Không tính Beneish lần thứ hai; Module Manipulation vẫn là nguồn chính cho manipulation tests.",
+            "Provision vs actual charge-off chỉ hiện khi Data Layer có line-item tương ứng; thiếu dữ liệu thì để trống.",
+            "CFO/NI và tăng AR/Inventory nhanh hơn revenue là evidence để analyst điều tra, không phải kết luận tự động gian lận.",
+        ),
+    )
