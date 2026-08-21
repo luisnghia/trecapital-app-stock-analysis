@@ -10,6 +10,7 @@ from ..quantitative_tools import (
     accounting_quality_proxy,
     balance_sheet_leverage,
     buyback_dilution,
+    maintenance_capex_context,
     operating_driver_eps,
     operating_leverage,
     operating_leverage_stress,
@@ -24,6 +25,7 @@ TOOL_OPTIONS = [
     "6.1–6.2 · Accounting Reserve Quality",
     "6.3–6.5 · Operating Leverage & Cost Structure",
     "6.6 · Working Capital / CCC",
+    "Ch.6 Key Point · Maintenance Capex Context",
     "8.2–8.3 · Buyback & Dilution",
     "10.1 · Operating Driver → EPS",
 ]
@@ -55,15 +57,21 @@ def _styled(df: pd.DataFrame):
     if df.empty:
         return df.style
     formats: dict[str, Any] = {}
-    pct_hints = ("growth", "ROIC", "PP&E /", "SG&A /", "D&A /", "ΔWC /", "Share count change", "EPS uplift", "Revenue shock", "EBIT change")
-    ratio_hints = ("Debt/EBITDA", "EBIT/Interest", "CFO / Net income", "Provision / charge-off", "DOL used")
+    pct_hints = (
+        "growth", "ROIC", "PP&E /", "SG&A /", "D&A /", "ΔWC /", "Share count change",
+        "EPS uplift", "Revenue shock", "EBIT change", "Capex / Revenue",
+    )
+    ratio_cols = {
+        "Debt/EBITDA", "EBIT/Interest", "CFO / Net income", "Provision / charge-off",
+        "DOL", "DOL used", "Current Ratio", "Capex / D&A",
+    }
     day_cols = {"DSO", "DIO", "DPO", "CCC"}
     for col in df.columns:
         if col in day_cols:
             formats[col] = lambda v: "—" if pd.isna(v) else f"{v:,.0f} ngày"
         elif any(h in str(col) for h in pct_hints):
             formats[col] = lambda v: "—" if pd.isna(v) else f"{v:,.1f}%"
-        elif col == "DOL" or any(h == str(col) for h in ratio_hints):
+        elif col in ratio_cols:
             formats[col] = lambda v: "—" if pd.isna(v) else f"{v:,.1f}x"
         elif pd.api.types.is_numeric_dtype(df[col]):
             formats[col] = lambda v: "—" if pd.isna(v) else f"{v:,.0f}"
@@ -74,7 +82,7 @@ def _styled(df: pd.DataFrame):
 def _render_result(result: ToolResult, *, height: int | None = None) -> None:
     st.markdown(f"#### {result.name}")
     st.caption(
-        f"Bảng nguồn: {', '.join(result.source_tables)} · Hỗ trợ checklist: {', '.join(result.checklist_questions)} · "
+        f"Bảng/nguồn gốc: {', '.join(result.source_tables)} · Hỗ trợ checklist: {', '.join(result.checklist_questions)} · "
         "Dữ liệu tài chính chỉ consume từ Trecapital Data Layer."
     )
     if result.rows:
@@ -108,8 +116,8 @@ def _driver_candidates(df: pd.DataFrame) -> list[tuple[str, str]]:
 def render_quantitative_tools(data_provider, *, company_type: str = "normal") -> None:
     st.markdown("### 🧮 Analytical Tools — Phase 2")
     st.caption(
-        "Chuyển các bảng định lượng 5.1–5.4, 6.1–6.6, 8.2–8.3 và 10.1 của Michael Shearn thành tool. "
-        "Tool cung cấp evidence; analyst vẫn tự trả lời Q25–Q31, Q46–Q47 và Q53–Q57."
+        "Chuyển các bảng định lượng 5.1–5.4, 6.1–6.6, 8.2–8.3 và 10.1 của Michael Shearn thành tool; "
+        "bổ sung Maintenance Capex Context từ Key Points Chương 6 để hỗ trợ Q32. Tool cung cấp evidence; analyst vẫn tự kết luận."
     )
     st.markdown(
         "<div class='principle'><b>Single Source of Truth:</b> các tool không gọi nguồn tài chính riêng. "
@@ -134,7 +142,7 @@ def render_quantitative_tools(data_provider, *, company_type: str = "normal") ->
 
     if selected.startswith("5.1"):
         _render_result(balance_sheet_leverage(df), height=470)
-        st.info("Q25: hãy đánh giá sức mạnh bảng cân đối qua chu kỳ, không chỉ nhìn Debt/EBITDA của một kỳ.")
+        st.info("Q25: đánh giá sức mạnh bảng cân đối qua chu kỳ, không chỉ nhìn Debt/EBITDA của một kỳ.")
 
     elif selected.startswith("5.3"):
         _render_result(roic_quality(df), height=470)
@@ -147,12 +155,11 @@ def render_quantitative_tools(data_provider, *, company_type: str = "normal") ->
         _render_result(accounting_quality_proxy(df), height=470)
         st.warning(
             "Tool này không chạy lại Beneish/M-Score. Module Manipulation hiện có vẫn là nơi thực hiện manipulation tests; "
-            "Phase 2 chỉ đặt thêm reserve/charge-off, CFO vs NI, AR và Inventory vào context của Q27."
+            "Phase 2 chỉ đặt reserve/charge-off, CFO vs NI, AR và Inventory vào context của Q27."
         )
 
     elif selected.startswith("6.3"):
-        result = operating_leverage(df)
-        _render_result(result, height=470)
+        _render_result(operating_leverage(df), height=470)
         st.markdown("##### Stress test — phần mở rộng Trecapital")
         stress = operating_leverage_stress(df)
         if stress:
@@ -168,6 +175,13 @@ def render_quantitative_tools(data_provider, *, company_type: str = "normal") ->
     elif selected.startswith("6.6"):
         _render_result(working_capital(df), height=500)
         st.info("Q31: CCC giảm có thể do vận hành tốt hơn hoặc do kéo dài DPO. App không tự chấm 'CCC thấp = tốt'.")
+
+    elif selected.startswith("Ch.6"):
+        _render_result(maintenance_capex_context(df), height=470)
+        st.info(
+            "Q32: nếu chưa có thuyết minh tách maintenance/growth capex, app chỉ đưa Capex/D&A/FCF context. "
+            "Depreciation là rough approximation theo Shearn, không được ghi thành maintenance capex thực tế."
+        )
 
     elif selected.startswith("8.2"):
         _render_result(buyback_dilution(df), height=500)
