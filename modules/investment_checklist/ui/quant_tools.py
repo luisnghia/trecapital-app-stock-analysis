@@ -5,6 +5,7 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+from ..phase2_formula_assumptions import PHASE2_FORMULA_ROWS
 from ..quantitative_tools import (
     ToolResult,
     accounting_quality_proxy,
@@ -53,6 +54,23 @@ def _heat(value: Any) -> str:
         return ""
 
 
+def _latest_first(df: pd.DataFrame) -> pd.DataFrame:
+    """Display TTM first, then newest annual periods; calculations remain chronological upstream."""
+    if df.empty or "Kỳ" not in df.columns:
+        return df
+    out = df.copy()
+    def key(value):
+        text = str(value or "").strip().upper()
+        if "TTM" in text or "T12M" in text:
+            return 999999
+        try:
+            return int(float(text[:4]))
+        except Exception:
+            return -1
+    out["_sort"] = out["Kỳ"].map(key)
+    return out.sort_values("_sort", ascending=False, kind="stable").drop(columns="_sort")
+
+
 def _styled(df: pd.DataFrame):
     if df.empty:
         return df.style
@@ -86,7 +104,7 @@ def _render_result(result: ToolResult, *, height: int | None = None) -> None:
         "Dữ liệu tài chính chỉ consume từ Trecapital Data Layer."
     )
     if result.rows:
-        df = pd.DataFrame(result.rows)
+        df = _latest_first(pd.DataFrame(result.rows))
         st.dataframe(_styled(df), use_container_width=True, hide_index=True, height=height)
     else:
         st.info("Chưa có đủ dữ liệu Trecapital để dựng tool này. App không tự bịa số liệu.")
@@ -113,6 +131,17 @@ def _driver_candidates(df: pd.DataFrame) -> list[tuple[str, str]]:
     return out
 
 
+def _formula_audit(tool_prefix: str | None = None) -> None:
+    rows = PHASE2_FORMULA_ROWS
+    if tool_prefix:
+        matches = [r for r in rows if str(r.get("Tool", "")).startswith(tool_prefix)]
+        if matches:
+            rows = matches
+    with st.expander("📐 Công thức & giả định của Analytical Tools", expanded=False):
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True, height=min(520, 38 * len(rows) + 75))
+        st.caption("SOURCE / Trecapital implementation / extension được ghi tách biệt; thay đổi công thức phải đi cùng regression test.")
+
+
 def render_quantitative_tools(data_provider, *, company_type: str = "normal") -> None:
     st.markdown("### 🧮 Analytical Tools — Phase 2")
     st.caption(
@@ -128,6 +157,7 @@ def render_quantitative_tools(data_provider, *, company_type: str = "normal") ->
     df = _annual_df(data_provider)
     if df.empty:
         st.warning("Không có annual/TTM Data Layer để chạy Analytical Tools.")
+        _formula_audit()
         return
 
     company_type = str(company_type or "normal").lower()
@@ -139,12 +169,15 @@ def render_quantitative_tools(data_provider, *, company_type: str = "normal") ->
         )
 
     selected = st.selectbox("Analytical tool", TOOL_OPTIONS, key="checklist_phase2_tool")
+    formula_prefix = None
 
     if selected.startswith("5.1"):
+        formula_prefix = "Balance Sheet"
         _render_result(balance_sheet_leverage(df), height=470)
         st.info("Q25: đánh giá sức mạnh bảng cân đối qua chu kỳ, không chỉ nhìn Debt/EBITDA của một kỳ.")
 
     elif selected.startswith("5.3"):
+        formula_prefix = "ROIC Quality"
         _render_result(roic_quality(df), height=470)
         st.info(
             "Q26: 'ROIC Trecapital' là metric chuẩn của app. Các ROIC Shearn chỉ là analytical views để nhìn distortion do cash/goodwill; "
@@ -152,6 +185,7 @@ def render_quantitative_tools(data_provider, *, company_type: str = "normal") ->
         )
 
     elif selected.startswith("6.1"):
+        formula_prefix = "Accounting Reserve"
         _render_result(accounting_quality_proxy(df), height=470)
         st.warning(
             "Tool này không chạy lại Beneish/M-Score. Module Manipulation hiện có vẫn là nơi thực hiện manipulation tests; "
@@ -159,6 +193,7 @@ def render_quantitative_tools(data_provider, *, company_type: str = "normal") ->
         )
 
     elif selected.startswith("6.3"):
+        formula_prefix = "Operating Leverage"
         _render_result(operating_leverage(df), height=470)
         st.markdown("##### Stress test — phần mở rộng Trecapital")
         stress = operating_leverage_stress(df)
@@ -173,10 +208,12 @@ def render_quantitative_tools(data_provider, *, company_type: str = "normal") ->
         )
 
     elif selected.startswith("6.6"):
+        formula_prefix = "Working Capital"
         _render_result(working_capital(df), height=500)
         st.info("Q31: CCC giảm có thể do vận hành tốt hơn hoặc do kéo dài DPO. App không tự chấm 'CCC thấp = tốt'.")
 
     elif selected.startswith("Ch.6"):
+        formula_prefix = "Maintenance Capex"
         _render_result(maintenance_capex_context(df), height=470)
         st.info(
             "Q32: nếu chưa có thuyết minh tách maintenance/growth capex, app chỉ đưa Capex/D&A/FCF context. "
@@ -184,6 +221,7 @@ def render_quantitative_tools(data_provider, *, company_type: str = "normal") ->
         )
 
     elif selected.startswith("8.2"):
+        formula_prefix = "Buyback"
         _render_result(buyback_dilution(df), height=500)
         st.info(
             "Q46–Q47: Net share reduction và EPS uplift có thể tính tự động. Gross buyback trừ ESOP/options chỉ hiện khi Data Layer có line-item; "
@@ -191,6 +229,7 @@ def render_quantitative_tools(data_provider, *, company_type: str = "normal") ->
         )
 
     else:
+        formula_prefix = "Operating Driver"
         candidates = _driver_candidates(df)
         if candidates:
             labels = [label for _, label in candidates]
@@ -203,3 +242,5 @@ def render_quantitative_tools(data_provider, *, company_type: str = "normal") ->
             "Table 10.1 đặt EPS cạnh operating metric. Phase 2 dùng driver Trecapital hiện có; Phase 3 sẽ đưa driver theo ngành "
             "(ví dụ volume/ASP/spread, store/SSS, loan growth/NIM...)."
         )
+
+    _formula_audit(formula_prefix)
