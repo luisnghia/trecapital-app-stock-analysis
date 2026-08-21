@@ -26,5 +26,5 @@ def test_postgres_persists_ccc_and_table11_review_history():
     assert inv[0]["ccc_days"] == 37.0
     history = repo.screening_history_matrix(cid)
     assert len(history) == 1
-    assert history[0]["high_roic"] == "yes"
+    assert history[0]["ROIC cao"] == "yes"
     assert history[0]["Total ✓"] == 1
