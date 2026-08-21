@@ -89,7 +89,7 @@ def test_ccc_persists_and_table11_has_review_history(tmp_path):
     repo.initialize()
     cid = repo.upsert_company_ref(host_company_key="T:AAA", ticker="AAA", company_name="AAA Corp")
     r1 = repo.create_review(cid, "2025-12-31")
-    repo.save_screening(review_id=r1, criterion_code="Q1", analyst_value="yes", confidence=4)
+    repo.save_screening(review_id=r1, criterion_code="high_roic", analyst_value="yes", confidence=4)
     repo.save_inventory_snapshot(company_ref_id=cid, as_of_date="2025-12-31", review_id=r1, ccc_days=42.0, tev=1000.0, ebit=100.0)
     hist = repo.inventory_history(cid)
     assert hist[0]["ccc_days"] == 42.0
