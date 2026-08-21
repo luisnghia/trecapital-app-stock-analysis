@@ -1,5 +1,5 @@
 from . import page as _page
-from ..formula_assumptions import EVALUATION_RULES, FORMULA_ROWS, SOURCE_NOTES
+from ..formula_assumptions import EVALUATION_RULES, FORMULA_ROWS, GLOSSARY, SOURCE_NOTES
 from ..source_policy import SourcePolicyDataProvider
 from ..services.formulas import inventory_metrics
 from ..services.review_admin import delete_review_manually, review_delete_preview
@@ -82,7 +82,7 @@ def _render_formula_assumptions(integration, host):
             {"Chỉ tiêu": "TEV/EBIT", "Số liệu": _fmt_current(metrics.get("tev_ebit"), "ratio"), "Cách đọc": f"{_fmt_current(pre.tev)} ÷ {_fmt_current(pre.ebit)}"},
             {"Chỉ tiêu": "TEV/EBITDA", "Số liệu": _fmt_current(metrics.get("tev_ebitda"), "ratio"), "Cách đọc": f"{_fmt_current(pre.tev)} ÷ {_fmt_current(pre.ebitda)}"},
             {"Chỉ tiêu": "TEV/Normalized Earnings", "Số liệu": _fmt_current(metrics.get("tev_normalized_earnings"), "ratio"), "Cách đọc": f"{_fmt_current(pre.tev)} ÷ {_fmt_current(pre.normalized_earnings)}"},
-            {"Chỉ tiêu": "Pre-tax Earnings Yield", "Số liệu": _fmt_current(metrics.get("pretax_earnings_yield"), "pct"), "Cách đọc": f"{_fmt_current(pre.normalized_earnings)} ÷ {_fmt_current(pre.tev)}"},
+            {"Chỉ tiêu": "Pre-tax Earnings Yield", "Số liệu": _fmt_current(metrics.get("pretax_earnings_yield"), "pct"), "Cách đọc": f"{_fmt_current(pre.ebit)} ÷ {_fmt_current(pre.tev)} — nghịch đảo TEV/EBIT theo Bảng 1.2 Shearn"},
             {"Chỉ tiêu": "Debt/EBITDA", "Số liệu": _fmt_current(metrics.get("debt_ebitda"), "ratio"), "Cách đọc": f"{_fmt_current(pre.total_debt)} ÷ {_fmt_current(pre.ebitda)}"},
             {"Chỉ tiêu": "EBIT/Interest", "Số liệu": _fmt_current(metrics.get("ebit_interest"), "ratio"), "Cách đọc": f"{_fmt_current(pre.ebit)} ÷ {_fmt_current(pre.interest_expense)}"},
             {"Chỉ tiêu": "FCF Yield EV", "Số liệu": _fmt_current(metrics.get("fcf_yield_ev"), "pct"), "Cách đọc": f"{_fmt_current(pre.fcf_current)} ÷ {_fmt_current(pre.tev)}"},
@@ -99,6 +99,9 @@ def _render_formula_assumptions(integration, host):
     st.markdown("##### Giả định/nguyên tắc đánh giá")
     for rule in EVALUATION_RULES:
         st.markdown(f"- {rule}")
+
+    st.markdown("##### Thuật ngữ & từ viết tắt")
+    st.dataframe(_page.pd.DataFrame(GLOSSARY), use_container_width=True, hide_index=True)
 
     st.markdown("##### Nguồn và phạm vi")
     for note in SOURCE_NOTES:
