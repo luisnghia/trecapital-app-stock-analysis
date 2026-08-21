@@ -112,9 +112,14 @@ def render_page() -> None:
         shared_db_path=CHECKLIST_DB,
         database_url=database_url,
     )
+    # Valuation is deliberately lazy. Q01-Q59 navigation must not rebuild Module 2 valuation.
     render_investment_checklist(
         host,
-        data_provider=CurrentRepoDataProvider(company, annual, valuation_range=_valuation_range(company, annual)),
+        data_provider=CurrentRepoDataProvider(
+            company,
+            annual,
+            valuation_range=lambda: _valuation_range(company, annual),
+        ),
     )
 
 
