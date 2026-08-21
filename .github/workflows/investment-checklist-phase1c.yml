@@ -46,48 +46,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest
-      - name: Diagnose FireAnt DCM debt payload shape
-        run: |
-          python - <<'PY'
-          import json, re
-          import httpx
-          headers = {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36",
-              "Accept": "application/json, text/plain, */*",
-              "Referer": "https://fireant.vn/ma-chung-khoan/DCM",
-              "Origin": "https://fireant.vn",
-          }
-          urls = [
-              "https://www.fireant.vn/api/Data/Finance/LastestFinancialReports?symbol=DCM&type=1&year=2026&quarter=0&count=12",
-              "https://www.fireant.vn/api/Data/Finance/LastestFinancialReports?symbol=DCM&type=1&year=2026&quarter=2&count=20",
-              "https://www.fireant.vn/api/Data/Finance/LastestFinancialReports?symbol=DCM&type=1&year=2025&quarter=4&count=20",
-          ]
-          with httpx.Client(timeout=15, follow_redirects=True, headers=headers) as client:
-              for url in urls:
-                  try:
-                      r = client.get(url)
-                      print("FIREANT_DIAG", r.status_code, r.headers.get("content-type"), url)
-                      body = r.text
-                      try:
-                          data = json.loads(body)
-                      except Exception:
-                          print("NON_JSON", body[:300].replace("\n", " "))
-                          continue
-                      def walk(x):
-                          if isinstance(x, dict):
-                              name = x.get("Name") or x.get("name") or x.get("Title") or x.get("title") or x.get("DisplayName") or x.get("displayName")
-                              if name and re.search(r"vay|nợ|no |borrow|debt|lease|thuê tài chính|thue tai chinh", str(name), flags=re.I):
-                                  print("DEBT_LABEL", x.get("ID") or x.get("id"), repr(str(name)))
-                              for v in x.values():
-                                  if isinstance(v, (dict, list)):
-                                      walk(v)
-                          elif isinstance(x, list):
-                              for item in x:
-                                  walk(item)
-                      walk(data)
-                  except Exception as exc:
-                      print("FIREANT_DIAG_ERROR", type(exc).__name__, str(exc))
-          PY
       - name: Compile Phase 1C
         run: |
           python -m compileall -q modules/investment_checklist pages/05_Investment_Checklist.py
