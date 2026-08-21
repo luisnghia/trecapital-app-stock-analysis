@@ -7,6 +7,8 @@ import pandas as pd
 import streamlit as st
 
 from . import portfolio_extensions as _pe
+from . import quant_tools as _qt
+from .book_guidance import render_book_guidance
 
 
 def render_wrapped_table_fixed(df: pd.DataFrame, *, css_class: str = "checklist-wrapped-table") -> None:
@@ -38,7 +40,10 @@ def render_wrapped_table_fixed(df: pd.DataFrame, *, css_class: str = "checklist-
         <div class="{css_class}-wrap">{html}</div>
         """
     ).strip()
-    st.markdown(fragment, unsafe_allow_html=True)
+    if hasattr(st, "html"):
+        st.html(fragment)
+    else:
+        st.markdown(fragment, unsafe_allow_html=True)
 
 
 def metric_candidates_fixed(df: pd.DataFrame, excluded: Iterable[str]) -> list[str]:
@@ -68,9 +73,22 @@ def metric_candidates_fixed(df: pd.DataFrame, excluded: Iterable[str]) -> list[s
     return out
 
 
+# Preserve the tested quantitative renderer, then append static source-grounded guidance. Because
+# render_quantitative_tools resolves _render_result at runtime, this one patch covers every selected
+# Phase 2 table without adding DB/network work or breaking lazy execution.
+_ORIGINAL_RENDER_RESULT = _qt._render_result
+
+
+def render_result_with_book_guidance(result, *, height: int | None = None) -> None:
+    _ORIGINAL_RENDER_RESULT(result, height=height)
+    columns = list(pd.DataFrame(result.rows).columns) if result.rows else None
+    render_book_guidance(result.name, columns, expanded=False)
+
+
 # Install the fixes before integration_preview imports render_wrapped_table and before the
 # analytical context managers execute their dynamically-resolved helper functions.
 _pe.render_wrapped_table = render_wrapped_table_fixed
 _pe._metric_candidates = metric_candidates_fixed
+_qt._render_result = render_result_with_book_guidance
 
-__all__ = ["render_wrapped_table_fixed", "metric_candidates_fixed"]
+__all__ = ["render_wrapped_table_fixed", "metric_candidates_fixed", "render_result_with_book_guidance"]
