@@ -6,7 +6,8 @@ from ..services.formulas import inventory_metrics
 from ..services.portfolio_extensions import ensure_extension_schema
 from ..services.review_admin import delete_review_manually, review_delete_preview
 from . import page as _page
-from .portfolio_extensions import render_analytical_hub, render_wrapped_table
+from .analytical_hub_v2 import render_analytical_hub_v2
+from .portfolio_extensions import render_wrapped_table
 from .watchlist_v2 import render_watchlist_toggle_v2, render_watchlist_v2
 
 
@@ -223,7 +224,7 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     if section == SECTIONS[0]:
         _page._render_home(repo, cid, review)
     elif section == SECTIONS[1]:
-        render_analytical_hub(repo, integration, cid, review, actor, data_provider, host.company.company_type)
+        render_analytical_hub_v2(repo, integration, cid, review, actor, data_provider, host.company.company_type)
     elif section == SECTIONS[2]:
         _page._render_workspace(repo, cid, review, actor)
     elif section == SECTIONS[3]:
