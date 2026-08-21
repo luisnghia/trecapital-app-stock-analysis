@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 import streamlit as st
@@ -142,7 +142,12 @@ def _formula_audit(tool_prefix: str | None = None) -> None:
         st.caption("SOURCE / Trecapital implementation / extension được ghi tách biệt; thay đổi công thức phải đi cùng regression test.")
 
 
-def render_quantitative_tools(data_provider, *, company_type: str = "normal") -> None:
+def render_quantitative_tools(
+    data_provider,
+    *,
+    company_type: str = "normal",
+    auxiliary_table_renderer: Callable[[str, pd.DataFrame], None] | None = None,
+) -> None:
     st.markdown("### 🧮 Analytical Tools — Phase 2")
     st.caption(
         "Chuyển các bảng định lượng 5.1–5.4, 6.1–6.6, 8.2–8.3 và 10.1 của Michael Shearn thành tool; "
@@ -198,7 +203,11 @@ def render_quantitative_tools(data_provider, *, company_type: str = "normal") ->
         st.markdown("##### Stress test — phần mở rộng Trecapital")
         stress = operating_leverage_stress(df)
         if stress:
-            st.dataframe(_styled(pd.DataFrame(stress)), use_container_width=True, hide_index=True)
+            stress_df = pd.DataFrame(stress)
+            if callable(auxiliary_table_renderer):
+                auxiliary_table_renderer("Operating Leverage Stress", stress_df)
+            else:
+                st.dataframe(_styled(stress_df), use_container_width=True, hide_index=True)
             st.caption("Stress test dùng median DOL của tối đa 5 quan sát hợp lệ gần nhất. Đây là scenario extension, không phải bảng gốc của Shearn.")
         else:
             st.info("Chưa đủ DOL lịch sử để chạy stress -5% / -10% / -20% revenue.")
