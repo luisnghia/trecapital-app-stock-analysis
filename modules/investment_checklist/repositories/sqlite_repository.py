@@ -41,10 +41,15 @@ class SQLiteChecklistRepository:
     def initialize(self):
         with self._conn() as c:
             c.executescript(SCHEMA_SQL)
-            # Backward-compatible local/dev migration. Production PostgreSQL uses ADD COLUMN IF NOT EXISTS.
+            # Backward-compatible local/dev migrations. Production PostgreSQL uses ADD COLUMN IF NOT EXISTS.
             cols = {str(r[1]) for r in c.execute("PRAGMA table_info(opportunity_inventory_snapshots)")}
             if "ccc_days" not in cols:
                 c.execute("ALTER TABLE opportunity_inventory_snapshots ADD COLUMN ccc_days REAL")
+            review_cols = {str(r[1]) for r in c.execute("PRAGMA table_info(research_reviews)")}
+            if "review_reason" not in review_cols:
+                c.execute("ALTER TABLE research_reviews ADD COLUMN review_reason TEXT")
+            if "finalize_reason" not in review_cols:
+                c.execute("ALTER TABLE research_reviews ADD COLUMN finalize_reason TEXT")
             for q in load_questions(self.question_catalog_path):
                 c.execute("""INSERT INTO checklist_questions(question_id,question_no,group_name,question_vi,guidance,research_mode,supporting_tool)
                 VALUES(?,?,?,?,?,?,?) ON CONFLICT(question_id) DO UPDATE SET question_no=excluded.question_no,group_name=excluded.group_name,
@@ -92,12 +97,15 @@ class SQLiteChecklistRepository:
     def get_review(self,rid,conn=None):
         if conn is not None: return self._d(conn.execute("SELECT * FROM research_reviews WHERE id=?",(rid,)).fetchone())
         with self._conn() as c: return self._d(c.execute("SELECT * FROM research_reviews WHERE id=?",(rid,)).fetchone())
-    def create_review(self,cid,as_of_date,review_type='full',analyst_user_id='analyst'):
+    def create_review(self,cid,as_of_date,review_type='full',analyst_user_id='analyst',review_reason=None):
         if review_type not in {'full','delta','screening'}: raise ValidationError('review_type không hợp lệ')
+        # None is accepted only for legacy/import/test callers. Production UI always passes an explicit reason.
+        if review_reason is not None and not str(review_reason).strip(): raise ValidationError('Lý do tạo review là bắt buộc.')
+        reason = str(review_reason).strip() if review_reason is not None else 'Legacy/imported review — reason not recorded'
         asof=self._date(as_of_date)
         with self._conn() as c:
             p=c.execute("SELECT id FROM research_reviews WHERE company_ref_id=? AND status='completed' AND as_of_date<=? ORDER BY as_of_date DESC,id DESC LIMIT 1",(cid,asof)).fetchone()
-            cur=c.execute("INSERT INTO research_reviews(company_ref_id,review_type,as_of_date,status,prior_review_id,analyst_user_id) VALUES(?,?,?,'in_progress',?,?)",(cid,review_type,asof,p['id'] if p else None,analyst_user_id)); rid=cur.lastrowid
+            cur=c.execute("INSERT INTO research_reviews(company_ref_id,review_type,as_of_date,status,prior_review_id,analyst_user_id,review_reason) VALUES(?,?,?,'in_progress',?,?,?)",(cid,review_type,asof,p['id'] if p else None,analyst_user_id,reason)); rid=cur.lastrowid
             self._audit(c,company_ref_id=cid,review_id=rid,actor=analyst_user_id,action='create',entity_type='review',entity_id=rid,after=self.get_review(rid,conn=c)); return rid
     def _editable(self,c,rid):
         r=self.get_review(rid,conn=c)
@@ -231,12 +239,14 @@ class SQLiteChecklistRepository:
     def _snapshot_payload(self,c,rid):
         rv=self.get_review(rid,conn=c); co=self.get_company_ref(rv['company_ref_id'],conn=c); inv=c.execute("SELECT * FROM opportunity_inventory_snapshots WHERE company_ref_id=? AND as_of_date<=? ORDER BY as_of_date DESC,version_no DESC,id DESC LIMIT 1",(rv['company_ref_id'],rv['as_of_date'])).fetchone()
         return {'snapshot_schema':'phase1b-review-v1','generated_at':datetime.now(timezone.utc).isoformat(timespec='seconds'),'company':co,'review':rv,'metrics':self.review_metrics(rid,conn=c),'quality_tally':self.quality_tally(rid,conn=c),'assessments':self.latest_assessments_for_review(rid,conn=c),'screening':self.latest_screening_for_review(rid,conn=c),'opportunity_inventory':dict(inv) if inv else None}
-    def finalize_review(self,rid,actor='analyst'):
+    def finalize_review(self,rid,actor='analyst',finalize_reason=None):
+        if finalize_reason is not None and not str(finalize_reason).strip(): raise ValidationError('Lý do chốt review là bắt buộc.')
+        reason = str(finalize_reason).strip() if finalize_reason is not None else 'Legacy/imported finalize — reason not recorded'
         with self._conn() as c:
-            rv=self._editable(c,rid); c.execute("UPDATE research_reviews SET status='completed',completed_at=datetime('now') WHERE id=?",(rid,)); payload=self._snapshot_payload(c,rid)
+            rv=self._editable(c,rid); c.execute("UPDATE research_reviews SET status='completed',finalize_reason=?,completed_at=datetime('now') WHERE id=?",(reason,rid)); payload=self._snapshot_payload(c,rid)
             v=c.execute("SELECT COALESCE(MAX(snapshot_version),0) v FROM data_snapshots WHERE review_id=? AND snapshot_type='review'",(rid,)).fetchone()['v']+1
             cur=c.execute("INSERT INTO data_snapshots(company_ref_id,review_id,as_of_date,snapshot_type,snapshot_version,payload_json) VALUES(?,?,?,'review',?,?)",(rv['company_ref_id'],rid,rv['as_of_date'],v,json.dumps(payload,ensure_ascii=False,default=str))); sid=cur.lastrowid
-            self._audit(c,company_ref_id=rv['company_ref_id'],review_id=rid,actor=actor,action='finalize',entity_type='review',entity_id=rid,before=rv,after={'status':'completed','snapshot_id':sid}); return sid
+            self._audit(c,company_ref_id=rv['company_ref_id'],review_id=rid,actor=actor,action='finalize',entity_type='review',entity_id=rid,before=rv,after={'status':'completed','snapshot_id':sid,'finalize_reason':reason}); return sid
     def list_snapshots(self,cid):
         with self._conn() as c: return [dict(r) for r in c.execute("SELECT id,company_ref_id,review_id,as_of_date,snapshot_type,snapshot_version,created_at FROM data_snapshots WHERE company_ref_id=? ORDER BY as_of_date DESC,id DESC",(cid,))]
     def get_snapshot(self,sid):
