@@ -58,13 +58,21 @@ def render_book_guidance(
             for principle in principles:
                 st.markdown(f"- {principle}")
         rows = list(spec.get("metric_rows") or [])
+        if not rows and columns is None:
+            rows = [
+                {"metric": metric, "canonical": metric, **item}
+                for metric, item in (spec.get("metrics") or {}).items()
+            ]
         if rows:
             markup = _guidance_html(rows)
             if hasattr(st, "html"):
                 st.html(markup)
             else:
                 st.markdown(markup, unsafe_allow_html=True)
-        st.caption(f"Nguồn hướng dẫn: {BOOK_TITLE} · {spec['source']}. Nội dung trong app là diễn giải/paraphrase để hỗ trợ analyst, không phải chép lại nguyên văn sách.")
+        st.caption(
+            f"Nguồn hướng dẫn: {BOOK_TITLE} · {spec['source']}. Nội dung trong app là diễn giải/paraphrase "
+            "để hỗ trợ analyst, không phải chép lại nguyên văn sách."
+        )
 
 
 __all__ = ["render_book_guidance"]
