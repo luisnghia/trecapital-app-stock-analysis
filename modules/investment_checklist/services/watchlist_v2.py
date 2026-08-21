@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .formulas import inventory_metrics
 from .portfolio_extensions import compute_5y_cagrs, ensure_extension_schema
 
 
@@ -20,6 +21,19 @@ _DISPLAY_TO_FIELD = {
     "Target": "target_price",
     "CCC": "ccc_days",
     "MOS": "mos",
+    "TEV/EBIT": "tev_ebit",
+    "TEV/EBITDA": "tev_ebitda",
+    "TEV/Norm.E": "tev_normalized_earnings",
+    "Pre-tax yield": "pretax_earnings_yield",
+    "Debt/EBITDA": "debt_ebitda",
+    "EBIT/Interest": "ebit_interest",
+    "FCF Yield EV": "fcf_yield_ev",
+    "FCF Yield Mkt": "fcf_yield_market",
+}
+_PERCENT_DISPLAY_FIELDS = {"MOS", "Pre-tax yield", "FCF Yield EV", "FCF Yield Mkt"}
+_DERIVED_DISPLAY_FIELDS = {
+    "TEV/EBIT", "TEV/EBITDA", "TEV/Norm.E", "Pre-tax yield", "Debt/EBITDA",
+    "EBIT/Interest", "FCF Yield EV", "FCF Yield Mkt",
 }
 
 
@@ -61,6 +75,16 @@ def refresh_watchlist_cagrs_if_changed(repo, company_ref_id: int, *, provider, a
         return True
 
 
+def _override_raw_value(display_metric: str, ov: dict[str, Any]) -> Any:
+    value = ov.get("value_numeric") if ov.get("value_numeric") is not None else ov.get("value_text")
+    if display_metric in _PERCENT_DISPLAY_FIELDS and value is not None:
+        try:
+            return float(value) / 100.0
+        except Exception:
+            return value
+    return value
+
+
 def _effective_latest_review_inventory(c, company_ref_id: int, review: dict[str, Any] | None) -> dict[str, Any]:
     """Never silently substitute a prior review's Table 1.2 when the latest review has none."""
     if not review:
@@ -73,7 +97,6 @@ def _effective_latest_review_inventory(c, company_ref_id: int, review: dict[str,
     if not inv:
         return {}
 
-    # Apply generic analyst corrections made to the exact latest-review Table 1.2 row.
     prefix = f"{inv.get('as_of_date')} | Review/snapshot #{review['id']}"
     overrides = [dict(r) for r in c.execute(
         "SELECT * FROM analyst_table_overrides WHERE company_ref_id=? AND table_key='Table 1.2' AND period_key LIKE ? ORDER BY metric_key,version_no",
@@ -82,18 +105,43 @@ def _effective_latest_review_inventory(c, company_ref_id: int, review: dict[str,
     latest: dict[str, dict[str, Any]] = {}
     for ov in overrides:
         latest[str(ov.get("metric_key"))] = ov
+
+    # First apply base-input corrections. Derived metrics are recalculated from the effective inputs.
     for display_metric, ov in latest.items():
-        field = _DISPLAY_TO_FIELD.get(display_metric)
-        if not field:
+        if display_metric in _DERIVED_DISPLAY_FIELDS:
             continue
-        value = ov.get("value_numeric") if ov.get("value_numeric") is not None else ov.get("value_text")
-        if field == "mos" and value is not None:
-            # Table display/editor uses percentage points, snapshot storage uses decimal MOS.
-            try:
-                value = float(value) / 100.0
-            except Exception:
-                pass
-        inv[field] = value
+        field = _DISPLAY_TO_FIELD.get(display_metric)
+        if field:
+            inv[field] = _override_raw_value(display_metric, ov)
+
+    recalculated = inventory_metrics(
+        tev=inv.get("tev"),
+        ebit=inv.get("ebit"),
+        ebitda=inv.get("ebitda"),
+        normalized_earnings=inv.get("normalized_earnings"),
+        total_debt=inv.get("total_debt"),
+        interest_expense=inv.get("interest_expense"),
+        fcf_current=inv.get("fcf_current"),
+        market_cap=inv.get("market_cap"),
+        dividend_per_share=inv.get("dividend_per_share"),
+        market_price=inv.get("market_price"),
+        target_price=inv.get("target_price"),
+    )
+    inv.update(recalculated)
+    if "MOS" not in latest:
+        target = inv.get("target_price")
+        price = inv.get("market_price")
+        try:
+            inv["mos"] = (float(target) - float(price)) / float(target) if target is not None and float(target) > 0 and price is not None else None
+        except Exception:
+            inv["mos"] = None
+
+    # Explicit analyst correction of a derived ratio/yield wins over formula recalculation.
+    for display_metric in _DERIVED_DISPLAY_FIELDS:
+        ov = latest.get(display_metric)
+        field = _DISPLAY_TO_FIELD.get(display_metric)
+        if ov is not None and field:
+            inv[field] = _override_raw_value(display_metric, ov)
     return inv
 
 
