@@ -49,6 +49,7 @@ class InventorySourceData:
     target_price: Optional[float] = None
     mos: Optional[float] = None
     shares_outstanding_mil: Optional[float] = None
+    ccc_days: Optional[float] = None
     source_module: str = "host_data_layer"
     source_notes: tuple[str, ...] = ()
 
