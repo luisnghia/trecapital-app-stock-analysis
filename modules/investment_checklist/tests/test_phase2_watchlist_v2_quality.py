@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -21,55 +22,66 @@ def _repo(tmp_path):
     return repo
 
 
-def test_latest_review_without_table12_does_not_fall_back_to_old_review(tmp_path):
+class _LiveProvider:
+    def __init__(self, *, ebit=200.0):
+        self.ebit = ebit
+        self.annual_df = pd.DataFrame([
+            {"period_type": "Y", "year": 2020, "revenue_bil": 100, "net_profit_bil": 10},
+            {"period_type": "Y", "year": 2025, "revenue_bil": 200, "net_profit_bil": 20},
+        ])
+
+    def get_inventory_source_data(self, _ctx):
+        return SimpleNamespace(
+            as_of_date="TTM", tev=1000.0, ebit=self.ebit, ebitda=250.0, normalized_earnings=160.0,
+            total_debt=300.0, interest_expense=20.0, fcf_current=80.0, market_cap=900.0,
+            dividend_per_share=1000.0, market_price=10000.0, fcf_estimate=900.0,
+            target_price=15000.0, ccc_days=40.0, mos=1/3, source_module="live_test",
+        )
+
+
+def test_watchlist_uses_live_financial_data_not_latest_review(tmp_path):
     repo = _repo(tmp_path)
     cid = repo.upsert_company_ref(host_company_key="TICKER:LST", ticker="LST", company_name="Latest Semantics")
     old = repo.create_review(cid, "2025-12-31", review_reason="Old review")
     repo.save_inventory_snapshot(company_ref_id=cid, as_of_date="2025-12-31", review_id=old, ebit=100, market_price=10000, note="old")
-    latest = repo.create_review(cid, "2026-08-21", review_reason="Newest review, no inventory yet")
-    set_watchlist(repo, cid, active=True, actor="analyst", provider=pd.DataFrame())
+    repo.create_review(cid, "2026-08-21", review_reason="Newest review, no inventory yet")
+    provider = _LiveProvider(ebit=220.0)
+    set_watchlist(repo, cid, active=True, actor="analyst", provider=provider)
+    assert refresh_watchlist_cagrs_if_changed(repo, cid, provider=provider, actor="analyst") is True
     row = list_watchlist_rows_v2(repo)[0]
-    assert row["latest_review_id"] == latest
-    assert row["latest_review_has_inventory"] is False
-    assert row.get("ebit") is None
-    assert row.get("market_price") is None
+    assert row["financial_as_of_date"] == "TTM"
+    assert row["ebit"] == 220.0
+    assert row["source_module"] == "live_test"
+    assert row["has_financial_cache"] is True
 
 
-def test_latest_review_overlay_recalculates_derived_table12_metrics(tmp_path):
+def test_live_table12_overlay_recalculates_derived_watchlist_metrics(tmp_path):
     repo = _repo(tmp_path)
     cid = repo.upsert_company_ref(host_company_key="TICKER:CALC", ticker="CALC", company_name="Calc")
-    rid = repo.create_review(cid, "2026-08-21", review_reason="Current")
-    repo.save_inventory_snapshot(
-        company_ref_id=cid, as_of_date="2026-08-21", review_id=rid,
-        tev=1000, ebit=100, ebitda=200, normalized_earnings=80, total_debt=400,
-        interest_expense=20, fcf_current=50, market_cap=900, market_price=9000, target_price=10000,
-        note="base",
-    )
-    set_watchlist(repo, cid, active=True, actor="analyst", provider=pd.DataFrame())
+    provider = _LiveProvider(ebit=100.0)
+    set_watchlist(repo, cid, active=True, actor="analyst", provider=provider)
     save_table_override(
-        repo, cid, table_key="Table 1.2",
-        period_key=f"2026-08-21 | Review/snapshot #{rid} · host_data_layer · v1",
+        repo, cid, table_key="Table 1.2", period_key="TTM",
         metric_key="EBIT", value=200, reason="Normalize one-off expense", actor="analyst",
     )
+    refresh_watchlist_cagrs_if_changed(repo, cid, provider=provider, actor="analyst")
     row = list_watchlist_rows_v2(repo)[0]
     assert row["ebit"] == 200
     assert row["tev_ebit"] == pytest.approx(5.0)
     assert row["pretax_earnings_yield"] == pytest.approx(0.2)
+    assert "EBIT" in row["analyst_adjusted_metrics"]
 
 
-def test_watchlist_cagr_refresh_is_noop_when_data_unchanged_and_writes_only_on_change(tmp_path):
+def test_watchlist_refresh_writes_only_on_explicit_change(tmp_path):
     repo = _repo(tmp_path)
     cid = repo.upsert_company_ref(host_company_key="TICKER:PERF", ticker="PERF", company_name="Perf")
-    base = pd.DataFrame([
-        {"period_type": "Y", "year": 2020, "revenue_bil": 100, "net_profit_bil": 10},
-        {"period_type": "Y", "year": 2025, "revenue_bil": 200, "net_profit_bil": 20},
-    ])
-    set_watchlist(repo, cid, active=True, actor="analyst", provider=base)
-    assert refresh_watchlist_cagrs_if_changed(repo, cid, provider=base, actor="analyst") is False
-    changed = base.copy()
-    changed.loc[changed["year"].eq(2025), "revenue_bil"] = 220
-    assert refresh_watchlist_cagrs_if_changed(repo, cid, provider=changed, actor="analyst") is True
-    assert refresh_watchlist_cagrs_if_changed(repo, cid, provider=changed, actor="analyst") is False
+    provider = _LiveProvider()
+    set_watchlist(repo, cid, active=True, actor="analyst", provider=provider)
+    assert refresh_watchlist_cagrs_if_changed(repo, cid, provider=provider, actor="analyst") is True
+    assert refresh_watchlist_cagrs_if_changed(repo, cid, provider=provider, actor="analyst") is False
+    provider.annual_df.loc[provider.annual_df["year"].eq(2025), "revenue_bil"] = 220
+    assert refresh_watchlist_cagrs_if_changed(repo, cid, provider=provider, actor="analyst") is True
+    assert refresh_watchlist_cagrs_if_changed(repo, cid, provider=provider, actor="analyst") is False
 
 
 def test_extension_schema_wrapper_runs_uncached_ddl_only_once_per_repo_instance():
@@ -93,7 +105,7 @@ def test_safe_watchlist_navigation_clears_old_active_bundle_source_contract():
     for key in ["active_ticker", "active_overview_csv", "active_year_csv", "active_quarter_csv", "active_source_label"]:
         assert f'"{key}"' in source
     assert 'st.session_state["checklist_section_global"] = "🏠 Research Home"' in source
-    assert "app không ghi/upsert Watchlist mỗi lần đổi Question" in source
+    assert "app không ghi DB ở mỗi lần đổi Question hoặc rerun" in source
 
 
 def test_operating_leverage_stress_table_has_analyst_override_renderer_contract():
