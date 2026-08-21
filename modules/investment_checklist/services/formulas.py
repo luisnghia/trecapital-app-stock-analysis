@@ -33,11 +33,13 @@ def inventory_metrics(*, tev=None, ebit=None, ebitda=None, normalized_earnings=N
         "tev_ebit": safe_positive_denominator_div(tev, ebit),
         "tev_ebitda": safe_positive_denominator_div(tev, ebitda),
         "tev_normalized_earnings": safe_positive_denominator_div(tev, normalized_earnings),
-        # A negative earnings/FCF yield is retained as a valid distress/cash-burn signal, but the
-        # enterprise/market value denominator itself must be positive.
-        "pretax_earnings_yield": safe_positive_denominator_div(normalized_earnings, tev),
+        # Shearn Table 1.2 examples make Pre-Tax Earnings Yield the inverse of TEV/EBIT:
+        # WU 10.1x -> 9.9%, WFM 19.1x -> 5.2%, Dell 6.0x -> 16.8%.
+        # Therefore this is EBIT / TEV, not Normalized Earnings / TEV.
+        "pretax_earnings_yield": safe_positive_denominator_div(ebit, tev),
         "debt_ebitda": safe_positive_denominator_div(total_debt, ebitda),
         "ebit_interest": safe_positive_denominator_div(ebit, interest_expense),
+        # Negative FCF yield is retained as a cash-burn signal when EV/market-cap is valid.
         "fcf_yield_ev": safe_positive_denominator_div(fcf_current, tev),
         "fcf_yield_market": safe_positive_denominator_div(fcf_current, market_cap),
         "dividend_yield": safe_positive_denominator_div(dividend_per_share, market_price),
