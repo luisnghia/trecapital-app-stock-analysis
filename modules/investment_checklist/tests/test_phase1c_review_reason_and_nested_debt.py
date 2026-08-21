@@ -9,7 +9,8 @@ import pytest
 from modules.investment_checklist.repositories.sqlite_repository import SQLiteChecklistRepository, ValidationError
 from modules.investment_checklist.repositories.postgres_repository import PostgresChecklistRepository
 from modules.investment_checklist.trecapital_debt_enricher import augment_debt_from_latest_fireant_raw
-from modules.investment_checklist.ui.page import _period_sort_date
+import modules.investment_checklist.ui as checklist_ui  # noqa: F401 - applies package timeline policy
+from modules.investment_checklist.ui import page
 
 CATALOG = "modules/investment_checklist/catalog/question_catalog_prd.csv"
 
@@ -20,7 +21,7 @@ def test_nested_fireant_debt_wrapper_is_parsed(tmp_path):
             "items": [
                 {"Name": "Vay và nợ thuê tài chính ngắn hạn", "Values": [{"Year": 2026, "Quarter": 2, "Value": 3_565_000_000_000}]},
                 {"Name": "Vay và nợ thuê tài chính dài hạn", "Values": [{"Year": 2026, "Quarter": 2, "Value": 24_000_000_000}]},
-                # Detail must not be added on top of the aggregate short/long debt rows.
+                # Detail must not be added on top of the core short/long debt rows.
                 {"Name": "Trái phiếu phát hành", "Values": [{"Year": 2026, "Quarter": 2, "Value": 500_000_000_000}]},
             ]
         }
@@ -41,15 +42,16 @@ def test_nested_fireant_debt_wrapper_is_parsed(tmp_path):
     assert "Trecapital FireAnt raw audit" in note
 
 
-def test_proxy_and_review_dates_can_be_sorted_on_one_timeline():
+def test_proxy_and_review_dates_put_ttm_above_every_calendar_date():
     dates = [
-        _period_sort_date("2024", "2026-08-21"),
-        _period_sort_date("TTM", "2026-08-21"),
-        _period_sort_date("2026-06-30", "2026-08-21"),
-        _period_sort_date("2025", "2026-08-21"),
+        page._period_sort_date("2024", "TTM"),
+        page._period_sort_date("TTM", "TTM"),
+        page._period_sort_date("2026-06-30", "TTM"),
+        page._period_sort_date("2025", "TTM"),
     ]
-    assert sorted(dates, reverse=True) == [
-        pd.Timestamp("2026-08-21"),
+    ordered = sorted(dates, reverse=True)
+    assert ordered[0] == pd.Timestamp.max.normalize()
+    assert ordered[1:] == [
         pd.Timestamp("2026-06-30"),
         pd.Timestamp("2025-12-31"),
         pd.Timestamp("2024-12-31"),
