@@ -42,7 +42,9 @@ def _secret_database_url() -> str | None:
 
 
 def _default_ticker() -> str:
-    for key in ["shared_ticker", "active_ticker", "module2_ticker", "module1_ticker", "last_query_ticker"]:
+    # The active data bundle is the source of truth. This prevents the sidebar saying DCM while
+    # the actual CSV bundle still belongs to another ticker from an earlier page/session action.
+    for key in ["active_ticker", "shared_ticker", "module2_ticker", "module1_ticker", "last_query_ticker"]:
         value = m1._safe_ticker(str(st.session_state.get(key, "")))
         if value:
             return value
@@ -55,18 +57,20 @@ def _company_type(industry: str) -> str:
     if "bảo hiểm" in text or "insurance" in text: return "insurance"
     if "chứng khoán" in text or "securities" in text: return "securities"
     if "bất động sản" in text or "real estate" in text: return "real_estate"
-    if any(x in text for x in ["thép","steel","dầu","oil","phân bón","fertilizer","cao su","rubber","than","coal","shipping"]): return "cyclical"
+    if any(x in text for x in ["thép", "steel", "dầu", "oil", "phân bón", "fertilizer", "cao su", "rubber", "than", "coal", "shipping"]): return "cyclical"
     return "normal"
 
 
 def _valuation_range(company, annual: pd.DataFrame):
-    if annual is None or annual.empty: return None
+    if annual is None or annual.empty:
+        return None
     try:
         assumptions = load_assumptions(ASSUMPTIONS_PATH)
         target_mos = float(st.session_state.get("target_mos_pct", assumptions.get("target_mos_pct", 50.0)))
         assumptions["target_mos_pct"] = target_mos
         valuation_df = build_module2_valuation_table(company, annual, assumptions)
-        if valuation_df is None or valuation_df.empty: return None
+        if valuation_df is None or valuation_df.empty:
+            return None
         return build_valuation_range(valuation_df, getattr(company, "current_price", None), target_mos)
     except Exception as exc:
         st.caption(f"Checklist chưa lấy được valuation bridge từ Module 2: {exc}")
@@ -79,26 +83,31 @@ def render_page() -> None:
         "📋 Investment Research & Checklist",
         "Core Research System — Table 1.1, Table 1.2, Q01–Q59, versioning và snapshot lịch sử.",
     )
-    ticker = _default_ticker()
+    requested_ticker = _default_ticker()
     database_url = _secret_database_url()
     with st.sidebar:
         render_tre_sidebar_nav()
-        st.caption(f"Checklist dùng mã đang đồng bộ toàn app: **{ticker}**")
         st.caption("Phase 1C chưa dùng AI; mọi assessment cuối cùng thuộc về analyst.")
         if database_url:
             st.success("Lưu trữ Checklist: PostgreSQL/Supabase bền vững")
         else:
             st.warning("Lưu trữ Checklist: SQLite local/dev — chưa dùng cho dữ liệu production")
 
-    overview_csv, year_csv, quarter_csv, _, active_ticker = m1._load_active_or_default(ticker)
+    overview_csv, year_csv, quarter_csv, source_label, active_ticker = m1._load_active_or_default(requested_ticker)
     company = m1._load_overview_cached(str(overview_csv), active_ticker)
     annual_raw = m1._load_timeseries_cached(str(year_csv), active_ticker, "Y", 10)
     quarterly = m1._load_timeseries_cached(str(quarter_csv), active_ticker, "Q", 20)
     annual = append_ttm_row(annual_raw, quarterly)
+
+    # From this point on every module key follows the data that was actually loaded, not a stale
+    # session label. The sidebar therefore cannot claim one ticker while Table 1.2 reads another.
     st.session_state["shared_ticker"] = company.ticker
     st.session_state["active_ticker"] = company.ticker
     st.session_state["module1_ticker"] = company.ticker
     st.session_state["module2_ticker"] = company.ticker
+    with st.sidebar:
+        st.caption(f"Checklist đang dùng dữ liệu thực tế: **{company.ticker}**")
+        st.caption(f"Nguồn đang hoạt động: {m1._safe_source_label(source_label)}")
 
     industry = m1._display_industry_value(getattr(company, "industry", ""))
     host = HostContext(
@@ -112,13 +121,15 @@ def render_page() -> None:
         shared_db_path=CHECKLIST_DB,
         database_url=database_url,
     )
-    # Valuation is deliberately lazy. Q01-Q59 navigation must not rebuild Module 2 valuation.
+
+    # Valuation is deliberately lazy. The bridge passes a reconciled Trecapital company/TTM frame
+    # into Module 2 only when Table 1.2 is opened, so bad overview units cannot corrupt target price.
     render_investment_checklist(
         host,
         data_provider=CurrentRepoDataProvider(
             company,
             annual,
-            valuation_range=lambda: _valuation_range(company, annual),
+            valuation_range=lambda safe_company, safe_annual: _valuation_range(safe_company, safe_annual),
         ),
     )
 
