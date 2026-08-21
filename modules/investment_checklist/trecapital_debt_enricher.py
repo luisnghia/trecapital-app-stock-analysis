@@ -1,11 +1,20 @@
 from __future__ import annotations
 
-"""Enrich normalized Trecapital frames with debt line items from the latest FireAnt raw audit file.
+"""Recover interest-bearing debt from FireAnt raw audit payloads already fetched by Trecapital.
 
-This is a transitional compatibility layer for Phase 1C. It does not call an external source:
-it reads the FireAnt raw response already downloaded by Trecapital and restores debt-specific
-balance-sheet facts that the current canonical mapper can omit. Once these aliases are mapped
-upstream in Trecapital Data Layer, Checklist can remove this layer.
+The canonical FireAnt mapper intentionally uses a small exact-ID map. Debt line-item IDs vary by
+statement template/company, so those rows can be present in the raw balance-sheet payload but be
+omitted from the normalized frame. This compatibility layer restores only debt facts from the same
+Trecapital raw audit; it does not call a second data source and it never invents a zero balance.
+
+Priority per period:
+1) explicit aggregate short/long debt lines;
+2) otherwise sum their detailed borrowing/lease components;
+3) explicit total-debt line when available;
+4) bonds only when no short/long borrowing structure exists.
+
+This avoids both false zero-debt conclusions and double-counting bonds already included in the
+aggregate borrowing lines.
 """
 
 from pathlib import Path
@@ -18,24 +27,83 @@ import unicodedata
 import pandas as pd
 
 
-_DEBT_LABELS = {
-    "short_term_debt_bil": (
+_LABEL_ALIASES: dict[str, tuple[str, ...]] = {
+    "aggregate_short": (
         "vay va no thue tai chinh ngan han",
+        "vay va no thue tai chinh ngắn hạn",
+        "short term borrowings and finance lease liabilities",
+        "short term borrowings and lease liabilities",
+        "short term debt and finance lease liabilities",
+    ),
+    "aggregate_long": (
+        "vay va no thue tai chinh dai han",
+        "vay va no thue tai chinh dài hạn",
+        "long term borrowings and finance lease liabilities",
+        "long term borrowings and lease liabilities",
+        "long term debt and finance lease liabilities",
+    ),
+    "short_borrowing": (
+        "vay ngan han",
         "short term borrowings",
-        "short term debt",
+        "short term borrowing",
+        "short term loans",
         "current borrowings",
     ),
-    "long_term_debt_bil": (
-        "vay va no thue tai chinh dai han",
+    "current_portion": (
+        "no dai han den han tra",
+        "no dai han toi han tra",
+        "current portion of long term debt",
+        "current portion of long term borrowings",
+        "long term debt due within one year",
+    ),
+    "short_lease": (
+        "no thue tai chinh ngan han",
+        "finance lease liabilities current",
+        "current finance lease liabilities",
+        "short term finance lease liabilities",
+        "current lease liabilities",
+    ),
+    "long_borrowing": (
+        "vay dai han",
         "long term borrowings",
-        "long term debt",
+        "long term borrowing",
+        "long term loans",
         "non current borrowings",
     ),
-    "bonds_payable_bil": (
+    "long_lease": (
+        "no thue tai chinh dai han",
+        "finance lease liabilities non current",
+        "non current finance lease liabilities",
+        "long term finance lease liabilities",
+        "non current lease liabilities",
+    ),
+    "bonds": (
         "trai phieu phat hanh",
         "trai phieu chuyen doi",
         "bonds payable",
         "convertible bonds",
+        "bond liabilities",
+    ),
+    "total_debt": (
+        "tong vay va no thue tai chinh",
+        "tong no vay",
+        "total interest bearing debt",
+        "total borrowings",
+    ),
+}
+
+_DIRECT_KEY_ALIASES: dict[str, tuple[str, ...]] = {
+    "aggregate_short": (
+        "shorttermdebt", "shorttermborrowings", "currentborrowings", "shorttermloans",
+        "short_term_debt", "short_term_borrowings",
+    ),
+    "aggregate_long": (
+        "longtermdebt", "longtermborrowings", "noncurrentborrowings", "longtermloans",
+        "long_term_debt", "long_term_borrowings",
+    ),
+    "total_debt": (
+        "interestbearingdebt", "totaldebt", "totalborrowings", "borrowings",
+        "interest_bearing_debt", "total_debt",
     ),
 }
 
@@ -45,7 +113,12 @@ def _norm(value: Any) -> str:
     text = unicodedata.normalize("NFKD", text)
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
     text = text.replace("đ", "d").replace("Đ", "D").replace("_", " ").replace("-", " ")
+    text = re.sub(r"[^0-9a-zA-Z\s]", " ", text)
     return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _clean_key(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]", "", _norm(value))
 
 
 def _float(value: Any) -> float | None:
@@ -62,15 +135,20 @@ def _float(value: Any) -> float | None:
             return None
 
 
-def _field_for_label(label: Any) -> str | None:
+def _kind_for_label(label: Any) -> str | None:
     n = _norm(label)
     if not n:
         return None
-    for field, aliases in _DEBT_LABELS.items():
+    # Longest aliases first so a detailed/aggregate debt label wins over a generic substring.
+    candidates: list[tuple[int, str, str]] = []
+    for kind, aliases in _LABEL_ALIASES.items():
         for alias in aliases:
             a = _norm(alias)
-            if n == a or n.startswith(a + " "):
-                return field
+            if a:
+                candidates.append((len(a), a, kind))
+    for _, alias, kind in sorted(candidates, reverse=True):
+        if n == alias or n.startswith(alias + " ") or n.endswith(" " + alias):
+            return kind
     return None
 
 
@@ -81,7 +159,7 @@ def _latest_manifest(raw_dir: str | Path, ticker: str) -> Path | None:
 
 
 def _iter_period_values(obj: Any) -> Iterable[dict[str, Any]]:
-    """Yield nested FireAnt {Year, Quarter, Value} records from any wrapper shape."""
+    """Yield nested FireAnt period/value dictionaries from wrapper shapes."""
     if isinstance(obj, dict):
         keys = {str(k).lower(): k for k in obj.keys()}
         if "year" in keys and "value" in keys:
@@ -94,82 +172,191 @@ def _iter_period_values(obj: Any) -> Iterable[dict[str, Any]]:
             yield from _iter_period_values(item)
 
 
-def _walk_report_items(obj: Any) -> Iterable[dict[str, Any]]:
-    """Yield every nested report item that has a recognizable debt label.
-
-    FireAnt responses are not guaranteed to be a top-level list. Some deployments wrap the
-    rows under data/items/result. The previous implementation stopped on those payloads and
-    therefore returned Debt/TEV as unknown even though the raw audit contained the line items.
-    """
+def _walk_dicts(obj: Any) -> Iterable[dict[str, Any]]:
     if isinstance(obj, dict):
-        label = obj.get("Name") or obj.get("name") or obj.get("Title") or obj.get("title") or obj.get("DisplayName") or obj.get("displayName")
-        if _field_for_label(label):
-            yield obj
+        yield obj
         for value in obj.values():
             if isinstance(value, (dict, list)):
-                yield from _walk_report_items(value)
+                yield from _walk_dicts(value)
     elif isinstance(obj, list):
         for item in obj:
-            yield from _walk_report_items(item)
+            yield from _walk_dicts(item)
 
 
 def _to_bil(value: float) -> float:
-    """FireAnt LastestFinancialReports normally returns raw VND; tolerate already-scaled values."""
+    """Normalize common FireAnt scales to billion VND."""
     av = abs(value)
-    if av >= 1_000_000_000:
+    if av >= 1_000_000_000:  # raw VND
         return value / 1_000_000_000.0
-    if av >= 1_000_000:
+    if av >= 1_000_000:  # million VND
         return value / 1_000.0
-    return value
+    return value  # already billion VND
 
 
-def _extract_rows(manifest: Path, ticker: str) -> dict[tuple[str, int, int | None], dict[str, float]]:
-    try:
-        payload = json.loads(manifest.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+def _period_key(pv: dict[str, Any]) -> tuple[str, int, int | None] | None:
+    lower = {str(k).lower(): k for k in pv.keys()}
+    year = _float(pv.get(lower.get("year"))) if "year" in lower else None
+    if year is None:
+        return None
+    q = _float(pv.get(lower.get("quarter"))) if "quarter" in lower else None
+    quarter = int(q) if q is not None and 1 <= int(q) <= 4 else None
+    return ("Q" if quarter else "Y", int(year), quarter)
 
-    rows: dict[tuple[str, int, int | None], dict[str, float]] = {}
-    for response in payload.get("responses", []) or []:
-        if not isinstance(response, dict):
-            continue
-        url = str(response.get("url") or "")
-        if "LastestFinancialReports" not in url or not re.search(r"[?&]type=1(?:&|$)", url):
-            continue
-        body = response.get("body")
-        if not body:
-            continue
+
+def _value_from_period(pv: dict[str, Any]) -> float | None:
+    lower = {str(k).lower(): k for k in pv.keys()}
+    key = lower.get("value")
+    return _float(pv.get(key)) if key is not None else None
+
+
+def _add_candidate(
+    candidates: dict[tuple[str, int, int | None], dict[str, list[float]]],
+    key: tuple[str, int, int | None],
+    kind: str,
+    value: float,
+) -> None:
+    candidates.setdefault(key, {}).setdefault(kind, []).append(abs(_to_bil(value)))
+
+
+def _extract_candidates_from_payload(
+    payload: Any,
+    candidates: dict[tuple[str, int, int | None], dict[str, list[float]]],
+) -> None:
+    """Extract labeled statement rows and wide period records from any JSON wrapper."""
+    for item in _walk_dicts(payload):
+        label = (
+            item.get("Name") or item.get("name") or item.get("Title") or item.get("title")
+            or item.get("DisplayName") or item.get("displayName") or item.get("ItemName") or item.get("itemName")
+            or item.get("Label") or item.get("label")
+        )
+        kind = _kind_for_label(label)
+        if kind:
+            for pv in _iter_period_values(item):
+                key = _period_key(pv)
+                value = _value_from_period(pv)
+                if key is not None and value is not None:
+                    _add_candidate(candidates, key, kind, value)
+
+        # Some FireAnt/public-normalized payloads are one record per period with direct debt keys.
+        key = _period_key(item)
+        if key is not None:
+            key_lookup = {_clean_key(k): k for k in item.keys()}
+            for kind2, aliases in _DIRECT_KEY_ALIASES.items():
+                for alias in aliases:
+                    raw_key = key_lookup.get(_clean_key(alias))
+                    if raw_key is None:
+                        continue
+                    value = _float(item.get(raw_key))
+                    if value is not None:
+                        _add_candidate(candidates, key, kind2, value)
+                        break
+
+
+def _latest_json_payloads(raw_dir: Path, ticker: str, limit: int = 80) -> list[tuple[Path, Any]]:
+    """Read recent FireAnt JSON audit payloads in addition to the consolidated manifest.
+
+    The crawler writes both a manifest and parsed JSON files. Scanning the parsed files makes the
+    debt recovery resilient when a statement response is stored outside the manifest wrapper or
+    when the legacy endpoint URL changes while the payload itself remains valid.
+    """
+    files = sorted(raw_dir.glob(f"fireant_{ticker.upper()}_json_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
+    out: list[tuple[Path, Any]] = []
+    for path in files:
         try:
-            decoded = json.loads(body) if isinstance(body, str) else body
+            out.append((path, json.loads(path.read_text(encoding="utf-8"))))
         except Exception:
             continue
+    return out
 
-        for item in _walk_report_items(decoded):
-            label = item.get("Name") or item.get("name") or item.get("Title") or item.get("title") or item.get("DisplayName") or item.get("displayName")
-            field = _field_for_label(label)
-            if not field:
-                continue
-            for pv in _iter_period_values(item):
-                year = _float(pv.get("Year") if "Year" in pv else pv.get("year"))
-                q = _float(pv.get("Quarter") if "Quarter" in pv else pv.get("quarter"))
-                value = _float(pv.get("Value") if "Value" in pv else pv.get("value"))
-                if year is None or value is None:
-                    continue
-                quarter = int(q) if q is not None and 1 <= int(q) <= 4 else None
-                period_type = "Q" if quarter else "Y"
-                key = (period_type, int(year), quarter)
-                rows.setdefault(key, {})[field] = _to_bil(value)
 
-    # Aggregate short-term and long-term borrowing rows are authoritative. Do not add bonds on top
-    # when those aggregate lines are present, otherwise bonds can be double counted.
-    for values in rows.values():
-        short = values.get("short_term_debt_bil")
-        long = values.get("long_term_debt_bil")
-        if short is not None or long is not None:
-            values["interest_bearing_debt_bil"] = abs(short or 0.0) + abs(long or 0.0)
-        elif values.get("bonds_payable_bil") is not None:
-            values["interest_bearing_debt_bil"] = abs(values["bonds_payable_bil"])
+def _collapse_candidates(
+    candidates: dict[tuple[str, int, int | None], dict[str, list[float]]]
+) -> dict[tuple[str, int, int | None], dict[str, float]]:
+    rows: dict[tuple[str, int, int | None], dict[str, float]] = {}
+
+    def preferred(values: dict[str, list[float]], kind: str) -> float | None:
+        xs = values.get(kind) or []
+        # Duplicate FireAnt probes can repeat the same period. The last seen value is the most
+        # recent raw response; do not sum duplicate copies of the same aggregate line.
+        return xs[-1] if xs else None
+
+    for key, values in candidates.items():
+        aggregate_short = preferred(values, "aggregate_short")
+        aggregate_long = preferred(values, "aggregate_long")
+        explicit_total = preferred(values, "total_debt")
+
+        if aggregate_short is not None:
+            short = aggregate_short
+        else:
+            components = [preferred(values, x) for x in ("short_borrowing", "current_portion", "short_lease")]
+            short = sum(x for x in components if x is not None) if any(x is not None for x in components) else None
+
+        if aggregate_long is not None:
+            long = aggregate_long
+        else:
+            components = [preferred(values, x) for x in ("long_borrowing", "long_lease")]
+            long = sum(x for x in components if x is not None) if any(x is not None for x in components) else None
+
+        row: dict[str, float] = {}
+        if short is not None:
+            row["short_term_debt_bil"] = abs(short)
+        if long is not None:
+            row["long_term_debt_bil"] = abs(long)
+
+        if explicit_total is not None and explicit_total > 0:
+            total = abs(explicit_total)
+        elif short is not None or long is not None:
+            total = abs(short or 0.0) + abs(long or 0.0)
+        else:
+            bonds = preferred(values, "bonds")
+            total = abs(bonds) if bonds is not None else None
+            if bonds is not None:
+                row["bonds_payable_bil"] = abs(bonds)
+
+        if total is not None:
+            row["interest_bearing_debt_bil"] = total
+        if row:
+            rows[key] = row
     return rows
+
+
+def _extract_rows(manifest: Path, ticker: str, raw_dir: Path) -> tuple[dict[tuple[str, int, int | None], dict[str, float]], list[str]]:
+    candidates: dict[tuple[str, int, int | None], dict[str, list[float]]] = {}
+    sources: list[str] = []
+
+    try:
+        manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+    except Exception:
+        manifest_payload = None
+
+    if isinstance(manifest_payload, dict):
+        for response in manifest_payload.get("responses", []) or []:
+            if not isinstance(response, dict):
+                continue
+            body = response.get("body")
+            if not body:
+                continue
+            try:
+                decoded = json.loads(body) if isinstance(body, str) else body
+            except Exception:
+                continue
+            _extract_candidates_from_payload(decoded, candidates)
+        if candidates:
+            sources.append(manifest.name)
+
+    # Also scan parsed JSON audit files produced by the same FireAnt crawl. This is still the same
+    # Trecapital source and is not a network fallback.
+    before = sum(len(v2) for v in candidates.values() for v2 in v.values())
+    for path, payload in _latest_json_payloads(raw_dir, ticker):
+        _extract_candidates_from_payload(payload, candidates)
+        after = sum(len(v2) for v in candidates.values() for v2 in v.values())
+        if after > before:
+            sources.append(path.name)
+            before = after
+
+    # Preserve source order while removing duplicates.
+    sources = list(dict.fromkeys(sources))
+    return _collapse_candidates(candidates), sources
 
 
 def _merge_frame(df: pd.DataFrame, rows: dict[tuple[str, int, int | None], dict[str, float]], period_type: str) -> pd.DataFrame:
@@ -206,12 +393,25 @@ def augment_debt_from_latest_fireant_raw(
     raw_dir: str | Path,
 ) -> tuple[pd.DataFrame, pd.DataFrame, str]:
     """Return debt-enriched Trecapital frames plus an audit note; never invent debt."""
-    manifest = _latest_manifest(raw_dir, ticker)
+    root = Path(raw_dir)
+    manifest = _latest_manifest(root, ticker)
     if manifest is None:
         return annual, quarterly, "Không tìm thấy FireAnt raw audit gần nhất để bổ sung nợ vay."
-    rows = _extract_rows(manifest, ticker)
+    rows, sources = _extract_rows(manifest, ticker, root)
     if not rows:
-        return annual, quarterly, "FireAnt raw audit chưa tách được dòng Vay & nợ thuê tài chính; Debt giữ trạng thái chưa xác định."
+        return annual, quarterly, (
+            "FireAnt raw audit chưa tách được cấu phần Vay & nợ thuê tài chính; "
+            "Debt/TEV giữ trạng thái chưa xác định thay vì gán 0."
+        )
     annual_out = _merge_frame(annual, rows, "Y")
     quarterly_out = _merge_frame(quarterly, rows, "Q")
-    return annual_out, quarterly_out, f"Debt được bổ sung từ Trecapital FireAnt raw audit (không gọi nguồn riêng): {manifest.name}."
+    periods = sorted(
+        [f"Q{k[2]}/{k[1]}" if k[0] == "Q" and k[2] else str(k[1]) for k in rows],
+        reverse=True,
+    )
+    source_text = ", ".join(sources[:3]) if sources else manifest.name
+    period_text = ", ".join(periods[:6])
+    return annual_out, quarterly_out, (
+        "Debt được phục hồi từ chính Trecapital FireAnt raw audit (không gọi nguồn ngoài): "
+        f"{source_text}; kỳ nhận diện: {period_text}."
+    )
