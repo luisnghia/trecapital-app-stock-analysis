@@ -55,11 +55,11 @@ def _is_ttm(row: dict[str, Any]) -> bool:
 
 
 def _annual_and_ttm_rows(df: pd.DataFrame, limit_years: int = 10) -> list[dict[str, Any]]:
+    """Return oldest→newest annual rows plus TTM last, so change formulas use the right prior period."""
     if not isinstance(df, pd.DataFrame) or df.empty:
         return []
-    work = df.copy()
     rows: list[dict[str, Any]] = []
-    for _, r in work.iterrows():
+    for _, r in df.iterrows():
         d = r.to_dict()
         pt = str(d.get("period_type") or "").upper()
         if pt == "Y" or _is_ttm(d) or not pt:
@@ -123,21 +123,35 @@ def _interest(row: dict[str, Any]) -> float | None:
 
 
 def _debt(row: dict[str, Any]) -> float | None:
+    """Use interest-bearing debt without double-counting current portion or bond detail.
+
+    Trecapital debt enrichment defines short_term_debt_bil as the complete current debt bucket,
+    which can already include current portion of long-term debt. Therefore current-portion detail
+    is used only when the short-term aggregate is absent. Likewise bonds are a fallback detail,
+    not something added on top of a known long-term aggregate.
+    """
     direct = _n(row, "interest_bearing_debt_bil")
-    components = [
-        _n(row, "short_term_debt_bil"),
-        _n(row, "current_portion_long_term_debt_bil"),
-        _n(row, "long_term_debt_bil"),
-        _n(row, "bonds_payable_bil"),
-        _n(row, "finance_lease_liabilities_bil", "lease_liabilities_bil"),
-    ]
-    present = [x for x in components if x is not None]
     if direct is not None and direct > 0:
         return abs(direct)
-    if present:
-        return sum(abs(x) for x in present)
+
+    short = _n(row, "short_term_debt_bil")
+    current_portion = _n(row, "current_portion_long_term_debt_bil")
+    long = _n(row, "long_term_debt_bil")
+    bonds = _n(row, "bonds_payable_bil")
+    leases = _n(row, "finance_lease_liabilities_bil", "lease_liabilities_bil")
+
+    # Prefer aggregate current/non-current buckets. Detail only fills a missing bucket.
+    current_bucket = short if short is not None else current_portion
+    noncurrent_bucket = long if long is not None else bonds
+    if current_bucket is not None or noncurrent_bucket is not None:
+        total = abs(current_bucket or 0.0) + abs(noncurrent_bucket or 0.0)
+        # Only add a separately reported lease liability if neither aggregate debt bucket is known.
+        return total
+    if leases is not None:
+        return abs(leases)
+
     generic = _n(row, "total_debt_bil", "borrowings_bil")
-    return abs(generic) if generic is not None else None
+    return abs(generic) if generic is not None and generic > 0 else None
 
 
 def _cash(row: dict[str, Any]) -> float | None:
@@ -151,6 +165,17 @@ def _cash(row: dict[str, Any]) -> float | None:
     return max(cash or 0.0, 0.0) + max(sti or 0.0, 0.0)
 
 
+def _eps(row: dict[str, Any]) -> float | None:
+    direct = _n(row, "eps_vnd", "basic_eps_vnd", "eps")
+    if direct is not None:
+        return direct
+    ni = _n(row, "net_profit_bil", "net_income_bil")
+    shares = _n(row, "weighted_avg_shares_mil", "shares_outstanding_mil")
+    if ni is None or shares is None or shares <= 0:
+        return None
+    return ni * 1000.0 / shares
+
+
 def balance_sheet_leverage(df: pd.DataFrame) -> ToolResult:
     """Tables 5.1–5.2 → Q25: balance-sheet/leverage history."""
     out: list[dict[str, Any]] = []
@@ -160,6 +185,8 @@ def balance_sheet_leverage(df: pd.DataFrame) -> ToolResult:
         ebitda = _ebitda(row)
         ebit = _ebit(row)
         interest = _interest(row)
+        current_assets = _n(row, "current_assets_bil")
+        current_liabilities = _n(row, "current_liabilities_bil")
         out.append({
             "Kỳ": _period(row),
             "Total Debt": debt,
@@ -170,8 +197,9 @@ def balance_sheet_leverage(df: pd.DataFrame) -> ToolResult:
             "EBIT": ebit,
             "Interest": interest,
             "EBIT/Interest": _safe_ratio(ebit, interest, positive_denominator=True),
-            "Current Assets": _n(row, "current_assets_bil"),
-            "Current Liabilities": _n(row, "current_liabilities_bil"),
+            "Current Assets": current_assets,
+            "Current Liabilities": current_liabilities,
+            "Current Ratio": _safe_ratio(current_assets, current_liabilities, positive_denominator=True),
         })
     return ToolResult(
         name="Balance Sheet & Leverage Analyzer",
@@ -224,7 +252,7 @@ def roic_quality(df: pd.DataFrame) -> ToolResult:
     prior_base_ex_goodwill: float | None = None
     for row in rows:
         nopat = _nopat(row)
-        base = _invested_capital_standard(row)
+        base = _invested_capital_standard(row)  # standardized/ex-cash base
         cash = _cash(row)
         goodwill = _n(row, "goodwill_bil", "goodwill_intangibles_bil")
         base_incl_cash = None if base is None or cash is None else base + cash
@@ -265,6 +293,7 @@ def roic_quality(df: pd.DataFrame) -> ToolResult:
             "ROIC Trecapital là Single Source of Truth cho metric chuẩn hóa hiện hành.",
             "Các cột 'ROIC Shearn' là analytical variants minh bạch để kiểm tra distortion do excess cash/goodwill; không âm thầm thay ROIC chuẩn.",
             "Investment base dùng bình quân hai kỳ khi có dữ liệu, phù hợp tinh thần phân tích ROIC của Shearn.",
+            "Gross-asset/off-balance-sheet variant chỉ được thêm khi Data Layer có accumulated depreciation/contractual obligations đáng tin cậy; Phase 2 không giả lập số thiếu.",
         ),
     )
 
@@ -279,9 +308,9 @@ def operating_leverage(df: pd.DataFrame) -> ToolResult:
         rev = _n(row, "revenue_bil")
         ebit = _ebit(row)
         rev_g = _pct_change(rev, prev_rev)
-        ebit_g = _pct_change(ebit, prev_ebit)
-        # Ignore near-zero sales change; DOL would explode and become economically meaningless.
-        dol = None if rev_g is None or abs(rev_g) < 0.01 else _safe_ratio(ebit_g, rev_g)
+        # DOL around a prior operating loss is not a comparable percentage-change measure.
+        ebit_g = _pct_change(ebit, prev_ebit) if prev_ebit is not None and prev_ebit > 0 and ebit is not None else None
+        dol = None if rev_g is None or abs(rev_g) < 0.01 or ebit_g is None else _safe_ratio(ebit_g, rev_g)
         total_assets = _n(row, "total_assets_bil")
         ppe = _n(row, "net_ppe_bil", "property_plant_equipment_bil", "fixed_assets_bil")
         sga = _n(row, "sga_bil", "selling_admin_expense_bil")
@@ -307,7 +336,7 @@ def operating_leverage(df: pd.DataFrame) -> ToolResult:
         source_tables=("6.3", "6.4", "6.5"),
         rows=out,
         notes=(
-            "DOL = %Δ EBIT / %Δ Revenue theo Shearn. Sales change dưới 1% bị loại để tránh ratio bùng nổ.",
+            "DOL = %Δ EBIT / %Δ Revenue theo Shearn. Sales change dưới 1% hoặc prior EBIT ≤ 0 bị loại để tránh ratio méo.",
             "PP&E/Assets, SG&A/Revenue và D&A/Revenue chỉ là evidence định lượng; fixed/variable/semi-variable cuối cùng cần analyst đọc MD&A và tự phân loại.",
         ),
     )
@@ -316,7 +345,7 @@ def operating_leverage(df: pd.DataFrame) -> ToolResult:
 def operating_leverage_stress(df: pd.DataFrame, revenue_changes: Iterable[float] = (-0.05, -0.10, -0.20)) -> list[dict[str, Any]]:
     """Trecapital extension: simple DOL stress test, not a Shearn source table."""
     hist = operating_leverage(df).rows
-    valid = [float(r["DOL"]) for r in hist if _f(r.get("DOL")) is not None and abs(float(r["DOL"])) <= 20]
+    valid = [float(r["DOL"]) for r in hist if _f(r.get("DOL")) is not None and 0 <= float(r["DOL"]) <= 20]
     if not valid:
         return []
     dol = float(pd.Series(valid[-5:]).median())
@@ -342,7 +371,7 @@ def operating_leverage_stress(df: pd.DataFrame, revenue_changes: Iterable[float]
 
 
 def working_capital(df: pd.DataFrame) -> ToolResult:
-    """Table 6.6 → Q31: DSO/DIO/DPO/CCC and cash absorbed/released by operating WC."""
+    """Table 6.6 per project specification → Q31: DSO/DIO/DPO/CCC and operating WC cash effect."""
     rows = _annual_and_ttm_rows(df)
     out: list[dict[str, Any]] = []
     prev: dict[str, Any] | None = None
@@ -410,6 +439,38 @@ def working_capital(df: pd.DataFrame) -> ToolResult:
     )
 
 
+def maintenance_capex_context(df: pd.DataFrame) -> ToolResult:
+    """Q32 support from Shearn key-point guidance; not presented as an original numbered table."""
+    out: list[dict[str, Any]] = []
+    for row in _annual_and_ttm_rows(df):
+        revenue = _n(row, "revenue_bil")
+        capex = _n(row, "capex_bil", "capital_expenditure_bil", "capital_expenditures_bil")
+        da = _n(row, "depreciation_bil", "depreciation_amortization_bil", "depreciation_and_amortization_bil")
+        cfo = _n(row, "cfo_bil", "operating_cash_flow_bil")
+        fcf = _n(row, "free_cash_flow_bil", "fcf_bil")
+        if fcf is None and cfo is not None and capex is not None:
+            fcf = cfo - abs(capex)
+        out.append({
+            "Kỳ": _period(row),
+            "Capex": None if capex is None else abs(capex),
+            "D&A": None if da is None else abs(da),
+            "Capex / Revenue": None if capex is None or revenue is None or revenue == 0 else abs(capex) / revenue * 100.0,
+            "Capex / D&A": None if capex is None or da is None or da == 0 else abs(capex) / abs(da),
+            "CFO": cfo,
+            "FCF": fcf,
+        })
+    return ToolResult(
+        name="Maintenance Capex Context",
+        checklist_questions=("Q32",),
+        source_tables=("Key Points — Chapter 6",),
+        rows=out,
+        notes=(
+            "Shearn: khi không thể tính maintenance capex, depreciation có thể dùng như rough approximation — không phải giá trị maintenance capex chính xác.",
+            "Capex/D&A và Capex/Revenue là context lịch sử; app không tự tách growth capex/maintenance capex nếu thuyết minh nguồn chưa cung cấp.",
+        ),
+    )
+
+
 def buyback_dilution(df: pd.DataFrame) -> ToolResult:
     """Tables 8.2–8.3 → Q46–Q47: share-count/EPS effect, with optional gross buyback/options fields."""
     rows = _annual_and_ttm_rows(df)
@@ -418,7 +479,7 @@ def buyback_dilution(df: pd.DataFrame) -> ToolResult:
     for row in rows:
         shares = _n(row, "shares_outstanding_mil", "weighted_avg_shares_mil")
         net_income = _n(row, "net_profit_bil", "net_income_bil")
-        eps = _n(row, "eps_vnd", "basic_eps_vnd")
+        eps = _eps(row)
         gross_buyback = _n(row, "shares_repurchased_mil", "buyback_shares_mil")
         issued = _n(row, "shares_issued_mil", "esop_options_shares_mil", "stock_comp_shares_mil")
         net_reduction = None if shares is None or prev_shares is None else prev_shares - shares
@@ -459,7 +520,7 @@ def operating_driver_eps(df: pd.DataFrame, driver_field: str = "revenue_bil", dr
     prev_eps: float | None = None
     for row in rows:
         driver = _n(row, driver_field)
-        eps = _n(row, "eps_vnd", "basic_eps_vnd")
+        eps = _eps(row)
         dg = _pct_change(driver, prev_driver)
         eg = _pct_change(eps, prev_eps)
         divergence = None
@@ -495,7 +556,7 @@ def operating_driver_eps(df: pd.DataFrame, driver_field: str = "revenue_bil", dr
 
 
 def accounting_quality_proxy(df: pd.DataFrame) -> ToolResult:
-    """Tables 6.1–6.2 → Q27: conservative reserve/earnings-quality evidence without recalculating Beneish."""
+    """Tables 6.1–6.2 → Q27: reserve/earnings-quality evidence without recalculating Beneish."""
     rows = _annual_and_ttm_rows(df)
     out: list[dict[str, Any]] = []
     prev_revenue: float | None = None
