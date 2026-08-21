@@ -4,8 +4,8 @@ from contextlib import contextmanager
 from pathlib import Path
 import re
 
-import psycopg
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 
 from ..catalog.catalog import SCREENING_CRITERIA, load_questions
 from ..db.postgres_schema import POSTGRES_SCHEMA_SQL
@@ -45,12 +45,7 @@ class _PgCursorProxy:
 
 
 class _PgConnectionProxy:
-    """Small DB-API compatibility layer so Phase 1B repository logic can run on psycopg3.
-
-    The production repository deliberately reuses the already-tested append-only/versioning
-    business logic. This proxy only translates SQLite parameter markers and INSERT id handling;
-    it does not alter domain rules.
-    """
+    """DB-API compatibility layer so the tested Phase 1B domain logic runs on psycopg3."""
 
     def __init__(self, conn):
         self._conn = conn
@@ -74,10 +69,11 @@ class _PgConnectionProxy:
 
 
 class PostgresChecklistRepository(SQLiteChecklistRepository):
-    """PostgreSQL/Supabase-compatible durable persistence for Investment Checklist.
+    """PostgreSQL/Supabase durable persistence with a small reusable connection pool.
 
-    All analyst assessment, screening, versioning, inventory and immutable snapshot domain
-    behavior is inherited from the Phase 1B repository. Only connection/schema mechanics differ.
+    Phase 1B business rules remain inherited unchanged. Phase 1C only changes persistence
+    mechanics. A pool is critical on Streamlit/Supabase: opening a new TLS/PgBouncer
+    connection for every repository read made Q01–Q59 navigation unnecessarily slow.
     """
 
     def __init__(self, database_url: str, question_catalog_path: str | Path):
@@ -85,55 +81,62 @@ class PostgresChecklistRepository(SQLiteChecklistRepository):
             raise ValueError('database_url is required for PostgresChecklistRepository')
         self.database_url = str(database_url).strip()
         self.question_catalog_path = Path(question_catalog_path)
+        self._pool = ConnectionPool(
+            conninfo=self.database_url,
+            min_size=1,
+            max_size=4,
+            timeout=10,
+            kwargs={
+                'row_factory': dict_row,
+                'autocommit': False,
+                # Required for Supabase/PgBouncer transaction pooling compatibility.
+                'prepare_threshold': None,
+            },
+            open=True,
+        )
+        # Fail fast on the first app load instead of surfacing a connection error later.
+        self._pool.wait(timeout=10)
 
     @contextmanager
     def _conn(self):
-        conn = psycopg.connect(
-            self.database_url,
-            row_factory=dict_row,
-            autocommit=False,
-            prepare_threshold=None,  # compatible with Supabase/PgBouncer transaction pooling
-        )
-        proxy = _PgConnectionProxy(conn)
-        try:
-            yield proxy
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
+        # pool.connection() reuses an existing connection and safely returns it to the pool.
+        # This removes repeated DNS/TLS/PgBouncer handshakes from every question change.
+        with self._pool.connection() as conn:
+            proxy = _PgConnectionProxy(conn)
+            try:
+                yield proxy
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
 
     def initialize(self):
-        conn = psycopg.connect(
-            self.database_url,
-            row_factory=dict_row,
-            autocommit=False,
-            prepare_threshold=None,
-        )
-        try:
-            with conn.cursor() as cur:
-                for statement in [x.strip() for x in POSTGRES_SCHEMA_SQL.split(';') if x.strip()]:
-                    cur.execute(statement)
-                for q in load_questions(self.question_catalog_path):
-                    cur.execute(
-                        """INSERT INTO checklist_questions(question_id,question_no,group_name,question_vi,guidance,research_mode,supporting_tool)
-                        VALUES(%s,%s,%s,%s,%s,%s,%s)
-                        ON CONFLICT(question_id) DO UPDATE SET question_no=excluded.question_no,group_name=excluded.group_name,
-                        question_vi=excluded.question_vi,guidance=excluded.guidance,research_mode=excluded.research_mode,supporting_tool=excluded.supporting_tool""",
-                        (q['question_id'], q['question_no'], q['group_name'], q['question_vi'], q['guidance'], q['research_mode'], q['supporting_tool']),
-                    )
-                for i, (code, en, vi) in enumerate(SCREENING_CRITERIA, 1):
-                    cur.execute(
-                        """INSERT INTO screening_criteria(criterion_code,criterion_name_en,criterion_name_vi,display_order)
-                        VALUES(%s,%s,%s,%s)
-                        ON CONFLICT(criterion_code) DO UPDATE SET criterion_name_en=excluded.criterion_name_en,
-                        criterion_name_vi=excluded.criterion_name_vi,display_order=excluded.display_order""",
-                        (code, en, vi, i),
-                    )
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
+        with self._pool.connection() as conn:
+            try:
+                with conn.cursor() as cur:
+                    for statement in [x.strip() for x in POSTGRES_SCHEMA_SQL.split(';') if x.strip()]:
+                        cur.execute(statement)
+                    for q in load_questions(self.question_catalog_path):
+                        cur.execute(
+                            """INSERT INTO checklist_questions(question_id,question_no,group_name,question_vi,guidance,research_mode,supporting_tool)
+                            VALUES(%s,%s,%s,%s,%s,%s,%s)
+                            ON CONFLICT(question_id) DO UPDATE SET question_no=excluded.question_no,group_name=excluded.group_name,
+                            question_vi=excluded.question_vi,guidance=excluded.guidance,research_mode=excluded.research_mode,supporting_tool=excluded.supporting_tool""",
+                            (q['question_id'], q['question_no'], q['group_name'], q['question_vi'], q['guidance'], q['research_mode'], q['supporting_tool']),
+                        )
+                    for i, (code, en, vi) in enumerate(SCREENING_CRITERIA, 1):
+                        cur.execute(
+                            """INSERT INTO screening_criteria(criterion_code,criterion_name_en,criterion_name_vi,display_order)
+                            VALUES(%s,%s,%s,%s)
+                            ON CONFLICT(criterion_code) DO UPDATE SET criterion_name_en=excluded.criterion_name_en,
+                            criterion_name_vi=excluded.criterion_name_vi,display_order=excluded.display_order""",
+                            (code, en, vi, i),
+                        )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+
+    def close(self) -> None:
+        """Explicit shutdown hook for tests/tools. Streamlit normally keeps the pool for process life."""
+        self._pool.close()
