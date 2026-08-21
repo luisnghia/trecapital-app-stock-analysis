@@ -35,7 +35,9 @@ def test_inventory_formula_arithmetic_matches_documented_table12_definitions():
     assert m["tev_ebit"] == 10.0
     assert m["tev_ebitda"] == 8.0
     assert m["tev_normalized_earnings"] == 12.0
-    assert m["pretax_earnings_yield"] == 1 / 12
+    # Shearn Table 1.2: Pre-tax Earnings Yield is the inverse of TEV/EBIT.
+    assert m["pretax_earnings_yield"] == 1_200 / 12_000
+    assert m["pretax_earnings_yield"] == 1 / m["tev_ebit"]
     assert m["debt_ebitda"] == 2_000 / 1_500
     assert m["ebit_interest"] == 12.0
     assert m["fcf_yield_ev"] == 0.075
@@ -90,8 +92,16 @@ def test_negative_earnings_do_not_render_fake_cheap_multiples_but_negative_yield
     assert m["tev_normalized_earnings"] is None
     assert m["debt_ebitda"] is None
     # Negative numerator yields/coverage are retained as risk signals when denominator is valid.
-    assert m["pretax_earnings_yield"] == -1_000 / 12_000
+    assert m["pretax_earnings_yield"] == -1_200 / 12_000
     assert m["ebit_interest"] == -12.0
     assert m["fcf_yield_ev"] == -900 / 12_000
     assert m["fcf_yield_market"] == -900 / 11_000
     assert m["dividend_yield"] == 0.0
+
+
+def test_published_shearn_table_examples_reconcile_pre_tax_yield_to_tev_ebit():
+    # Published Table 1.2 pairs. Rounded values should agree to table precision.
+    examples = [(10.1, 9.9), (19.1, 5.2), (6.0, 16.8), (13.5, 7.6), (19.9, 5.0)]
+    for multiple, yield_pct in examples:
+        expected = 100.0 / multiple
+        assert abs(expected - yield_pct) <= 0.3
