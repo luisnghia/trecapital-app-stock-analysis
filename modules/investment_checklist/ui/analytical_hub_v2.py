@@ -3,11 +3,12 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-# Import first: installs the corrected formula-table renderer and correction-field selector into
-# portfolio_extensions before integration_preview imports those helpers.
+# Import first: installs the corrected formula-table renderer, correction-field selector, and
+# per-tool Shearn guidance wrapper before integration_preview imports those helpers.
 from . import phase2_2_fixes as _phase2_2_fixes  # noqa: F401
 from . import page as _page
 from . import quant_tools as _qt
+from .book_guidance import render_book_guidance
 from .portfolio_extensions import (
     _highlight_adjusted,
     _patched_quant_render,
@@ -31,6 +32,7 @@ def _render_stress_override_table(repo, company_ref_id: int, actor: str, name: s
         use_container_width=True,
         hide_index=True,
     )
+    render_book_guidance("Operating Leverage Stress", effective.columns, expanded=False)
     render_numeric_override_editor(
         repo,
         company_ref_id,
@@ -58,10 +60,12 @@ def render_analytical_hub_v2(repo, integration, company_ref_id: int, review, act
         key=f"analytical_hub_v2_{company_ref_id}",
     )
     if group.startswith("1.1"):
+        render_book_guidance("Table 1.1", expanded=False)
         _page._render_table11(repo, company_ref_id, review, actor)
         render_table11_historical_corrections(repo, company_ref_id, actor)
         return
     if group.startswith("1.2"):
+        render_book_guidance("Table 1.2", expanded=False)
         with _patched_table12_trend(repo, integration, company_ref_id, actor):
             _page._render_table12(repo, integration, company_ref_id, review, actor)
         return
