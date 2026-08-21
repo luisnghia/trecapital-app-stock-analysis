@@ -45,9 +45,13 @@ CREATE TABLE IF NOT EXISTS research_reviews(
     status TEXT NOT NULL DEFAULT 'in_progress' CHECK(status IN('draft','in_progress','completed','archived')),
     prior_review_id BIGINT REFERENCES research_reviews(id),
     analyst_user_id TEXT,
+    review_reason TEXT,
+    finalize_reason TEXT,
     completed_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text
 );
+ALTER TABLE research_reviews ADD COLUMN IF NOT EXISTS review_reason TEXT;
+ALTER TABLE research_reviews ADD COLUMN IF NOT EXISTS finalize_reason TEXT;
 CREATE INDEX IF NOT EXISTS ix_reviews_company_date ON research_reviews(company_ref_id,as_of_date DESC,id DESC);
 
 CREATE TABLE IF NOT EXISTS analyst_assessments(
