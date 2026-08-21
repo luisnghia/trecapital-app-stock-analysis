@@ -16,7 +16,7 @@ from ui_oaktree_theme import inject_oaktree_theme
 from modules.investment_checklist.contracts import AnalystContext, CompanyContext, HostContext
 from modules.investment_checklist.trecapital_bridge import CurrentRepoDataProvider
 from modules.investment_checklist.trecapital_debt_enricher import augment_debt_from_latest_fireant_raw
-from modules.investment_checklist.ui import render_investment_checklist
+from modules.investment_checklist.ui.integration_preview import render_investment_checklist
 
 APP_DIR = Path(__file__).resolve().parents[1]
 CHECKLIST_DB = APP_DIR / "data_cache" / "investment_checklist.db"  # Local/dev fallback only.
@@ -151,13 +151,13 @@ def render_page() -> None:
     m1._inject_runtime_ui_css(); inject_oaktree_theme(); apply_full_width()
     m1._render_brand_page_header(
         "📋 Investment Research & Checklist",
-        "Core Research System — Table 1.1, Table 1.2, Q01–Q59, versioning và snapshot lịch sử.",
+        "Integrated research workspace — Analytical Tools, Watchlist, Q01–Q59, versioning và lịch sử analyst.",
     )
     requested_ticker = _default_ticker()
     database_url = _secret_database_url()
     with st.sidebar:
         render_tre_sidebar_nav()
-        st.caption("Phase 1C chưa dùng AI; mọi assessment cuối cùng thuộc về analyst.")
+        st.caption("Checklist chưa dùng AI; mọi assessment cuối cùng thuộc về analyst.")
         if database_url:
             st.success("Lưu trữ Checklist: PostgreSQL/Supabase bền vững")
         else:
@@ -165,13 +165,9 @@ def render_page() -> None:
 
     overview_csv, year_csv, quarter_csv, source_label, active_ticker, statement_only_fallback = _load_checklist_bundle(requested_ticker)
     company = m1._load_overview_cached(str(overview_csv), active_ticker)
-    # 11 annual rows are loaded internally so the oldest year in the displayed 10-year CCC proxy
-    # still has a prior balance for Shearn's average Inventory/AR/AP formula.
     annual_raw = m1._load_timeseries_cached(str(year_csv), active_ticker, "Y", 11)
     quarterly = m1._load_timeseries_cached(str(quarter_csv), active_ticker, "Q", 20)
 
-    # Trecapital already downloaded the FireAnt balance-sheet raw payload. The legacy exact parser
-    # omitted borrowing labels, so enrich debt from that audit file without another network call.
     annual_raw, quarterly, debt_note = augment_debt_from_latest_fireant_raw(
         annual_raw, quarterly, active_ticker, m1.RAW_DIR
     )
