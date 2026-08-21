@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS opportunity_inventory_snapshots(
     market_price DOUBLE PRECISION,
     fcf_estimate DOUBLE PRECISION,
     target_price DOUBLE PRECISION,
+    ccc_days DOUBLE PRECISION,
     tev_ebit DOUBLE PRECISION,
     tev_ebitda DOUBLE PRECISION,
     tev_normalized_earnings DOUBLE PRECISION,
@@ -124,6 +125,7 @@ CREATE TABLE IF NOT EXISTS opportunity_inventory_snapshots(
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
     UNIQUE(company_ref_id,as_of_date,version_no)
 );
+ALTER TABLE opportunity_inventory_snapshots ADD COLUMN IF NOT EXISTS ccc_days DOUBLE PRECISION;
 
 CREATE TABLE IF NOT EXISTS data_snapshots(
     id BIGSERIAL PRIMARY KEY,
