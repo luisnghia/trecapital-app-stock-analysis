@@ -182,7 +182,8 @@ def test_cyclical_policy_does_not_mislabel_raw_ttm_as_normalized_earnings():
     hist = wrapper.get_inventory_proxy_history(10)
     assert hist[0]["normalized_earnings"] is None
     assert hist[0]["tev_normalized_earnings"] is None
-    assert hist[0]["pretax_earnings_yield"] is None
+    # Shearn Pre-tax Earnings Yield is EBIT/TEV, so current watchlist yield remains visible.
+    assert hist[0]["pretax_earnings_yield"] == 1_200 / 12_000
 
 
 def test_financial_industry_policy_suppresses_industrial_table12_metrics():
