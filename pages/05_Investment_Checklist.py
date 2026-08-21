@@ -16,7 +16,7 @@ from ui_oaktree_theme import inject_oaktree_theme
 from modules.investment_checklist.contracts import AnalystContext, CompanyContext, HostContext
 from modules.investment_checklist.trecapital_bridge import CurrentRepoDataProvider
 from modules.investment_checklist.trecapital_debt_enricher import augment_debt_from_latest_fireant_raw
-from modules.investment_checklist.ui.integration_preview import render_investment_checklist
+from modules.investment_checklist.ui.integration_preview_v3 import render_investment_checklist
 
 APP_DIR = Path(__file__).resolve().parents[1]
 CHECKLIST_DB = APP_DIR / "data_cache" / "investment_checklist.db"  # Local/dev fallback only.
@@ -53,11 +53,16 @@ def _default_ticker() -> str:
 
 def _company_type(industry: str) -> str:
     text = (industry or "").lower()
-    if "ngân hàng" in text or "bank" in text: return "bank"
-    if "bảo hiểm" in text or "insurance" in text: return "insurance"
-    if "chứng khoán" in text or "securities" in text: return "securities"
-    if "bất động sản" in text or "real estate" in text: return "real_estate"
-    if any(x in text for x in ["thép", "steel", "dầu", "oil", "phân bón", "fertilizer", "cao su", "rubber", "than", "coal", "shipping"]): return "cyclical"
+    if "ngân hàng" in text or "bank" in text:
+        return "bank"
+    if "bảo hiểm" in text or "insurance" in text:
+        return "insurance"
+    if "chứng khoán" in text or "securities" in text:
+        return "securities"
+    if "bất động sản" in text or "real estate" in text:
+        return "real_estate"
+    if any(x in text for x in ["thép", "steel", "dầu", "oil", "phân bón", "fertilizer", "cao su", "rubber", "than", "coal", "shipping"]):
+        return "cyclical"
     return "normal"
 
 
@@ -119,7 +124,7 @@ def _load_checklist_bundle(ticker: str):
 
     if m1.BUNDLED_XLSM.exists():
         try:
-            overview, year, quarter, label = m1._export_bundled_financial_cached(
+            overview, year, quarter, _label = m1._export_bundled_financial_cached(
                 str(m1.BUNDLED_XLSM), ticker, str(m1.DATA_CACHE_DIR)
             )
             fallback_label = "Dữ liệu tích hợp dự phòng — chỉ dùng BCTC, không dùng cached quote làm giá hiện tại"
@@ -129,7 +134,56 @@ def _load_checklist_bundle(ticker: str):
             diagnostics.append(f"workbook error={exc}")
 
     st.session_state["checklist_live_load_diagnostics"] = diagnostics
-    return m1.DEFAULT_OVERVIEW_CSV, m1.DEFAULT_YEAR_CSV, m1.DEFAULT_QUARTER_CSV, "Dữ liệu mẫu — không phải dữ liệu thị trường hiện tại", ticker, True
+    return (
+        m1.DEFAULT_OVERVIEW_CSV,
+        m1.DEFAULT_YEAR_CSV,
+        m1.DEFAULT_QUARTER_CSV,
+        "Dữ liệu mẫu — không phải dữ liệu thị trường hiện tại",
+        ticker,
+        True,
+    )
+
+
+def _path_signature(path) -> tuple[int, int]:
+    try:
+        stat = Path(str(path)).stat()
+        return int(stat.st_mtime_ns), int(stat.st_size)
+    except Exception:
+        return 0, 0
+
+
+def _dir_signature(path) -> int:
+    try:
+        return int(Path(str(path)).stat().st_mtime_ns)
+    except Exception:
+        return 0
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _prepare_financials_cached(
+    overview_path: str,
+    year_path: str,
+    quarter_path: str,
+    ticker: str,
+    overview_sig: tuple[int, int],
+    year_sig: tuple[int, int],
+    quarter_sig: tuple[int, int],
+    raw_dir_sig: int,
+):
+    """Cache the immutable financial preparation stage between full-app reruns.
+
+    File signatures are explicit cache keys, so a refreshed Trecapital export invalidates the cache
+    immediately instead of serving stale financial statements.
+    """
+    del overview_sig, year_sig, quarter_sig, raw_dir_sig  # cache-key only
+    company = m1._load_overview_cached(overview_path, ticker)
+    annual_raw = m1._load_timeseries_cached(year_path, ticker, "Y", 11)
+    quarterly = m1._load_timeseries_cached(quarter_path, ticker, "Q", 20)
+    annual_raw, quarterly, debt_note = augment_debt_from_latest_fireant_raw(
+        annual_raw, quarterly, ticker, m1.RAW_DIR
+    )
+    annual = append_ttm_row(annual_raw, quarterly)
+    return company, annual, debt_note
 
 
 def _sanitize_statement_only_fallback(company, annual: pd.DataFrame):
@@ -148,7 +202,9 @@ def _sanitize_statement_only_fallback(company, annual: pd.DataFrame):
 
 
 def render_page() -> None:
-    m1._inject_runtime_ui_css(); inject_oaktree_theme(); apply_full_width()
+    m1._inject_runtime_ui_css()
+    inject_oaktree_theme()
+    apply_full_width()
     m1._render_brand_page_header(
         "📋 Investment Research & Checklist",
         "Integrated research workspace — Analytical Tools, Watchlist, Q01–Q59, versioning và lịch sử analyst.",
@@ -164,14 +220,16 @@ def render_page() -> None:
             st.warning("Lưu trữ Checklist: SQLite local/dev — chưa dùng cho dữ liệu production")
 
     overview_csv, year_csv, quarter_csv, source_label, active_ticker, statement_only_fallback = _load_checklist_bundle(requested_ticker)
-    company = m1._load_overview_cached(str(overview_csv), active_ticker)
-    annual_raw = m1._load_timeseries_cached(str(year_csv), active_ticker, "Y", 11)
-    quarterly = m1._load_timeseries_cached(str(quarter_csv), active_ticker, "Q", 20)
-
-    annual_raw, quarterly, debt_note = augment_debt_from_latest_fireant_raw(
-        annual_raw, quarterly, active_ticker, m1.RAW_DIR
+    company, annual, debt_note = _prepare_financials_cached(
+        str(overview_csv),
+        str(year_csv),
+        str(quarter_csv),
+        active_ticker,
+        _path_signature(overview_csv),
+        _path_signature(year_csv),
+        _path_signature(quarter_csv),
+        _dir_signature(m1.RAW_DIR),
     )
-    annual = append_ttm_row(annual_raw, quarterly)
     st.session_state["checklist_debt_source_note"] = debt_note
 
     if statement_only_fallback:
@@ -198,14 +256,17 @@ def render_page() -> None:
     with st.sidebar:
         st.caption(f"Checklist đang dùng dữ liệu thực tế: **{active_ticker}**")
         st.caption(f"Nguồn đang hoạt động: {m1._safe_source_label(source_label)}")
+        st.caption("⚡ Fast mode: đổi Question/tool không tải lại pipeline tài chính.")
 
     industry = m1._display_industry_value(getattr(company, "industry", ""))
     host = HostContext(
         company=CompanyContext(
-            company_key=f"TICKER:{active_ticker}", ticker=active_ticker,
+            company_key=f"TICKER:{active_ticker}",
+            ticker=active_ticker,
             company_name=getattr(company, "company_name", "") or active_ticker,
             exchange=getattr(company, "exchange", "UNKNOWN") or "UNKNOWN",
-            industry_name=industry, company_type=_company_type(industry),
+            industry_name=industry,
+            company_type=_company_type(industry),
             metadata={"sub_industry": getattr(company, "sub_industry", "")},
         ),
         analyst=AnalystContext(user_id="analyst", display_name="Analyst"),
