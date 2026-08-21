@@ -6,12 +6,8 @@ from ..services.formulas import inventory_metrics
 from ..services.portfolio_extensions import ensure_extension_schema
 from ..services.review_admin import delete_review_manually, review_delete_preview
 from . import page as _page
-from .portfolio_extensions import (
-    render_analytical_hub,
-    render_watchlist,
-    render_watchlist_toggle,
-    render_wrapped_table,
-)
+from .portfolio_extensions import render_analytical_hub, render_wrapped_table
+from .watchlist_v2 import render_watchlist_toggle_v2, render_watchlist_v2
 
 
 SECTIONS = [
@@ -204,7 +200,7 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     with delete_col:
         _render_delete_review_popover(repo, review, actor, state)
     with watch_col:
-        render_watchlist_toggle(repo, cid, company["ticker"], actor=actor, data_provider=data_provider)
+        render_watchlist_toggle_v2(repo, cid, company["ticker"], actor=actor, data_provider=data_provider)
 
     if review:
         st.caption(
@@ -231,7 +227,7 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     elif section == SECTIONS[2]:
         _page._render_workspace(repo, cid, review, actor)
     elif section == SECTIONS[3]:
-        render_watchlist(repo, cid, company["ticker"])
+        render_watchlist_v2(repo, cid, company["ticker"], actor=actor, data_provider=data_provider)
     elif section == SECTIONS[4]:
         _page._render_history(repo, cid, review, actor)
     else:
