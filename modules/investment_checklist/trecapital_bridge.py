@@ -37,15 +37,19 @@ def _safe_float(value: Any) -> Optional[float]:
 class CurrentRepoDataProvider:
     """Consume normalized Module 1 facts and Module 2 valuation; no parallel financial engine.
 
-    The bridge deliberately does not invent missing financial facts. It does, however, resolve
-    canonical aliases already present in the normalized data layer. EBITDA may be derived only
-    from EBIT + D&A when both source components exist, which is the standard accounting bridge.
+    The bridge deliberately does not invent missing financial facts. It resolves canonical aliases
+    already present in the normalized data layer. EBITDA may be derived only from EBIT + D&A when
+    both source components exist. ``valuation_range`` may be a callable so expensive valuation is
+    computed only when Table 1.2 is actually opened, not on every Q01-Q59 selection rerun.
     """
 
     def __init__(self, company, annual_df: pd.DataFrame, valuation_range=None):
         self.company = company
         self.annual_df = annual_df if isinstance(annual_df, pd.DataFrame) else pd.DataFrame()
         self.valuation_range = valuation_range
+
+    def _resolve_valuation_range(self):
+        return self.valuation_range() if callable(self.valuation_range) else self.valuation_range
 
     def get_inventory_source_data(self, company_context):
         latest = _latest_row(self.annual_df)
@@ -104,9 +108,10 @@ class CurrentRepoDataProvider:
         source_module = "module1_normalized_cache"
         if derived_ebitda:
             source_module += "+derived_ebitda_from_ebit_da"
-        if self.valuation_range is not None:
-            target_price = _safe_float(getattr(self.valuation_range, "weighted_vnd", None))
-            mos_pct = _safe_float(getattr(self.valuation_range, "mos_to_weighted_pct", None))
+        valuation_range = self._resolve_valuation_range()
+        if valuation_range is not None:
+            target_price = _safe_float(getattr(valuation_range, "weighted_vnd", None))
+            mos_pct = _safe_float(getattr(valuation_range, "mos_to_weighted_pct", None))
             mos = None if mos_pct is None else mos_pct / 100.0
             source_module += "+module2_valuation"
 
