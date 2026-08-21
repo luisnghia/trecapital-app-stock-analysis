@@ -15,6 +15,7 @@ from ui_oaktree_theme import inject_oaktree_theme
 
 from modules.investment_checklist.contracts import AnalystContext, CompanyContext, HostContext
 from modules.investment_checklist.trecapital_bridge import CurrentRepoDataProvider
+from modules.investment_checklist.trecapital_debt_enricher import augment_debt_from_latest_fireant_raw
 from modules.investment_checklist.ui import render_investment_checklist
 
 APP_DIR = Path(__file__).resolve().parents[1]
@@ -43,8 +44,6 @@ def _secret_database_url() -> str | None:
 
 
 def _default_ticker() -> str:
-    # The active data bundle is the source of truth. This prevents the sidebar saying DCM while
-    # the actual CSV bundle still belongs to another ticker from an earlier page/session action.
     for key in ["active_ticker", "shared_ticker", "module2_ticker", "module1_ticker", "last_query_ticker"]:
         value = m1._safe_ticker(str(st.session_state.get(key, "")))
         if value:
@@ -79,12 +78,7 @@ def _valuation_range(company, annual: pd.DataFrame):
 
 
 def _active_live_bundle(ticker: str):
-    """Return the existing active bundle only when it came from a fresh runtime update.
-
-    `Financial-v1.3.0.xlsm` contains useful statement history, but its TỔNG QUAN sheet is formula/
-    macro driven. openpyxl can only read the workbook's last cached formula values, so that sheet
-    must never be treated as today's quote merely because the ticker text matches.
-    """
+    """Return the existing active bundle only when it came from a fresh runtime update."""
     ticker = m1._safe_ticker(ticker)
     active = m1._safe_ticker(str(st.session_state.get("active_ticker", "")))
     paths = [
@@ -100,13 +94,7 @@ def _active_live_bundle(ticker: str):
 
 
 def _load_checklist_bundle(ticker: str):
-    """Use the same live Trecapital pipeline as main; workbook is statement-only fallback.
-
-    Root cause fixed here: the old Phase 1C page called `_load_active_or_default()`. On a fresh
-    Streamlit process that helper activates the bundled XLSM. The workbook's cached TỔNG QUAN
-    formulas can be years old (for example a 2021 quote), and that activation then prevents the
-    main page's auto-sync from running because an `active_ticker` already exists.
-    """
+    """Use the same live Trecapital pipeline as main; workbook is statement-only fallback."""
     ticker = m1._safe_ticker(ticker) or "DCM"
     active = _active_live_bundle(ticker)
     if active:
@@ -129,8 +117,6 @@ def _load_checklist_bundle(ticker: str):
     except Exception as exc:
         diagnostics.append(f"live error={exc}")
 
-    # Do NOT activate the workbook fallback in session state. It is allowed to supply financial
-    # statements to Checklist temporarily, but must not suppress the main app's next live auto-sync.
     if m1.BUNDLED_XLSM.exists():
         try:
             overview, year, quarter, label = m1._export_bundled_financial_cached(
@@ -155,8 +141,6 @@ def _sanitize_statement_only_fallback(company, annual: pd.DataFrame):
         except Exception:
             pass
     safe_annual = annual.copy() if isinstance(annual, pd.DataFrame) else pd.DataFrame()
-    # Historical year-end prices are valid historical facts, but are not today's quote. The
-    # Checklist bridge must not substitute them for a missing live market price.
     for field in ("current_price", "market_price_vnd", "year_end_price"):
         if field in safe_annual.columns:
             safe_annual[field] = pd.NA
@@ -181,9 +165,18 @@ def render_page() -> None:
 
     overview_csv, year_csv, quarter_csv, source_label, active_ticker, statement_only_fallback = _load_checklist_bundle(requested_ticker)
     company = m1._load_overview_cached(str(overview_csv), active_ticker)
-    annual_raw = m1._load_timeseries_cached(str(year_csv), active_ticker, "Y", 10)
+    # 11 annual rows are loaded internally so the oldest year in the displayed 10-year CCC proxy
+    # still has a prior balance for Shearn's average Inventory/AR/AP formula.
+    annual_raw = m1._load_timeseries_cached(str(year_csv), active_ticker, "Y", 11)
     quarterly = m1._load_timeseries_cached(str(quarter_csv), active_ticker, "Q", 20)
+
+    # Trecapital already downloaded the FireAnt balance-sheet raw payload. The legacy exact parser
+    # omitted borrowing labels, so enrich debt from that audit file without another network call.
+    annual_raw, quarterly, debt_note = augment_debt_from_latest_fireant_raw(
+        annual_raw, quarterly, active_ticker, m1.RAW_DIR
+    )
     annual = append_ttm_row(annual_raw, quarterly)
+    st.session_state["checklist_debt_source_note"] = debt_note
 
     if statement_only_fallback:
         company, annual = _sanitize_statement_only_fallback(company, annual)
@@ -193,8 +186,6 @@ def render_page() -> None:
             "Khi quay lại Tổng quan, app sẽ tiếp tục thử pipeline live thay vì coi workbook là nguồn đang hoạt động."
         )
 
-    # Only a true live runtime bundle is allowed to become the cross-page active source. A workbook
-    # fallback remains local to this Checklist render and therefore cannot poison Tổng quan/Module 2.
     if not statement_only_fallback:
         st.session_state["shared_ticker"] = company.ticker
         st.session_state["active_ticker"] = company.ticker
@@ -204,7 +195,6 @@ def render_page() -> None:
         st.session_state["shared_ticker"] = active_ticker
         st.session_state["module1_ticker"] = active_ticker
         st.session_state["module2_ticker"] = active_ticker
-        # Remove any stale workbook activation left by an earlier Phase 1C process/version.
         if "Dữ liệu tích hợp" in str(st.session_state.get("active_source_label", "")):
             for key in ("active_ticker", "active_overview_csv", "active_year_csv", "active_quarter_csv", "active_source_label"):
                 st.session_state.pop(key, None)
@@ -227,9 +217,6 @@ def render_page() -> None:
         database_url=database_url,
     )
 
-    # Valuation is deliberately lazy. The bridge passes a reconciled Trecapital company/TTM frame
-    # into Module 2 only when Table 1.2 is opened. A statement-only fallback has no current market
-    # quote, so MOS remains unavailable rather than using a stale cached workbook quote.
     render_investment_checklist(
         host,
         data_provider=CurrentRepoDataProvider(
