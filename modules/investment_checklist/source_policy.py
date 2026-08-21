@@ -23,14 +23,49 @@ _NORMALIZED_FIELDS = (
 )
 
 
-def _has_explicit_normalized_earnings(provider) -> bool:
+def _period_token(value: Any) -> str:
+    text = str(value or "").strip().upper()
+    if "T12M" in text:
+        return "TTM"
+    if "TTM" in text:
+        return "TTM"
+    try:
+        number = float(text)
+        if number.is_integer() and 1900 <= int(number) <= 2200:
+            return str(int(number))
+    except Exception:
+        pass
+    return text
+
+
+def _explicit_normalized_for_period(provider, period: Any) -> float | None:
+    """Return a confirmed normalized value only from the same period.
+
+    A normalized annual value from 2025 must not authorize the app to label raw TTM 2026 pre-tax
+    profit as normalized. Period matching is therefore deliberate and strict.
+    """
     df = getattr(provider, "annual_df", None)
     if not isinstance(df, pd.DataFrame) or df.empty:
-        return False
-    for field in _NORMALIZED_FIELDS:
-        if field in df.columns and pd.to_numeric(df[field], errors="coerce").notna().any():
-            return True
-    return False
+        return None
+    target = _period_token(period)
+    if "period" in df.columns:
+        mask = df["period"].map(_period_token).eq(target)
+        candidates = df[mask]
+    elif target.isdigit() and "year" in df.columns:
+        years = pd.to_numeric(df["year"], errors="coerce")
+        candidates = df[years.eq(float(target))]
+    else:
+        return None
+    if candidates.empty:
+        return None
+    for _, row in candidates.iloc[::-1].iterrows():
+        for field in _NORMALIZED_FIELDS:
+            if field not in row.index:
+                continue
+            value = pd.to_numeric(pd.Series([row.get(field)]), errors="coerce").iloc[0]
+            if pd.notna(value):
+                return float(value)
+    return None
 
 
 def _recompute_row_metrics(row: dict[str, Any]) -> dict[str, Any]:
@@ -86,15 +121,22 @@ class SourcePolicyDataProvider:
                 source_notes=tuple(notes),
             )
 
-        explicit_normalized = _has_explicit_normalized_earnings(self.inner)
-        if self.company_type == "cyclical" and not explicit_normalized:
+        explicit_current = _explicit_normalized_for_period(self.inner, data.as_of_date)
+        if explicit_current is not None:
             notes.append(
-                "CẢNH BÁO: Doanh nghiệp chu kỳ chưa có normalized earnings được xác nhận; "
-                "raw TTM pre-tax profit không được dùng thay normalized earnings. TEV/Norm.E và Pre-tax yield để trống chờ analyst/scenario."
+                f"Normalized earnings dùng giá trị đã chuẩn hóa cùng kỳ {data.as_of_date} từ Trecapital Data Layer: "
+                f"{explicit_current:,.0f} tỷ đồng."
+            )
+            return replace(data, normalized_earnings=explicit_current, source_notes=tuple(notes))
+
+        if self.company_type == "cyclical":
+            notes.append(
+                "CẢNH BÁO: Doanh nghiệp chu kỳ chưa có normalized earnings cùng kỳ được xác nhận; "
+                "raw TTM/pre-tax profit không được dùng thay normalized earnings. TEV/Norm.E và Pre-tax yield để trống chờ analyst/scenario."
             )
             return replace(data, normalized_earnings=None, source_notes=tuple(notes))
 
-        if not explicit_normalized and data.normalized_earnings is not None:
+        if data.normalized_earnings is not None:
             notes.append(
                 "Normalized earnings hiện là baseline proxy từ pre-tax profit gần nhất/TTM; "
                 "chưa điều chỉnh one-off hoặc chuẩn hóa chu kỳ. Analyst cần override khi có bằng chứng chuẩn hóa."
@@ -119,8 +161,12 @@ class SourcePolicyDataProvider:
                 _recompute_row_metrics(row)
             return rows
 
-        if self.company_type == "cyclical" and not _has_explicit_normalized_earnings(self.inner):
-            for row in rows:
+        for row in rows:
+            explicit = _explicit_normalized_for_period(self.inner, row.get("period"))
+            if explicit is not None:
+                row["normalized_earnings"] = explicit
+                _recompute_row_metrics(row)
+            elif self.company_type == "cyclical":
                 row["normalized_earnings"] = None
                 _recompute_row_metrics(row)
         return rows
