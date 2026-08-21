@@ -5,6 +5,9 @@ from typing import Iterable
 
 import streamlit as st
 
+# Importing extensions mutates the static registry with guidance for app-only derived columns
+# (for example historical CAGR in Watchlist) while keeping the base source guidance in one place.
+from .. import book_guidance_extensions as _book_guidance_extensions  # noqa: F401
 from ..book_guidance import BOOK_TITLE, guidance_for
 
 
