@@ -10,6 +10,7 @@ from ..services.watchlist_v2 import (
     refresh_watchlist_cagrs_if_changed,
 )
 from . import page as _page
+from .book_guidance import render_book_guidance
 from .portfolio_extensions import APRICOT_TEXT, APRICOT_YELLOW
 
 
@@ -121,8 +122,10 @@ def render_watchlist_v2(repo, current_company_ref_id: int, current_ticker: str, 
     rows = list_watchlist_rows_v2(repo)
     if not rows:
         st.info("Watchlist đang trống. Dùng nút ☆ Đưa doanh nghiệp vào Watchlist ở đầu trang.")
+        render_book_guidance("Watchlist — Opportunity Inventory", expanded=False)
         return
     df, adjusted_by_row = _display_dataframe(rows)
+    render_book_guidance("Watchlist — Opportunity Inventory", df.columns, expanded=False)
     missing = [str(x.get("ticker") or "") for x in rows if not x.get("has_financial_cache")]
     if missing:
         st.warning("Chưa có snapshot dữ liệu tài chính mới cho: " + ", ".join(missing) + ". Mở mã và bấm cập nhật Watchlist.")
