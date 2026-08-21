@@ -32,6 +32,8 @@ def test_ui_renders_only_selected_section_and_blank_manual_overrides():
     assert "value=None" in source
     assert "def base(k)" not in source
     assert "Snapshot cũ không được dùng" not in source  # wording may evolve; behavior is enforced by no base(latest)
+    assert "FCF estimate/share" in source
+    assert '"VND/cp", fmt_price' in source
 
 
 def test_normalized_data_layer_preserves_ebitda_support_fields():
