@@ -130,9 +130,6 @@ def _debt(row: dict[str, Any]) -> float | None:
     long = _n(row, "long_term_debt_bil")
     bonds = _n(row, "bonds_payable_bil")
     leases = _n(row, "finance_lease_liabilities_bil", "lease_liabilities_bil")
-    # Debt enricher's short_term_debt_bil is the complete current bucket and can already include
-    # current portion. Bonds/leases can already sit inside aggregate buckets, so detail fills only a
-    # missing aggregate bucket rather than being added on top.
     current_bucket = short if short is not None else current_portion
     noncurrent_bucket = long if long is not None else bonds
     if current_bucket is not None or noncurrent_bucket is not None:
@@ -154,15 +151,15 @@ def _cash(row: dict[str, Any]) -> float | None:
     return max(cash or 0.0, 0.0) + max(sti or 0.0, 0.0)
 
 
-def _eps(row: dict[str, Any]) -> float | None:
+def _eps(row: dict[str, Any]) -> tuple[float | None, str]:
     direct = _n(row, "eps_vnd", "basic_eps_vnd", "eps")
     if direct is not None:
-        return direct
+        return direct, "reported/Trecapital"
     ni = _n(row, "net_profit_bil", "net_income_bil")
     shares = _n(row, "weighted_avg_shares_mil", "shares_outstanding_mil")
     if ni is None or shares is None or shares <= 0:
-        return None
-    return ni * 1000.0 / shares
+        return None, "missing"
+    return ni * 1000.0 / shares, "derived Net income/shares"
 
 
 def balance_sheet_leverage(df: pd.DataFrame) -> ToolResult:
@@ -207,51 +204,71 @@ def _nopat(row: dict[str, Any]) -> float | None:
     return ebit * (1.0 - rate) if ebit is not None and rate is not None else None
 
 
-def _invested_capital_standard(row: dict[str, Any]) -> float | None:
-    direct = _n(row, "invested_capital_bil", "capital_employed_bil")
+def _capital_employed(row: dict[str, Any]) -> float | None:
+    """Match Trecapital standardized ROIC denominator methodology.
+
+    Module 1 defines capital employed as Total Assets − Current Liabilities and then uses the
+    average capital-employed base for roic_standard_pct. Do not silently substitute a second
+    Equity + Debt − Cash methodology here.
+    """
+    direct = _n(row, "capital_employed_bil")
     if direct is not None:
         return direct
-    equity = _n(row, "total_equity_bil", "equity_bil")
-    debt = _debt(row)
-    cash = _cash(row)
-    if equity is None or debt is None or cash is None:
+    assets = _n(row, "total_assets_bil")
+    current_liabilities = _n(row, "current_liabilities_bil")
+    if assets is None or current_liabilities is None:
         return None
-    return equity + debt - cash
+    return assets - current_liabilities
 
 
 def roic_quality(df: pd.DataFrame) -> ToolResult:
+    """Tables 5.3–5.4: preserve Trecapital ROIC and show transparent Shearn cash/goodwill views."""
     rows = _annual_and_ttm_rows(df)
     out: list[dict[str, Any]] = []
-    prior_base = prior_base_incl_cash = prior_base_ex_goodwill = None
+    prior_incl_cash = prior_ex_cash = prior_ex_goodwill = None
     for row in rows:
         nopat = _nopat(row)
-        base = _invested_capital_standard(row)
+        capital_employed = _capital_employed(row)
         cash = _cash(row)
         goodwill = _n(row, "goodwill_bil", "goodwill_intangibles_bil")
-        base_incl_cash = None if base is None or cash is None else base + cash
-        base_ex_goodwill = None if base is None or goodwill is None else base - goodwill
-        avg_base = None if base is None else (base if prior_base is None else (base + prior_base) / 2.0)
-        avg_incl_cash = None if base_incl_cash is None else (base_incl_cash if prior_base_incl_cash is None else (base_incl_cash + prior_base_incl_cash) / 2.0)
-        avg_ex_goodwill = None if base_ex_goodwill is None else (base_ex_goodwill if prior_base_ex_goodwill is None else (base_ex_goodwill + prior_base_ex_goodwill) / 2.0)
+
+        # Trecapital's capital-employed base (Total Assets − Current Liabilities) includes cash.
+        base_incl_cash = capital_employed
+        base_ex_cash = None if capital_employed is None or cash is None else capital_employed - cash
+        base_ex_goodwill = None if capital_employed is None or goodwill is None else capital_employed - goodwill
+
+        avg_incl_cash = None if base_incl_cash is None else (base_incl_cash if prior_incl_cash is None else (base_incl_cash + prior_incl_cash) / 2.0)
+        avg_ex_cash = None if base_ex_cash is None else (base_ex_cash if prior_ex_cash is None else (base_ex_cash + prior_ex_cash) / 2.0)
+        avg_ex_goodwill = None if base_ex_goodwill is None else (base_ex_goodwill if prior_ex_goodwill is None else (base_ex_goodwill + prior_ex_goodwill) / 2.0)
+
         standardized = _n(row, "roic_standard_pct", "roic_pct", "roic_standardized_pct", "roic")
         if standardized is not None and abs(standardized) <= 2.0:
             standardized *= 100.0
+
         out.append({
-            "Kỳ": _period(row), "ROIC Trecapital": standardized, "NOPAT": nopat,
-            "Avg Invested Capital": avg_base,
-            "ROIC Shearn – Ex Cash": None if nopat is None or avg_base is None or avg_base <= 0 else nopat / avg_base * 100.0,
+            "Kỳ": _period(row),
+            "ROIC Trecapital": standardized,
+            "NOPAT": nopat,
+            "Avg Capital Employed (incl cash)": avg_incl_cash,
             "ROIC Shearn – Incl Cash": None if nopat is None or avg_incl_cash is None or avg_incl_cash <= 0 else nopat / avg_incl_cash * 100.0,
+            "ROIC Shearn – Ex Cash": None if nopat is None or avg_ex_cash is None or avg_ex_cash <= 0 else nopat / avg_ex_cash * 100.0,
             "ROIC Shearn – Ex Goodwill": None if nopat is None or avg_ex_goodwill is None or avg_ex_goodwill <= 0 else nopat / avg_ex_goodwill * 100.0,
-            "Cash + STI": cash, "Goodwill/Intangibles": goodwill,
+            "Cash + STI": cash,
+            "Goodwill/Intangibles": goodwill,
         })
-        if base is not None: prior_base = base
-        if base_incl_cash is not None: prior_base_incl_cash = base_incl_cash
-        if base_ex_goodwill is not None: prior_base_ex_goodwill = base_ex_goodwill
+        if base_incl_cash is not None:
+            prior_incl_cash = base_incl_cash
+        if base_ex_cash is not None:
+            prior_ex_cash = base_ex_cash
+        if base_ex_goodwill is not None:
+            prior_ex_goodwill = base_ex_goodwill
+
     return ToolResult(
         "ROIC Quality Analyzer", ("Q26",), ("5.3", "5.4"), out,
-        ("ROIC Trecapital là Single Source of Truth cho metric chuẩn hóa hiện hành.",
-         "Các cột 'ROIC Shearn' là analytical variants minh bạch để kiểm tra distortion do excess cash/goodwill; không âm thầm thay ROIC chuẩn.",
-         "Investment base dùng bình quân hai kỳ khi có dữ liệu, phù hợp tinh thần phân tích ROIC của Shearn.",
+        ("ROIC Trecapital (roic_standard_pct) là Single Source of Truth cho metric chuẩn hóa hiện hành.",
+         "Trecapital Capital Employed = Total Assets − Current Liabilities; base này bao gồm cash. Shearn Ex Cash trừ Cash + ST investments khỏi đúng base đó.",
+         "Các ROIC Shearn là analytical variants để nhìn distortion do excess cash/goodwill; không âm thầm thay ROIC chuẩn.",
+         "Investment base của analytical variants dùng bình quân hai kỳ khi có dữ liệu.",
          "Gross-asset/off-balance-sheet variant chỉ được thêm khi Data Layer có accumulated depreciation/contractual obligations đáng tin cậy; không giả lập số thiếu."),
     )
 
@@ -282,8 +299,10 @@ def operating_leverage(df: pd.DataFrame) -> ToolResult:
             "SG&A / Revenue": None if sga is None or rev is None or rev == 0 else abs(sga) / rev * 100.0,
             "D&A / Revenue": None if da is None or rev is None or rev == 0 else abs(da) / rev * 100.0,
         })
-        if rev is not None: prev_rev = rev
-        if ebit is not None: prev_ebit = ebit
+        if rev is not None:
+            prev_rev = rev
+        if ebit is not None:
+            prev_ebit = ebit
     return ToolResult(
         "Operating Leverage & Cost Structure Analyzer", ("Q29", "Q30"), ("6.3", "6.4", "6.5"), out,
         ("DOL = %Δ EBIT / %Δ Revenue theo Shearn. Sales change dưới 1% hoặc prior EBIT ≤ 0 bị loại để tránh ratio méo.",
@@ -333,18 +352,26 @@ def working_capital(df: pd.DataFrame) -> ToolResult:
             p_ar = _n(prev, "accounts_receivable_bil", "receivables_bil")
             p_inv = _n(prev, "inventory_bil")
             p_ap = _n(prev, "accounts_payable_bil", "payables_bil")
-            if ar is not None and p_ar is not None: dso = ((ar + p_ar) / 2.0) / rev * 365.0
-            if inv is not None and p_inv is not None: dio = ((inv + p_inv) / 2.0) / cogs * 365.0
-            if ap is not None and p_ap is not None: dpo = ((ap + p_ap) / 2.0) / cogs * 365.0
-            if dso is not None and dio is not None and dpo is not None: ccc = dso + dio - dpo
+            if ar is not None and p_ar is not None:
+                dso = ((ar + p_ar) / 2.0) / rev * 365.0
+            if inv is not None and p_inv is not None:
+                dio = ((inv + p_inv) / 2.0) / cogs * 365.0
+            if ap is not None and p_ap is not None:
+                dpo = ((ap + p_ap) / 2.0) / cogs * 365.0
+            if dso is not None and dio is not None and dpo is not None:
+                ccc = dso + dio - dpo
         direct_dso = _n(row, "dso_days")
         direct_dio = _n(row, "dio_days")
         direct_dpo = _n(row, "dpo_days")
         direct_ccc = _n(row, "ccc_days", "cash_conversion_cycle_days")
-        if direct_dso is not None: dso = direct_dso
-        if direct_dio is not None: dio = direct_dio
-        if direct_dpo is not None: dpo = direct_dpo
-        if direct_ccc is not None: ccc = direct_ccc
+        if direct_dso is not None:
+            dso = direct_dso
+        if direct_dio is not None:
+            dio = direct_dio
+        if direct_dpo is not None:
+            dpo = direct_dpo
+        if direct_ccc is not None:
+            ccc = direct_ccc
         owc = None if ar is None or inv is None or ap is None else ar + inv - ap
         delta = None if owc is None or prev_owc is None else owc - prev_owc
         out.append({
@@ -354,7 +381,8 @@ def working_capital(df: pd.DataFrame) -> ToolResult:
             "Cash released/(absorbed)": None if delta is None else -delta,
         })
         prev = row
-        if owc is not None: prev_owc = owc
+        if owc is not None:
+            prev_owc = owc
     return ToolResult(
         "Working Capital / CCC Analyzer", ("Q31",), ("6.6",), out,
         ("CCC = DIO + DSO − DPO; proxy dùng Inventory/AR/AP bình quân hai kỳ.",
@@ -375,7 +403,7 @@ def maintenance_capex_context(df: pd.DataFrame) -> ToolResult:
             fcf = cfo - abs(capex)
         out.append({
             "Kỳ": _period(row), "Capex": None if capex is None else abs(capex),
-            "Maintenance Capex Trecapital": None if maintenance is None else abs(maintenance),
+            "Maintenance Capex Trecapital (ước tính)": None if maintenance is None else abs(maintenance),
             "D&A rough proxy": None if da is None else abs(da),
             "Capex / Revenue": None if capex is None or revenue is None or revenue == 0 else abs(capex) / revenue * 100.0,
             "Capex / D&A": None if capex is None or da is None or da == 0 else abs(capex) / abs(da),
@@ -383,7 +411,7 @@ def maintenance_capex_context(df: pd.DataFrame) -> ToolResult:
         })
     return ToolResult(
         "Maintenance Capex Context", ("Q32",), ("Key Points — Chapter 6",), out,
-        ("Nếu Trecapital đã có maintenance_capex_bil thì hiển thị riêng đúng field đó.",
+        ("Nếu Trecapital đã có maintenance_capex_bil thì hiển thị riêng và ghi rõ đây là ước tính của Trecapital.",
          "Shearn: khi không thể tính maintenance capex, depreciation có thể dùng như rough approximation — không phải maintenance capex thực tế.",
          "App không tự tách growth capex/maintenance capex nếu nguồn chưa đủ bằng chứng."),
     )
@@ -396,7 +424,7 @@ def buyback_dilution(df: pd.DataFrame) -> ToolResult:
     for row in rows:
         shares = _n(row, "shares_outstanding_mil", "weighted_avg_shares_mil")
         net_income = _n(row, "net_profit_bil", "net_income_bil")
-        eps = _eps(row)
+        eps, eps_source = _eps(row)
         gross_buyback = _n(row, "shares_repurchased_mil", "buyback_shares_mil")
         buyback_amount = _n(row, "buyback_bil")
         issued = _n(row, "shares_issued_mil", "esop_options_shares_mil", "stock_comp_shares_mil")
@@ -404,17 +432,20 @@ def buyback_dilution(df: pd.DataFrame) -> ToolResult:
         eps_without = net_income * 1000.0 / prev_shares if net_income is not None and prev_shares is not None and prev_shares > 0 else None
         out.append({
             "Kỳ": _period(row), "Shares outstanding": shares, "Net share reduction": net_reduction,
-            "Share count change": None if shares is None or prev_shares is None or prev_shares == 0 else (shares / prev_shares - 1.0) * 100.0,
+            "Share count change vs prior displayed period": None if shares is None or prev_shares is None or prev_shares == 0 else (shares / prev_shares - 1.0) * 100.0,
             "Buyback amount": None if buyback_amount is None else abs(buyback_amount),
             "Gross buyback shares": gross_buyback, "Shares issued / ESOP / options": issued,
             "Net buyback after dilution": None if gross_buyback is None or issued is None else gross_buyback - issued,
-            "EPS actual": eps, "EPS without share-count change": eps_without,
+            "EPS reported/derived": eps, "EPS source": eps_source,
+            "EPS without share-count change": eps_without,
             "EPS uplift from share-count change": None if eps is None or eps_without is None or eps_without == 0 else (eps / eps_without - 1.0) * 100.0,
         })
-        if shares is not None and shares > 0: prev_shares = shares
+        if shares is not None and shares > 0:
+            prev_shares = shares
     return ToolResult(
         "Buyback & Dilution Analyzer", ("Q46", "Q47"), ("8.2", "8.3"), out,
         ("Net share reduction theo dõi hiệu ứng thực lên số cổ phiếu lưu hành; gross buyback phải trừ shares issued/ESOP/options khi nguồn có dữ liệu.",
+         "EPS reported/derived ghi rõ nguồn; fallback Net income/shares chỉ là derived proxy, không được gọi là reported EPS.",
          "EPS without share-count change là analytical proxy dùng prior-period shares; không phải reported EPS."),
     )
 
@@ -424,23 +455,38 @@ def operating_driver_eps(df: pd.DataFrame, driver_field: str = "revenue_bil", dr
     out: list[dict[str, Any]] = []
     prev_driver = prev_eps = None
     for row in rows:
-        driver, eps = _n(row, driver_field), _eps(row)
-        dg, eg = _pct_change(driver, prev_driver), _pct_change(eps, prev_eps)
+        driver = _n(row, driver_field)
+        eps, eps_source = _eps(row)
+        # A single current TTM row is not directly comparable with the preceding FY row as a YoY
+        # growth observation. Display TTM levels but leave growth/divergence blank until a prior TTM
+        # comparable period exists.
+        if _is_ttm(row):
+            dg = eg = None
+        else:
+            dg, eg = _pct_change(driver, prev_driver), _pct_change(eps, prev_eps)
         divergence = None
         if dg is not None and eg is not None:
-            if dg < 0 < eg: divergence = "EPS ↑ trong khi driver ↓ — cần kiểm tra nguồn tăng earnings khác"
-            elif dg > 0 > eg: divergence = "Driver ↑ nhưng EPS ↓ — cần kiểm tra margin/cost/dilution"
-            else: divergence = "Cùng hướng"
+            if dg < 0 < eg:
+                divergence = "EPS ↑ trong khi driver ↓ — cần kiểm tra nguồn tăng earnings khác"
+            elif dg > 0 > eg:
+                divergence = "Driver ↑ nhưng EPS ↓ — cần kiểm tra margin/cost/dilution"
+            else:
+                divergence = "Cùng hướng"
         out.append({
             "Kỳ": _period(row), driver_label: driver,
             f"{driver_label} growth": None if dg is None else dg * 100.0,
-            "EPS": eps, "EPS growth": None if eg is None else eg * 100.0, "Signal": divergence,
+            "EPS reported/derived": eps, "EPS source": eps_source,
+            "EPS growth": None if eg is None else eg * 100.0, "Signal": divergence,
         })
-        if driver is not None: prev_driver = driver
-        if eps is not None: prev_eps = eps
+        if not _is_ttm(row):
+            if driver is not None:
+                prev_driver = driver
+            if eps is not None:
+                prev_eps = eps
     return ToolResult(
         "Operating Driver → EPS Analyzer", ("Q53", "Q54", "Q55", "Q56", "Q57"), ("10.1",), out,
         ("Đặt EPS cạnh operating metric phù hợp để phát hiện earnings tăng từ nguồn kém bền vững.",
+         "Một TTM hiện tại không được so tăng trưởng trực tiếp với FY trước; TTM vẫn hiển thị level nhưng growth/signal để trống nếu không có prior-TTM comparable.",
          "Revenue chỉ là driver mặc định; industry-specific driver được mở rộng ở Phase 3 Industry Overlay."),
     )
 
@@ -457,7 +503,12 @@ def accounting_quality_proxy(df: pd.DataFrame) -> ToolResult:
         inventory = _n(row, "inventory_bil")
         provision = _n(row, "bad_debt_provision_bil", "credit_loss_provision_bil", "provision_bil")
         charge_off = _n(row, "charge_off_bil", "write_off_bil")
-        rev_growth, ar_growth, inv_growth = _pct_change(revenue, prev_revenue), _pct_change(ar, prev_ar), _pct_change(inventory, prev_inventory)
+        if _is_ttm(row):
+            rev_growth = ar_growth = inv_growth = None
+        else:
+            rev_growth = _pct_change(revenue, prev_revenue)
+            ar_growth = _pct_change(ar, prev_ar)
+            inv_growth = _pct_change(inventory, prev_inventory)
         out.append({
             "Kỳ": _period(row), "Net income": ni, "CFO": cfo,
             "CFO / Net income": _safe_ratio(cfo, ni, positive_denominator=True),
@@ -467,12 +518,17 @@ def accounting_quality_proxy(df: pd.DataFrame) -> ToolResult:
             "AR growth": None if ar_growth is None else ar_growth * 100.0,
             "Inventory growth": None if inv_growth is None else inv_growth * 100.0,
         })
-        if revenue is not None: prev_revenue = revenue
-        if ar is not None: prev_ar = ar
-        if inventory is not None: prev_inventory = inventory
+        if not _is_ttm(row):
+            if revenue is not None:
+                prev_revenue = revenue
+            if ar is not None:
+                prev_ar = ar
+            if inventory is not None:
+                prev_inventory = inventory
     return ToolResult(
         "Accounting Reserve Quality Analyzer", ("Q27",), ("6.1", "6.2"), out,
         ("Không tính Beneish lần thứ hai; Module Manipulation vẫn là nguồn chính cho manipulation tests.",
          "Provision vs actual charge-off chỉ hiện khi Data Layer có line-item; thiếu dữ liệu thì để trống.",
-         "CFO/NI và tăng AR/Inventory nhanh hơn revenue là evidence để analyst điều tra, không phải kết luận tự động gian lận."),
+         "CFO/NI và tăng AR/Inventory nhanh hơn revenue là evidence để analyst điều tra, không phải kết luận tự động gian lận.",
+         "TTM hiện tại không được so growth trực tiếp với FY trước khi thiếu prior-TTM comparable."),
     )
