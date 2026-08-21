@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
 from pathlib import Path
 from typing import Optional, Union
 
@@ -13,6 +14,13 @@ from ..repositories.postgres_repository import PostgresChecklistRepository
 MODULE_ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = MODULE_ROOT / "catalog" / "question_catalog_prd.csv"
 ChecklistRepository = Union[SQLiteChecklistRepository, PostgresChecklistRepository]
+
+# Streamlit reruns the script for every widget change. Re-creating the repository on every
+# rerun caused schema checks + 59 question upserts + 10 screening upserts each time and also
+# destroyed any PostgreSQL connection pool. Keep one initialized repository per backend for
+# the lifetime of the Python process. Repository methods remain transaction-scoped/thread-safe.
+_REPOSITORY_CACHE: dict[tuple[str, str], ChecklistRepository] = {}
+_REPOSITORY_CACHE_LOCK = threading.Lock()
 
 
 def resolve_database_url(host: HostContext) -> Optional[str]:
@@ -34,14 +42,46 @@ def resolve_db_path(host: HostContext) -> Path:
     return MODULE_ROOT / "data" / "checklist_phase1b_dev.db"
 
 
-def build_repository(host: HostContext) -> ChecklistRepository:
+def _repository_key(host: HostContext) -> tuple[str, str]:
     database_url = resolve_database_url(host)
     if database_url:
-        repo = PostgresChecklistRepository(database_url, CATALOG_PATH)
-    else:
-        repo = SQLiteChecklistRepository(resolve_db_path(host), CATALOG_PATH)
-    repo.initialize()
-    return repo
+        # Do not expose the credential in logs/debug keys. The digest only separates backends.
+        digest = hashlib.sha256(database_url.encode("utf-8")).hexdigest()
+        return ("postgresql", digest)
+    return ("sqlite", str(resolve_db_path(host).resolve()))
+
+
+def build_repository(host: HostContext) -> ChecklistRepository:
+    key = _repository_key(host)
+    cached = _REPOSITORY_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    with _REPOSITORY_CACHE_LOCK:
+        cached = _REPOSITORY_CACHE.get(key)
+        if cached is not None:
+            return cached
+        database_url = resolve_database_url(host)
+        if database_url:
+            repo: ChecklistRepository = PostgresChecklistRepository(database_url, CATALOG_PATH)
+        else:
+            repo = SQLiteChecklistRepository(resolve_db_path(host), CATALOG_PATH)
+        repo.initialize()
+        _REPOSITORY_CACHE[key] = repo
+        return repo
+
+
+def clear_repository_cache() -> None:
+    """Test/dev hook. Production Streamlit normally keeps the cache for process lifetime."""
+    with _REPOSITORY_CACHE_LOCK:
+        for repo in _REPOSITORY_CACHE.values():
+            close = getattr(repo, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
+        _REPOSITORY_CACHE.clear()
 
 
 def persistence_backend(host: HostContext) -> str:
