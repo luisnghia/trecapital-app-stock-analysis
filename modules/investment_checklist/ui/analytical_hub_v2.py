@@ -3,6 +3,9 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+# Import first: installs the corrected formula-table renderer and correction-field selector into
+# portfolio_extensions before integration_preview imports those helpers.
+from . import phase2_2_fixes as _phase2_2_fixes  # noqa: F401
 from . import page as _page
 from . import quant_tools as _qt
 from .portfolio_extensions import (
