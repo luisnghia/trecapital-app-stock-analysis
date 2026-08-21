@@ -68,3 +68,30 @@ def test_missing_denominators_never_become_zero_or_fake_metrics():
     assert m["fcf_yield_market"] is None
     assert m["dividend_yield"] is None
     assert m["price_vs_target"] is None
+
+
+def test_negative_earnings_do_not_render_fake_cheap_multiples_but_negative_yields_remain_visible():
+    m = inventory_metrics(
+        tev=12_000,
+        ebit=-1_200,
+        ebitda=-500,
+        normalized_earnings=-1_000,
+        total_debt=2_000,
+        interest_expense=100,
+        fcf_current=-900,
+        market_cap=11_000,
+        dividend_per_share=0,
+        market_price=20_000,
+        target_price=25_000,
+    )
+    # Negative valuation/leverage multiples are economically non-comparable, not "cheap".
+    assert m["tev_ebit"] is None
+    assert m["tev_ebitda"] is None
+    assert m["tev_normalized_earnings"] is None
+    assert m["debt_ebitda"] is None
+    # Negative numerator yields/coverage are retained as risk signals when denominator is valid.
+    assert m["pretax_earnings_yield"] == -1_000 / 12_000
+    assert m["ebit_interest"] == -12.0
+    assert m["fcf_yield_ev"] == -900 / 12_000
+    assert m["fcf_yield_market"] == -900 / 11_000
+    assert m["dividend_yield"] == 0.0
