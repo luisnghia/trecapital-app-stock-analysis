@@ -45,7 +45,6 @@ def resolve_db_path(host: HostContext) -> Path:
 def _repository_key(host: HostContext) -> tuple[str, str]:
     database_url = resolve_database_url(host)
     if database_url:
-        # Do not expose the credential in logs/debug keys. The digest only separates backends.
         digest = hashlib.sha256(database_url.encode("utf-8")).hexdigest()
         return ("postgresql", digest)
     return ("sqlite", str(resolve_db_path(host).resolve()))
@@ -56,7 +55,6 @@ def build_repository(host: HostContext) -> ChecklistRepository:
     cached = _REPOSITORY_CACHE.get(key)
     if cached is not None:
         return cached
-
     with _REPOSITORY_CACHE_LOCK:
         cached = _REPOSITORY_CACHE.get(key)
         if cached is not None:
@@ -72,7 +70,6 @@ def build_repository(host: HostContext) -> ChecklistRepository:
 
 
 def clear_repository_cache() -> None:
-    """Test/dev hook. Production Streamlit normally keeps the cache for process lifetime."""
     with _REPOSITORY_CACHE_LOCK:
         for repo in _REPOSITORY_CACHE.values():
             close = getattr(repo, "close", None)
@@ -149,6 +146,7 @@ class ChecklistIntegrationService:
             market_price=data.market_price,
             fcf_estimate=data.fcf_estimate,
             target_price=data.target_price,
+            ccc_days=data.ccc_days,
             mos=data.mos if mos is None else mos,
             thesis_direction=thesis_direction,
             note=note,
