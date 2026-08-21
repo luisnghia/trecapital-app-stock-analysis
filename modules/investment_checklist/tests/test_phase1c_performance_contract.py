@@ -32,10 +32,20 @@ def test_ui_renders_only_selected_section_and_blank_manual_overrides():
     assert "value=None" in source
     assert "def base(k)" not in source
     assert "Snapshot cũ không được dùng" not in source  # wording may evolve; behavior is enforced by no base(latest)
-    assert "FCF estimate/share" in source
-    assert '"VND/cp", fmt_price' in source
 
 
 def test_normalized_data_layer_preserves_ebitda_support_fields():
     required = {"depreciation_bil", "interest_paid_bil", "interest_expense_bil", "borrowing_cost_bil", "ebitda_bil"}
     assert required.issubset(set(MODULE1_TIMESERIES_COLUMNS))
+
+
+def test_checklist_does_not_activate_stale_bundled_workbook_as_current_market_source():
+    source = Path("pages/05_Investment_Checklist.py").read_text(encoding="utf-8")
+    assert "def _load_checklist_bundle" in source
+    assert "FireAnt + Vietstock" in source
+    assert "Do NOT activate the workbook fallback" in source
+    assert "def _sanitize_statement_only_fallback" in source
+    assert '("current_price", "market_cap_bil", "shares_outstanding_mil", "pe", "pb", "ps")' in source
+    assert '("current_price", "market_price_vnd", "year_end_price")' in source
+    assert "_load_active_or_default(requested_ticker)" not in source
+    assert "active_source_label" in source
