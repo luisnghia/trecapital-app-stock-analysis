@@ -41,6 +41,10 @@ class SQLiteChecklistRepository:
     def initialize(self):
         with self._conn() as c:
             c.executescript(SCHEMA_SQL)
+            # Backward-compatible local/dev migration. Production PostgreSQL uses ADD COLUMN IF NOT EXISTS.
+            cols = {str(r[1]) for r in c.execute("PRAGMA table_info(opportunity_inventory_snapshots)")}
+            if "ccc_days" not in cols:
+                c.execute("ALTER TABLE opportunity_inventory_snapshots ADD COLUMN ccc_days REAL")
             for q in load_questions(self.question_catalog_path):
                 c.execute("""INSERT INTO checklist_questions(question_id,question_no,group_name,question_vi,guidance,research_mode,supporting_tool)
                 VALUES(?,?,?,?,?,?,?) ON CONFLICT(question_id) DO UPDATE SET question_no=excluded.question_no,group_name=excluded.group_name,
@@ -185,8 +189,25 @@ class SQLiteChecklistRepository:
                     s=self.latest_screening(rv['id'],cr['criterion_code'],conn=c); val=s['analyst_value'] if s else 'unknown'; row[cr['criterion_name_vi']]=val; tally += val=='yes'
                 row['Total ✓']=tally; out.append(row)
             return out
+    def screening_history_matrix(self,cid):
+        """Return one Table 1.1 row per review using the latest version of each criterion."""
+        with self._conn() as c:
+            reviews=[dict(r) for r in c.execute("SELECT * FROM research_reviews WHERE company_ref_id=? ORDER BY as_of_date DESC,id DESC",(cid,))]
+            criteria=[dict(r) for r in c.execute("SELECT * FROM screening_criteria ORDER BY display_order")]
+            all_rows=[dict(r) for r in c.execute("SELECT * FROM screening_assessments WHERE company_ref_id=? ORDER BY review_id,criterion_code,version_no,id",(cid,))]
+        latest={}
+        for s in all_rows:
+            latest[(s['review_id'],s['criterion_code'])]=s
+        out=[]
+        for rv in reviews:
+            row={'Review #':rv['id'],'As of':rv['as_of_date'],'Type':rv['review_type'],'Status':rv['status']}; tally=0
+            for cr in criteria:
+                s=latest.get((rv['id'],cr['criterion_code'])); val=s['analyst_value'] if s else 'unknown'
+                row[cr['criterion_name_vi']]=val; tally += val=='yes'
+            row['Total ✓']=tally; out.append(row)
+        return out
 
-    def save_inventory_snapshot(self,*,company_ref_id,as_of_date,review_id=None,tev=None,ebit=None,ebitda=None,normalized_earnings=None,total_debt=None,interest_expense=None,fcf_current=None,market_cap=None,dividend_per_share=None,market_price=None,fcf_estimate=None,target_price=None,mos=None,thesis_direction='unknown',note='',actor='analyst',data_origin='manual',source_as_of_date=None):
+    def save_inventory_snapshot(self,*,company_ref_id,as_of_date,review_id=None,tev=None,ebit=None,ebitda=None,normalized_earnings=None,total_debt=None,interest_expense=None,fcf_current=None,market_cap=None,dividend_per_share=None,market_price=None,fcf_estimate=None,target_price=None,ccc_days=None,mos=None,thesis_direction='unknown',note='',actor='analyst',data_origin='manual',source_as_of_date=None):
         if thesis_direction not in {'up','flat','down','unknown'} or data_origin not in {'manual','host_data_layer','mixed'}: raise ValidationError('Inventory metadata không hợp lệ.')
         asof=self._date(as_of_date); met=inventory_metrics(tev=tev,ebit=ebit,ebitda=ebitda,normalized_earnings=normalized_earnings,total_debt=total_debt,interest_expense=interest_expense,fcf_current=fcf_current,market_cap=market_cap,dividend_per_share=dividend_per_share,market_price=market_price,target_price=target_price)
         with self._conn() as c:
@@ -194,7 +215,7 @@ class SQLiteChecklistRepository:
                 x=c.execute("SELECT id FROM research_reviews WHERE company_ref_id=? ORDER BY as_of_date DESC,id DESC LIMIT 1",(company_ref_id,)).fetchone(); review_id=x['id'] if x else None
             q=self.quality_tally(review_id,conn=c) if review_id else 0; rm=self.review_metrics(review_id,conn=c) if review_id else {'answered':0,'research_completion':0.0,'critical_unknowns':0,'red_flags':0}
             v=c.execute("SELECT COALESCE(MAX(version_no),0) v FROM opportunity_inventory_snapshots WHERE company_ref_id=? AND as_of_date=?",(company_ref_id,asof)).fetchone()['v']+1
-            fields={'company_ref_id':company_ref_id,'as_of_date':asof,'version_no':v,'data_origin':data_origin,'source_as_of_date':source_as_of_date,'tev':tev,'ebit':ebit,'ebitda':ebitda,'normalized_earnings':normalized_earnings,'total_debt':total_debt,'interest_expense':interest_expense,'fcf_current':fcf_current,'market_cap':market_cap,'dividend_per_share':dividend_per_share,'market_price':market_price,'fcf_estimate':fcf_estimate,'target_price':target_price,**met,'quality_tally':q,'checklist_answered':rm['answered'],'research_completion':rm['research_completion'],'critical_unknowns':rm['critical_unknowns'],'red_flags':rm['red_flags'],'mos':mos,'thesis_direction':thesis_direction,'last_review_id':review_id,'note':str(note or '').strip()}
+            fields={'company_ref_id':company_ref_id,'as_of_date':asof,'version_no':v,'data_origin':data_origin,'source_as_of_date':source_as_of_date,'tev':tev,'ebit':ebit,'ebitda':ebitda,'normalized_earnings':normalized_earnings,'total_debt':total_debt,'interest_expense':interest_expense,'fcf_current':fcf_current,'market_cap':market_cap,'dividend_per_share':dividend_per_share,'market_price':market_price,'fcf_estimate':fcf_estimate,'target_price':target_price,'ccc_days':ccc_days,**met,'quality_tally':q,'checklist_answered':rm['answered'],'research_completion':rm['research_completion'],'critical_unknowns':rm['critical_unknowns'],'red_flags':rm['red_flags'],'mos':mos,'thesis_direction':thesis_direction,'last_review_id':review_id,'note':str(note or '').strip()}
             cur=c.execute(f"INSERT INTO opportunity_inventory_snapshots({','.join(fields)}) VALUES({','.join('?' for _ in fields)})",tuple(fields.values())); iid=cur.lastrowid
             self._audit(c,company_ref_id=company_ref_id,review_id=review_id,actor=actor,action='create_snapshot',entity_type='opportunity_inventory',entity_id=iid,after=self._d(c.execute("SELECT * FROM opportunity_inventory_snapshots WHERE id=?",(iid,)).fetchone())); return iid
     def inventory_history(self,cid):
