@@ -20,10 +20,14 @@ class ValuationRange:
 
 
 def df(ticker, op, ebitda, pretax, debt, net_debt, fcf):
+    cash = None
+    if debt is not None and net_debt is not None:
+        cash = debt - net_debt
     return pd.DataFrame([{
         "ticker": ticker, "period": "2026 TTM", "operating_profit_bil": op,
         "ebitda_bil": ebitda, "pretax_profit_bil": pretax,
         "interest_bearing_debt_bil": debt, "net_debt_bil": net_debt,
+        "cash_and_short_investments_bil": cash,
         "free_cash_flow_bil": fcf,
     }])
 
@@ -88,24 +92,22 @@ def test_fcf_is_derived_from_trecapital_cfo_and_capex_and_estimate_is_per_share_
         "ticker": "AAA", "period": "2026 TTM",
         "pretax_profit_bil": 900.0,
         "cfo_bil": 1500.0,
-        "capex_bil": 400.0,  # provider may store capex positive; bridge treats it as an outflow
+        "capex_bil": 400.0,
         "free_cash_flow_bil": None,
         "shares_outstanding_mil": 500.0,
     }])
     x = CurrentRepoDataProvider(Company("AAA", 10000.0, 20000.0, 500.0), d).get_inventory_source_data(None)
     assert x.fcf_current == 1100.0
-    assert x.fcf_estimate == 2200.0  # 1,100 tỷ / 500 triệu cp = 2,200 VND/cp
+    assert x.fcf_estimate == 2200.0
     assert any("FCF 2026 TTM = CFO - |Capex|" in note for note in x.source_notes)
     assert any("FCF estimate/share tự động" in note for note in x.source_notes)
 
 
 def test_module2_valuation_callable_is_lazy_until_inventory_prefill():
     called = {"n": 0}
-
     def valuation():
         called["n"] += 1
         return ValuationRange(35000, 20.0)
-
     provider = CurrentRepoDataProvider(Company("HPG", 180000, 27000), df("HPG", 18000, 26000, 16500, 70000, 50000, 10000), valuation)
     assert called["n"] == 0
     x = provider.get_inventory_source_data(None)
@@ -113,20 +115,15 @@ def test_module2_valuation_callable_is_lazy_until_inventory_prefill():
 
 
 def test_dcm_like_bad_overview_units_are_reconciled_from_trecapital_financials():
-    # Reproduces the deployed pathology: overview price/market-cap/share count are grossly
-    # inconsistent with DCM's own Trecapital financial series. The bridge must not propagate
-    # 363,470,000 "tỷ đồng" into Table 1.2 or Module 2.
     d = df("DCM", 2871.0, None, 2581.0, 2582.0, -100.0, -811.0)
     d["depreciation_bil"] = 420.0
     d["interest_paid_bil"] = -83.0
     d["shares_outstanding_mil"] = 3664.0
     d["net_profit_bil"] = 2000.0
-    d["eps_vnd"] = 3778.0  # implies about 529.4m shares
+    d["eps_vnd"] = 3778.0
     d["year_end_price"] = 31300.0
     d["cash_dividend_bil"] = -1000.0
-
     seen = {}
-
     def valuation(safe_company, safe_annual):
         seen["price"] = safe_company.current_price
         seen["market_cap"] = safe_company.market_cap_bil
@@ -134,11 +131,7 @@ def test_dcm_like_bad_overview_units_are_reconciled_from_trecapital_financials()
         ttm = safe_annual.iloc[-1]
         seen["ttm_shares"] = float(ttm["shares_outstanding_mil"])
         return ValuationRange(40000.0, 21.75)
-
-    x = CurrentRepoDataProvider(
-        Company("DCM", 363_470_000.0, 99_200.0, 3664.0), d, valuation
-    ).get_inventory_source_data(None)
-
+    x = CurrentRepoDataProvider(Company("DCM", 363_470_000.0, 99_200.0, 3664.0), d, valuation).get_inventory_source_data(None)
     inferred_shares = 2000.0 * 1000.0 / 3778.0
     expected_cap = 31300.0 * inferred_shares / 1000.0
     assert abs(x.shares_outstanding_mil - inferred_shares) < 0.01
@@ -163,15 +156,8 @@ def test_dcm_like_bad_overview_units_are_reconciled_from_trecapital_financials()
 
 def test_ttm_blank_ebit_and_ebitda_fall_back_to_latest_trecapital_period():
     d = pd.DataFrame([
-        {
-            "ticker": "AAA", "period": "2025", "operating_profit_bil": 900.0,
-            "depreciation_bil": 100.0, "pretax_profit_bil": 800.0,
-            "free_cash_flow_bil": 500.0,
-        },
-        {
-            "ticker": "AAA", "period": "2026 TTM", "operating_profit_bil": None,
-            "ebitda_bil": None, "pretax_profit_bil": 850.0, "free_cash_flow_bil": 520.0,
-        },
+        {"ticker": "AAA", "period": "2025", "operating_profit_bil": 900.0, "depreciation_bil": 100.0, "pretax_profit_bil": 800.0, "free_cash_flow_bil": 500.0},
+        {"ticker": "AAA", "period": "2026 TTM", "operating_profit_bil": None, "ebitda_bil": None, "pretax_profit_bil": 850.0, "free_cash_flow_bil": 520.0},
     ])
     x = CurrentRepoDataProvider(Company("AAA", 5000.0, 20000.0), d).get_inventory_source_data(None)
     assert x.ebit == 900.0
