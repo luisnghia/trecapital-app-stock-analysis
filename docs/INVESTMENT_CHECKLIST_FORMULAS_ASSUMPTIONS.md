@@ -17,13 +17,13 @@ Tài liệu vận hành này đi cùng `modules/investment_checklist/formula_ass
 | Chỉ tiêu | Công thức | Xử lý thiếu dữ liệu / giả định |
 |---|---|---|
 | TEV | Market Cap + Interest-bearing Debt − Cash & Cash Equivalents − Short-term Investments | Debt chưa xác định ⇒ TEV để trống; không suy diễn debt=0. |
-| TEV/EBIT | TEV / EBIT | EBIT ưu tiên dữ liệu trực tiếp; fallback được ghi rõ. EBIT ≤ 0 cần được xem là metric định giá không có ý nghĩa kinh tế chuẩn. |
-| TEV/EBITDA | TEV / EBITDA | EBITDA ≤ 0 không dùng như valuation multiple. |
-| Normalized Earnings | Ưu tiên normalized pre-tax earnings được engine/analyst xác nhận | Raw TTM pre-tax chỉ là baseline proxy cho DN thường; cyclical chưa chuẩn hóa ⇒ để trống. |
-| TEV/Normalized Earnings | TEV / Normalized Earnings | Chỉ tính khi normalized earnings hợp lệ. |
-| Pre-tax Earnings Yield | Normalized Earnings / TEV | Không có normalized earnings hoặc TEV ⇒ để trống. |
+| TEV/EBIT | TEV / EBIT | EBIT ưu tiên dữ liệu trực tiếp; fallback được ghi rõ. EBIT ≤ 0 ⇒ multiple định giá để trống. |
+| TEV/EBITDA | TEV / EBITDA | EBITDA ≤ 0 ⇒ valuation multiple để trống. |
+| Normalized Earnings | Ưu tiên normalized pre-tax earnings được engine/analyst xác nhận đúng cùng kỳ | Raw TTM pre-tax chỉ là baseline proxy cho DN thường; cyclical chưa chuẩn hóa ⇒ để trống. Normalized annual năm cũ không được dùng để hợp thức hóa raw TTM. |
+| TEV/Normalized Earnings | TEV / Normalized Earnings | Chỉ tính khi normalized earnings cùng kỳ hợp lệ và dương. |
+| Pre-tax Earnings Yield | EBIT / TEV | Được xác minh trực tiếp từ Bảng 1.2 Shearn: WU 10.1x ↔ 9.9%; WFM 19.1x ↔ 5.2%; Dell 6.0x ↔ 16.8%. Đây là nghịch đảo TEV/EBIT, không phải Normalized Earnings/TEV. |
 | Debt/EBITDA | Interest-bearing Debt / EBITDA | EBITDA ≤ 0 ⇒ ratio leverage không có ý nghĩa chuẩn. Nên xem 10Y + TTM thay vì một snapshot. |
-| EBIT/Interest | EBIT / abs(Interest Expense) | Không thay toàn bộ Financial Expense cho Interest Expense khi chưa tách được lãi vay. |
+| EBIT/Interest | EBIT / abs(Interest Expense) | Không thay toàn bộ Financial Expense cho Interest Expense khi chưa tách được lãi vay. EBIT âm vẫn có thể hiển thị như tín hiệu không đủ coverage. |
 | FCF | CFO − abs(Capex) | Ưu tiên FCF trực tiếp nếu Data Layer đã chuẩn hóa. Total capex không đồng nghĩa maintenance capex. |
 | FCF Yield EV | FCF / TEV | FCF âm được giữ vì là tín hiệu cash burn; TEV thiếu ⇒ để trống. |
 | FCF Yield Market | FCF / Market Cap | Market Cap phải reconcile với Price × Shares khi lệch vật chất. |
@@ -44,7 +44,7 @@ Tài liệu vận hành này đi cùng `modules/investment_checklist/formula_ass
 
 ### Cyclical
 
-Michael Shearn phân biệt doanh nghiệp có distribution of future earnings hẹp và rộng. Khi earnings distribution rộng như cyclical, point estimate dựa trên raw TTM dễ gây sai lệch. Vì vậy raw TTM pre-tax profit không được gắn nhãn `Normalized Earnings`; chỉ dùng khi có normalized input hoặc scenario/analyst adjustment.
+Michael Shearn phân biệt doanh nghiệp có distribution of future earnings hẹp và rộng. Khi earnings distribution rộng như cyclical, point estimate dựa trên raw TTM dễ gây sai lệch. Vì vậy raw TTM pre-tax profit không được gắn nhãn `Normalized Earnings`; chỉ dùng khi có normalized input cùng kỳ hoặc scenario/analyst adjustment. TEV/EBIT và Pre-tax Earnings Yield hiện tại vẫn có thể được theo dõi như chỉ tiêu watchlist, nhưng không được biến thành point valuation kết luận cho cyclical.
 
 ### Bank / Insurance / Securities
 
@@ -68,6 +68,20 @@ Lịch sử bình thường là append-only. Xóa review là ngoại lệ hành 
 - xóa assessment/screening/snapshot thuộc review đó;
 - nối lại `prior_review_id` của review sau về prior của review bị xóa;
 - giữ audit tombstone để biết review nào đã bị xóa và vì sao.
+
+## Thuật ngữ tối thiểu
+
+- **TEV/EV:** Total Enterprise Value / Enterprise Value.
+- **EBIT:** Earnings Before Interest and Taxes.
+- **EBITDA:** EBIT trước khấu hao và phân bổ.
+- **FCF:** Free Cash Flow.
+- **CFO:** Cash Flow from Operations.
+- **Capex:** Capital Expenditure.
+- **CCC:** Cash Conversion Cycle = DIO + DSO − DPO.
+- **DIO/DSO/DPO:** số ngày tồn kho/phải thu/phải trả.
+- **MOS:** Margin of Safety.
+- **TTM/T12M:** Trailing Twelve Months.
+- **Research Gap:** khoảng trống nghiên cứu; không phải Neutral.
 
 ## Format hiển thị
 
