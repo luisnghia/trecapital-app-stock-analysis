@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import copy
 from pathlib import Path
 
 import pandas as pd
@@ -77,6 +78,91 @@ def _valuation_range(company, annual: pd.DataFrame):
         return None
 
 
+def _active_live_bundle(ticker: str):
+    """Return the existing active bundle only when it came from a fresh runtime update.
+
+    `Financial-v1.3.0.xlsm` contains useful statement history, but its TỔNG QUAN sheet is formula/
+    macro driven. openpyxl can only read the workbook's last cached formula values, so that sheet
+    must never be treated as today's quote merely because the ticker text matches.
+    """
+    ticker = m1._safe_ticker(ticker)
+    active = m1._safe_ticker(str(st.session_state.get("active_ticker", "")))
+    paths = [
+        st.session_state.get("active_overview_csv"),
+        st.session_state.get("active_year_csv"),
+        st.session_state.get("active_quarter_csv"),
+    ]
+    label = str(st.session_state.get("active_source_label", "") or "")
+    is_runtime_update = "Dữ liệu cập nhật" in label
+    if active == ticker and is_runtime_update and all(p and Path(str(p)).exists() for p in paths):
+        return Path(str(paths[0])), Path(str(paths[1])), Path(str(paths[2])), label, ticker, False
+    return None
+
+
+def _load_checklist_bundle(ticker: str):
+    """Use the same live Trecapital pipeline as main; workbook is statement-only fallback.
+
+    Root cause fixed here: the old Phase 1C page called `_load_active_or_default()`. On a fresh
+    Streamlit process that helper activates the bundled XLSM. The workbook's cached TỔNG QUAN
+    formulas can be years old (for example a 2021 quote), and that activation then prevents the
+    main page's auto-sync from running because an `active_ticker` already exists.
+    """
+    ticker = m1._safe_ticker(ticker) or "DCM"
+    active = _active_live_bundle(ticker)
+    if active:
+        return active
+
+    diagnostics = []
+    try:
+        result, source_key = m1._fetch_source(ticker, "FireAnt + Vietstock")
+        diagnostics.append(
+            f"live score={m1._result_score(result)}, overview={len(result.overview)}, năm={len(result.annual)}, quý={len(result.quarterly)}"
+        )
+        if m1._result_has_dashboard_data(result):
+            overview_csv, year_csv, quarter_csv, _counts = m1._export_provider_result_to_cache(result, ticker, source_key)
+            label = f"Dữ liệu cập nhật | {pd.Timestamp.now():%Y-%m-%d %H:%M:%S}"
+            m1._activate_data_source(overview_csv, year_csv, quarter_csv, label, ticker)
+            st.session_state["last_query_ticker"] = ticker
+            st.session_state["last_query_source"] = "FireAnt + Vietstock"
+            st.session_state["_last_auto_sync_attempt"] = f"{ticker}|FireAnt + Vietstock"
+            return overview_csv, year_csv, quarter_csv, label, ticker, False
+    except Exception as exc:
+        diagnostics.append(f"live error={exc}")
+
+    # Do NOT activate the workbook fallback in session state. It is allowed to supply financial
+    # statements to Checklist temporarily, but must not suppress the main app's next live auto-sync.
+    if m1.BUNDLED_XLSM.exists():
+        try:
+            overview, year, quarter, label = m1._export_bundled_financial_cached(
+                str(m1.BUNDLED_XLSM), ticker, str(m1.DATA_CACHE_DIR)
+            )
+            fallback_label = "Dữ liệu tích hợp dự phòng — chỉ dùng BCTC, không dùng cached quote làm giá hiện tại"
+            st.session_state["checklist_live_load_diagnostics"] = diagnostics
+            return Path(overview), Path(year), Path(quarter), fallback_label, ticker, True
+        except Exception as exc:
+            diagnostics.append(f"workbook error={exc}")
+
+    st.session_state["checklist_live_load_diagnostics"] = diagnostics
+    return m1.DEFAULT_OVERVIEW_CSV, m1.DEFAULT_YEAR_CSV, m1.DEFAULT_QUARTER_CSV, "Dữ liệu mẫu — không phải dữ liệu thị trường hiện tại", ticker, True
+
+
+def _sanitize_statement_only_fallback(company, annual: pd.DataFrame):
+    """Never let cached workbook quote fields masquerade as today's market data."""
+    safe_company = copy(company)
+    for field in ("current_price", "market_cap_bil", "shares_outstanding_mil", "pe", "pb", "ps"):
+        try:
+            setattr(safe_company, field, None)
+        except Exception:
+            pass
+    safe_annual = annual.copy() if isinstance(annual, pd.DataFrame) else pd.DataFrame()
+    # Historical year-end prices are valid historical facts, but are not today's quote. The
+    # Checklist bridge must not substitute them for a missing live market price.
+    for field in ("current_price", "market_price_vnd", "year_end_price"):
+        if field in safe_annual.columns:
+            safe_annual[field] = pd.NA
+    return safe_company, safe_annual
+
+
 def render_page() -> None:
     m1._inject_runtime_ui_css(); inject_oaktree_theme(); apply_full_width()
     m1._render_brand_page_header(
@@ -93,27 +179,46 @@ def render_page() -> None:
         else:
             st.warning("Lưu trữ Checklist: SQLite local/dev — chưa dùng cho dữ liệu production")
 
-    overview_csv, year_csv, quarter_csv, source_label, active_ticker = m1._load_active_or_default(requested_ticker)
+    overview_csv, year_csv, quarter_csv, source_label, active_ticker, statement_only_fallback = _load_checklist_bundle(requested_ticker)
     company = m1._load_overview_cached(str(overview_csv), active_ticker)
     annual_raw = m1._load_timeseries_cached(str(year_csv), active_ticker, "Y", 10)
     quarterly = m1._load_timeseries_cached(str(quarter_csv), active_ticker, "Q", 20)
     annual = append_ttm_row(annual_raw, quarterly)
 
-    # From this point on every module key follows the data that was actually loaded, not a stale
-    # session label. The sidebar therefore cannot claim one ticker while Table 1.2 reads another.
-    st.session_state["shared_ticker"] = company.ticker
-    st.session_state["active_ticker"] = company.ticker
-    st.session_state["module1_ticker"] = company.ticker
-    st.session_state["module2_ticker"] = company.ticker
+    if statement_only_fallback:
+        company, annual = _sanitize_statement_only_fallback(company, annual)
+        st.warning(
+            "Nguồn live chưa trả đủ dữ liệu trong lần tải này. Checklist chỉ dùng BCTC từ dữ liệu tích hợp; "
+            "giá hiện tại/vốn hóa/P-E/P-B/P-S cached trong workbook bị loại bỏ vì có thể là giá trị công thức cũ. "
+            "Khi quay lại Tổng quan, app sẽ tiếp tục thử pipeline live thay vì coi workbook là nguồn đang hoạt động."
+        )
+
+    # Only a true live runtime bundle is allowed to become the cross-page active source. A workbook
+    # fallback remains local to this Checklist render and therefore cannot poison Tổng quan/Module 2.
+    if not statement_only_fallback:
+        st.session_state["shared_ticker"] = company.ticker
+        st.session_state["active_ticker"] = company.ticker
+        st.session_state["module1_ticker"] = company.ticker
+        st.session_state["module2_ticker"] = company.ticker
+    else:
+        st.session_state["shared_ticker"] = active_ticker
+        st.session_state["module1_ticker"] = active_ticker
+        st.session_state["module2_ticker"] = active_ticker
+        # Remove any stale workbook activation left by an earlier Phase 1C process/version.
+        if "Dữ liệu tích hợp" in str(st.session_state.get("active_source_label", "")):
+            for key in ("active_ticker", "active_overview_csv", "active_year_csv", "active_quarter_csv", "active_source_label"):
+                st.session_state.pop(key, None)
+
     with st.sidebar:
-        st.caption(f"Checklist đang dùng dữ liệu thực tế: **{company.ticker}**")
+        st.caption(f"Checklist đang dùng dữ liệu thực tế: **{active_ticker}**")
         st.caption(f"Nguồn đang hoạt động: {m1._safe_source_label(source_label)}")
 
     industry = m1._display_industry_value(getattr(company, "industry", ""))
     host = HostContext(
         company=CompanyContext(
-            company_key=f"TICKER:{company.ticker}", ticker=company.ticker,
-            company_name=company.company_name, exchange=getattr(company, "exchange", "UNKNOWN") or "UNKNOWN",
+            company_key=f"TICKER:{active_ticker}", ticker=active_ticker,
+            company_name=getattr(company, "company_name", "") or active_ticker,
+            exchange=getattr(company, "exchange", "UNKNOWN") or "UNKNOWN",
             industry_name=industry, company_type=_company_type(industry),
             metadata={"sub_industry": getattr(company, "sub_industry", "")},
         ),
@@ -123,7 +228,8 @@ def render_page() -> None:
     )
 
     # Valuation is deliberately lazy. The bridge passes a reconciled Trecapital company/TTM frame
-    # into Module 2 only when Table 1.2 is opened, so bad overview units cannot corrupt target price.
+    # into Module 2 only when Table 1.2 is opened. A statement-only fallback has no current market
+    # quote, so MOS remains unavailable rather than using a stale cached workbook quote.
     render_investment_checklist(
         host,
         data_provider=CurrentRepoDataProvider(
