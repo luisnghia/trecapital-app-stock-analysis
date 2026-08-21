@@ -132,7 +132,9 @@ class SourcePolicyDataProvider:
         if self.company_type == "cyclical":
             notes.append(
                 "CẢNH BÁO: Doanh nghiệp chu kỳ chưa có normalized earnings cùng kỳ được xác nhận; "
-                "raw TTM/pre-tax profit không được dùng thay normalized earnings. TEV/Norm.E và Pre-tax yield để trống chờ analyst/scenario."
+                "raw TTM/pre-tax profit không được dùng thay normalized earnings nên TEV/Norm.E để trống chờ analyst/scenario. "
+                "Pre-tax Earnings Yield vẫn được theo dõi như chỉ tiêu watchlist hiện tại vì theo Bảng 1.2 Shearn nó = EBIT/TEV, "
+                "nhưng không được dùng như point valuation thay cho chuẩn hóa chu kỳ."
             )
             return replace(data, normalized_earnings=None, source_notes=tuple(notes))
 
