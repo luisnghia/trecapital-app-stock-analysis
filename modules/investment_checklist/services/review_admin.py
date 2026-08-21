@@ -1,0 +1,112 @@
+from __future__ import annotations
+
+"""Administrative review deletion with explicit confirmation and audit preservation.
+
+Normal checklist history is append-only. This service is the deliberate manual exception requested
+for cleaning wrong/test reviews. It removes only records owned by the selected review, rewires later
+review lineage to the deleted review's prior review, and keeps audit logs as tombstones.
+"""
+
+from typing import Any
+
+from ..repositories.sqlite_repository import ValidationError
+
+
+def review_delete_token(review_id: int) -> str:
+    return f"XÓA REVIEW #{int(review_id)}"
+
+
+def review_delete_preview(repo, review_id: int) -> dict[str, Any]:
+    review = repo.get_review(review_id)
+    if not review:
+        raise ValidationError("Review không tồn tại.")
+    with repo._conn() as c:
+        counts = {
+            "analyst_assessments": int(c.execute("SELECT COUNT(*) n FROM analyst_assessments WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "screening_assessments": int(c.execute("SELECT COUNT(*) n FROM screening_assessments WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "inventory_snapshots": int(c.execute("SELECT COUNT(*) n FROM opportunity_inventory_snapshots WHERE last_review_id=?", (review_id,)).fetchone()["n"]),
+            "immutable_snapshots": int(c.execute("SELECT COUNT(*) n FROM data_snapshots WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
+        }
+    return {"review": review, "counts": counts, "confirmation_token": review_delete_token(review_id)}
+
+
+def delete_review_manually(
+    repo,
+    review_id: int,
+    *,
+    actor: str,
+    reason: str,
+    confirmation_text: str,
+) -> dict[str, Any]:
+    reason = str(reason or "").strip()
+    if not reason:
+        raise ValidationError("Lý do xóa review là bắt buộc.")
+    expected = review_delete_token(review_id)
+    if str(confirmation_text or "").strip() != expected:
+        raise ValidationError(f"Nhập đúng chuỗi xác nhận: {expected}")
+
+    with repo._conn() as c:
+        review = repo.get_review(review_id, conn=c)
+        if not review:
+            raise ValidationError("Review không tồn tại hoặc đã bị xóa.")
+        company_ref_id = int(review["company_ref_id"])
+        prior_review_id = review.get("prior_review_id")
+
+        assessment_ids = [int(r["id"]) for r in c.execute("SELECT id FROM analyst_assessments WHERE review_id=?", (review_id,))]
+        screening_ids = [int(r["id"]) for r in c.execute("SELECT id FROM screening_assessments WHERE review_id=?", (review_id,))]
+
+        counts = {
+            "analyst_assessments": len(assessment_ids),
+            "screening_assessments": len(screening_ids),
+            "inventory_snapshots": int(c.execute("SELECT COUNT(*) n FROM opportunity_inventory_snapshots WHERE last_review_id=?", (review_id,)).fetchone()["n"]),
+            "immutable_snapshots": int(c.execute("SELECT COUNT(*) n FROM data_snapshots WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
+        }
+
+        # Preserve later review chains. If B pointed to deleted A, B now points to A's prior review.
+        c.execute("UPDATE research_reviews SET prior_review_id=? WHERE prior_review_id=?", (prior_review_id, review_id))
+
+        # Explicit carry-forward references must not block deletion of the source assessment rows.
+        if assessment_ids:
+            marks = ",".join("?" for _ in assessment_ids)
+            c.execute(f"UPDATE analyst_assessments SET copied_from_assessment_id=NULL WHERE copied_from_assessment_id IN ({marks})", tuple(assessment_ids))
+        if screening_ids:
+            marks = ",".join("?" for _ in screening_ids)
+            c.execute(f"UPDATE screening_assessments SET copied_from_screening_id=NULL WHERE copied_from_screening_id IN ({marks})", tuple(screening_ids))
+
+        # Existing audit entries are kept but detached from the soon-to-be-deleted FK row.
+        c.execute("UPDATE audit_logs SET review_id=NULL WHERE review_id=?", (review_id,))
+
+        # Review-owned snapshots/versions are deleted together with the review to avoid orphan history.
+        c.execute("DELETE FROM data_snapshots WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM opportunity_inventory_snapshots WHERE last_review_id=?", (review_id,))
+        c.execute("DELETE FROM analyst_assessments WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM screening_assessments WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM research_reviews WHERE id=?", (review_id,))
+
+        tombstone = {
+            "deleted_review": review,
+            "deleted_counts": counts,
+            "delete_reason": reason,
+            "lineage_rewired_to": prior_review_id,
+        }
+        repo._audit(
+            c,
+            company_ref_id=company_ref_id,
+            review_id=None,
+            actor=actor,
+            action="manual_delete",
+            entity_type="review_tombstone",
+            entity_id=review_id,
+            before=tombstone,
+            after=None,
+        )
+
+    return {
+        "review_id": int(review_id),
+        "company_ref_id": company_ref_id,
+        "counts": counts,
+        "reason": reason,
+        "lineage_rewired_to": prior_review_id,
+    }
