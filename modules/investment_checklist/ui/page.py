@@ -133,7 +133,7 @@ def _source_cards(pre):
         ("Interest expense", pre.interest_expense, "tỷ đồng", fmt_vnd_bn), ("Current FCF", pre.fcf_current, "tỷ đồng", fmt_vnd_bn),
         ("Market cap", pre.market_cap, "tỷ đồng", fmt_vnd_bn), ("Shares outstanding", pre.shares_outstanding_mil, "triệu cp", fmt_vnd_bn),
         ("Dividend/share", pre.dividend_per_share, "VND/cp", fmt_price), ("Market price", pre.market_price, "VND/cp", fmt_price),
-        ("FCF Estimate", pre.fcf_estimate, "tỷ đồng", fmt_vnd_bn), ("Target price", pre.target_price, "VND/cp", fmt_price), ("MOS", pre.mos, "%", fmt_pct),
+        ("FCF estimate/share", pre.fcf_estimate, "VND/cp", fmt_price), ("Target price", pre.target_price, "VND/cp", fmt_price), ("MOS", pre.mos, "%", fmt_pct),
     ]
     for start in range(0, len(items), 4):
         cols = st.columns(4)
@@ -245,7 +245,7 @@ def _render_table11(repo, review, actor):
 
 def _render_table12(repo, integration, cid, review, actor):
     st.markdown("#### Table 1.2 — Opportunity Inventory")
-    st.caption("Quy chuẩn hiển thị: tỷ đồng 0 số thập phân; % và hệ số 1 số thập phân; số âm đỏ, số dương xanh ngọc lục bảo.")
+    st.caption("Quy chuẩn hiển thị: tỷ đồng 0 số thập phân; % và hệ số 1 số thập phân; số âm đỏ, số dương xanh ngọc lục bảo. FCF estimate hiển thị theo VND/cp như Table 1.2 gốc.")
     pre = integration.get_inventory_prefill()
 
     if pre:
@@ -279,7 +279,7 @@ def _render_table12(repo, integration, cid, review, actor):
             c = st.columns(4)
             dps_o = _override_input(c[0], "Điều chỉnh Dividend/share (VND)", auto.get("dividend_per_share"), f"ov_dps_{cid}", formatter=fmt_price)
             price_o = _override_input(c[1], "Điều chỉnh Market price (VND)", auto.get("market_price"), f"ov_price_{cid}", formatter=fmt_price)
-            fcf_est_o = _override_input(c[2], "Điều chỉnh FCF Estimate (tỷ)", auto.get("fcf_estimate"), f"ov_fcf_est_{cid}")
+            fcf_est_o = _override_input(c[2], "Điều chỉnh FCF estimate/share (VND)", auto.get("fcf_estimate"), f"ov_fcf_est_{cid}", formatter=fmt_price)
             target_o = _override_input(c[3], "Điều chỉnh Target price (VND)", auto.get("target_price"), f"ov_target_{cid}", formatter=fmt_price)
             c = st.columns([1, 1, 3])
             mos_auto_pct = None if auto.get("mos") is None else float(auto["mos"]) * 100
