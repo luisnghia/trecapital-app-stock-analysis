@@ -40,10 +40,7 @@ def render_wrapped_table_fixed(df: pd.DataFrame, *, css_class: str = "checklist-
         <div class="{css_class}-wrap">{html}</div>
         """
     ).strip()
-    if hasattr(st, "html"):
-        st.html(fragment)
-    else:
-        st.markdown(fragment, unsafe_allow_html=True)
+    st.markdown(fragment, unsafe_allow_html=True)
 
 
 def metric_candidates_fixed(df: pd.DataFrame, excluded: Iterable[str]) -> list[str]:
