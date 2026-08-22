@@ -10,6 +10,7 @@ review lineage to the deleted review's prior review, and keeps audit logs as tom
 from typing import Any
 
 from ..repositories.sqlite_repository import ValidationError
+from .peer_snapshots import ensure_peer_snapshot_schema
 
 
 def review_delete_token(review_id: int) -> str:
@@ -17,6 +18,7 @@ def review_delete_token(review_id: int) -> str:
 
 
 def review_delete_preview(repo, review_id: int) -> dict[str, Any]:
+    ensure_peer_snapshot_schema(repo)
     review = repo.get_review(review_id)
     if not review:
         raise ValidationError("Review không tồn tại.")
@@ -27,6 +29,7 @@ def review_delete_preview(repo, review_id: int) -> dict[str, Any]:
             "evidence_links": int(c.execute("SELECT COUNT(*) n FROM evidence_question_links WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "inventory_snapshots": int(c.execute("SELECT COUNT(*) n FROM opportunity_inventory_snapshots WHERE last_review_id=?", (review_id,)).fetchone()["n"]),
             "immutable_snapshots": int(c.execute("SELECT COUNT(*) n FROM data_snapshots WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "peer_snapshots": int(c.execute("SELECT COUNT(*) n FROM peer_comparison_snapshots WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
         }
     return {"review": review, "counts": counts, "confirmation_token": review_delete_token(review_id)}
@@ -40,6 +43,7 @@ def delete_review_manually(
     reason: str,
     confirmation_text: str,
 ) -> dict[str, Any]:
+    ensure_peer_snapshot_schema(repo)
     reason = str(reason or "").strip()
     if not reason:
         raise ValidationError("Lý do xóa review là bắt buộc.")
@@ -63,6 +67,7 @@ def delete_review_manually(
             "evidence_links": int(c.execute("SELECT COUNT(*) n FROM evidence_question_links WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "inventory_snapshots": int(c.execute("SELECT COUNT(*) n FROM opportunity_inventory_snapshots WHERE last_review_id=?", (review_id,)).fetchone()["n"]),
             "immutable_snapshots": int(c.execute("SELECT COUNT(*) n FROM data_snapshots WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "peer_snapshots": int(c.execute("SELECT COUNT(*) n FROM peer_comparison_snapshots WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
         }
 
@@ -82,6 +87,7 @@ def delete_review_manually(
 
         # Review-owned snapshots/versions are deleted together with the review to avoid orphan history.
         c.execute("DELETE FROM data_snapshots WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM peer_comparison_snapshots WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM opportunity_inventory_snapshots WHERE last_review_id=?", (review_id,))
         c.execute("DELETE FROM evidence_question_links WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM analyst_assessments WHERE review_id=?", (review_id,))

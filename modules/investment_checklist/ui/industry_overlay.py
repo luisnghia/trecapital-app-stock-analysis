@@ -19,6 +19,7 @@ from ..industry_overlay import (
     canonical_annual_df,
 )
 from .book_guidance import render_book_guidance
+from .peer_snapshot import render_peer_snapshot
 
 
 _PCT = {
@@ -75,7 +76,16 @@ def _overview(host, integration, annual_df: pd.DataFrame) -> CompanyOverview:
     )
 
 
-def render_industry_overlay(integration, host, data_provider) -> None:
+def render_industry_overlay(
+    integration,
+    host,
+    data_provider,
+    *,
+    repo=None,
+    company_ref_id: int | None = None,
+    review: dict[str, Any] | None = None,
+    actor: str = "analyst",
+) -> None:
     company_type = str(host.company.company_type or "normal").lower()
     st.markdown("### 🏭 Industry & Moat — Phase 3A")
     st.caption(
@@ -128,9 +138,21 @@ def render_industry_overlay(integration, host, data_provider) -> None:
         value_chain = build_value_chain_table(company, annual)
         st.dataframe(_display(value_chain), use_container_width=True, hide_index=True, height=430)
 
+    if repo is not None and company_ref_id is not None:
+        render_peer_snapshot(
+            repo,
+            company_ref_id=int(company_ref_id),
+            review=review,
+            base_ticker=host.company.ticker,
+            actor=actor,
+        )
+    else:
+        st.markdown("#### ⚖️ Peer Snapshot & Ranking — Phase 3B")
+        st.caption("Chưa có repository/review context; peer ranking vẫn có thể chạy tại trang So sánh doanh nghiệp.")
+
     st.markdown("#### Bridge sang Checklist")
     st.dataframe(QUESTION_MAP, use_container_width=True, hide_index=True)
-    st.info("Peer ranking tiếp tục dùng trang So sánh doanh nghiệp hiện có; Phase 3A không tải peer trong mỗi lần đổi Question để giữ Fast Entry.")
+    st.info("Peer ranking dùng trang So sánh doanh nghiệp hiện có; Phase 3B chỉ lưu khi analyst xác nhận và không tải peer trong mỗi lần đổi Question.")
     try:
         st.page_link("pages/03_So_sanh_doanh_nghiep.py", label="Mở So sánh doanh nghiệp", icon="⚖️")
     except Exception:

@@ -81,6 +81,7 @@ def _render_delete_review(repo, selected_review, actor: str, state_key: str, com
             f"Xóa REVIEW #{selected_review['id']} ({selected_review['as_of_date']} · {selected_review['status']}) sẽ xóa "
             f"{counts['analyst_assessments']} assessment, {counts['screening_assessments']} screening version, "
             f"{counts['evidence_links']} evidence link, "
+            f"{counts.get('peer_snapshots', 0)} peer snapshot, "
             f"{counts['inventory_snapshots']} inventory snapshot và {counts['immutable_snapshots']} immutable snapshot gắn với review này. "
             "Audit tombstone vẫn được giữ."
         )
@@ -252,7 +253,15 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     elif section == "🔎 Research Evidence":
         render_evidence_workspace(repo, company_ref_id, review, actor)
     elif section == "🏭 Industry & Moat":
-        render_industry_overlay(integration, host, data_provider)
+        render_industry_overlay(
+            integration,
+            host,
+            data_provider,
+            repo=repo,
+            company_ref_id=company_ref_id,
+            review=review,
+            actor=actor,
+        )
     elif section == "⭐ Watchlist":
         render_watchlist_fast(repo, company_ref_id, company["ticker"], actor=actor, data_provider=data_provider)
     elif section == "🕘 Snapshot & History":

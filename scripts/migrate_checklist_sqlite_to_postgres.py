@@ -29,11 +29,12 @@ TABLES = [
     "evidence_question_links",
     "screening_assessments",
     "opportunity_inventory_snapshots",
+    "peer_comparison_snapshots",
     "data_snapshots",
     "audit_logs",
     "integration_sync_log",
 ]
-SERIAL_TABLES = TABLES
+SERIAL_TABLES = [table for table in TABLES if table != "peer_comparison_snapshots"]
 
 
 def sqlite_rows(conn: sqlite3.Connection, table: str):
@@ -43,7 +44,9 @@ def sqlite_rows(conn: sqlite3.Connection, table: str):
     ).fetchone()
     if not exists:
         return []
-    return [dict(r) for r in conn.execute(f"SELECT * FROM {table} ORDER BY id")]
+    columns = {str(r[1]) for r in conn.execute(f"PRAGMA table_info({table})")}
+    order_by = "id" if "id" in columns else "company_ref_id,review_id,version_no"
+    return [dict(r) for r in conn.execute(f"SELECT * FROM {table} ORDER BY {order_by}")]
 
 
 def ensure_target_empty(pg) -> None:

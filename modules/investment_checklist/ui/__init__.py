@@ -129,6 +129,7 @@ def _render_delete_review_popover(repo, reviews, selected_review, actor, state_k
             f"Xóa REVIEW #{selected_review['id']} ({selected_review['as_of_date']} · {selected_review['status']}) sẽ xóa "
             f"{counts['analyst_assessments']} assessment, {counts['screening_assessments']} screening version, "
             f"{counts['evidence_links']} evidence link, "
+            f"{counts.get('peer_snapshots', 0)} peer snapshot, "
             f"{counts['inventory_snapshots']} inventory snapshot và {counts['immutable_snapshots']} immutable snapshot gắn với review này. "
             "Các review sau sẽ được nối lại về prior review trước đó. Audit tombstone vẫn được giữ."
         )

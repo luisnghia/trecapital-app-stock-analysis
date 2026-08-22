@@ -229,6 +229,25 @@ CREATE TABLE IF NOT EXISTS integration_sync_log(
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text
 );
 
+CREATE TABLE IF NOT EXISTS peer_comparison_snapshots(
+    company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),
+    review_id BIGINT NOT NULL REFERENCES research_reviews(id),
+    version_no INTEGER NOT NULL,
+    as_of_date TEXT NOT NULL,
+    base_ticker TEXT NOT NULL,
+    target_mos_pct DOUBLE PRECISION,
+    peer_count INTEGER NOT NULL CHECK(peer_count BETWEEN 2 AND 10),
+    source_module TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    payload_hash TEXT NOT NULL,
+    save_reason TEXT NOT NULL,
+    created_by TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
+    PRIMARY KEY(company_ref_id,review_id,version_no)
+);
+CREATE INDEX IF NOT EXISTS ix_peer_snapshots_review ON peer_comparison_snapshots(review_id,version_no);
+CREATE INDEX IF NOT EXISTS ix_peer_snapshots_company_date ON peer_comparison_snapshots(company_ref_id,as_of_date,version_no);
+
 CREATE TABLE IF NOT EXISTS persistence_probes(
     probe_key TEXT PRIMARY KEY,
     deployment_marker TEXT,

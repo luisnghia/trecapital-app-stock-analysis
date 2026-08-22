@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 import psycopg
+import pandas as pd
 import pytest
 
 from modules.investment_checklist.repositories.postgres_repository import PostgresChecklistRepository
@@ -16,6 +17,7 @@ from modules.investment_checklist.services.evidence_workspace import (
     create_source,
     link_evidence_to_question,
 )
+from modules.investment_checklist.services.peer_snapshots import list_peer_snapshots, save_peer_snapshot
 
 CATALOG = "modules/investment_checklist/catalog/question_catalog_prd.csv"
 
@@ -74,6 +76,19 @@ def test_sqlite_to_postgres_migration_preserves_history_and_refuses_nonempty_tar
         sqlite_repo, review_id=rid, question_id="Q26", evidence_id=evidence_id,
         relationship="primary", materiality=5, actor="migration-test",
     )
+    save_peer_snapshot(
+        sqlite_repo,
+        company_ref_id=cid,
+        review_id=rid,
+        result=pd.DataFrame([
+            {"Mã": "FPT", "Điểm tổng hợp": 82.0, "MOS hiện tại %": 20.0, "Moat score": 85.0},
+            {"Mã": "CMG", "Điểm tổng hợp": 69.0, "MOS hiện tại %": 10.0, "Moat score": 60.0},
+        ]),
+        base_ticker="FPT",
+        target_mos_pct=30,
+        save_reason="Migration peer snapshot",
+        actor="migration-test",
+    )
     sid = sqlite_repo.finalize_review(rid, actor="migration-test")
     original = sqlite_repo.get_snapshot(sid)["payload"]
 
@@ -95,6 +110,8 @@ def test_sqlite_to_postgres_migration_preserves_history_and_refuses_nonempty_tar
     assert migrated["assessments"][0]["version_no"] == original["assessments"][0]["version_no"] == 1
     assert migrated["quality_tally"] == original["quality_tally"] == 1
     assert migrated["research_evidence"]["links"][0]["excerpt"] == "Migration evidence retained"
+    assert migrated["peer_comparison"]["payload"]["base_ticker"] == "FPT"
+    assert len(list_peer_snapshots(pg, snapshots[0]["review_id"])) == 1
 
     before_count = len(pg.list_audit_logs(company["id"], limit=1000))
     second = subprocess.run(cmd, cwd=Path.cwd(), capture_output=True, text=True)
