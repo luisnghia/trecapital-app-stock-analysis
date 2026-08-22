@@ -2,9 +2,7 @@ name: Investment Checklist Source Package
 # Package revision: V23.78 final after global-ticker, source-table guidance and fast-entry fixes.
 
 on:
-  push:
-    branches:
-      - feature/investment-checklist-phase1c
+  pull_request:
     paths:
       - .github/workflows/investment_checklist_package.yml
 
@@ -15,9 +13,10 @@ jobs:
   package:
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout exact branch head
+      - name: Checkout exact PR branch head
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
 
       - name: Build clean source archive
