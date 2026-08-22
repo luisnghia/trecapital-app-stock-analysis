@@ -50,6 +50,26 @@ class SQLiteChecklistRepository:
                 c.execute("ALTER TABLE research_reviews ADD COLUMN review_reason TEXT")
             if "finalize_reason" not in review_cols:
                 c.execute("ALTER TABLE research_reviews ADD COLUMN finalize_reason TEXT")
+            ai_run_cols = {str(r[1]) for r in c.execute("PRAGMA table_info(ai_research_runs)")}
+            for column, definition in (
+                ("provider_request_id", "TEXT"),
+                ("provider_response_id", "TEXT"),
+                ("client_request_id", "TEXT"),
+                ("input_tokens", "INTEGER"),
+                ("output_tokens", "INTEGER"),
+                ("total_tokens", "INTEGER"),
+                ("latency_ms", "INTEGER"),
+                ("attempt_count", "INTEGER"),
+                ("service_tier", "TEXT"),
+            ):
+                if column not in ai_run_cols:
+                    c.execute(f"ALTER TABLE ai_research_runs ADD COLUMN {column} {definition}")
+            ai_suggestion_cols = {str(r[1]) for r in c.execute("PRAGMA table_info(ai_research_suggestions)")}
+            if "source_content_id" not in ai_suggestion_cols:
+                c.execute("ALTER TABLE ai_research_suggestions ADD COLUMN source_content_id INTEGER REFERENCES research_source_contents(id)")
+            if "source_content_hash_at_run" not in ai_suggestion_cols:
+                c.execute("ALTER TABLE ai_research_suggestions ADD COLUMN source_content_hash_at_run TEXT")
+            c.execute("CREATE INDEX IF NOT EXISTS ix_ai_suggestions_source_content ON ai_research_suggestions(source_content_id)")
             for q in load_questions(self.question_catalog_path):
                 c.execute("""INSERT INTO checklist_questions(question_id,question_no,group_name,question_vi,guidance,research_mode,supporting_tool)
                 VALUES(?,?,?,?,?,?,?) ON CONFLICT(question_id) DO UPDATE SET question_no=excluded.question_no,group_name=excluded.group_name,

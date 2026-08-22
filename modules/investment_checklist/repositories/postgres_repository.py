@@ -16,6 +16,7 @@ _INSERT_ID_TABLES = {
     'research_reviews',
     'analyst_assessments',
     'research_sources',
+    'research_source_contents',
     'research_evidence',
     'evidence_question_links',
     'ai_research_runs',
@@ -138,10 +139,10 @@ class PostgresChecklistRepository(SQLiteChecklistRepository):
                             criterion_name_vi=excluded.criterion_name_vi,display_order=excluded.display_order""",
                             (code, en, vi, i),
                         )
-                    # Phase 4A tables are internal research workflow state. The app uses a
+                    # Phase 4A/4B tables are internal research workflow state. The app uses a
                     # trusted direct Postgres connection; they are not part of the Data API.
                     for table in (
-                        'research_sources', 'research_evidence', 'evidence_question_links',
+                        'research_sources', 'research_source_contents', 'research_evidence', 'evidence_question_links',
                         'ai_research_runs', 'ai_research_suggestions', 'ai_suggestion_decisions',
                     ):
                         cur.execute(f'ALTER TABLE {table} ENABLE ROW LEVEL SECURITY')

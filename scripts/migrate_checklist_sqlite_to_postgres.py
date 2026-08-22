@@ -25,6 +25,7 @@ TABLES = [
     "research_reviews",
     "analyst_assessments",
     "research_sources",
+    "research_source_contents",
     "research_evidence",
     "evidence_question_links",
     "ai_research_runs",

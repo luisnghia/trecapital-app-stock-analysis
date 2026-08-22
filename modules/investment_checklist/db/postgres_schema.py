@@ -91,6 +91,26 @@ CREATE TABLE IF NOT EXISTS research_sources(
 );
 CREATE INDEX IF NOT EXISTS ix_research_sources_company_date ON research_sources(company_ref_id,document_date DESC,id DESC);
 
+CREATE TABLE IF NOT EXISTS research_source_contents(
+    id BIGSERIAL PRIMARY KEY,
+    company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),
+    source_id BIGINT NOT NULL REFERENCES research_sources(id),
+    version_no INTEGER NOT NULL,
+    content_type TEXT NOT NULL,
+    locator_scheme TEXT NOT NULL,
+    original_filename TEXT,
+    scope_label TEXT,
+    content_text TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    char_count INTEGER NOT NULL CHECK(char_count>0),
+    created_by TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
+    UNIQUE(source_id,version_no),
+    UNIQUE(source_id,content_hash)
+);
+CREATE INDEX IF NOT EXISTS ix_source_contents_source_version ON research_source_contents(source_id,version_no DESC,id DESC);
+CREATE INDEX IF NOT EXISTS ix_source_contents_company ON research_source_contents(company_ref_id,id DESC);
+
 CREATE TABLE IF NOT EXISTS research_evidence(
     id BIGSERIAL PRIMARY KEY,
     company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),
@@ -148,6 +168,15 @@ CREATE TABLE IF NOT EXISTS ai_research_runs(
     source_manifest_hash TEXT NOT NULL,
     input_hash TEXT NOT NULL,
     output_hash TEXT NOT NULL,
+    provider_request_id TEXT,
+    provider_response_id TEXT,
+    client_request_id TEXT,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    total_tokens INTEGER,
+    latency_ms INTEGER,
+    attempt_count INTEGER,
+    service_tier TEXT,
     requested_by TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
     completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
@@ -155,6 +184,15 @@ CREATE TABLE IF NOT EXISTS ai_research_runs(
 );
 CREATE INDEX IF NOT EXISTS ix_ai_runs_review_created ON ai_research_runs(review_id,id DESC);
 CREATE INDEX IF NOT EXISTS ix_ai_runs_company ON ai_research_runs(company_ref_id);
+ALTER TABLE ai_research_runs ADD COLUMN IF NOT EXISTS provider_request_id TEXT;
+ALTER TABLE ai_research_runs ADD COLUMN IF NOT EXISTS provider_response_id TEXT;
+ALTER TABLE ai_research_runs ADD COLUMN IF NOT EXISTS client_request_id TEXT;
+ALTER TABLE ai_research_runs ADD COLUMN IF NOT EXISTS input_tokens INTEGER;
+ALTER TABLE ai_research_runs ADD COLUMN IF NOT EXISTS output_tokens INTEGER;
+ALTER TABLE ai_research_runs ADD COLUMN IF NOT EXISTS total_tokens INTEGER;
+ALTER TABLE ai_research_runs ADD COLUMN IF NOT EXISTS latency_ms INTEGER;
+ALTER TABLE ai_research_runs ADD COLUMN IF NOT EXISTS attempt_count INTEGER;
+ALTER TABLE ai_research_runs ADD COLUMN IF NOT EXISTS service_tier TEXT;
 
 CREATE TABLE IF NOT EXISTS ai_research_suggestions(
     id BIGSERIAL PRIMARY KEY,
@@ -165,6 +203,8 @@ CREATE TABLE IF NOT EXISTS ai_research_suggestions(
     suggestion_type TEXT NOT NULL CHECK(suggestion_type IN('evidence_candidate','contradiction','research_gap')),
     source_id BIGINT REFERENCES research_sources(id),
     source_hash_at_run TEXT,
+    source_content_id BIGINT REFERENCES research_source_contents(id),
+    source_content_hash_at_run TEXT,
     question_id TEXT NOT NULL REFERENCES checklist_questions(question_id),
     evidence_type TEXT CHECK(evidence_type IN('fact','quote','metric','observation','contradiction','risk')),
     relationship TEXT CHECK(relationship IN('primary','supporting','context','contradicts')),
@@ -181,6 +221,9 @@ CREATE TABLE IF NOT EXISTS ai_research_suggestions(
 CREATE INDEX IF NOT EXISTS ix_ai_suggestions_review_question ON ai_research_suggestions(review_id,question_id,id DESC);
 CREATE INDEX IF NOT EXISTS ix_ai_suggestions_company ON ai_research_suggestions(company_ref_id);
 CREATE INDEX IF NOT EXISTS ix_ai_suggestions_source ON ai_research_suggestions(source_id);
+ALTER TABLE ai_research_suggestions ADD COLUMN IF NOT EXISTS source_content_id BIGINT REFERENCES research_source_contents(id);
+ALTER TABLE ai_research_suggestions ADD COLUMN IF NOT EXISTS source_content_hash_at_run TEXT;
+CREATE INDEX IF NOT EXISTS ix_ai_suggestions_source_content ON ai_research_suggestions(source_content_id);
 CREATE INDEX IF NOT EXISTS ix_ai_suggestions_question ON ai_research_suggestions(question_id);
 
 CREATE TABLE IF NOT EXISTS ai_suggestion_decisions(

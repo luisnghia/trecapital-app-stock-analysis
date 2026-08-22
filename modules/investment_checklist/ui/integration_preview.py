@@ -164,7 +164,7 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     st.markdown('<div class="checklist-module">', unsafe_allow_html=True)
     st.subheader("Investment Research & Checklist System")
     st.caption(
-        "Integrated Preview — Core Research + Analytical Tools + Evidence + governed AI suggestion inbox; "
+        "Integrated Preview — Core Research + Analytical Tools + Evidence + governed AI provider/approval queue; "
         "analyst giữ quyền quyết định cuối cùng."
     )
     st.markdown(f"**{company['ticker']} — {company['company_name']}** · {company['industry_name'] or 'Chưa gán ngành'}")

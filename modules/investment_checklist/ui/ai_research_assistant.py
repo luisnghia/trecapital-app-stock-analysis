@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-"""Phase 4A UI: governed AI suggestion inbox, with no model/network execution."""
+"""Phase 4B UI: source ingestion, governed provider execution and analyst approval."""
 
 import json
+import os
 
 import pandas as pd
 import streamlit as st
@@ -15,7 +16,22 @@ from ..services.ai_research_assistant import (
     list_ai_suggestions,
     record_ai_run,
 )
+from ..services.ai_provider_execution import (
+    DEFAULT_MAX_OUTPUT_TOKENS,
+    DEFAULT_MAX_SUGGESTIONS,
+    DEFAULT_OPENAI_MODEL,
+    MAX_PROVIDER_SOURCE_CHARS,
+    OPENAI_MODEL_IDS,
+    ProviderExecutionError,
+    execute_provider_run,
+)
 from ..services.evidence_workspace import list_sources
+from ..services.source_content import (
+    SUPPORTED_SOURCE_EXTENSIONS,
+    create_source_content_version,
+    extract_document_text,
+    list_source_contents,
+)
 
 
 RUN_TYPE_LABELS = {
@@ -24,6 +40,27 @@ RUN_TYPE_LABELS = {
     "contradiction_scan": "Tìm bằng chứng phản bác",
     "delta_review": "So sánh kỳ mới/kỳ cũ",
 }
+
+
+MODEL_LABELS = {
+    "gpt-5.6-terra": "GPT-5.6 Terra — cân bằng chất lượng/chi phí",
+    "gpt-5.6-luna": "GPT-5.6 Luna — tiết kiệm chi phí",
+    "gpt-5.6-sol": "GPT-5.6 Sol — chất lượng cao nhất",
+}
+
+
+def _server_secret(name: str) -> str | None:
+    value = str(os.getenv(name, "") or "").strip()
+    if value:
+        return value
+    try:
+        if not st.secrets.load_if_toml_exists():
+            return None
+        secrets = st.secrets.to_dict()
+    except Exception:
+        return None
+    value = str(secrets.get(name, "") or "").strip()
+    return value or None
 
 
 def _example_payload(source_id: int | None) -> str:
@@ -52,12 +89,229 @@ def _example_payload(source_id: int | None) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
+def _content_label(item: dict) -> str:
+    return (
+        f"Content #{item['id']} · Source #{item['source_id']} · v{item['version_no']} · "
+        f"{int(item['char_count']):,} ký tự · {item.get('source_title') or '—'}"
+    )
+
+
+def _latest_contents(rows: list[dict]) -> list[dict]:
+    latest: dict[int, dict] = {}
+    for row in rows:
+        source_id = int(row["source_id"])
+        if source_id not in latest:
+            latest[source_id] = row
+    return list(latest.values())
+
+
+def _render_source_content_ingestion(
+    repo, company_ref_id: int, actor: str, sources: list[dict]
+) -> list[dict]:
+    contents = list_source_contents(repo, company_ref_id)
+    with st.expander("1️⃣ Nạp nội dung nguồn để AI đọc", expanded=not contents):
+        st.caption(
+            "Binary upload không được lưu. App chỉ lưu text đã trích xuất, locator markers và SHA-256 "
+            "trong Supabase; mỗi lần sửa tạo version mới, không ghi đè."
+        )
+        if not sources:
+            st.info("Hãy tạo Source metadata trong Research Evidence trước.")
+        else:
+            source_ids = [int(item["id"]) for item in sources]
+            labels = {int(item["id"]): f"#{item['id']} · {item['title']}" for item in sources}
+            source_id = st.selectbox(
+                "Source nhận nội dung", source_ids, format_func=lambda value: labels[value],
+                key=f"ai_content_source_{company_ref_id}",
+            )
+            uploaded = st.file_uploader(
+                "PDF/DOCX/TXT/MD/CSV/JSON",
+                type=[suffix.lstrip(".") for suffix in SUPPORTED_SOURCE_EXTENSIONS],
+                key=f"ai_content_upload_{company_ref_id}",
+            )
+            pdf_pages = st.text_input(
+                "Phạm vi trang PDF (để trống = toàn bộ)",
+                placeholder="Ví dụ: 1-40,83,94-110",
+                key=f"ai_pdf_pages_{company_ref_id}",
+                help="Giới hạn đúng phần cần nghiên cứu giúp giảm token và tránh gửi nội dung không liên quan.",
+            )
+            pasted = st.text_area(
+                "Hoặc dán nội dung text", height=140,
+                key=f"ai_content_paste_{company_ref_id}",
+                help="Nếu vừa tải file vừa dán text, app ưu tiên file.",
+            )
+            scope_label = st.text_input(
+                "Mô tả phạm vi", placeholder="Ví dụ: BCTN 2025 — chương Khách hàng và Quản trị rủi ro",
+                key=f"ai_content_scope_{company_ref_id}",
+            )
+            if st.button(
+                "Lưu content version", type="primary", use_container_width=True,
+                key=f"save_ai_content_{company_ref_id}", disabled=uploaded is None and not pasted.strip(),
+            ):
+                try:
+                    if uploaded is not None:
+                        extracted = extract_document_text(
+                            uploaded.name, uploaded.getvalue(), pdf_pages=pdf_pages,
+                        )
+                        content_text = extracted["content_text"]
+                        content_type = extracted["content_type"]
+                        locator_scheme = extracted["locator_scheme"]
+                        original_filename = extracted["original_filename"]
+                        final_scope = scope_label.strip() or extracted["scope_label"]
+                    else:
+                        content_text = pasted
+                        content_type = "text/plain"
+                        locator_scheme = "analyst_supplied"
+                        original_filename = ""
+                        final_scope = scope_label.strip() or "Analyst supplied text"
+                    content_id = create_source_content_version(
+                        repo,
+                        company_ref_id=company_ref_id,
+                        source_id=source_id,
+                        content_text=content_text,
+                        content_type=content_type,
+                        locator_scheme=locator_scheme,
+                        original_filename=original_filename,
+                        scope_label=final_scope,
+                        actor=actor,
+                    )
+                    st.success(f"Đã lưu Content #{content_id}; binary file không được lưu.")
+                    st.rerun()
+                except ValidationError as exc:
+                    st.error(str(exc))
+        if contents:
+            st.markdown("##### Content versions đã lưu")
+            frame = pd.DataFrame(contents).rename(columns={
+                "id": "Content ID", "source_id": "Source ID", "version_no": "Version",
+                "source_title": "Nguồn", "original_filename": "Tệp", "scope_label": "Phạm vi",
+                "locator_scheme": "Locator", "char_count": "Ký tự", "content_hash": "SHA-256",
+                "created_by": "Người tạo", "created_at": "Thời gian",
+            })
+            columns = [
+                "Content ID", "Source ID", "Version", "Nguồn", "Tệp", "Phạm vi", "Locator",
+                "Ký tự", "SHA-256", "Người tạo", "Thời gian",
+            ]
+            st.dataframe(frame[columns], use_container_width=True, hide_index=True, height=300)
+    return contents
+
+
+def _render_provider_execution(
+    repo,
+    company_ref_id: int,
+    review,
+    actor: str,
+    contents: list[dict],
+) -> None:
+    api_key = _server_secret("OPENAI_API_KEY")
+    locked = review is None or review.get("status") == "completed"
+    latest = _latest_contents(contents)
+    with st.expander("2️⃣ Chạy OpenAI provider có kiểm soát", expanded=True):
+        if api_key:
+            st.success("OpenAI provider: sẵn sàng — API key chỉ tồn tại ở server secrets.")
+        else:
+            st.warning(
+                "Chưa có OPENAI_API_KEY trong Streamlit Secrets. App vẫn cho nạp nguồn và duyệt run cũ, "
+                "nhưng chưa thể gọi model thật."
+            )
+        if locked:
+            st.info("Review completed hoặc chưa được chọn; provider execution đang bị khóa.")
+        if not latest:
+            st.info("Chưa có content version để gửi cho model.")
+
+        content_ids = [int(item["id"]) for item in latest]
+        labels = {int(item["id"]): _content_label(item) for item in latest}
+        selected_contents = st.multiselect(
+            "Content manifest *", content_ids, format_func=lambda value: labels[value],
+            key=f"phase4b_contents_{company_ref_id}", disabled=locked,
+        )
+        selected_rows = [item for item in latest if int(item["id"]) in selected_contents]
+        total_chars = sum(int(item["char_count"]) for item in selected_rows)
+        estimated_tokens = round(total_chars / 4)
+        st.caption(
+            f"Input nguồn: {total_chars:,}/{MAX_PROVIDER_SOURCE_CHARS:,} ký tự · "
+            f"ước tính khoảng {estimated_tokens:,} tokens (ước tính thô; usage thực được lưu sau run)."
+        )
+        if total_chars > MAX_PROVIDER_SOURCE_CHARS:
+            st.error("Vượt input budget; hãy giới hạn phạm vi trang hoặc chia thành nhiều run.")
+
+        left, right = st.columns(2)
+        run_type = left.selectbox(
+            "Loại run", AI_RUN_TYPES, format_func=lambda value: RUN_TYPE_LABELS[value],
+            key=f"phase4b_run_type_{company_ref_id}", disabled=locked,
+        )
+        default_model = _server_secret("OPENAI_MODEL") or DEFAULT_OPENAI_MODEL
+        if default_model not in OPENAI_MODEL_IDS:
+            default_model = DEFAULT_OPENAI_MODEL
+        model_name = right.selectbox(
+            "Model", OPENAI_MODEL_IDS, index=OPENAI_MODEL_IDS.index(default_model),
+            format_func=lambda value: MODEL_LABELS[value],
+            key=f"phase4b_model_{company_ref_id}", disabled=locked,
+        )
+        questions = repo.list_questions()
+        groups = list(dict.fromkeys(str(item["group_name"]) for item in questions))
+        scope = st.selectbox(
+            "Phạm vi câu hỏi", ["Tất cả Q01–Q59", *groups],
+            key=f"phase4b_question_scope_{company_ref_id}", disabled=locked,
+        )
+        question_ids = None if scope == "Tất cả Q01–Q59" else [
+            item["question_id"] for item in questions if item["group_name"] == scope
+        ]
+        c1, c2, c3 = st.columns(3)
+        max_suggestions = c1.slider(
+            "Tối đa suggestions", 1, 50, DEFAULT_MAX_SUGGESTIONS,
+            key=f"phase4b_max_suggestions_{company_ref_id}", disabled=locked,
+        )
+        max_output_tokens = c2.selectbox(
+            "Max output tokens", [2_000, 4_000, DEFAULT_MAX_OUTPUT_TOKENS, 12_000, 16_000],
+            index=2, key=f"phase4b_max_tokens_{company_ref_id}", disabled=locked,
+        )
+        reasoning_effort = c3.selectbox(
+            "Reasoning", ["none", "low", "medium", "high"], index=1,
+            key=f"phase4b_reasoning_{company_ref_id}", disabled=locked,
+        )
+        confirmed = st.checkbox(
+            "Tôi xác nhận gửi các content đã chọn tới OpenAI; AI chỉ tạo suggestion và không được tự ghi assessment.",
+            key=f"phase4b_confirm_{company_ref_id}", disabled=locked or not api_key,
+        )
+        disabled = (
+            locked or not api_key or not selected_contents or not confirmed or
+            total_chars > MAX_PROVIDER_SOURCE_CHARS
+        )
+        if st.button(
+            "🤖 Chạy provider và đưa vào approval queue", type="primary", use_container_width=True,
+            key=f"phase4b_execute_{company_ref_id}", disabled=disabled,
+        ):
+            try:
+                with st.spinner("Đang gọi model, kiểm tra structured output và đối chiếu trích dẫn..."):
+                    result = execute_provider_run(
+                        repo,
+                        company_ref_id=company_ref_id,
+                        review_id=int(review["id"]),
+                        run_type=run_type,
+                        source_content_ids=selected_contents,
+                        actor=actor,
+                        api_key=api_key,
+                        model_name=model_name,
+                        question_ids=question_ids,
+                        max_suggestions=max_suggestions,
+                        max_output_tokens=max_output_tokens,
+                        reasoning_effort=reasoning_effort,
+                    )
+                usage = result.get("provider_metadata") or {}
+                st.success(
+                    f"Đã ghi AI run #{result['run_id']} với {result['suggestion_count']} suggestions; "
+                    f"usage {usage.get('total_tokens') or '—'} tokens. Assessment không thay đổi."
+                )
+                st.rerun()
+            except (ValidationError, ProviderExecutionError) as exc:
+                st.error(str(exc))
+
+
 def _render_run_ingestion(repo, company_ref_id: int, review, actor: str, sources: list[dict]) -> None:
     locked = review is None or review.get("status") == "completed"
-    with st.expander("➕ Ghi nhận một AI run có kiểm soát", expanded=False):
+    with st.expander("Tương thích Phase 4A — nhập JSON từ external runner", expanded=False):
         st.caption(
-            "Phase 4A nhận JSON output từ một model/external runner và đóng dấu hash. "
-            "App chưa tự gọi model; prompt chỉ được lưu SHA-256, không lưu nguyên văn."
+            "Luồng dự phòng nhận JSON output từ một external runner và đóng dấu hash. "
+            "Prompt chỉ được lưu SHA-256, không lưu nguyên văn."
         )
         source_options = [int(item["id"]) for item in sources]
         source_labels = {
@@ -197,7 +451,7 @@ def _render_suggestion_inbox(repo, review, actor: str) -> None:
 
 
 def render_ai_research_assistant(repo, company_ref_id: int, review, actor: str) -> None:
-    st.markdown("### 🤖 AI Research Assistant — Phase 4A")
+    st.markdown("### 🤖 AI Research Assistant — Phase 4B")
     st.warning(
         "AI chỉ đề xuất. Mọi evidence phải có source + locator + excerpt và chỉ được đưa vào workspace "
         "sau khi analyst duyệt. AI không được ghi đè câu trả lời, assessment hoặc kết luận đầu tư."
@@ -207,11 +461,15 @@ def render_ai_research_assistant(repo, company_ref_id: int, review, actor: str) 
         return
     sources = list_sources(repo, company_ref_id)
     runs = list_ai_runs(repo, int(review["id"]))
+    contents = _render_source_content_ingestion(repo, company_ref_id, actor, sources)
+    _render_provider_execution(repo, company_ref_id, review, actor, contents)
     if runs:
         with st.expander("AI run audit", expanded=False):
             columns = [
-                "id", "run_type", "provider", "model_name", "model_version", "prompt_version",
-                "suggestion_count", "pending_count", "input_hash", "output_hash", "created_at",
+                "id", "status", "run_type", "provider", "model_name", "model_version", "prompt_version",
+                "suggestion_count", "pending_count", "input_tokens", "output_tokens", "total_tokens",
+                "latency_ms", "attempt_count", "provider_request_id", "provider_response_id",
+                "input_hash", "output_hash", "error_text", "created_at",
             ]
             st.dataframe(
                 pd.DataFrame(runs)[[column for column in columns if column in runs[0]]],

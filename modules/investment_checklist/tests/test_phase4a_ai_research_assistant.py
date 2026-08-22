@@ -136,7 +136,7 @@ def test_research_gap_decision_and_immutable_review_snapshot(tmp_path):
     snapshot_id = repo.finalize_review(review_id, actor="analyst", finalize_reason="Phase 4A snapshot QA")
     payload = repo.get_snapshot(snapshot_id)["payload"]
     assert payload["snapshot_schema"] == "phase1b-review-v4-evidence-peer-ai"
-    assert payload["ai_research"]["schema"] == "ai-research-assistant-v1"
+    assert payload["ai_research"]["schema"] == "ai-research-assistant-v2-provider-execution"
     assert len(payload["ai_research"]["runs"]) == 1
     assert len(payload["ai_research"]["suggestions"]) == 2
     assert len(payload["ai_research"]["decisions"]) == 1
