@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import copy
 from pathlib import Path
+from typing import Callable
 
 import pandas as pd
 import streamlit as st
@@ -82,30 +83,42 @@ def _valuation_range(company, annual: pd.DataFrame):
         return None
 
 
-def _active_live_bundle(ticker: str):
-    """Return the existing active bundle only when it came from a fresh runtime update."""
+def _active_reusable_bundle(ticker: str):
+    """Reuse any valid active Trecapital bundle instead of refetching it on page navigation.
+
+    Previous code reused only labels containing 'Dữ liệu cập nhật'. That forced an avoidable live
+    network fetch when another Trecapital page had already activated a valid bundle under a
+    different label. Reusing the active files makes the common cross-page path network-free.
+    """
     ticker = m1._safe_ticker(ticker)
-    active = m1._safe_ticker(str(st.session_state.get("active_ticker", "")))
+    checker = getattr(m1, "_active_bundle_has_data_for_ticker", None)
+    has_active = bool(checker(ticker)) if callable(checker) else False
     paths = [
         st.session_state.get("active_overview_csv"),
         st.session_state.get("active_year_csv"),
         st.session_state.get("active_quarter_csv"),
     ]
-    label = str(st.session_state.get("active_source_label", "") or "")
-    is_runtime_update = "Dữ liệu cập nhật" in label
-    if active == ticker and is_runtime_update and all(p and Path(str(p)).exists() for p in paths):
-        return Path(str(paths[0])), Path(str(paths[1])), Path(str(paths[2])), label, ticker, False
-    return None
+    if not has_active:
+        active = m1._safe_ticker(str(st.session_state.get("active_ticker", "")))
+        has_active = active == ticker and all(p and Path(str(p)).exists() for p in paths)
+    if not has_active or not all(p and Path(str(p)).exists() for p in paths):
+        return None
+
+    label = str(st.session_state.get("active_source_label", "Dữ liệu đang hoạt động") or "Dữ liệu đang hoạt động")
+    statement_only = "Dữ liệu tích hợp" in label or "Dữ liệu mẫu" in label
+    st.session_state["checklist_bundle_mode"] = "reused_active"
+    return Path(str(paths[0])), Path(str(paths[1])), Path(str(paths[2])), label, ticker, statement_only
 
 
 def _load_checklist_bundle(ticker: str):
-    """Use the same live Trecapital pipeline as main; workbook is statement-only fallback."""
+    """Prefer the already-active Trecapital bundle; fetch only when no reusable bundle exists."""
     ticker = m1._safe_ticker(ticker) or "DCM"
-    active = _active_live_bundle(ticker)
+    active = _active_reusable_bundle(ticker)
     if active:
         return active
 
     diagnostics = []
+    st.session_state["checklist_bundle_mode"] = "live_fetch"
     try:
         result, source_key = m1._fetch_source(ticker, "FireAnt + Vietstock")
         diagnostics.append(
@@ -129,11 +142,13 @@ def _load_checklist_bundle(ticker: str):
             )
             fallback_label = "Dữ liệu tích hợp dự phòng — chỉ dùng BCTC, không dùng cached quote làm giá hiện tại"
             st.session_state["checklist_live_load_diagnostics"] = diagnostics
+            st.session_state["checklist_bundle_mode"] = "statement_fallback"
             return Path(overview), Path(year), Path(quarter), fallback_label, ticker, True
         except Exception as exc:
             diagnostics.append(f"workbook error={exc}")
 
     st.session_state["checklist_live_load_diagnostics"] = diagnostics
+    st.session_state["checklist_bundle_mode"] = "sample_fallback"
     return (
         m1.DEFAULT_OVERVIEW_CSV,
         m1.DEFAULT_YEAR_CSV,
@@ -142,6 +157,74 @@ def _load_checklist_bundle(ticker: str):
         ticker,
         True,
     )
+
+
+def _sync_global_ticker(ticker: str, *, force_refresh: bool = False) -> bool:
+    """Run the canonical Module 1 pipeline and bind one ticker to every Trecapital page."""
+    safe = m1._safe_ticker(ticker)
+    if len(safe) < 3:
+        return False
+    if not force_refresh:
+        checker = getattr(m1, "_active_bundle_has_data_for_ticker", None)
+        if callable(checker) and checker(safe):
+            for key in ("shared_ticker", "module1_ticker", "module2_ticker", "last_query_ticker"):
+                st.session_state[key] = safe
+            st.session_state["module1_input_ticker"] = safe
+            st.session_state["_checklist_bound_ticker"] = safe
+            return True
+
+    st.session_state["last_query_ticker"] = safe
+    st.session_state["last_query_source"] = "FireAnt + Vietstock"
+    m1._search_and_bind(safe, "FireAnt + Vietstock")
+    checker = getattr(m1, "_active_bundle_has_data_for_ticker", None)
+    success = bool(checker(safe)) if callable(checker) else m1._safe_ticker(str(st.session_state.get("active_ticker", ""))) == safe
+    if success:
+        for key in ("shared_ticker", "module1_ticker", "module2_ticker", "last_query_ticker"):
+            st.session_state[key] = safe
+        # Module 1 has a keyed widget; update it too so returning to Tổng quan never shows an old symbol.
+        st.session_state["module1_input_ticker"] = safe
+        st.session_state["checklist_ticker_input"] = safe
+        st.session_state["_checklist_bound_ticker"] = safe
+        st.session_state.pop("_checklist_prepared_financials", None)
+    return success
+
+
+def _render_ticker_search() -> str:
+    """Checklist ticker control with the same shared-session behavior as the other Trecapital pages."""
+    current = _default_ticker()
+    if st.session_state.get("_checklist_bound_ticker") != current:
+        st.session_state["checklist_ticker_input"] = current
+        st.session_state["_checklist_bound_ticker"] = current
+
+    raw = st.text_input(
+        "Mã cổ phiếu",
+        value=current,
+        max_chars=10,
+        key="checklist_ticker_input",
+        help="Nhập mã và app sẽ đồng bộ cùng mã cho Tổng quan, Định giá chuyên sâu, Thao túng tài chính và Investment Checklist.",
+    )
+    safe = m1._safe_ticker(raw)
+    auto_sync = st.checkbox(
+        "Tự động cập nhật khi đổi mã",
+        value=True,
+        key="checklist_auto_sync_ticker",
+        help="Khi mã hợp lệ thay đổi, Checklist gọi đúng pipeline dữ liệu chung của Trecapital; không tạo nguồn dữ liệu riêng.",
+    )
+    refresh = st.button("🔎 Tìm kiếm & cập nhật toàn app", use_container_width=True, key="checklist_refresh_ticker")
+    attempt = f"{safe}|FireAnt + Vietstock"
+    changed = len(safe) >= 3 and safe != current
+    should_auto = auto_sync and changed and st.session_state.get("_checklist_last_auto_attempt") != attempt
+
+    if refresh or should_auto:
+        st.session_state["_checklist_last_auto_attempt"] = attempt
+        with st.spinner(f"Đang đồng bộ {safe} cho toàn bộ Trecapital..."):
+            ok = _sync_global_ticker(safe, force_refresh=bool(refresh))
+        if ok:
+            st.success(f"Đã đồng bộ {safe} cho toàn bộ các page.")
+            st.rerun()
+        else:
+            st.warning(f"Chưa lấy được bộ dữ liệu chuẩn cho {safe}; app giữ nguyên bộ dữ liệu đang hoạt động để tránh trộn mã.")
+    return _default_ticker()
 
 
 def _path_signature(path) -> tuple[int, int]:
@@ -170,11 +253,7 @@ def _prepare_financials_cached(
     quarter_sig: tuple[int, int],
     raw_dir_sig: int,
 ):
-    """Cache the immutable financial preparation stage between full-app reruns.
-
-    File signatures are explicit cache keys, so a refreshed Trecapital export invalidates the cache
-    immediately instead of serving stale financial statements.
-    """
+    """Prepare annual/TTM only when a Checklist section actually needs quantitative data."""
     del overview_sig, year_sig, quarter_sig, raw_dir_sig  # cache-key only
     company = m1._load_overview_cached(overview_path, ticker)
     annual_raw = m1._load_timeseries_cached(year_path, ticker, "Y", 11)
@@ -184,6 +263,33 @@ def _prepare_financials_cached(
     )
     annual = append_ttm_row(annual_raw, quarterly)
     return company, annual, debt_note
+
+
+def _prepare_financials_session(
+    overview_path,
+    year_path,
+    quarter_path,
+    ticker: str,
+):
+    """Session hot-cache avoids dataframe deserialization/hash overhead after first quantitative use."""
+    key = (
+        m1._safe_ticker(ticker),
+        str(overview_path), _path_signature(overview_path),
+        str(year_path), _path_signature(year_path),
+        str(quarter_path), _path_signature(quarter_path),
+        _dir_signature(m1.RAW_DIR),
+    )
+    cached = st.session_state.get("_checklist_prepared_financials")
+    if isinstance(cached, dict) and cached.get("key") == key:
+        return cached["company"], cached["annual"], cached["debt_note"]
+    result = _prepare_financials_cached(
+        str(overview_path), str(year_path), str(quarter_path), ticker,
+        key[2], key[4], key[6], key[7],
+    )
+    st.session_state["_checklist_prepared_financials"] = {
+        "key": key, "company": result[0], "annual": result[1], "debt_note": result[2]
+    }
+    return result
 
 
 def _sanitize_statement_only_fallback(company, annual: pd.DataFrame):
@@ -201,6 +307,27 @@ def _sanitize_statement_only_fallback(company, annual: pd.DataFrame):
     return safe_company, safe_annual
 
 
+class _LazyChecklistDataProvider(CurrentRepoDataProvider):
+    """Delay annual/quarter/debt/TTM work until Analytical Tools/Watchlist asks for it.
+
+    Research Home, Workspace and History can therefore open from another page without reading and
+    enriching the full financial history. Once loaded, annual data stays hot in session state.
+    """
+
+    def __init__(self, company, annual_loader: Callable[[], pd.DataFrame], valuation_range=None):
+        self.company = company
+        self._annual_loader = annual_loader
+        self._annual_df: pd.DataFrame | None = None
+        self.valuation_range = valuation_range
+
+    @property
+    def annual_df(self) -> pd.DataFrame:
+        if self._annual_df is None:
+            loaded = self._annual_loader()
+            self._annual_df = loaded if isinstance(loaded, pd.DataFrame) else pd.DataFrame()
+        return self._annual_df
+
+
 def render_page() -> None:
     m1._inject_runtime_ui_css()
     inject_oaktree_theme()
@@ -209,10 +336,11 @@ def render_page() -> None:
         "📋 Investment Research & Checklist",
         "Integrated research workspace — Analytical Tools, Watchlist, Q01–Q59, versioning và lịch sử analyst.",
     )
-    requested_ticker = _default_ticker()
     database_url = _secret_database_url()
     with st.sidebar:
         render_tre_sidebar_nav()
+        st.markdown("#### 🔎 Mã phân tích")
+        requested_ticker = _render_ticker_search()
         st.caption("Checklist chưa dùng AI; mọi assessment cuối cùng thuộc về analyst.")
         if database_url:
             st.success("Lưu trữ Checklist: PostgreSQL/Supabase bền vững")
@@ -220,24 +348,15 @@ def render_page() -> None:
             st.warning("Lưu trữ Checklist: SQLite local/dev — chưa dùng cho dữ liệu production")
 
     overview_csv, year_csv, quarter_csv, source_label, active_ticker, statement_only_fallback = _load_checklist_bundle(requested_ticker)
-    company, annual, debt_note = _prepare_financials_cached(
-        str(overview_csv),
-        str(year_csv),
-        str(quarter_csv),
-        active_ticker,
-        _path_signature(overview_csv),
-        _path_signature(year_csv),
-        _path_signature(quarter_csv),
-        _dir_signature(m1.RAW_DIR),
-    )
-    st.session_state["checklist_debt_source_note"] = debt_note
 
+    # Fast entry: load only the tiny overview row here. Full annual/quarter/debt/TTM is lazy.
+    company = m1._load_overview_cached(str(overview_csv), active_ticker)
     if statement_only_fallback:
-        company, annual = _sanitize_statement_only_fallback(company, annual)
+        company, _ = _sanitize_statement_only_fallback(company, pd.DataFrame())
         st.warning(
             "Nguồn live chưa trả đủ dữ liệu trong lần tải này. Checklist chỉ dùng BCTC từ dữ liệu tích hợp; "
             "giá hiện tại/vốn hóa/P-E/P-B/P-S cached trong workbook bị loại bỏ vì có thể là giá trị công thức cũ. "
-            "Khi quay lại Tổng quan, app sẽ tiếp tục thử pipeline live thay vì coi workbook là nguồn đang hoạt động."
+            "Bấm 'Tìm kiếm & cập nhật toàn app' để thử lại pipeline live."
         )
 
     if not statement_only_fallback:
@@ -249,14 +368,23 @@ def render_page() -> None:
         st.session_state["shared_ticker"] = active_ticker
         st.session_state["module1_ticker"] = active_ticker
         st.session_state["module2_ticker"] = active_ticker
-        if "Dữ liệu tích hợp" in str(st.session_state.get("active_source_label", "")):
-            for key in ("active_ticker", "active_overview_csv", "active_year_csv", "active_quarter_csv", "active_source_label"):
-                st.session_state.pop(key, None)
+
+    def _load_annual_lazy() -> pd.DataFrame:
+        loaded_company, annual, debt_note = _prepare_financials_session(
+            overview_csv, year_csv, quarter_csv, active_ticker
+        )
+        st.session_state["checklist_debt_source_note"] = debt_note
+        if statement_only_fallback:
+            _safe_company, annual = _sanitize_statement_only_fallback(loaded_company, annual)
+        return annual
 
     with st.sidebar:
-        st.caption(f"Checklist đang dùng dữ liệu thực tế: **{active_ticker}**")
+        st.caption(f"Checklist đang dùng dữ liệu: **{active_ticker}**")
         st.caption(f"Nguồn đang hoạt động: {m1._safe_source_label(source_label)}")
-        st.caption("⚡ Fast mode: đổi Question/tool không tải lại pipeline tài chính.")
+        if st.session_state.get("checklist_bundle_mode") == "reused_active":
+            st.caption("⚡ Fast entry: tái sử dụng bundle đang hoạt động, không gọi lại nguồn dữ liệu khi chuyển page.")
+        else:
+            st.caption("⚡ Fast mode: annual/TTM chỉ tải khi Analytical Tools/Watchlist thực sự cần.")
 
     industry = m1._display_industry_value(getattr(company, "industry", ""))
     host = HostContext(
@@ -274,14 +402,12 @@ def render_page() -> None:
         database_url=database_url,
     )
 
-    render_investment_checklist(
-        host,
-        data_provider=CurrentRepoDataProvider(
-            company,
-            annual,
-            valuation_range=lambda safe_company, safe_annual: _valuation_range(safe_company, safe_annual),
-        ),
+    provider = _LazyChecklistDataProvider(
+        company,
+        _load_annual_lazy,
+        valuation_range=lambda safe_company, safe_annual: _valuation_range(safe_company, safe_annual),
     )
+    render_investment_checklist(host, data_provider=provider)
 
 
 render_page()
