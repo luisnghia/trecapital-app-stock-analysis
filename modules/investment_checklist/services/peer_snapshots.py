@@ -98,6 +98,17 @@ def normalize_peer_result(result: Any, *, base_ticker: str) -> pd.DataFrame:
     frame = frame.drop_duplicates(subset=["Mã"], keep="last")
     if base not in set(frame["Mã"]):
         raise ValidationError(f"Kết quả peer không chứa mã đang phân tích {base}.")
+    if "Mã đang phân tích" not in frame.columns:
+        raise ValidationError(
+            "Kết quả peer thiếu dấu vết mã gốc; hãy chạy lại từ trang So sánh doanh nghiệp."
+        )
+    base_flags = frame["Mã đang phân tích"].fillna(False).astype(bool)
+    marked_bases = frame.loc[base_flags, "Mã"].tolist()
+    if marked_bases != [base]:
+        marked = ", ".join(marked_bases) if marked_bases else "không có"
+        raise ValidationError(
+            f"Kết quả peer được tạo cho mã gốc {marked}, không thể gắn vào review {base}."
+        )
     if len(frame) < 2:
         raise ValidationError("Cần tối thiểu mã đang phân tích và 1 doanh nghiệp peer.")
     if len(frame) > MAX_PEERS:

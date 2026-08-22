@@ -241,9 +241,14 @@ def roic_quality(df: pd.DataFrame) -> ToolResult:
         avg_ex_cash = None if base_ex_cash is None else (base_ex_cash if prior_ex_cash is None else (base_ex_cash + prior_ex_cash) / 2.0)
         avg_ex_goodwill = None if base_ex_goodwill is None else (base_ex_goodwill if prior_ex_goodwill is None else (base_ex_goodwill + prior_ex_goodwill) / 2.0)
 
-        standardized = _n(row, "roic_standard_pct", "roic_pct", "roic_standardized_pct", "roic")
-        if standardized is not None and abs(standardized) <= 2.0:
-            standardized *= 100.0
+        # Canonical *_pct fields already use percentage points even when the value is small
+        # (for example 1.5 means 1.5%, not 150%). Only the legacy generic `roic` fallback may
+        # be expressed as a decimal fraction.
+        standardized = _n(row, "roic_standard_pct", "roic_pct", "roic_standardized_pct")
+        if standardized is None:
+            standardized = _n(row, "roic")
+            if standardized is not None and abs(standardized) <= 2.0:
+                standardized *= 100.0
 
         out.append({
             "Kỳ": _period(row),

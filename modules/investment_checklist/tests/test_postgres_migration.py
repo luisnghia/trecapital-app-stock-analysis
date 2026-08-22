@@ -18,6 +18,13 @@ from modules.investment_checklist.services.evidence_workspace import (
     link_evidence_to_question,
 )
 from modules.investment_checklist.services.peer_snapshots import list_peer_snapshots, save_peer_snapshot
+from modules.investment_checklist.services.portfolio_extensions import (
+    ensure_extension_schema,
+    latest_table_overrides,
+    save_table_override,
+    set_watchlist,
+)
+from modules.investment_checklist.services.watchlist_v2 import ensure_watchlist_financial_schema
 
 CATALOG = "modules/investment_checklist/catalog/question_catalog_prd.csv"
 
@@ -76,13 +83,26 @@ def test_sqlite_to_postgres_migration_preserves_history_and_refuses_nonempty_tar
         sqlite_repo, review_id=rid, question_id="Q26", evidence_id=evidence_id,
         relationship="primary", materiality=5, actor="migration-test",
     )
+    set_watchlist(
+        sqlite_repo, cid, active=True, actor="migration-test", note="Preserve watchlist membership"
+    )
+    save_table_override(
+        sqlite_repo, company_ref_id=cid, table_key="Table 1.2", period_key="TTM",
+        metric_key="ROIC", value=18.5, reason="Preserve analyst correction", actor="migration-test",
+    )
+    ensure_watchlist_financial_schema(sqlite_repo)
+    with sqlite_repo._conn() as c:
+        c.execute(
+            "INSERT INTO checklist_watchlist_financials(company_ref_id,financial_as_of_date,source_module,payload_json,updated_at) VALUES(?,?,?,?,?)",
+            (cid, "2026-06-30", "Trecapital", '{"market_price":12345}', "2026-08-22T00:00:00+00:00"),
+        )
     save_peer_snapshot(
         sqlite_repo,
         company_ref_id=cid,
         review_id=rid,
         result=pd.DataFrame([
-            {"Mã": "FPT", "Điểm tổng hợp": 82.0, "MOS hiện tại %": 20.0, "Moat score": 85.0},
-            {"Mã": "CMG", "Điểm tổng hợp": 69.0, "MOS hiện tại %": 10.0, "Moat score": 60.0},
+            {"Mã": "FPT", "Mã đang phân tích": True, "Điểm tổng hợp": 82.0, "MOS hiện tại %": 20.0, "Moat score": 85.0},
+            {"Mã": "CMG", "Mã đang phân tích": False, "Điểm tổng hợp": 69.0, "MOS hiện tại %": 10.0, "Moat score": 60.0},
         ]),
         base_ticker="FPT",
         target_mos_pct=30,
@@ -112,6 +132,12 @@ def test_sqlite_to_postgres_migration_preserves_history_and_refuses_nonempty_tar
     assert migrated["research_evidence"]["links"][0]["excerpt"] == "Migration evidence retained"
     assert migrated["peer_comparison"]["payload"]["base_ticker"] == "FPT"
     assert len(list_peer_snapshots(pg, snapshots[0]["review_id"])) == 1
+    ensure_extension_schema(pg)
+    ensure_watchlist_financial_schema(pg)
+    with pg._conn() as c:
+        assert c.execute("SELECT note FROM checklist_watchlist WHERE company_ref_id=?", (company["id"],)).fetchone()["note"] == "Preserve watchlist membership"
+        assert c.execute("SELECT payload_json FROM checklist_watchlist_financials WHERE company_ref_id=?", (company["id"],)).fetchone()["payload_json"] == '{"market_price":12345}'
+    assert latest_table_overrides(pg, company["id"], "Table 1.2")[("TTM", "ROIC")]["value_numeric"] == pytest.approx(18.5)
 
     before_count = len(pg.list_audit_logs(company["id"], limit=1000))
     second = subprocess.run(cmd, cwd=Path.cwd(), capture_output=True, text=True)

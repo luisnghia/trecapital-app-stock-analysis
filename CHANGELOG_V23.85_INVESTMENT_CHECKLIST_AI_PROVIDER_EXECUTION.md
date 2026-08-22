@@ -22,9 +22,15 @@
 - Hỗ trợ nâng cấp idempotent cho SQLite cũ và PostgreSQL/Supabase.
 - Các bảng nội bộ bật RLS nhưng không cấp policy cho client; thu hồi quyền `anon`/`authenticated`.
 
+## Guardrail review được đóng cùng checkpoint
+
+- Migration SQLite → PostgreSQL giữ đủ Watchlist, analyst table overrides và Watchlist financial cache; thứ tự chèn vẫn tôn trọng khóa ngoại.
+- Peer Snapshot bắt buộc mã gốc do trang So sánh doanh nghiệp đánh dấu phải trùng doanh nghiệp của review; không thể dùng bảng FPT có DCM làm peer để lưu vào review DCM.
+- `roic_standard_pct`/các field `_pct` luôn giữ đơn vị điểm phần trăm, kể cả giá trị nhỏ như 1,5%; chỉ fallback legacy `roic` mới được đổi từ số thập phân.
+
 ## Kiểm thử trước migration production
 
-- Toàn bộ Investment Checklist: **149 passed, 10 skipped** ở local.
+- Toàn bộ Investment Checklist: **150 passed, 10 skipped** ở local.
 - Bao phủ provider success/failure/refusal, strict response contract, request-id audit, citation hallucination, sai trang PDF, stale content, review lock và nâng cấp SQLite V23.84.
 - PostgreSQL tests được giữ cho GitHub Actions/PostgreSQL 16 và Supabase live validation.
 

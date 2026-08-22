@@ -17,11 +17,16 @@ from psycopg import sql
 from psycopg.rows import dict_row
 
 from modules.investment_checklist.repositories.postgres_repository import PostgresChecklistRepository
+from modules.investment_checklist.services.portfolio_extensions import ensure_extension_schema
+from modules.investment_checklist.services.watchlist_v2 import ensure_watchlist_financial_schema
 
 CATALOG = ROOT / "modules" / "investment_checklist" / "catalog" / "question_catalog_prd.csv"
 
 TABLES = [
     "checklist_company_refs",
+    "checklist_watchlist",
+    "analyst_table_overrides",
+    "checklist_watchlist_financials",
     "research_reviews",
     "analyst_assessments",
     "research_sources",
@@ -38,7 +43,11 @@ TABLES = [
     "audit_logs",
     "integration_sync_log",
 ]
-SERIAL_TABLES = [table for table in TABLES if table != "peer_comparison_snapshots"]
+NON_SERIAL_TABLES = {
+    "checklist_watchlist", "analyst_table_overrides", "checklist_watchlist_financials",
+    "peer_comparison_snapshots",
+}
+SERIAL_TABLES = [table for table in TABLES if table not in NON_SERIAL_TABLES]
 
 
 def sqlite_rows(conn: sqlite3.Connection, table: str):
@@ -49,7 +58,12 @@ def sqlite_rows(conn: sqlite3.Connection, table: str):
     if not exists:
         return []
     columns = {str(r[1]) for r in conn.execute(f"PRAGMA table_info({table})")}
-    order_by = "id" if "id" in columns else "company_ref_id,review_id,version_no"
+    ordering = [
+        name for name in (
+            "id", "company_ref_id", "review_id", "table_key", "period_key", "metric_key", "version_no"
+        ) if name in columns
+    ]
+    order_by = ",".join(ordering) if ordering else "rowid"
     return [dict(r) for r in conn.execute(f"SELECT * FROM {table} ORDER BY {order_by}")]
 
 
@@ -110,6 +124,8 @@ def main():
 
     target_repo = PostgresChecklistRepository(args.database_url, CATALOG)
     target_repo.initialize()
+    ensure_extension_schema(target_repo)
+    ensure_watchlist_financial_schema(target_repo)
 
     sqlite_conn = sqlite3.connect(source)
     pg = psycopg.connect(args.database_url, row_factory=dict_row, autocommit=False, prepare_threshold=None)

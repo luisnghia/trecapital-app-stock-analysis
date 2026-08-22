@@ -20,6 +20,19 @@ def test_roic_quality_reads_module1_roic_standard_pct_field():
     assert row["ROIC Shearn – Ex Cash"] == pytest.approx(25.0)
 
 
+def test_roic_small_canonical_percentage_is_not_multiplied_by_100():
+    canonical = roic_quality(pd.DataFrame([{
+        "period": "2025", "period_type": "Y", "year": 2025,
+        "roic_standard_pct": 1.5, "nopat_bil": 15, "capital_employed_bil": 1000,
+    }])).rows[0]
+    legacy = roic_quality(pd.DataFrame([{
+        "period": "2025", "period_type": "Y", "year": 2025,
+        "roic": 0.015, "nopat_bil": 15, "capital_employed_bil": 1000,
+    }])).rows[0]
+    assert canonical["ROIC Trecapital"] == pytest.approx(1.5)
+    assert legacy["ROIC Trecapital"] == pytest.approx(1.5)
+
+
 def test_working_capital_prefers_canonical_cost_of_goods_sold_field():
     df = pd.DataFrame([
         {

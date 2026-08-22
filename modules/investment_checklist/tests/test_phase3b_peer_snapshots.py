@@ -43,9 +43,9 @@ def _repo(tmp_path):
 
 def _result():
     return pd.DataFrame([
-        {"Mã": "DGC", "Điểm tổng hợp": 78.0, "MOS hiện tại %": 15.0, "Moat score": 80.0, "ROE %": 29.0},
-        {"Mã": "DCM", "Điểm tổng hợp": 75.0, "MOS hiện tại %": 22.0, "Moat score": 70.0, "ROE %": 20.0},
-        {"Mã": "DPM", "Điểm tổng hợp": 75.0, "MOS hiện tại %": 30.0, "Moat score": 65.0, "ROE %": 18.0},
+        {"Mã": "DGC", "Mã đang phân tích": False, "Điểm tổng hợp": 78.0, "MOS hiện tại %": 15.0, "Moat score": 80.0, "ROE %": 29.0},
+        {"Mã": "DCM", "Mã đang phân tích": True, "Điểm tổng hợp": 75.0, "MOS hiện tại %": 22.0, "Moat score": 70.0, "ROE %": 20.0},
+        {"Mã": "DPM", "Mã đang phân tích": False, "Điểm tổng hợp": 75.0, "MOS hiện tại %": 30.0, "Moat score": 65.0, "ROE %": 18.0},
     ])
 
 
@@ -156,11 +156,20 @@ def test_phase3b_rejects_wrong_or_oversized_peer_sets(tmp_path):
             actor="analyst",
         )
     too_many = pd.DataFrame([
-        {"Mã": "DCM" if i == 0 else f"A{i}", "Điểm tổng hợp": 80 - i}
+        {
+            "Mã": "DCM" if i == 0 else f"A{i}",
+            "Mã đang phân tích": i == 0,
+            "Điểm tổng hợp": 80 - i,
+        }
         for i in range(11)
     ])
     with pytest.raises(ValidationError, match="tối đa"):
         normalize_peer_result(too_many, base_ticker="DCM")
+
+    fpt_result_with_dcm_peer = _result().copy()
+    fpt_result_with_dcm_peer["Mã đang phân tích"] = fpt_result_with_dcm_peer["Mã"].eq("DGC")
+    with pytest.raises(ValidationError, match="được tạo cho mã gốc DGC"):
+        normalize_peer_result(fpt_result_with_dcm_peer, base_ticker="DCM")
 
 
 def test_phase3b_streamlit_ui_renders_without_network_or_assessment_write(tmp_path):
@@ -178,9 +187,10 @@ reviews = repo.list_reviews(cid)
 rid = reviews[0]["id"] if reviews else repo.create_review(cid, "2026-06-30", "full", "analyst", review_reason="UI smoke")
 review = repo.get_review(rid)
 st.session_state["peer_compare_result"] = pd.DataFrame([
-    {{"Mã":"DCM","Điểm tổng hợp":75,"MOS hiện tại %":20,"Moat score":70}},
-    {{"Mã":"DPM","Điểm tổng hợp":72,"MOS hiện tại %":30,"Moat score":65}},
+    {{"Mã":"DCM","Mã đang phân tích":True,"Điểm tổng hợp":75,"MOS hiện tại %":20,"Moat score":70}},
+    {{"Mã":"DPM","Mã đang phân tích":False,"Điểm tổng hợp":72,"MOS hiện tại %":30,"Moat score":65}},
 ])
+st.session_state["module3_base_ticker"] = "DCM"
 render_peer_snapshot(repo, company_ref_id=cid, review=review, base_ticker="DCM", actor="analyst")
 '''
     at = AppTest.from_string(app, default_timeout=15).run()

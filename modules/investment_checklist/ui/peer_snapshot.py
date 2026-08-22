@@ -98,13 +98,20 @@ def render_peer_snapshot(
         st.info("Review này chưa có Peer Snapshot được analyst xác nhận.")
 
     session_result = st.session_state.get("peer_compare_result")
+    session_base_ticker = str(st.session_state.get("module3_base_ticker") or "").strip().upper()
     current = None
     session_error = None
     if isinstance(session_result, pd.DataFrame) and not session_result.empty:
-        try:
-            current = normalize_peer_result(session_result, base_ticker=base_ticker)
-        except ValidationError as exc:
-            session_error = str(exc)
+        if session_base_ticker != str(base_ticker).strip().upper():
+            session_error = (
+                f"Kết quả tạm được tạo cho {session_base_ticker or 'mã không xác định'}, "
+                f"không phải {str(base_ticker).strip().upper()}; hãy chạy lại so sánh từ đúng mã."
+            )
+        else:
+            try:
+                current = normalize_peer_result(session_result, base_ticker=base_ticker)
+            except ValidationError as exc:
+                session_error = str(exc)
 
     if current is None:
         if session_error:
