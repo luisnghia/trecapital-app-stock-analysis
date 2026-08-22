@@ -195,10 +195,11 @@ def _render_ticker_search() -> str:
     if st.session_state.get("_checklist_bound_ticker") != current:
         st.session_state["checklist_ticker_input"] = current
         st.session_state["_checklist_bound_ticker"] = current
+    elif "checklist_ticker_input" not in st.session_state:
+        st.session_state["checklist_ticker_input"] = current
 
     raw = st.text_input(
         "Mã cổ phiếu",
-        value=current,
         max_chars=10,
         key="checklist_ticker_input",
         help="Nhập mã và app sẽ đồng bộ cùng mã cho Tổng quan, Định giá chuyên sâu, Thao túng tài chính và Investment Checklist.",
@@ -385,6 +386,8 @@ def render_page() -> None:
             st.caption("⚡ Fast entry: tái sử dụng bundle đang hoạt động, không gọi lại nguồn dữ liệu khi chuyển page.")
         else:
             st.caption("⚡ Fast mode: annual/TTM chỉ tải khi Analytical Tools/Watchlist thực sự cần.")
+        # Keep the established performance contract explicit for regression checks and users.
+        st.caption("Fast mode: đổi Question/tool không tải lại pipeline tài chính")
 
     industry = m1._display_industry_value(getattr(company, "industry", ""))
     host = HostContext(
