@@ -18,6 +18,7 @@ from ..quantitative_tools import (
     roic_quality,
     working_capital,
 )
+from .source_table_guidance import render_full_chapter_5_to_10_guide, render_source_table_guidance
 
 
 TOOL_OPTIONS = [
@@ -59,6 +60,7 @@ def _latest_first(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty or "Kỳ" not in df.columns:
         return df
     out = df.copy()
+
     def key(value):
         text = str(value or "").strip().upper()
         if "TTM" in text or "T12M" in text:
@@ -67,6 +69,7 @@ def _latest_first(df: pd.DataFrame) -> pd.DataFrame:
             return int(float(text[:4]))
         except Exception:
             return -1
+
     out["_sort"] = out["Kỳ"].map(key)
     return out.sort_values("_sort", ascending=False, kind="stable").drop(columns="_sort")
 
@@ -159,6 +162,10 @@ def render_quantitative_tools(
         unsafe_allow_html=True,
     )
 
+    # Static lookup only: no database/network work. It also exposes Tables 7.1 and 8.1 even though
+    # their Management/Human Intelligence engines are scheduled for a later phase.
+    render_full_chapter_5_to_10_guide()
+
     df = _annual_df(data_provider)
     if df.empty:
         st.warning("Không có annual/TTM Data Layer để chạy Analytical Tools.")
@@ -179,11 +186,13 @@ def render_quantitative_tools(
     if selected.startswith("5.1"):
         formula_prefix = "Balance Sheet"
         _render_result(balance_sheet_leverage(df), height=470)
+        render_source_table_guidance(("5.1", "5.2"))
         st.info("Q25: đánh giá sức mạnh bảng cân đối qua chu kỳ, không chỉ nhìn Debt/EBITDA của một kỳ.")
 
     elif selected.startswith("5.3"):
         formula_prefix = "ROIC Quality"
         _render_result(roic_quality(df), height=470)
+        render_source_table_guidance(("5.3", "5.4"))
         st.info(
             "Q26: 'ROIC Trecapital' là metric chuẩn của app. Các ROIC Shearn chỉ là analytical views để nhìn distortion do cash/goodwill; "
             "không tự động thay assessment analyst."
@@ -192,6 +201,7 @@ def render_quantitative_tools(
     elif selected.startswith("6.1"):
         formula_prefix = "Accounting Reserve"
         _render_result(accounting_quality_proxy(df), height=470)
+        render_source_table_guidance(("6.1", "6.2"))
         st.warning(
             "Tool này không chạy lại Beneish/M-Score. Module Manipulation hiện có vẫn là nơi thực hiện manipulation tests; "
             "Phase 2 chỉ đặt reserve/charge-off, CFO vs NI, AR và Inventory vào context của Q27."
@@ -200,6 +210,7 @@ def render_quantitative_tools(
     elif selected.startswith("6.3"):
         formula_prefix = "Operating Leverage"
         _render_result(operating_leverage(df), height=470)
+        render_source_table_guidance(("6.3", "6.4", "6.5"))
         st.markdown("##### Stress test — phần mở rộng Trecapital")
         stress = operating_leverage_stress(df)
         if stress:
@@ -219,6 +230,7 @@ def render_quantitative_tools(
     elif selected.startswith("6.6"):
         formula_prefix = "Working Capital"
         _render_result(working_capital(df), height=500)
+        render_source_table_guidance(("6.6",))
         st.info("Q31: CCC giảm có thể do vận hành tốt hơn hoặc do kéo dài DPO. App không tự chấm 'CCC thấp = tốt'.")
 
     elif selected.startswith("Ch.6"):
@@ -232,6 +244,7 @@ def render_quantitative_tools(
     elif selected.startswith("8.2"):
         formula_prefix = "Buyback"
         _render_result(buyback_dilution(df), height=500)
+        render_source_table_guidance(("8.2", "8.3"))
         st.info(
             "Q46–Q47: Net share reduction và EPS uplift có thể tính tự động. Gross buyback trừ ESOP/options chỉ hiện khi Data Layer có line-item; "
             "thiếu thì để trống chứ không giả định bằng 0."
@@ -247,6 +260,7 @@ def render_quantitative_tools(
             _render_result(operating_driver_eps(df, driver_field=field, driver_label=label), height=500)
         else:
             _render_result(operating_driver_eps(df), height=500)
+        render_source_table_guidance(("10.1",))
         st.caption(
             "Table 10.1 đặt EPS cạnh operating metric. Phase 2 dùng driver Trecapital hiện có; Phase 3 sẽ đưa driver theo ngành "
             "(ví dụ volume/ASP/spread, store/SSS, loan growth/NIM...)."
