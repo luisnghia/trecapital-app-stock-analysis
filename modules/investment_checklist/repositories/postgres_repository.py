@@ -15,6 +15,9 @@ from .sqlite_repository import SQLiteChecklistRepository
 _INSERT_ID_TABLES = {
     'research_reviews',
     'analyst_assessments',
+    'research_sources',
+    'research_evidence',
+    'evidence_question_links',
     'screening_assessments',
     'opportunity_inventory_snapshots',
     'data_snapshots',

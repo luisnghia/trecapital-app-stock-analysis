@@ -62,10 +62,14 @@ jobs:
           engine = engine_raw.lower()
           ui = Path('modules/investment_checklist/ui/quant_tools.py').read_text(encoding='utf-8')
           shell = Path('modules/investment_checklist/ui/__init__.py').read_text(encoding='utf-8')
+          integrated_shell = Path('modules/investment_checklist/ui/integration_preview.py').read_text(encoding='utf-8')
+          evidence = Path('modules/investment_checklist/services/evidence_workspace.py').read_text(encoding='utf-8').lower()
           formulas = Path('modules/investment_checklist/phase2_formula_assumptions.py').read_text(encoding='utf-8')
           forbidden = ['import httpx', 'import requests', 'urllib.request']
           assert not any(x in engine for x in forbidden), 'Quant tools must not fetch a parallel financial source'
+          assert not any(x in evidence for x in forbidden), 'Evidence workspace records analyst sources; it must not fetch a parallel source'
           assert '🧮 Analytical Tools' in shell, 'Analytical Tools section must be reachable'
+          assert '🔎 Research Evidence' in integrated_shell, 'Research Evidence Workspace must be reachable'
           assert 'st.tabs(' not in ui, 'Phase 2 UI should execute only the selected tool'
           assert 'không tính beneish lần thứ hai' in engine, 'Accounting quality must not duplicate Beneish'
           assert 'ROIC Trecapital' in engine_raw and 'ROIC Shearn' in engine_raw, 'ROIC standard and Shearn variants must stay distinct'

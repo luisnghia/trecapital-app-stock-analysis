@@ -9,6 +9,7 @@ from ..services.portfolio_extensions import ensure_extension_schema, is_watchlis
 from ..services.review_admin import delete_review_manually, review_delete_preview
 from ..services.watchlist_v2 import refresh_watchlist_cagrs_if_changed
 from . import page as _page
+from .evidence_workspace import render_evidence_workspace
 from .integration_preview import SECTIONS
 from .performance_v3 import (
     render_analytical_fast,
@@ -78,6 +79,7 @@ def _render_delete_review(repo, selected_review, actor: str, state_key: str, com
         st.warning(
             f"Xóa REVIEW #{selected_review['id']} ({selected_review['as_of_date']} · {selected_review['status']}) sẽ xóa "
             f"{counts['analyst_assessments']} assessment, {counts['screening_assessments']} screening version, "
+            f"{counts['evidence_links']} evidence link, "
             f"{counts['inventory_snapshots']} inventory snapshot và {counts['immutable_snapshots']} immutable snapshot gắn với review này. "
             "Audit tombstone vẫn được giữ."
         )
@@ -247,8 +249,10 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     elif section == SECTIONS[2]:
         render_workspace_fast(repo, company_ref_id, review, actor)
     elif section == SECTIONS[3]:
-        render_watchlist_fast(repo, company_ref_id, company["ticker"], actor=actor, data_provider=data_provider)
+        render_evidence_workspace(repo, company_ref_id, review, actor)
     elif section == SECTIONS[4]:
+        render_watchlist_fast(repo, company_ref_id, company["ticker"], actor=actor, data_provider=data_provider)
+    elif section == SECTIONS[5]:
         _render_history_fast(repo, company_ref_id, review, actor)
     else:
         render_formula_assumptions_v3(integration, host)

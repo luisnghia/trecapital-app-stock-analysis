@@ -20,6 +20,7 @@ from ..catalog.catalog import load_questions
 from ..formula_assumptions import EVALUATION_RULES, FORMULA_ROWS, GLOSSARY, SOURCE_NOTES
 from ..services.formulas import inventory_metrics
 from ..services.integration_service import CATALOG_PATH
+from ..services.evidence_workspace import list_review_evidence
 from . import page as _page
 from . import portfolio_extensions as _pe
 from .analytical_hub_v2 import render_analytical_hub_v2
@@ -186,6 +187,16 @@ def _assessment_bundle(repo, company_ref_id: int, review: dict[str, Any], qid: s
     return current, prior, history
 
 
+def _review_evidence_cached(repo, review_id: int) -> list[dict[str, Any]]:
+    """Load exact evidence versions once per review; Question switches filter the in-memory bundle."""
+    key = f"_evidence_links_fast_{int(review_id)}"
+    rows = st.session_state.get(key)
+    if rows is None:
+        rows = list_review_evidence(repo, int(review_id))
+        st.session_state[key] = rows
+    return rows
+
+
 def _fragment_rerun() -> None:
     try:
         st.rerun(scope="fragment")
@@ -218,6 +229,31 @@ def render_workspace_fast(repo, company_ref_id: int, review: dict[str, Any] | No
     st.markdown(f"### {qid}. {q['question_vi']}")
     st.markdown(f"<div class='guide'><b>Hướng dẫn tự phân tích:</b> {q['guidance']}</div>", unsafe_allow_html=True)
     st.caption(f"Supporting tool: {q['supporting_tool'] or 'Không có'}")
+
+    evidence_rows = [row for row in _review_evidence_cached(repo, review["id"]) if row["question_id"] == qid]
+    if evidence_rows:
+        verified = sum(row["verification_status"] == "verified" for row in evidence_rows)
+        contradictions = sum(
+            row["direction"] == "contradicts" or row["relationship"] == "contradicts"
+            for row in evidence_rows
+        )
+        st.caption(
+            f"Evidence: {len(evidence_rows)} link · {verified} verified · {contradictions} mâu thuẫn/phản bác."
+        )
+        if contradictions:
+            st.warning("Câu hỏi này có evidence phản bác/mâu thuẫn; cần xử lý trong assessment thay vì bỏ qua.")
+        with st.expander(f"🔎 Evidence cho {qid}", expanded=False):
+            frame = pd.DataFrame(evidence_rows).rename(columns={
+                "source_title": "Nguồn", "excerpt": "Trích đoạn / sự kiện", "locator_text": "Vị trí",
+                "verification_status": "Xác minh", "direction": "Chiều", "relationship": "Vai trò",
+                "materiality": "Trọng yếu", "version_no": "Version", "url": "URL",
+            })
+            st.dataframe(
+                frame[["Nguồn", "Trích đoạn / sự kiện", "Vị trí", "Xác minh", "Chiều", "Vai trò", "Trọng yếu", "Version", "URL"]],
+                use_container_width=True, hide_index=True,
+            )
+    else:
+        st.caption("Evidence: chưa có link cho câu hỏi này — bổ sung tại Research Evidence Workspace nếu assessment cần bằng chứng.")
 
     a, b = st.columns(2)
     a.markdown("**Current review**")

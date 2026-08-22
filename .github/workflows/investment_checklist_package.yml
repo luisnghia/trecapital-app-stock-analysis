@@ -9,7 +9,7 @@ on:
       - pages/05_Investment_Checklist.py
       - modules/investment_checklist/**
       - docs/INVESTMENT_CHECKLIST_*.md
-      - CHANGELOG_V23.79_INVESTMENT_CHECKLIST_SECRET_SAFE_SMOKE_FIX.md
+      - CHANGELOG_V23*.md
 
 permissions:
   contents: read

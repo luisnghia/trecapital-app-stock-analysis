@@ -9,12 +9,14 @@ from . import page as _page
 from .analytical_hub_v2 import render_analytical_hub_v2
 from .portfolio_extensions import render_wrapped_table
 from .watchlist_v2 import render_watchlist_toggle_v2, render_watchlist_v2
+from .evidence_workspace import render_evidence_workspace
 
 
 SECTIONS = [
     "🏠 Research Home",
     "🧮 Analytical Tools",
     "🧠 Analyst Workspace Q01–Q59",
+    "🔎 Research Evidence",
     "⭐ Watchlist",
     "🕘 Snapshot & History",
     "📐 Công thức & giả định",
@@ -113,6 +115,7 @@ def _render_delete_review_popover(repo, selected_review, actor, state_key):
         st.warning(
             f"Xóa REVIEW #{selected_review['id']} ({selected_review['as_of_date']} · {selected_review['status']}) sẽ xóa "
             f"{counts['analyst_assessments']} assessment, {counts['screening_assessments']} screening version, "
+            f"{counts['evidence_links']} evidence link, "
             f"{counts['inventory_snapshots']} inventory snapshot và {counts['immutable_snapshots']} immutable snapshot gắn với review này. "
             "Các review sau sẽ được nối lại về prior review trước đó. Audit tombstone vẫn được giữ."
         )
@@ -228,8 +231,10 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     elif section == SECTIONS[2]:
         _page._render_workspace(repo, cid, review, actor)
     elif section == SECTIONS[3]:
-        render_watchlist_v2(repo, cid, company["ticker"], actor=actor, data_provider=data_provider)
+        render_evidence_workspace(repo, cid, review, actor)
     elif section == SECTIONS[4]:
+        render_watchlist_v2(repo, cid, company["ticker"], actor=actor, data_provider=data_provider)
+    elif section == SECTIONS[5]:
         _page._render_history(repo, cid, review, actor)
     else:
         _render_formula_assumptions_wrapped(integration, host)

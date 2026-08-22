@@ -24,6 +24,7 @@ def review_delete_preview(repo, review_id: int) -> dict[str, Any]:
         counts = {
             "analyst_assessments": int(c.execute("SELECT COUNT(*) n FROM analyst_assessments WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "screening_assessments": int(c.execute("SELECT COUNT(*) n FROM screening_assessments WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "evidence_links": int(c.execute("SELECT COUNT(*) n FROM evidence_question_links WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "inventory_snapshots": int(c.execute("SELECT COUNT(*) n FROM opportunity_inventory_snapshots WHERE last_review_id=?", (review_id,)).fetchone()["n"]),
             "immutable_snapshots": int(c.execute("SELECT COUNT(*) n FROM data_snapshots WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
@@ -59,6 +60,7 @@ def delete_review_manually(
         counts = {
             "analyst_assessments": len(assessment_ids),
             "screening_assessments": len(screening_ids),
+            "evidence_links": int(c.execute("SELECT COUNT(*) n FROM evidence_question_links WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "inventory_snapshots": int(c.execute("SELECT COUNT(*) n FROM opportunity_inventory_snapshots WHERE last_review_id=?", (review_id,)).fetchone()["n"]),
             "immutable_snapshots": int(c.execute("SELECT COUNT(*) n FROM data_snapshots WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
@@ -81,6 +83,7 @@ def delete_review_manually(
         # Review-owned snapshots/versions are deleted together with the review to avoid orphan history.
         c.execute("DELETE FROM data_snapshots WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM opportunity_inventory_snapshots WHERE last_review_id=?", (review_id,))
+        c.execute("DELETE FROM evidence_question_links WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM analyst_assessments WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM screening_assessments WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM research_reviews WHERE id=?", (review_id,))

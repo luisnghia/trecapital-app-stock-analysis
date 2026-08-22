@@ -72,6 +72,67 @@ CREATE TABLE IF NOT EXISTS analyst_assessments(
     UNIQUE(review_id,question_id,version_no)
 );
 
+CREATE TABLE IF NOT EXISTS research_sources(
+    id BIGSERIAL PRIMARY KEY,
+    company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),
+    source_type TEXT NOT NULL CHECK(source_type IN('annual_report','quarterly_report','filing','investor_presentation','earnings_call','company_website','regulator','industry_report','news','interview','customer_supplier_employee','analyst_upload','other')),
+    title TEXT NOT NULL,
+    publisher TEXT,
+    url TEXT,
+    document_date TEXT,
+    accessed_at TEXT,
+    reliability INTEGER NOT NULL CHECK(reliability BETWEEN 1 AND 5),
+    status TEXT NOT NULL DEFAULT 'active' CHECK(status IN('active','archived')),
+    notes TEXT,
+    source_hash TEXT NOT NULL,
+    created_by TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
+    UNIQUE(company_ref_id,source_hash)
+);
+CREATE INDEX IF NOT EXISTS ix_research_sources_company_date ON research_sources(company_ref_id,document_date DESC,id DESC);
+
+CREATE TABLE IF NOT EXISTS research_evidence(
+    id BIGSERIAL PRIMARY KEY,
+    company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),
+    source_id BIGINT NOT NULL REFERENCES research_sources(id),
+    evidence_key TEXT NOT NULL,
+    version_no INTEGER NOT NULL,
+    evidence_type TEXT NOT NULL CHECK(evidence_type IN('fact','quote','metric','observation','contradiction','risk')),
+    locator_text TEXT,
+    excerpt TEXT NOT NULL,
+    analyst_note TEXT,
+    evidence_date TEXT,
+    verification_status TEXT NOT NULL DEFAULT 'unverified' CHECK(verification_status IN('unverified','verified','disputed','stale')),
+    direction TEXT NOT NULL DEFAULT 'context' CHECK(direction IN('supports','contradicts','context')),
+    confidence INTEGER NOT NULL CHECK(confidence BETWEEN 1 AND 5),
+    change_reason TEXT,
+    supersedes_evidence_id BIGINT REFERENCES research_evidence(id),
+    content_hash TEXT NOT NULL,
+    created_by TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
+    UNIQUE(source_id,evidence_key,version_no)
+);
+CREATE INDEX IF NOT EXISTS ix_research_evidence_source_key ON research_evidence(source_id,evidence_key,version_no DESC);
+CREATE INDEX IF NOT EXISTS ix_research_evidence_company_date ON research_evidence(company_ref_id,evidence_date DESC,id DESC);
+
+CREATE TABLE IF NOT EXISTS evidence_question_links(
+    id BIGSERIAL PRIMARY KEY,
+    company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),
+    review_id BIGINT NOT NULL REFERENCES research_reviews(id),
+    question_id TEXT NOT NULL REFERENCES checklist_questions(question_id),
+    evidence_id BIGINT NOT NULL REFERENCES research_evidence(id),
+    relationship TEXT NOT NULL CHECK(relationship IN('primary','supporting','context','contradicts')),
+    materiality INTEGER NOT NULL CHECK(materiality BETWEEN 1 AND 5),
+    link_note TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN(0,1)),
+    deactivation_reason TEXT,
+    created_by TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
+    deactivated_at TEXT,
+    UNIQUE(review_id,question_id,evidence_id)
+);
+CREATE INDEX IF NOT EXISTS ix_evidence_links_review_question ON evidence_question_links(review_id,question_id,is_active);
+
 CREATE TABLE IF NOT EXISTS screening_assessments(
     id BIGSERIAL PRIMARY KEY,
     company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),

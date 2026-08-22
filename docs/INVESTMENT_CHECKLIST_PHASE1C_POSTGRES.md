@@ -10,7 +10,8 @@ Phase 1C replaces ephemeral Streamlit runtime persistence with durable PostgreSQ
 - completed reviews are read-only;
 - immutable review snapshots;
 - audit and integration sync logs;
-- Table 1.1 and Table 1.2 history.
+- Table 1.1 and Table 1.2 history;
+- Research Evidence sources, append-only evidence versions and review/Q01–Q59 links.
 
 SQLite remains available only as a local/dev fallback.
 
@@ -58,7 +59,7 @@ $env:TREC_CHECKLIST_DATABASE_URL = "postgresql://..."
 python scripts\migrate_checklist_sqlite_to_postgres.py --sqlite data_cache\investment_checklist.db
 ```
 
-The script preserves original IDs and versions, copies review/snapshot/audit history, resets PostgreSQL sequences, and performs the migration in one transaction. If any step fails, PostgreSQL is rolled back.
+The script preserves original IDs and versions, copies review/snapshot/audit/evidence history, resets PostgreSQL sequences, and performs the migration in one transaction. Legacy SQLite databases without evidence tables are accepted and migrate those tables as empty. If any step fails, PostgreSQL is rolled back.
 
 ## Production restart/rebuild persistence verification
 
@@ -100,6 +101,7 @@ A green Phase 1C CI is required before merging any production persistence work.
 - PostgreSQL/Supabase survives Streamlit rebuild/restart.
 - A finalized snapshot can be re-read after a fresh app process.
 - Prior assessment versions remain unchanged.
+- Exact evidence versions linked to a finalized review remain inside its immutable snapshot.
 - No implicit carry-forward occurs.
 - SQLite fallback is visibly labeled local/dev.
 - No database credential appears in UI, logs, audit rows or source control.

@@ -24,6 +24,9 @@ TABLES = [
     "checklist_company_refs",
     "research_reviews",
     "analyst_assessments",
+    "research_sources",
+    "research_evidence",
+    "evidence_question_links",
     "screening_assessments",
     "opportunity_inventory_snapshots",
     "data_snapshots",
@@ -35,6 +38,11 @@ SERIAL_TABLES = TABLES
 
 def sqlite_rows(conn: sqlite3.Connection, table: str):
     conn.row_factory = sqlite3.Row
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+    ).fetchone()
+    if not exists:
+        return []
     return [dict(r) for r in conn.execute(f"SELECT * FROM {table} ORDER BY id")]
 
 

@@ -11,6 +11,11 @@ import pytest
 
 from modules.investment_checklist.repositories.postgres_repository import PostgresChecklistRepository
 from modules.investment_checklist.repositories.sqlite_repository import SQLiteChecklistRepository
+from modules.investment_checklist.services.evidence_workspace import (
+    create_evidence_version,
+    create_source,
+    link_evidence_to_question,
+)
 
 CATALOG = "modules/investment_checklist/catalog/question_catalog_prd.csv"
 
@@ -55,6 +60,20 @@ def test_sqlite_to_postgres_migration_preserves_history_and_refuses_nonempty_tar
         market_cap=1000, market_price=50000, target_price=70000,
         mos=0.2857, actor="migration-test"
     )
+    source_id = create_source(
+        sqlite_repo, company_ref_id=cid, source_type="annual_report",
+        title="Migration annual report", document_date=date(2025, 12, 31),
+        reliability=5, actor="migration-test",
+    )
+    evidence_id = create_evidence_version(
+        sqlite_repo, company_ref_id=cid, source_id=source_id, evidence_type="fact",
+        excerpt="Migration evidence retained", verification_status="verified",
+        direction="supports", confidence=5, actor="migration-test",
+    )
+    link_evidence_to_question(
+        sqlite_repo, review_id=rid, question_id="Q26", evidence_id=evidence_id,
+        relationship="primary", materiality=5, actor="migration-test",
+    )
     sid = sqlite_repo.finalize_review(rid, actor="migration-test")
     original = sqlite_repo.get_snapshot(sid)["payload"]
 
@@ -75,6 +94,7 @@ def test_sqlite_to_postgres_migration_preserves_history_and_refuses_nonempty_tar
     assert migrated["review"]["status"] == original["review"]["status"] == "completed"
     assert migrated["assessments"][0]["version_no"] == original["assessments"][0]["version_no"] == 1
     assert migrated["quality_tally"] == original["quality_tally"] == 1
+    assert migrated["research_evidence"]["links"][0]["excerpt"] == "Migration evidence retained"
 
     before_count = len(pg.list_audit_logs(company["id"], limit=1000))
     second = subprocess.run(cmd, cwd=Path.cwd(), capture_output=True, text=True)
