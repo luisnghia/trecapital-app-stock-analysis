@@ -176,7 +176,7 @@ def render_quantitative_tools(
     if company_type in _FINANCIAL_TYPES:
         st.warning(
             "Doanh nghiệp tài chính: ROIC/CCC/operating leverage kiểu công nghiệp có thể không phù hợp. "
-            "Phase 3 Industry Overlay sẽ thay supporting metrics bằng ROE/ROA/NIM/CASA/LDR/NPL/LLR/CAR... "
+            "Industry & Moat Phase 3A dùng supporting metrics ROE/ROA/NIM/CASA/LDR/NPL/LLR/CAR... "
             "Không dùng các tool công nghiệp dưới đây làm kết luận chính."
         )
 
@@ -262,7 +262,7 @@ def render_quantitative_tools(
             _render_result(operating_driver_eps(df), height=500)
         render_source_table_guidance(("10.1",))
         st.caption(
-            "Table 10.1 đặt EPS cạnh operating metric. Phase 2 dùng driver Trecapital hiện có; Phase 3 sẽ đưa driver theo ngành "
+            "Table 10.1 đặt EPS cạnh operating metric. Phase 2 dùng driver Trecapital hiện có; Industry & Moat Phase 3A công bố coverage driver theo ngành "
             "(ví dụ volume/ASP/spread, store/SSS, loan growth/NIM...)."
         )
 

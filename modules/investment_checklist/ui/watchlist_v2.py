@@ -20,6 +20,38 @@ _DISPLAY_COLUMNS = {
     "FCF Yield Mkt", "CCC", "Market cap", "Giá", "FCF est./share", "Target", "MOS",
 }
 
+_RATIO_COLUMNS = {"TEV/EBIT", "TEV/EBITDA", "TEV/Norm.E", "Debt/EBITDA", "EBIT/Interest"}
+_PERCENT_COLUMNS = {"CAGR DT 5Y", "CAGR LN 5Y", "Pre-tax yield", "FCF Yield EV", "FCF Yield Mkt", "MOS"}
+_MONEY_COLUMNS = {
+    "TEV", "EBIT", "EBITDA", "Normalized earnings", "Total Debt", "FCF",
+    "Market cap", "Giá", "FCF est./share", "Target",
+}
+
+
+def _formatted_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Materialize Table 1.2 display rules before handing data to Streamlit.
+
+    Streamlit 1.40 can ignore ``Styler.format`` in selectable dataframes.  The
+    production table therefore receives strings that are already formatted;
+    ``Styler`` is used only for color/highlight CSS.
+    """
+    shown = df.copy()
+    for col in shown.columns:
+        def fmt(value, *, name=col):
+            if value is None or pd.isna(value):
+                return "—"
+            if name in _RATIO_COLUMNS:
+                return f"{float(value):,.1f}x"
+            if name in _PERCENT_COLUMNS:
+                return f"{float(value):,.1f}%"
+            if name in _MONEY_COLUMNS:
+                return f"{float(value):,.0f}"
+            if name == "CCC":
+                return f"{float(value):,.0f} ngày"
+            return str(value)
+        shown[col] = shown[col].map(fmt)
+    return shown
+
 
 def _display_dataframe(rows):
     out = []
@@ -43,12 +75,21 @@ def _display_dataframe(rows):
 def _style(df: pd.DataFrame, adjusted_by_row: dict[int, set[str]]):
     if df.empty:
         return df.style
-    styler = _page._style_inventory(df)
-    pct = {c: (lambda v: "—" if pd.isna(v) else f"{v:,.1f}%") for c in ["CAGR DT 5Y", "CAGR LN 5Y"] if c in df.columns}
-    styler = styler.format(pct, na_rep="—")
+    shown = _formatted_dataframe(df)
 
     def paint(data):
         styles = pd.DataFrame("", index=data.index, columns=data.columns)
+        for idx in styles.index:
+            for metric in styles.columns:
+                if metric not in df.columns:
+                    continue
+                raw = df.at[idx, metric]
+                if isinstance(raw, (int, float)) and not pd.isna(raw) and float(raw) != 0:
+                    styles.at[idx, metric] = (
+                        "color:#B91C1C;background-color:rgba(220,38,38,.10);font-weight:700"
+                        if float(raw) < 0 else
+                        "color:#047857;background-color:rgba(16,185,129,.10);font-weight:700"
+                    )
         for idx, metrics in adjusted_by_row.items():
             if idx not in styles.index:
                 continue
@@ -60,7 +101,7 @@ def _style(df: pd.DataFrame, adjusted_by_row: dict[int, set[str]]):
                     )
         return styles
 
-    return styler.apply(paint, axis=None)
+    return shown.style.apply(paint, axis=None)
 
 
 def _open_ticker(ticker: str, current_ticker: str) -> None:
@@ -130,6 +171,7 @@ def render_watchlist_v2(repo, current_company_ref_id: int, current_ticker: str, 
     if missing:
         st.warning("Chưa có snapshot dữ liệu tài chính mới cho: " + ", ".join(missing) + ". Mở mã và bấm cập nhật Watchlist.")
     st.caption("Chọn một dòng/mã để mở Investment Checklist của doanh nghiệp đó. Ô analyst correction được tô vàng hoa mai.")
+    st.caption("Định dạng nguồn Table 1.2: tiền/giá 0 số lẻ · tỷ lệ 1 số lẻ + x · phần trăm 1 số lẻ + % · CCC theo ngày · thiếu dữ liệu = —.")
     try:
         event = st.dataframe(
             _style(df, adjusted_by_row),

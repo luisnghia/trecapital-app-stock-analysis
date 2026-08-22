@@ -11,6 +11,7 @@ from modules.investment_checklist.repositories.sqlite_repository import SQLiteCh
 from modules.investment_checklist.services.extension_schema_cache import ensure_extension_schema
 from modules.investment_checklist.services.portfolio_extensions import save_table_override, set_watchlist
 from modules.investment_checklist.services.watchlist_v2 import list_watchlist_rows_v2, refresh_watchlist_cagrs_if_changed
+from modules.investment_checklist.ui.watchlist_v2 import _formatted_dataframe, _style
 
 CATALOG = Path("modules/investment_checklist/catalog/question_catalog_prd.csv")
 
@@ -115,3 +116,19 @@ def test_operating_leverage_stress_table_has_analyst_override_renderer_contract(
     assert 'auxiliary_table_renderer("Operating Leverage Stress", stress_df)' in quant
     assert "_render_stress_override_table" in hub
     assert 'table_key = f"Analytical · {name}"' in hub
+
+
+def test_watchlist_materializes_table12_format_before_selectable_dataframe():
+    raw = pd.DataFrame([{
+        "Mã CP": "VIP", "CAGR LN 5Y": 7.123, "TEV": 12296.507403,
+        "EBIT": 2619.018872, "Normalized earnings": None,
+        "TEV/EBIT": 4.695082, "CCC": 42.4, "MOS": -3.25,
+    }])
+    shown = _formatted_dataframe(raw)
+    assert shown.iloc[0].to_dict() == {
+        "Mã CP": "VIP", "CAGR LN 5Y": "7.1%", "TEV": "12,297",
+        "EBIT": "2,619", "Normalized earnings": "—",
+        "TEV/EBIT": "4.7x", "CCC": "42 ngày", "MOS": "-3.2%",
+    }
+    # The Styler data itself is already formatted, so Streamlit 1.40 cannot leak raw floats/None.
+    assert _style(raw, {0: {"EBIT"}}).data.iloc[0]["Normalized earnings"] == "—"

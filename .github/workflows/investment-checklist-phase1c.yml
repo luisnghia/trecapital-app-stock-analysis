@@ -7,12 +7,20 @@ on:
     paths:
       - 'modules/investment_checklist/**'
       - 'pages/05_Investment_Checklist.py'
+      - 'financial_sign_policy.py'
+      - 'module1_engine.py'
+      - 'module2_engine.py'
+      - 'VERSION.txt'
       - 'requirements.txt'
       - '.github/workflows/investment-checklist-phase1c.yml'
   pull_request:
     paths:
       - 'modules/investment_checklist/**'
       - 'pages/05_Investment_Checklist.py'
+      - 'financial_sign_policy.py'
+      - 'module1_engine.py'
+      - 'module2_engine.py'
+      - 'VERSION.txt'
       - 'requirements.txt'
       - '.github/workflows/investment-checklist-phase1c.yml'
 
@@ -48,7 +56,7 @@ jobs:
           python -m pip install -r requirements.txt pytest
       - name: Compile Phase 1C
         run: |
-          python -m compileall -q modules/investment_checklist pages/05_Investment_Checklist.py
+          python -m compileall -q financial_sign_policy.py module1_engine.py module2_engine.py modules/investment_checklist pages/05_Investment_Checklist.py
       - name: Run SQLite regression and PostgreSQL integration tests
         run: |
           python -m pytest -q modules/investment_checklist/tests

@@ -152,6 +152,7 @@ EVALUATION_RULES = [
     "Table 1.1 tally chỉ là screening/filter; không tự biến thành khuyến nghị mua/bán.",
     "59 câu hỏi là research framework. Numeric Assessment là lớp analyst của Trecapital, không phải điểm do Michael Shearn quy định.",
     "Unknown/Research Gap khác Neutral. Không dữ liệu không được tự điền 0 hoặc đánh giá trung tính.",
+    "Tỷ lệ chỉ dùng khi mẫu số có ý nghĩa kinh tế: CFO/FCF/OE trên LNST chỉ khi LNST > 0; Capex/CFO chỉ khi CFO > 0; Debt/EBITDA chỉ khi EBITDA > 0. Âm chia âm không được biến thành tín hiệu tốt.",
     "Cyclical có phân phối earnings rộng: raw TTM earnings không được coi là normalized earnings để tạo point valuation metric nếu chưa có chuẩn hóa/scenario.",
     "Bank/Insurance/Securities có BCTC đặc thù: TEV/EBITDA/FCF kiểu doanh nghiệp công nghiệp không được dùng làm kết luận chính nếu không phù hợp bản chất ngành.",
     "Mọi manual override và review change phải có reason; completed review chỉ thay đổi qua review mới, ngoại trừ chức năng admin xóa thủ công có xác nhận riêng.",

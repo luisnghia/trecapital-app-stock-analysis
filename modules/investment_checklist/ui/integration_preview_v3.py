@@ -10,6 +10,7 @@ from ..services.review_admin import delete_review_manually, review_delete_previe
 from ..services.watchlist_v2 import refresh_watchlist_cagrs_if_changed
 from . import page as _page
 from .evidence_workspace import render_evidence_workspace
+from .industry_overlay import render_industry_overlay
 from .integration_preview import SECTIONS
 from .performance_v3 import (
     render_analytical_fast,
@@ -242,17 +243,19 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
         label_visibility="collapsed", key="checklist_section_global",
     )
 
-    if section == SECTIONS[0]:
+    if section == "🏠 Research Home":
         _page._render_home(repo, company_ref_id, review)
-    elif section == SECTIONS[1]:
+    elif section == "🧮 Analytical Tools":
         render_analytical_fast(repo, integration, company_ref_id, review, actor, data_provider, host.company.company_type)
-    elif section == SECTIONS[2]:
+    elif section == "🧠 Analyst Workspace Q01–Q59":
         render_workspace_fast(repo, company_ref_id, review, actor)
-    elif section == SECTIONS[3]:
+    elif section == "🔎 Research Evidence":
         render_evidence_workspace(repo, company_ref_id, review, actor)
-    elif section == SECTIONS[4]:
+    elif section == "🏭 Industry & Moat":
+        render_industry_overlay(integration, host, data_provider)
+    elif section == "⭐ Watchlist":
         render_watchlist_fast(repo, company_ref_id, company["ticker"], actor=actor, data_provider=data_provider)
-    elif section == SECTIONS[5]:
+    elif section == "🕘 Snapshot & History":
         _render_history_fast(repo, company_ref_id, review, actor)
     else:
         render_formula_assumptions_v3(integration, host)

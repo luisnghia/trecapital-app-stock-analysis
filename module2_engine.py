@@ -22,6 +22,8 @@ import re
 import pandas as pd
 import numpy as np
 
+from financial_sign_policy import positive_denominator_ratio
+
 try:
     from module1_engine import CompanyOverview, _fmt_pct, _fmt_ratio, _fmt_money_bil
 except Exception:  # pragma: no cover - keeps module importable in isolated tests
@@ -140,6 +142,33 @@ def _recent_median(df: pd.DataFrame, col: str, n: int = 5) -> Optional[float]:
     return float(s.tail(n).median())
 
 
+def _recent_cash_conversion_median(df: pd.DataFrame, cash_col: str, n: int = 5) -> Optional[float]:
+    """Median cash/earnings conversion only across profitable periods.
+
+    Provider-supplied ratio columns are intentionally not trusted here because
+    historical versions may contain a positive value manufactured by
+    negative/negative division.
+    """
+    if df is None or df.empty or cash_col not in df.columns or "net_profit_bil" not in df.columns:
+        return None
+    cash = pd.to_numeric(df[cash_col], errors="coerce")
+    earnings = pd.to_numeric(df["net_profit_bil"], errors="coerce")
+    ratios = (cash / earnings.where(earnings > 0)).replace([np.inf, -np.inf], np.nan).dropna()
+    return float(ratios.tail(n).median()) if not ratios.empty else None
+
+
+def _latest_debt_to_positive_ebitda(df: pd.DataFrame) -> Optional[float]:
+    latest = _latest_row(df)
+    ebitda = _to_float(latest.get("ebitda_bil"))
+    if ebitda is None or ebitda <= 0:
+        return None
+    net_debt = _to_float(latest.get("net_debt_bil"))
+    if net_debt is not None:
+        return net_debt / ebitda
+    value = _to_float(latest.get("net_debt_to_ebitda"))
+    return value
+
+
 def _recent_mean(df: pd.DataFrame, col: str, n: int = 5) -> Optional[float]:
     s = _num_series(df, col).dropna()
     if s.empty:
@@ -231,7 +260,7 @@ def classify_company(company: CompanyOverview, annual_df: pd.DataFrame) -> Class
 
     roic = _recent_median(annual_df, "roic_standard_pct") or _recent_median(annual_df, "roic_pct") or _to_float(getattr(company, "roic", None))
     roe = _recent_median(annual_df, "roe_actual_pct") or _recent_median(annual_df, "roe_pct") or _to_float(getattr(company, "roe", None))
-    cfo_np = _recent_median(annual_df, "cfo_to_net_profit")
+    cfo_np = _recent_cash_conversion_median(annual_df, "cfo_bil")
     fcf_positive = _recent_positive_ratio(annual_df, "free_cash_flow_bil")
     revenue_cagr = _cagr(_num_series(annual_df, "revenue_bil"), years=5)
     profit_cv = _coefficient_of_variation(annual_df, "net_profit_bil")
@@ -548,11 +577,11 @@ def build_porter_moat_scorecard(company: CompanyOverview, annual_df: pd.DataFram
         selling = _recent_median(annual_df, "selling_expense_bil") or 0
         admin = _recent_median(annual_df, "admin_expense_bil") or 0
         sgna = (abs(selling) + abs(admin)) / rev * 100
-    cfo_np = _recent_median(annual_df, "cfo_to_net_profit")
-    fcf_np = _recent_median(annual_df, "fcf_to_net_profit")
+    cfo_np = _recent_cash_conversion_median(annual_df, "cfo_bil")
+    fcf_np = _recent_cash_conversion_median(annual_df, "free_cash_flow_bil")
     revenue_cagr = _cagr(_num_series(annual_df, "revenue_bil"), years=5)
     profit_cv = _coefficient_of_variation(annual_df, "net_profit_bil")
-    debt_ebitda = _to_float(latest.get("net_debt_to_ebitda"))
+    debt_ebitda = _latest_debt_to_positive_ebitda(annual_df)
     interest_coverage = _to_float(latest.get("interest_coverage"))
     inventory_turnover = _recent_median(annual_df, "inventory_turnover")
     dso = _recent_median(annual_df, "dso_days")
@@ -585,8 +614,20 @@ def build_porter_moat_scorecard(company: CompanyOverview, annual_df: pd.DataFram
     industry_score = _score_between(profit_cv, 0.35, 0.65, 8, reverse=True) + _score_between(debt_ebitda, 1.5, 3.0, 7, reverse=True)
     add("Cấu trúc ngành & chu kỳ", 15, industry_score, "Ổn định" if industry_score >= 11 else "Rủi ro chu kỳ", "Lợi nhuận ít biến động và đòn bẩy thấp giúp moat bền hơn qua chu kỳ.", "Độ biến động LNST, nợ vay/EBITDA, rào cản gia nhập, thay thế")
 
-    cash_score = _score_between(cfo_np, 1.0, 0.75, 8) + _score_between(fcf_np, 0.6, 0.2, 7)
-    add("Chất lượng dòng tiền", 15, cash_score, "Tốt" if cash_score >= 11 else "Cần kiểm tra", "Doanh nghiệp tốt phải chuyển lợi nhuận thành tiền; FCF yếu kéo dài làm giảm độ tin cậy định giá.", "CFO/LNST, FCF/LNST, capex, thay đổi vốn lưu động")
+    latest_profit = _to_float(latest.get("net_profit_bil"))
+    latest_cfo = _to_float(latest.get("cfo_bil"))
+    if latest_profit is not None and latest_profit <= 0:
+        cash_score = 0.0
+        cash_note = (
+            "LNST kỳ gần nhất âm nên CFO/LNST và FCF/LNST không áp dụng; "
+            + ("CFO dương cần được giải thích bằng khấu hao/vốn lưu động và bằng chứng phục hồi."
+               if latest_cfo is not None and latest_cfo > 0 else
+               "LNST và CFO cùng âm là cảnh báo; không dùng âm chia âm để tạo điểm moat.")
+        )
+    else:
+        cash_score = _score_between(cfo_np, 1.0, 0.75, 8) + _score_between(fcf_np, 0.6, 0.2, 7)
+        cash_note = "Doanh nghiệp tốt phải chuyển lợi nhuận thành tiền; FCF yếu kéo dài làm giảm độ tin cậy định giá."
+    add("Chất lượng dòng tiền", 15, cash_score, "Tốt" if cash_score >= 11 else "Cần kiểm tra", cash_note, "CFO/LNST, FCF/LNST, capex, thay đổi vốn lưu động")
 
     reinvest_score = _score_between(revenue_cagr * 100 if revenue_cagr is not None else None, 8, 3, 6) + _score_between(roic, 15, 10, 4)
     add("Khả năng tái đầu tư", 10, reinvest_score, "Có runway" if reinvest_score >= 7 else "Hạn chế", "Compounder cần vừa tăng trưởng vừa duy trì ROIC; tăng trưởng bằng nợ hoặc giảm ROIC là tín hiệu yếu.", "Tăng trưởng doanh thu/LNST, tăng vốn đầu tư, incremental ROIC")
@@ -637,7 +678,7 @@ def build_value_chain_table(company: CompanyOverview, annual_df: pd.DataFrame) -
         ccc = _recent_median(annual_df, "cash_conversion_cycle_days")
         inventory_turnover = _recent_median(annual_df, "inventory_turnover")
         roic = _recent_median(annual_df, "roic_standard_pct") or _recent_median(annual_df, "roic_pct")
-        cfo_np = _recent_median(annual_df, "cfo_to_net_profit")
+        cfo_np = _recent_cash_conversion_median(annual_df, "cfo_bil")
 
         def score(v: Optional[float], good: float, ok: float, reverse: bool = False) -> str:
             if v is None:
@@ -666,8 +707,8 @@ def build_value_chain_table(company: CompanyOverview, annual_df: pd.DataFrame) -
 def build_risk_scenario_table(company: CompanyOverview, annual_df: pd.DataFrame, valuation_range: ValuationRange) -> pd.DataFrame:
     latest = _latest_row(annual_df)
     profit_cv = _coefficient_of_variation(annual_df, "net_profit_bil")
-    debt_ebitda = _to_float(latest.get("net_debt_to_ebitda"))
-    fcf_np = _recent_median(annual_df, "fcf_to_net_profit")
+    debt_ebitda = _latest_debt_to_positive_ebitda(annual_df)
+    fcf_np = _recent_cash_conversion_median(annual_df, "free_cash_flow_bil")
     rows = []
     def add(scenario: str, value: Optional[float], mos: Optional[float], key_assumption: str, risk: str) -> None:
         rows.append({"Kịch bản": scenario, "Giá trị/cp": value, "MOS so với giá hiện tại %": mos, "Giả định chính": key_assumption, "Rủi ro cần kiểm tra": risk})
@@ -1132,7 +1173,15 @@ def _balance_sheet_total_accruals(cur: Dict[str, Any], prev: Dict[str, Any]) -> 
     return None, "Thiếu dữ liệu accruals"
 
 
-def _accrual_risk(sloan: Optional[float], cfo_to_np: Optional[float], fcf_to_np: Optional[float]) -> tuple[str, str, float]:
+def _accrual_risk(
+    sloan: Optional[float],
+    cfo_to_np: Optional[float],
+    fcf_to_np: Optional[float],
+    *,
+    net_income: Optional[float] = None,
+    cfo: Optional[float] = None,
+    fcf: Optional[float] = None,
+) -> tuple[str, str, float]:
     score = 0.0
     reasons: List[str] = []
     if sloan is not None:
@@ -1146,21 +1195,31 @@ def _accrual_risk(sloan: Optional[float], cfo_to_np: Optional[float], fcf_to_np:
             score += 12; reasons.append("Accruals âm lớn, cần kiểm tra hoàn nhập/ghi nhận một lần")
     else:
         score += 18; reasons.append("Thiếu Sloan accrual ratio")
-    if cfo_to_np is not None:
+    loss_base = net_income is not None and net_income <= 0
+    if loss_base:
+        if cfo is not None and cfo <= 0:
+            score += 38; reasons.append("LNST và CFO cùng âm; CFO/LNST N/A, không dùng âm chia âm")
+        elif cfo is not None and cfo > 0:
+            score += 22; reasons.append("LNST âm nhưng CFO dương; cần kiểm tra khấu hao/vốn lưu động và khả năng phục hồi")
+        else:
+            score += 25; reasons.append("LNST âm; thiếu CFO để đánh giá trực tiếp")
+        if fcf is not None and fcf <= 0:
+            score += 12; reasons.append("FCF không dương trong kỳ lỗ")
+    elif cfo_to_np is not None:
         if cfo_to_np < 0:
-            score += 32; reasons.append("CFO âm trong khi LNST dương hoặc lợi nhuận không chuyển hóa thành tiền")
+            score += 32; reasons.append("CFO âm trong khi LNST dương; lợi nhuận không chuyển hóa thành tiền")
         elif cfo_to_np < 0.5:
             score += 24; reasons.append("CFO/LNST < 0.5")
         elif cfo_to_np < 0.8:
             score += 10; reasons.append("CFO/LNST < 0.8")
     else:
         score += 12; reasons.append("Thiếu CFO/LNST")
-    if fcf_to_np is not None:
+    if not loss_base and fcf_to_np is not None:
         if fcf_to_np < -0.25:
             score += 20; reasons.append("FCF/LNST âm sâu")
         elif fcf_to_np < 0:
             score += 12; reasons.append("FCF âm so với lợi nhuận")
-    else:
+    elif not loss_base:
         score += 8; reasons.append("Thiếu FCF/LNST")
     if score >= 75:
         return "Rủi ro rất cao", "; ".join(reasons), min(score, 100.0)
@@ -1177,8 +1236,8 @@ def build_accrual_quality_table(company: CompanyOverview, annual_df: pd.DataFram
     Core formulas:
     - Total accruals (cash-flow proxy) = Net profit - CFO.
     - Sloan accrual ratio = Total accruals / Average total assets.
-    - CFO/LNST = CFO / Net profit.
-    - FCF/LNST = Free cash flow / Net profit.
+    - CFO/LNST = CFO / Net profit, only when net profit > 0.
+    - FCF/LNST = Free cash flow / Net profit, only when net profit > 0.
     - Balance-sheet accruals = ΔCA - ΔCash - ΔCL + ΔShort-term debt - Depreciation, if enough data.
     """
     df = _beneish_input_rows(annual_df)
@@ -1203,11 +1262,13 @@ def build_accrual_quality_table(company: CompanyOverview, annual_df: pd.DataFram
         fcf = _free_cash_flow_from_row(cur)
         cash_accruals = (ni - cfo) if ni is not None and cfo is not None else None
         bs_accruals, bs_method = _balance_sheet_total_accruals(cur, prev)
-        sloan = _safe_div(cash_accruals, ta_avg)
-        bs_ratio = _safe_div(bs_accruals, ta_avg)
-        cfo_to_np = _safe_div(cfo, ni)
-        fcf_to_np = _safe_div(fcf, ni)
-        risk, signal, heat = _accrual_risk(sloan, cfo_to_np, fcf_to_np)
+        sloan = positive_denominator_ratio(cash_accruals, ta_avg)
+        bs_ratio = positive_denominator_ratio(bs_accruals, ta_avg)
+        cfo_to_np = positive_denominator_ratio(cfo, ni)
+        fcf_to_np = positive_denominator_ratio(fcf, ni)
+        risk, signal, heat = _accrual_risk(
+            sloan, cfo_to_np, fcf_to_np, net_income=ni, cfo=cfo, fcf=fcf
+        )
         check_items: List[str] = []
         if sloan is not None and sloan > 0.07:
             check_items.append("Accruals cao: đọc thuyết minh phải thu, tồn kho, chi phí trả trước, dự phòng và khoản mục một lần")
@@ -1215,6 +1276,8 @@ def build_accrual_quality_table(company: CompanyOverview, annual_df: pd.DataFram
             check_items.append("CFO/LNST thấp: kiểm tra tiền thu khách hàng, thay đổi vốn lưu động, phải thu tăng")
         if fcf_to_np is not None and fcf_to_np < 0:
             check_items.append("FCF âm: phân biệt capex mở rộng hợp lý hay mô hình kinh doanh hút tiền")
+        if ni is not None and ni <= 0:
+            check_items.append("LNST âm: bỏ tỷ lệ CFO/LNST và FCF/LNST; đọc trực tiếp dấu CFO/FCF và bridge accruals")
         if not check_items:
             check_items.append("Không có cờ đỏ mạnh trong lớp dòng tiền-accruals")
         rows.append({
@@ -1228,7 +1291,7 @@ def build_accrual_quality_table(company: CompanyOverview, annual_df: pd.DataFram
             "Mức cảnh báo": risk,
             "Tín hiệu": signal,
             "Điểm nhiệt": round(heat, 1),
-            "Công thức/logic": "Sloan = (LNST - CFO) / Tổng tài sản bình quân; CFO/LNST = CFO/LNST; FCF/LNST = FCF/LNST; BS Accruals = ΔCA - ΔCash - ΔCL + ΔSTD - Dep.",
+            "Công thức/logic": "Sloan = (LNST - CFO) / Tổng tài sản bình quân dương; CFO/LNST và FCF/LNST chỉ tính khi LNST > 0; BS Accruals = ΔCA - ΔCash - ΔCL + ΔSTD - Dep.",
             "Dữ liệu/cách tính": f"Tổng tài sản bình quân={_round_or_none(ta_avg,0)} tỷ; LNST={_round_or_none(ni,0)} tỷ; CFO={_round_or_none(cfo,0)} tỷ; FCF={_round_or_none(fcf,0)} tỷ; {bs_method}",
             "Cần kiểm tra": "; ".join(check_items),
             "Nguồn/logic": FINANCIAL_MANIPULATION_SOURCE_NOTE,

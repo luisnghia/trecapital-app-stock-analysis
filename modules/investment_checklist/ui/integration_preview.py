@@ -10,6 +10,7 @@ from .analytical_hub_v2 import render_analytical_hub_v2
 from .portfolio_extensions import render_wrapped_table
 from .watchlist_v2 import render_watchlist_toggle_v2, render_watchlist_v2
 from .evidence_workspace import render_evidence_workspace
+from .industry_overlay import render_industry_overlay
 
 
 SECTIONS = [
@@ -17,6 +18,7 @@ SECTIONS = [
     "🧮 Analytical Tools",
     "🧠 Analyst Workspace Q01–Q59",
     "🔎 Research Evidence",
+    "🏭 Industry & Moat",
     "⭐ Watchlist",
     "🕘 Snapshot & History",
     "📐 Công thức & giả định",
@@ -224,17 +226,19 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
         label_visibility="collapsed",
         key="checklist_section_global",
     )
-    if section == SECTIONS[0]:
+    if section == "🏠 Research Home":
         _page._render_home(repo, cid, review)
-    elif section == SECTIONS[1]:
+    elif section == "🧮 Analytical Tools":
         render_analytical_hub_v2(repo, integration, cid, review, actor, data_provider, host.company.company_type)
-    elif section == SECTIONS[2]:
+    elif section == "🧠 Analyst Workspace Q01–Q59":
         _page._render_workspace(repo, cid, review, actor)
-    elif section == SECTIONS[3]:
+    elif section == "🔎 Research Evidence":
         render_evidence_workspace(repo, cid, review, actor)
-    elif section == SECTIONS[4]:
+    elif section == "🏭 Industry & Moat":
+        render_industry_overlay(integration, host, data_provider)
+    elif section == "⭐ Watchlist":
         render_watchlist_v2(repo, cid, company["ticker"], actor=actor, data_provider=data_provider)
-    elif section == SECTIONS[5]:
+    elif section == "🕘 Snapshot & History":
         _page._render_history(repo, cid, review, actor)
     else:
         _render_formula_assumptions_wrapped(integration, host)

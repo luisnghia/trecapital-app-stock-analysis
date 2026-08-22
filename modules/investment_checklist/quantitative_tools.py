@@ -16,6 +16,8 @@ import math
 
 import pandas as pd
 
+from financial_sign_policy import positive_base_growth
+
 
 @dataclass(frozen=True)
 class ToolResult:
@@ -79,9 +81,7 @@ def _annual_and_ttm_rows(df: pd.DataFrame, limit_years: int = 10) -> list[dict[s
 
 
 def _pct_change(current: float | None, previous: float | None) -> float | None:
-    if current is None or previous is None or previous == 0:
-        return None
-    return current / previous - 1.0
+    return positive_base_growth(current, previous)
 
 
 def _safe_ratio(numerator: float | None, denominator: float | None, *, positive_denominator: bool = False) -> float | None:
@@ -295,9 +295,9 @@ def operating_leverage(df: pd.DataFrame) -> ToolResult:
             "Kỳ": _period(row), "Revenue": rev,
             "Revenue growth": None if rev_g is None else rev_g * 100.0,
             "EBIT": ebit, "EBIT growth": None if ebit_g is None else ebit_g * 100.0, "DOL": dol,
-            "PP&E / Assets": None if ppe is None or total_assets is None or total_assets == 0 else ppe / total_assets * 100.0,
-            "SG&A / Revenue": None if sga is None or rev is None or rev == 0 else abs(sga) / rev * 100.0,
-            "D&A / Revenue": None if da is None or rev is None or rev == 0 else abs(da) / rev * 100.0,
+            "PP&E / Assets": None if ppe is None or total_assets is None or total_assets <= 0 else ppe / total_assets * 100.0,
+            "SG&A / Revenue": None if sga is None or rev is None or rev <= 0 else abs(sga) / rev * 100.0,
+            "D&A / Revenue": None if da is None or rev is None or rev <= 0 else abs(da) / rev * 100.0,
         })
         if rev is not None:
             prev_rev = rev
@@ -377,7 +377,7 @@ def working_capital(df: pd.DataFrame) -> ToolResult:
         out.append({
             "Kỳ": _period(row), "DSO": dso, "DIO": dio, "DPO": dpo, "CCC": ccc,
             "Operating WC": owc, "Δ Operating WC": delta,
-            "ΔWC / Revenue": None if delta is None or rev is None or rev == 0 else delta / rev * 100.0,
+            "ΔWC / Revenue": None if delta is None or rev is None or rev <= 0 else delta / rev * 100.0,
             "Cash released/(absorbed)": None if delta is None else -delta,
         })
         prev = row
@@ -405,8 +405,8 @@ def maintenance_capex_context(df: pd.DataFrame) -> ToolResult:
             "Kỳ": _period(row), "Capex": None if capex is None else abs(capex),
             "Maintenance Capex Trecapital (ước tính)": None if maintenance is None else abs(maintenance),
             "D&A rough proxy": None if da is None else abs(da),
-            "Capex / Revenue": None if capex is None or revenue is None or revenue == 0 else abs(capex) / revenue * 100.0,
-            "Capex / D&A": None if capex is None or da is None or da == 0 else abs(capex) / abs(da),
+            "Capex / Revenue": None if capex is None or revenue is None or revenue <= 0 else abs(capex) / revenue * 100.0,
+            "Capex / D&A": None if capex is None or da is None or abs(da) <= 0 else abs(capex) / abs(da),
             "CFO": cfo, "FCF": fcf,
         })
     return ToolResult(
@@ -430,6 +430,11 @@ def buyback_dilution(df: pd.DataFrame) -> ToolResult:
         issued = _n(row, "shares_issued_mil", "esop_options_shares_mil", "stock_comp_shares_mil")
         net_reduction = None if shares is None or prev_shares is None else prev_shares - shares
         eps_without = net_income * 1000.0 / prev_shares if net_income is not None and prev_shares is not None and prev_shares > 0 else None
+        eps_uplift = (
+            (eps / eps_without - 1.0) * 100.0
+            if net_income is not None and net_income > 0 and eps is not None and eps > 0
+            and eps_without is not None and eps_without > 0 else None
+        )
         out.append({
             "Kỳ": _period(row), "Shares outstanding": shares, "Net share reduction": net_reduction,
             "Share count change vs prior displayed period": None if shares is None or prev_shares is None or prev_shares == 0 else (shares / prev_shares - 1.0) * 100.0,
@@ -438,7 +443,7 @@ def buyback_dilution(df: pd.DataFrame) -> ToolResult:
             "Net buyback after dilution": None if gross_buyback is None or issued is None else gross_buyback - issued,
             "EPS reported/derived": eps, "EPS source": eps_source,
             "EPS without share-count change": eps_without,
-            "EPS uplift from share-count change": None if eps is None or eps_without is None or eps_without == 0 else (eps / eps_without - 1.0) * 100.0,
+            "EPS uplift from share-count change": eps_uplift,
         })
         if shares is not None and shares > 0:
             prev_shares = shares
@@ -446,7 +451,7 @@ def buyback_dilution(df: pd.DataFrame) -> ToolResult:
         "Buyback & Dilution Analyzer", ("Q46", "Q47"), ("8.2", "8.3"), out,
         ("Net share reduction theo dõi hiệu ứng thực lên số cổ phiếu lưu hành; gross buyback phải trừ shares issued/ESOP/options khi nguồn có dữ liệu.",
          "EPS reported/derived ghi rõ nguồn; fallback Net income/shares chỉ là derived proxy, không được gọi là reported EPS.",
-         "EPS without share-count change là analytical proxy dùng prior-period shares; không phải reported EPS."),
+         "EPS without share-count change là analytical proxy dùng prior-period shares; không phải reported EPS. EPS uplift chỉ tính khi LNST và cả hai nền EPS đều dương."),
     )
 
 
@@ -472,6 +477,11 @@ def operating_driver_eps(df: pd.DataFrame, driver_field: str = "revenue_bil", dr
                 divergence = "Driver ↑ nhưng EPS ↓ — cần kiểm tra margin/cost/dilution"
             else:
                 divergence = "Cùng hướng"
+        elif not _is_ttm(row) and prev_eps is not None and eps is not None:
+            if prev_eps <= 0 < eps:
+                divergence = "EPS chuyển từ lỗ sang lãi — báo chuyển trạng thái, không tính % tăng trưởng"
+            elif prev_eps > 0 >= eps:
+                divergence = "EPS chuyển từ lãi sang lỗ — cảnh báo, không diễn giải như % tăng trưởng"
         out.append({
             "Kỳ": _period(row), driver_label: driver,
             f"{driver_label} growth": None if dg is None else dg * 100.0,
@@ -487,6 +497,7 @@ def operating_driver_eps(df: pd.DataFrame, driver_field: str = "revenue_bil", dr
         "Operating Driver → EPS Analyzer", ("Q53", "Q54", "Q55", "Q56", "Q57"), ("10.1",), out,
         ("Đặt EPS cạnh operating metric phù hợp để phát hiện earnings tăng từ nguồn kém bền vững.",
          "Một TTM hiện tại không được so tăng trưởng trực tiếp với FY trước; TTM vẫn hiển thị level nhưng growth/signal để trống nếu không có prior-TTM comparable.",
+         "EPS từ lỗ sang lãi hoặc lãi sang lỗ được gắn nhãn chuyển trạng thái; không tính phần trăm tăng trưởng trên nền EPS âm/bằng 0.",
          "Revenue chỉ là driver mặc định; industry-specific driver được mở rộng ở Phase 3 Industry Overlay."),
     )
 

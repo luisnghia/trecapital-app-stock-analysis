@@ -7,6 +7,9 @@ on:
     paths:
       - 'modules/investment_checklist/**'
       - 'pages/05_Investment_Checklist.py'
+      - 'financial_sign_policy.py'
+      - 'module1_engine.py'
+      - 'module2_engine.py'
       - 'VERSION.txt'
       - 'requirements.txt'
       - '.github/workflows/investment-checklist-phase2.yml'
@@ -14,6 +17,9 @@ on:
     paths:
       - 'modules/investment_checklist/**'
       - 'pages/05_Investment_Checklist.py'
+      - 'financial_sign_policy.py'
+      - 'module1_engine.py'
+      - 'module2_engine.py'
       - 'VERSION.txt'
       - 'requirements.txt'
       - '.github/workflows/investment-checklist-phase2.yml'
@@ -50,7 +56,7 @@ jobs:
           python -m pip install -r requirements.txt pytest
       - name: Compile Phase 2
         run: |
-          python -m compileall -q modules/investment_checklist pages/05_Investment_Checklist.py
+          python -m compileall -q financial_sign_policy.py module1_engine.py module2_engine.py modules/investment_checklist pages/05_Investment_Checklist.py
       - name: Run full checklist regression + Phase 2 quantitative tests
         run: |
           python -m pytest -q modules/investment_checklist/tests
@@ -64,17 +70,22 @@ jobs:
           shell = Path('modules/investment_checklist/ui/__init__.py').read_text(encoding='utf-8')
           integrated_shell = Path('modules/investment_checklist/ui/integration_preview.py').read_text(encoding='utf-8')
           evidence = Path('modules/investment_checklist/services/evidence_workspace.py').read_text(encoding='utf-8').lower()
+          industry = Path('modules/investment_checklist/industry_overlay.py').read_text(encoding='utf-8').lower()
+          sign_policy = Path('financial_sign_policy.py').read_text(encoding='utf-8').lower()
           formulas = Path('modules/investment_checklist/phase2_formula_assumptions.py').read_text(encoding='utf-8')
           forbidden = ['import httpx', 'import requests', 'urllib.request']
           assert not any(x in engine for x in forbidden), 'Quant tools must not fetch a parallel financial source'
           assert not any(x in evidence for x in forbidden), 'Evidence workspace records analyst sources; it must not fetch a parallel source'
+          assert not any(x in industry for x in forbidden), 'Industry Overlay must only consume Trecapital Data Layer'
           assert '🧮 Analytical Tools' in shell, 'Analytical Tools section must be reachable'
           assert '🔎 Research Evidence' in integrated_shell, 'Research Evidence Workspace must be reachable'
+          assert '🏭 Industry & Moat' in integrated_shell, 'Phase 3A Industry & Moat must be reachable'
           assert 'st.tabs(' not in ui, 'Phase 2 UI should execute only the selected tool'
           assert 'không tính beneish lần thứ hai' in engine, 'Accounting quality must not duplicate Beneish'
           assert 'ROIC Trecapital' in engine_raw and 'ROIC Shearn' in engine_raw, 'ROIC standard and Shearn variants must stay distinct'
           assert 'roic_standard_pct' in engine, 'Phase 2 must consume canonical Trecapital ROIC field'
           assert 'maintenance_capex_bil' in engine, 'Phase 2 must preserve canonical Trecapital maintenance capex when available'
           assert 'Single Source of Truth' in formulas, 'Formula registry must document the SSOT policy'
+          assert 'strictly positive' in sign_policy and 'negative/negative' in sign_policy, 'Shared sign policy must reject misleading denominator states'
           print('Phase 2 guardrails: PASS')
           PY

@@ -7,6 +7,9 @@ on:
       - .github/workflows/investment_checklist_package.yml
       - VERSION.txt
       - pages/05_Investment_Checklist.py
+      - financial_sign_policy.py
+      - module1_engine.py
+      - module2_engine.py
       - modules/investment_checklist/**
       - docs/INVESTMENT_CHECKLIST_*.md
       - CHANGELOG_V23*.md

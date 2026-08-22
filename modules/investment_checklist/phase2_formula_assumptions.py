@@ -123,14 +123,14 @@ PHASE2_FORMULA_ROWS = [
         "Tool": "Buyback & Dilution",
         "Chỉ tiêu": "EPS without share-count change",
         "Công thức / logic": "Current Net Income × 1,000 ÷ prior-period shares outstanding (triệu cp).",
-        "Giả định / giới hạn": "Analytical proxy để cô lập share-count effect; EPS fallback Net income/shares cũng phải được ghi là derived, không gọi là reported EPS.",
+        "Giả định / giới hạn": "Analytical proxy để cô lập share-count effect; EPS fallback Net income/shares cũng phải được ghi là derived, không gọi là reported EPS. EPS uplift chỉ tính khi LNST và cả hai nền EPS đều dương.",
         "Nguồn": "Shearn Table 8.2 methodology + Trecapital implementation",
     },
     {
         "Tool": "Operating Driver → EPS",
         "Chỉ tiêu": "Driver/EPS divergence",
         "Công thức / logic": "So sánh growth của operating driver với EPS trên các kỳ annual comparable; flag khi hai hướng phân kỳ.",
-        "Giả định / giới hạn": "TTM hiện tại không so trực tiếp với FY trước để gọi là YoY; nếu thiếu prior-TTM comparable thì chỉ hiển thị TTM level, không tạo growth/signal.",
+        "Giả định / giới hạn": "TTM hiện tại không so trực tiếp với FY trước để gọi là YoY; nếu thiếu prior-TTM comparable thì chỉ hiển thị TTM level. Prior EPS ≤ 0 ⇒ gắn nhãn chuyển trạng thái lỗ–lãi, không tính growth %.",
         "Nguồn": "Shearn Table 10.1 + Trecapital implementation",
     },
 ]
