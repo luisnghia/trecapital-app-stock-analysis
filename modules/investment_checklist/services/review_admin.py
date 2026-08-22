@@ -32,6 +32,10 @@ def review_delete_preview(repo, review_id: int) -> dict[str, Any]:
             "peer_snapshots": int(c.execute("SELECT COUNT(*) n FROM peer_comparison_snapshots WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "ai_runs": int(c.execute("SELECT COUNT(*) n FROM ai_research_runs WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "ai_suggestions": int(c.execute("SELECT COUNT(*) n FROM ai_research_suggestions WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "management_people": int(c.execute("SELECT COUNT(*) n FROM management_people_versions WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "management_timeline": int(c.execute("SELECT COUNT(*) n FROM management_timeline_events WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "management_track_records": int(c.execute("SELECT COUNT(*) n FROM management_track_records WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "management_signals": int(c.execute("SELECT COUNT(*) n FROM management_question_signals WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
         }
     return {"review": review, "counts": counts, "confirmation_token": review_delete_token(review_id)}
@@ -72,6 +76,10 @@ def delete_review_manually(
             "peer_snapshots": int(c.execute("SELECT COUNT(*) n FROM peer_comparison_snapshots WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "ai_runs": int(c.execute("SELECT COUNT(*) n FROM ai_research_runs WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "ai_suggestions": int(c.execute("SELECT COUNT(*) n FROM ai_research_suggestions WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "management_people": int(c.execute("SELECT COUNT(*) n FROM management_people_versions WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "management_timeline": int(c.execute("SELECT COUNT(*) n FROM management_timeline_events WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "management_track_records": int(c.execute("SELECT COUNT(*) n FROM management_track_records WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "management_signals": int(c.execute("SELECT COUNT(*) n FROM management_question_signals WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
         }
 
@@ -95,6 +103,10 @@ def delete_review_manually(
         c.execute("DELETE FROM ai_suggestion_decisions WHERE suggestion_id IN (SELECT id FROM ai_research_suggestions WHERE review_id=?)", (review_id,))
         c.execute("DELETE FROM ai_research_suggestions WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM ai_research_runs WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM management_question_signals WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM management_track_records WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM management_timeline_events WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM management_people_versions WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM opportunity_inventory_snapshots WHERE last_review_id=?", (review_id,))
         c.execute("DELETE FROM evidence_question_links WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM analyst_assessments WHERE review_id=?", (review_id,))

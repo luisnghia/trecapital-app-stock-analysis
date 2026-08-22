@@ -5,6 +5,7 @@ from ..services.formulas import inventory_metrics
 from ..services.review_admin import delete_review_manually, review_delete_preview
 from .evidence_workspace import render_evidence_workspace
 from .ai_research_assistant import render_ai_research_assistant
+from .management_intelligence import render_management_intelligence
 from .quant_tools import render_quantitative_tools
 
 
@@ -15,6 +16,7 @@ SECTIONS = [
     "🧠 Analyst Workspace Q01–Q59",
     "🔎 Research Evidence",
     "🤖 AI Research Assistant",
+    "👥 Management & Human Intel",
     "🧮 Analytical Tools",
     "🕘 Snapshot & History",
     "📐 Công thức & giả định",
@@ -133,6 +135,10 @@ def _render_delete_review_popover(repo, reviews, selected_review, actor, state_k
             f"{counts['evidence_links']} evidence link, "
             f"{counts.get('peer_snapshots', 0)} peer snapshot, "
             f"{counts.get('ai_runs', 0)} AI run/{counts.get('ai_suggestions', 0)} suggestion, "
+            f"{counts.get('management_people', 0)} management profile version/"
+            f"{counts.get('management_timeline', 0)} timeline event/"
+            f"{counts.get('management_track_records', 0)} track record/"
+            f"{counts.get('management_signals', 0)} signal, "
             f"{counts['inventory_snapshots']} inventory snapshot và {counts['immutable_snapshots']} immutable snapshot gắn với review này. "
             "Các review sau sẽ được nối lại về prior review trước đó. Audit tombstone vẫn được giữ."
         )
@@ -179,7 +185,7 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
 
     st.markdown('<div class="checklist-module">', unsafe_allow_html=True)
     st.subheader("Investment Research & Checklist System")
-    st.caption("Phase 2 — Core Research System + Quantitative Analytical Tools. Không AI; tool cung cấp evidence, analyst giữ quyền kết luận.")
+    st.caption("Core Research + Quantitative Tools + Evidence + governed AI + Management & Human Intelligence; analyst giữ quyền kết luận.")
     st.markdown(f"**{company['ticker']} — {company['company_name']}** · {company['industry_name'] or 'Chưa gán ngành'}")
     st.markdown(
         '<div class="principle"><b>Nguyên tắc:</b> Analyst tự trả lời, tự đánh giá; Unknown khác Neutral; '
@@ -259,8 +265,10 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     elif section == SECTIONS[5]:
         render_ai_research_assistant(repo, cid, review, actor)
     elif section == SECTIONS[6]:
-        render_quantitative_tools(data_provider, company_type=host.company.company_type)
+        render_management_intelligence(repo, cid, review, actor)
     elif section == SECTIONS[7]:
+        render_quantitative_tools(data_provider, company_type=host.company.company_type)
+    elif section == SECTIONS[8]:
         _page._render_history(repo, cid, review, actor)
     else:
         _render_formula_assumptions(integration, host)

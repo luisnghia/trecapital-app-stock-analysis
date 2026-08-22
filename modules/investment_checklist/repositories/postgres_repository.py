@@ -22,6 +22,10 @@ _INSERT_ID_TABLES = {
     'ai_research_runs',
     'ai_research_suggestions',
     'ai_suggestion_decisions',
+    'management_people_versions',
+    'management_timeline_events',
+    'management_track_records',
+    'management_question_signals',
     'screening_assessments',
     'opportunity_inventory_snapshots',
     'data_snapshots',
@@ -144,6 +148,8 @@ class PostgresChecklistRepository(SQLiteChecklistRepository):
                     for table in (
                         'research_sources', 'research_source_contents', 'research_evidence', 'evidence_question_links',
                         'ai_research_runs', 'ai_research_suggestions', 'ai_suggestion_decisions',
+                        'management_people_versions', 'management_timeline_events',
+                        'management_track_records', 'management_question_signals',
                     ):
                         cur.execute(f'ALTER TABLE {table} ENABLE ROW LEVEL SECURITY')
                         for role in ('anon', 'authenticated'):
