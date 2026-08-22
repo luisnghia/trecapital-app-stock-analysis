@@ -7,6 +7,11 @@ defined but economically misleading (for example CFO/LNST while LNST is a
 loss, or Debt/EBITDA while EBITDA is non-positive).  Negative numerators remain
 visible when the positive denominator is valid: CFO=-10 and LNST=100 is a
 meaningful -0.1x cash-conversion warning.
+
+In particular, a negative/negative division must never be converted into an
+apparently favourable positive ratio.  Every economic denominator checked by
+these helpers must be strictly positive before the ratio is eligible for
+scoring.
 """
 
 from typing import Any
