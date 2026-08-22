@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
 from streamlit.testing.v1 import AppTest
 
 
@@ -112,3 +115,61 @@ def test_phase2_streamlit_smoke_financial_company_warning_does_not_break_ui():
     at = AppTest.from_string(app, default_timeout=10).run()
     _assert_clean(at)
     assert any("Doanh nghiệp tài chính" in warning.value for warning in at.warning)
+
+
+def test_optional_database_secret_probe_is_silent_when_no_secrets_file_exists(monkeypatch):
+    """Local/dev SQLite fallback must not render four red errors just because secrets are optional."""
+    for key in ("TREC_CHECKLIST_DATABASE_URL", "DATABASE_URL", "SUPABASE_DB_URL"):
+        monkeypatch.delenv(key, raising=False)
+
+    page_source = Path("pages/05_Investment_Checklist.py").read_text(encoding="utf-8")
+    tree = ast.parse(page_source)
+    function_node = next(
+        node for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "_secret_database_url"
+    )
+    function_source = ast.unparse(function_node)
+    app = f'''\nimport os\nimport streamlit as st\n{function_source}\n_secret_database_url()\nst.caption("secret-probe-complete")\n'''
+
+    at = AppTest.from_string(app, default_timeout=10).run()
+    assert len(at.exception) == 0
+    assert len(at.error) == 0
+    assert any(item.value == "secret-probe-complete" for item in at.caption)
+
+
+def test_full_checklist_page_reuses_active_bundle_without_exception_or_secret_errors(monkeypatch):
+    """Exercise the real page shell while bypassing only page-link routing unsupported by AppTest."""
+    for key in ("TREC_CHECKLIST_DATABASE_URL", "DATABASE_URL", "SUPABASE_DB_URL"):
+        monkeypatch.delenv(key, raising=False)
+
+    app = r'''
+from pathlib import Path
+import streamlit as st
+import module1_dashboard as m1
+import tre_sidebar_nav
+
+root = Path.cwd()
+st.session_state["active_ticker"] = "DCM"
+st.session_state["shared_ticker"] = "DCM"
+st.session_state["active_overview_csv"] = str(root / "sample_data/company_overview_sample.csv")
+st.session_state["active_year_csv"] = str(root / "sample_data/financial_timeseries_year.csv")
+st.session_state["active_quarter_csv"] = str(root / "sample_data/financial_timeseries_quarter.csv")
+st.session_state["active_source_label"] = "Dữ liệu cập nhật | deterministic smoke"
+m1._active_bundle_has_data_for_ticker = lambda ticker: ticker == "DCM"
+tre_sidebar_nav.render_tre_sidebar_nav = lambda: None
+exec(
+    compile(
+        open("pages/05_Investment_Checklist.py", encoding="utf-8").read(),
+        "pages/05_Investment_Checklist.py",
+        "exec",
+    ),
+    globals(),
+)
+'''
+    at = AppTest.from_string(app, default_timeout=30).run()
+
+    assert len(at.exception) == 0
+    assert len(at.error) == 0
+    assert at.session_state.filtered_state.get("checklist_bundle_mode") == "reused_active"
+    assert any("Fast entry: tái sử dụng bundle" in item.value for item in at.caption)
+    assert len(at.selectbox) >= 1

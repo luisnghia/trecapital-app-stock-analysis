@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from copy import copy
 from pathlib import Path
 from typing import Callable
@@ -26,15 +27,28 @@ ASSUMPTIONS_PATH = APP_DIR / "configs" / "valuation_assumptions.json"
 
 def _secret_database_url() -> str | None:
     """Read durable DB URL from Streamlit secrets without ever rendering/logging it."""
+    # Root-level Streamlit secrets are also exposed as environment variables. Reading them first
+    # keeps local/dev execution quiet when no secrets.toml exists and supports non-Streamlit hosts.
     for key in ("TREC_CHECKLIST_DATABASE_URL", "DATABASE_URL", "SUPABASE_DB_URL"):
-        try:
-            value = st.secrets.get(key)
-        except Exception:
-            value = None
+        value = os.getenv(key)
+        if value and str(value).strip():
+            return str(value).strip()
+
+    # `st.secrets.get(...)` renders a red Streamlit error before raising when no secrets file is
+    # configured. `load_if_toml_exists()` is the public, silent probe intended for optional secrets.
+    try:
+        if not st.secrets.load_if_toml_exists():
+            return None
+        secrets = st.secrets.to_dict()
+    except Exception:
+        return None
+
+    for key in ("TREC_CHECKLIST_DATABASE_URL", "DATABASE_URL", "SUPABASE_DB_URL"):
+        value = secrets.get(key)
         if value and str(value).strip():
             return str(value).strip()
     try:
-        connections = st.secrets.get("connections", {})
+        connections = secrets.get("connections", {})
         pg = connections.get("postgresql", {}) if hasattr(connections, "get") else {}
         value = pg.get("url") if hasattr(pg, "get") else None
         if value and str(value).strip():

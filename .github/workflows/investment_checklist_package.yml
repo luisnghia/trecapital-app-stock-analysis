@@ -1,10 +1,15 @@
 name: Investment Checklist Source Package
-# Package revision: V23.78 final after global-ticker, source-table guidance and fast-entry fixes.
+# Package revision follows VERSION.txt and is rebuilt for every Checklist source change in this PR.
 
 on:
   pull_request:
     paths:
       - .github/workflows/investment_checklist_package.yml
+      - VERSION.txt
+      - pages/05_Investment_Checklist.py
+      - modules/investment_checklist/**
+      - docs/INVESTMENT_CHECKLIST_*.md
+      - CHANGELOG_V23.79_INVESTMENT_CHECKLIST_SECRET_SAFE_SMOKE_FIX.md
 
 permissions:
   contents: read
