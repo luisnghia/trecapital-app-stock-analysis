@@ -221,6 +221,10 @@ render_ai_research_assistant(repo, {company_ref_id}, repo.get_review({review_id}
     assert "save_assessment(" not in combined
     for forbidden in ("import requests", "import openai", "urlopen(", "httpx."):
         assert forbidden not in combined
+    shell = Path("modules/investment_checklist/ui/integration_preview.py").read_text(encoding="utf-8")
+    page = Path("pages/05_Investment_Checklist.py").read_text(encoding="utf-8")
+    assert '"🤖 AI Research Assistant"' in shell
+    assert "AI có kiểm soát" in page
 
 
 def test_postgres_phase4a_end_to_end():

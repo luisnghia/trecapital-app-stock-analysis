@@ -12,6 +12,7 @@
 - PostgreSQL/Supabase bật RLS và thu hồi quyền `anon`/`authenticated` trên ba bảng AI nội bộ.
 - Security Advisor follow-up bật cùng guardrail cho ba bảng Evidence Workspace cũ và bổ sung index bao phủ các FK Phase 4A.
 - Phase 4A chưa tự gọi model/network; JSON model output được ingest có kiểm soát. Provider execution là Phase 4B.
+- Cập nhật caption sidebar/integration để không còn tuyên bố sai rằng Checklist chưa dùng AI.
 
 ## Validation
 

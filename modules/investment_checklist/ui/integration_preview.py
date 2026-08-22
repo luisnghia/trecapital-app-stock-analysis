@@ -163,7 +163,10 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
 
     st.markdown('<div class="checklist-module">', unsafe_allow_html=True)
     st.subheader("Investment Research & Checklist System")
-    st.caption("Integrated Preview — Core Research + Quantitative Analytical Tools + Watchlist + historical analyst correction overlay. Không AI.")
+    st.caption(
+        "Integrated Preview — Core Research + Analytical Tools + Evidence + governed AI suggestion inbox; "
+        "analyst giữ quyền quyết định cuối cùng."
+    )
     st.markdown(f"**{company['ticker']} — {company['company_name']}** · {company['industry_name'] or 'Chưa gán ngành'}")
     st.markdown(
         '<div class="principle"><b>Single Source of Truth:</b> dữ liệu tài chính tự động chỉ đến từ Trecapital Data Layer. '
