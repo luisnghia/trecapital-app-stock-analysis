@@ -4,6 +4,7 @@ from ..source_policy import SourcePolicyDataProvider
 from ..services.formulas import inventory_metrics
 from ..services.review_admin import delete_review_manually, review_delete_preview
 from .evidence_workspace import render_evidence_workspace
+from .ai_research_assistant import render_ai_research_assistant
 from .quant_tools import render_quantitative_tools
 
 
@@ -13,6 +14,7 @@ SECTIONS = [
     "📊 Table 1.2",
     "🧠 Analyst Workspace Q01–Q59",
     "🔎 Research Evidence",
+    "🤖 AI Research Assistant",
     "🧮 Analytical Tools",
     "🕘 Snapshot & History",
     "📐 Công thức & giả định",
@@ -130,6 +132,7 @@ def _render_delete_review_popover(repo, reviews, selected_review, actor, state_k
             f"{counts['analyst_assessments']} assessment, {counts['screening_assessments']} screening version, "
             f"{counts['evidence_links']} evidence link, "
             f"{counts.get('peer_snapshots', 0)} peer snapshot, "
+            f"{counts.get('ai_runs', 0)} AI run/{counts.get('ai_suggestions', 0)} suggestion, "
             f"{counts['inventory_snapshots']} inventory snapshot và {counts['immutable_snapshots']} immutable snapshot gắn với review này. "
             "Các review sau sẽ được nối lại về prior review trước đó. Audit tombstone vẫn được giữ."
         )
@@ -254,8 +257,10 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     elif section == SECTIONS[4]:
         render_evidence_workspace(repo, cid, review, actor)
     elif section == SECTIONS[5]:
-        render_quantitative_tools(data_provider, company_type=host.company.company_type)
+        render_ai_research_assistant(repo, cid, review, actor)
     elif section == SECTIONS[6]:
+        render_quantitative_tools(data_provider, company_type=host.company.company_type)
+    elif section == SECTIONS[7]:
         _page._render_history(repo, cid, review, actor)
     else:
         _render_formula_assumptions(integration, host)

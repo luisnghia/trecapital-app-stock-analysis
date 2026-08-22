@@ -10,6 +10,7 @@ from .analytical_hub_v2 import render_analytical_hub_v2
 from .portfolio_extensions import render_wrapped_table
 from .watchlist_v2 import render_watchlist_toggle_v2, render_watchlist_v2
 from .evidence_workspace import render_evidence_workspace
+from .ai_research_assistant import render_ai_research_assistant
 from .industry_overlay import render_industry_overlay
 
 
@@ -18,6 +19,7 @@ SECTIONS = [
     "🧮 Analytical Tools",
     "🧠 Analyst Workspace Q01–Q59",
     "🔎 Research Evidence",
+    "🤖 AI Research Assistant",
     "🏭 Industry & Moat",
     "⭐ Watchlist",
     "🕘 Snapshot & History",
@@ -119,6 +121,7 @@ def _render_delete_review_popover(repo, selected_review, actor, state_key):
             f"{counts['analyst_assessments']} assessment, {counts['screening_assessments']} screening version, "
             f"{counts['evidence_links']} evidence link, "
             f"{counts.get('peer_snapshots', 0)} peer snapshot, "
+            f"{counts.get('ai_runs', 0)} AI run/{counts.get('ai_suggestions', 0)} suggestion, "
             f"{counts['inventory_snapshots']} inventory snapshot và {counts['immutable_snapshots']} immutable snapshot gắn với review này. "
             "Các review sau sẽ được nối lại về prior review trước đó. Audit tombstone vẫn được giữ."
         )
@@ -235,6 +238,8 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
         _page._render_workspace(repo, cid, review, actor)
     elif section == "🔎 Research Evidence":
         render_evidence_workspace(repo, cid, review, actor)
+    elif section == "🤖 AI Research Assistant":
+        render_ai_research_assistant(repo, cid, review, actor)
     elif section == "🏭 Industry & Moat":
         render_industry_overlay(integration, host, data_provider)
     elif section == "⭐ Watchlist":

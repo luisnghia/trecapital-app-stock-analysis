@@ -133,6 +133,64 @@ CREATE TABLE IF NOT EXISTS evidence_question_links(
 );
 CREATE INDEX IF NOT EXISTS ix_evidence_links_review_question ON evidence_question_links(review_id,question_id,is_active);
 
+CREATE TABLE IF NOT EXISTS ai_research_runs(
+    id BIGSERIAL PRIMARY KEY,
+    company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),
+    review_id BIGINT NOT NULL REFERENCES research_reviews(id),
+    run_type TEXT NOT NULL CHECK(run_type IN('evidence_extraction','research_gap','contradiction_scan','delta_review')),
+    status TEXT NOT NULL DEFAULT 'completed' CHECK(status IN('completed','failed')),
+    provider TEXT NOT NULL,
+    model_name TEXT NOT NULL,
+    model_version TEXT,
+    prompt_version TEXT NOT NULL,
+    prompt_hash TEXT NOT NULL,
+    source_manifest_json TEXT NOT NULL,
+    source_manifest_hash TEXT NOT NULL,
+    input_hash TEXT NOT NULL,
+    output_hash TEXT NOT NULL,
+    requested_by TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
+    completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
+    error_text TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_ai_runs_review_created ON ai_research_runs(review_id,id DESC);
+
+CREATE TABLE IF NOT EXISTS ai_research_suggestions(
+    id BIGSERIAL PRIMARY KEY,
+    run_id BIGINT NOT NULL REFERENCES ai_research_runs(id),
+    company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),
+    review_id BIGINT NOT NULL REFERENCES research_reviews(id),
+    suggestion_no INTEGER NOT NULL,
+    suggestion_type TEXT NOT NULL CHECK(suggestion_type IN('evidence_candidate','contradiction','research_gap')),
+    source_id BIGINT REFERENCES research_sources(id),
+    source_hash_at_run TEXT,
+    question_id TEXT NOT NULL REFERENCES checklist_questions(question_id),
+    evidence_type TEXT CHECK(evidence_type IN('fact','quote','metric','observation','contradiction','risk')),
+    relationship TEXT CHECK(relationship IN('primary','supporting','context','contradicts')),
+    direction TEXT CHECK(direction IN('supports','contradicts','context')),
+    locator_text TEXT,
+    excerpt TEXT,
+    rationale TEXT NOT NULL,
+    confidence INTEGER NOT NULL CHECK(confidence BETWEEN 1 AND 5),
+    materiality INTEGER NOT NULL CHECK(materiality BETWEEN 1 AND 5),
+    payload_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
+    UNIQUE(run_id,suggestion_no)
+);
+CREATE INDEX IF NOT EXISTS ix_ai_suggestions_review_question ON ai_research_suggestions(review_id,question_id,id DESC);
+
+CREATE TABLE IF NOT EXISTS ai_suggestion_decisions(
+    id BIGSERIAL PRIMARY KEY,
+    suggestion_id BIGINT NOT NULL UNIQUE REFERENCES ai_research_suggestions(id),
+    decision TEXT NOT NULL CHECK(decision IN('accepted','rejected')),
+    decision_reason TEXT NOT NULL,
+    created_evidence_id BIGINT REFERENCES research_evidence(id),
+    created_link_id BIGINT REFERENCES evidence_question_links(id),
+    decided_by TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text
+);
+CREATE INDEX IF NOT EXISTS ix_ai_decisions_created ON ai_suggestion_decisions(created_at DESC,id DESC);
+
 CREATE TABLE IF NOT EXISTS screening_assessments(
     id BIGSERIAL PRIMARY KEY,
     company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),

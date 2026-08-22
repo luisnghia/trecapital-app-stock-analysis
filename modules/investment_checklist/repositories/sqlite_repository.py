@@ -237,11 +237,12 @@ class SQLiteChecklistRepository:
             return out
 
     def _snapshot_payload(self,c,rid):
+        from ..services.ai_research_assistant import snapshot_ai_for_review
         from ..services.evidence_workspace import snapshot_evidence_for_review
         from ..services.peer_snapshots import snapshot_peer_payload_for_review
 
         rv=self.get_review(rid,conn=c); co=self.get_company_ref(rv['company_ref_id'],conn=c); inv=c.execute("SELECT * FROM opportunity_inventory_snapshots WHERE company_ref_id=? AND as_of_date<=? ORDER BY as_of_date DESC,version_no DESC,id DESC LIMIT 1",(rv['company_ref_id'],rv['as_of_date'])).fetchone()
-        return {'snapshot_schema':'phase1b-review-v3-evidence-peer','generated_at':datetime.now(timezone.utc).isoformat(timespec='seconds'),'company':co,'review':rv,'metrics':self.review_metrics(rid,conn=c),'quality_tally':self.quality_tally(rid,conn=c),'assessments':self.latest_assessments_for_review(rid,conn=c),'screening':self.latest_screening_for_review(rid,conn=c),'opportunity_inventory':dict(inv) if inv else None,'research_evidence':snapshot_evidence_for_review(self,rid,conn=c),'peer_comparison':snapshot_peer_payload_for_review(self,rid,conn=c)}
+        return {'snapshot_schema':'phase1b-review-v4-evidence-peer-ai','generated_at':datetime.now(timezone.utc).isoformat(timespec='seconds'),'company':co,'review':rv,'metrics':self.review_metrics(rid,conn=c),'quality_tally':self.quality_tally(rid,conn=c),'assessments':self.latest_assessments_for_review(rid,conn=c),'screening':self.latest_screening_for_review(rid,conn=c),'opportunity_inventory':dict(inv) if inv else None,'research_evidence':snapshot_evidence_for_review(self,rid,conn=c),'peer_comparison':snapshot_peer_payload_for_review(self,rid,conn=c),'ai_research':snapshot_ai_for_review(self,rid,conn=c)}
     def finalize_review(self,rid,actor='analyst',finalize_reason=None):
         if finalize_reason is not None and not str(finalize_reason).strip(): raise ValidationError('Lý do chốt review là bắt buộc.')
         reason = str(finalize_reason).strip() if finalize_reason is not None else 'Legacy/imported finalize — reason not recorded'

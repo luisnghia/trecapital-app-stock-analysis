@@ -181,6 +181,7 @@ def create_evidence_version(
     evidence_key: str | None = None,
     change_reason: str = "",
     actor: str = "analyst",
+    conn=None,
 ) -> int:
     evidence_type = _choice(evidence_type, EVIDENCE_TYPES, "Loại bằng chứng")
     excerpt = _text(excerpt, required=True, label="Trích đoạn / sự kiện", max_length=5000)
@@ -191,8 +192,9 @@ def create_evidence_version(
     confidence = _score(confidence, "Độ tin cậy bằng chứng")
     evidence_date = _date(repo, evidence_date)
     change_reason = _text(change_reason, max_length=2000)
+    requested_evidence_key = evidence_key
 
-    with repo._conn() as c:
+    def create(c):
         source = repo._d(c.execute("SELECT * FROM research_sources WHERE id=?", (source_id,)).fetchone())
         if not source or int(source["company_ref_id"]) != int(company_ref_id):
             raise ValidationError("Nguồn không thuộc doanh nghiệp đang phân tích.")
@@ -200,18 +202,19 @@ def create_evidence_version(
             raise ValidationError("Nguồn đã lưu trữ; không thể thêm version bằng chứng mới.")
 
         previous = None
-        if evidence_key:
+        if requested_evidence_key:
             previous = repo._d(c.execute(
                 "SELECT * FROM research_evidence WHERE source_id=? AND evidence_key=? ORDER BY version_no DESC,id DESC LIMIT 1",
-                (source_id, evidence_key),
+                (source_id, requested_evidence_key),
             ).fetchone())
             if not previous:
                 raise ValidationError("Evidence key không tồn tại trong nguồn đã chọn.")
             if not change_reason:
                 raise ValidationError("Lý do tạo version bằng chứng mới là bắt buộc.")
             version_no = int(previous["version_no"]) + 1
+            resolved_evidence_key = requested_evidence_key
         else:
-            evidence_key = str(uuid.uuid4())
+            resolved_evidence_key = str(uuid.uuid4())
             version_no = 1
 
         content_hash = _content_hash(
@@ -220,7 +223,7 @@ def create_evidence_version(
         fields = {
             "company_ref_id": company_ref_id,
             "source_id": source_id,
-            "evidence_key": evidence_key,
+            "evidence_key": resolved_evidence_key,
             "version_no": version_no,
             "evidence_type": evidence_type,
             "locator_text": locator_text or None,
@@ -247,6 +250,11 @@ def create_evidence_version(
             entity_type="research_evidence", entity_id=evidence_id, before=previous, after=created,
         )
         return evidence_id
+
+    if conn is not None:
+        return create(conn)
+    with repo._conn() as c:
+        return create(c)
 
 
 def list_latest_evidence(repo, company_ref_id: int, *, source_id: int | None = None) -> list[dict[str, Any]]:
@@ -294,13 +302,14 @@ def link_evidence_to_question(
     materiality: int = 3,
     link_note: str = "",
     actor: str = "analyst",
+    conn=None,
 ) -> int:
     relationship = _choice(relationship, LINK_RELATIONSHIPS, "Vai trò bằng chứng")
     materiality = _score(materiality, "Mức độ trọng yếu")
     link_note = _text(link_note, max_length=3000)
     question_id = _text(question_id, required=True, label="Question ID").upper()
 
-    with repo._conn() as c:
+    def link(c):
         review = _editable_review(repo, c, review_id)
         question = c.execute("SELECT question_id FROM checklist_questions WHERE question_id=? AND active=1", (question_id,)).fetchone()
         if not question:
@@ -346,6 +355,12 @@ def link_evidence_to_question(
             before=existing, after=after,
         )
         return link_id
+
+
+    if conn is not None:
+        return link(conn)
+    with repo._conn() as c:
+        return link(c)
 
 
 def unlink_evidence_from_question(repo, link_id: int, *, reason: str, actor: str = "analyst") -> None:

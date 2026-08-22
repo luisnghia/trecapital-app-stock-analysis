@@ -100,7 +100,7 @@ def test_phase3b_is_embedded_in_immutable_review_and_locked_after_finalize(tmp_p
     )
     snapshot_id = repo.finalize_review(rid, actor="analyst", finalize_reason="Hoàn tất review Q2/2026")
     immutable = repo.get_snapshot(snapshot_id)
-    assert immutable["payload"]["snapshot_schema"] == "phase1b-review-v3-evidence-peer"
+    assert immutable["payload"]["snapshot_schema"] == "phase1b-review-v4-evidence-peer-ai"
     peer = immutable["payload"]["peer_comparison"]
     assert peer["version_no"] == 1
     assert peer["payload"]["base_ticker"] == "DCM"

@@ -30,6 +30,8 @@ def review_delete_preview(repo, review_id: int) -> dict[str, Any]:
             "inventory_snapshots": int(c.execute("SELECT COUNT(*) n FROM opportunity_inventory_snapshots WHERE last_review_id=?", (review_id,)).fetchone()["n"]),
             "immutable_snapshots": int(c.execute("SELECT COUNT(*) n FROM data_snapshots WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "peer_snapshots": int(c.execute("SELECT COUNT(*) n FROM peer_comparison_snapshots WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "ai_runs": int(c.execute("SELECT COUNT(*) n FROM ai_research_runs WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "ai_suggestions": int(c.execute("SELECT COUNT(*) n FROM ai_research_suggestions WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
         }
     return {"review": review, "counts": counts, "confirmation_token": review_delete_token(review_id)}
@@ -68,6 +70,8 @@ def delete_review_manually(
             "inventory_snapshots": int(c.execute("SELECT COUNT(*) n FROM opportunity_inventory_snapshots WHERE last_review_id=?", (review_id,)).fetchone()["n"]),
             "immutable_snapshots": int(c.execute("SELECT COUNT(*) n FROM data_snapshots WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "peer_snapshots": int(c.execute("SELECT COUNT(*) n FROM peer_comparison_snapshots WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "ai_runs": int(c.execute("SELECT COUNT(*) n FROM ai_research_runs WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "ai_suggestions": int(c.execute("SELECT COUNT(*) n FROM ai_research_suggestions WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
         }
 
@@ -88,6 +92,9 @@ def delete_review_manually(
         # Review-owned snapshots/versions are deleted together with the review to avoid orphan history.
         c.execute("DELETE FROM data_snapshots WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM peer_comparison_snapshots WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM ai_suggestion_decisions WHERE suggestion_id IN (SELECT id FROM ai_research_suggestions WHERE review_id=?)", (review_id,))
+        c.execute("DELETE FROM ai_research_suggestions WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM ai_research_runs WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM opportunity_inventory_snapshots WHERE last_review_id=?", (review_id,))
         c.execute("DELETE FROM evidence_question_links WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM analyst_assessments WHERE review_id=?", (review_id,))

@@ -18,6 +18,9 @@ _INSERT_ID_TABLES = {
     'research_sources',
     'research_evidence',
     'evidence_question_links',
+    'ai_research_runs',
+    'ai_research_suggestions',
+    'ai_suggestion_decisions',
     'screening_assessments',
     'opportunity_inventory_snapshots',
     'data_snapshots',
@@ -135,6 +138,14 @@ class PostgresChecklistRepository(SQLiteChecklistRepository):
                             criterion_name_vi=excluded.criterion_name_vi,display_order=excluded.display_order""",
                             (code, en, vi, i),
                         )
+                    # Phase 4A tables are internal research workflow state. The app uses a
+                    # trusted direct Postgres connection; they are not part of the Data API.
+                    for table in ('ai_research_runs', 'ai_research_suggestions', 'ai_suggestion_decisions'):
+                        cur.execute(f'ALTER TABLE {table} ENABLE ROW LEVEL SECURITY')
+                        for role in ('anon', 'authenticated'):
+                            cur.execute('SELECT 1 FROM pg_roles WHERE rolname=%s', (role,))
+                            if cur.fetchone():
+                                cur.execute(f'REVOKE ALL ON TABLE {table} FROM {role}')
                 conn.commit()
             except Exception:
                 conn.rollback()
