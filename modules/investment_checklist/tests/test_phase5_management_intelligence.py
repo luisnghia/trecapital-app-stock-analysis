@@ -143,7 +143,7 @@ def test_phase5_track_records_snapshot_lock_and_question_mapping(tmp_path):
     assert len(list_track_records(repo, review_id)) == 2
     snapshot_id = repo.finalize_review(review_id, actor="analyst", finalize_reason="Đóng Phase 5 QA")
     payload = repo.get_snapshot(snapshot_id)["payload"]
-    assert payload["snapshot_schema"] == "phase1b-review-v5-evidence-peer-ai-management"
+    assert payload["snapshot_schema"] == "phase1b-review-v6-evidence-peer-ai-management-monitoring-delta"
     assert payload["management_intelligence"]["schema"] == "management-human-intelligence-v1"
     assert len(payload["management_intelligence"]["track_records"]) == 2
     with pytest.raises(ValidationError, match="read-only"):

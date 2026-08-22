@@ -83,3 +83,7 @@ render_industry_overlay(Integration(), host, Provider())
         if "industry-" in str(item.value) and "overflow-wrap:anywhere" in str(item.value)
     ]
     assert len(responsive_tables) >= 4
+    # Leading indentation turns otherwise-valid HTML into a Markdown code block in the real app.
+    # Lock the renderer to actual HTML so tablet wrapping/overflow CSS can take effect.
+    assert all(str(item.value).startswith("<style>") for item in responsive_tables)
+    assert all('<div class="industry-' in str(item.value) for item in responsive_tables)

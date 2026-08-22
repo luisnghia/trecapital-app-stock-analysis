@@ -36,6 +36,10 @@ def review_delete_preview(repo, review_id: int) -> dict[str, Any]:
             "management_timeline": int(c.execute("SELECT COUNT(*) n FROM management_timeline_events WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "management_track_records": int(c.execute("SELECT COUNT(*) n FROM management_track_records WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "management_signals": int(c.execute("SELECT COUNT(*) n FROM management_question_signals WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "monitoring_rules": int(c.execute("SELECT COUNT(*) n FROM monitoring_rules WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "monitoring_observations": int(c.execute("SELECT COUNT(*) n FROM monitoring_observations WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "delta_items": int(c.execute("SELECT COUNT(*) n FROM delta_review_items WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "delta_decisions": int(c.execute("SELECT COUNT(*) n FROM delta_review_decisions WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
         }
     return {"review": review, "counts": counts, "confirmation_token": review_delete_token(review_id)}
@@ -80,11 +84,26 @@ def delete_review_manually(
             "management_timeline": int(c.execute("SELECT COUNT(*) n FROM management_timeline_events WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "management_track_records": int(c.execute("SELECT COUNT(*) n FROM management_track_records WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "management_signals": int(c.execute("SELECT COUNT(*) n FROM management_question_signals WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "monitoring_rules": int(c.execute("SELECT COUNT(*) n FROM monitoring_rules WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "monitoring_observations": int(c.execute("SELECT COUNT(*) n FROM monitoring_observations WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "delta_items": int(c.execute("SELECT COUNT(*) n FROM delta_review_items WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "delta_decisions": int(c.execute("SELECT COUNT(*) n FROM delta_review_decisions WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
         }
 
         # Preserve later review chains. If B pointed to deleted A, B now points to A's prior review.
         c.execute("UPDATE research_reviews SET prior_review_id=? WHERE prior_review_id=?", (prior_review_id, review_id))
+        # Delta items also carry an explicit immutable baseline FK. Rewire it when another prior
+        # review exists; otherwise remove the now-unverifiable later-review queue items.
+        if prior_review_id is not None:
+            c.execute("UPDATE delta_review_items SET prior_review_id=? WHERE prior_review_id=?", (prior_review_id, review_id))
+        else:
+            c.execute(
+                "DELETE FROM delta_review_decisions WHERE delta_item_id IN "
+                "(SELECT id FROM delta_review_items WHERE prior_review_id=?)",
+                (review_id,),
+            )
+            c.execute("DELETE FROM delta_review_items WHERE prior_review_id=?", (review_id,))
 
         # Explicit carry-forward references must not block deletion of the source assessment rows.
         if assessment_ids:
@@ -107,6 +126,10 @@ def delete_review_manually(
         c.execute("DELETE FROM management_track_records WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM management_timeline_events WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM management_people_versions WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM delta_review_decisions WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM delta_review_items WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM monitoring_observations WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM monitoring_rules WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM opportunity_inventory_snapshots WHERE last_review_id=?", (review_id,))
         c.execute("DELETE FROM evidence_question_links WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM analyst_assessments WHERE review_id=?", (review_id,))

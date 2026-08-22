@@ -13,6 +13,7 @@ from .evidence_workspace import render_evidence_workspace
 from .ai_research_assistant import render_ai_research_assistant
 from .industry_overlay import render_industry_overlay
 from .management_intelligence import render_management_intelligence
+from .monitoring_delta_review import render_monitoring_delta_review
 
 
 SECTIONS = [
@@ -22,6 +23,7 @@ SECTIONS = [
     "🔎 Research Evidence",
     "🤖 AI Research Assistant",
     "👥 Management & Human Intel",
+    "📡 Monitoring & Delta Review",
     "🏭 Industry & Moat",
     "⭐ Watchlist",
     "🕘 Snapshot & History",

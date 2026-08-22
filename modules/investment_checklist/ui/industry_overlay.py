@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Phase 3A Industry & Moat UI. No network, AI, or assessment writes."""
 
+from textwrap import dedent
 from typing import Any
 
 import pandas as pd
@@ -67,7 +68,7 @@ def _render_responsive_table(
     layout = "auto" if wide_numeric else "fixed"
     cell_min_width = "96px" if wide_numeric else "0"
     html = shown.to_html(index=False, escape=True, border=0, classes=[css_class])
-    st.markdown(
+    markup = dedent(
         f"""
         <style>
         .{css_class}-scroll{{
@@ -97,6 +98,9 @@ def _render_responsive_table(
         </style>
         <div class="{css_class}-scroll">{html}</div>
         """,
+    ).strip()
+    st.markdown(
+        markup,
         unsafe_allow_html=True,
     )
 

@@ -26,6 +26,10 @@ _INSERT_ID_TABLES = {
     'management_timeline_events',
     'management_track_records',
     'management_question_signals',
+    'monitoring_rules',
+    'monitoring_observations',
+    'delta_review_items',
+    'delta_review_decisions',
     'screening_assessments',
     'opportunity_inventory_snapshots',
     'data_snapshots',
@@ -150,6 +154,8 @@ class PostgresChecklistRepository(SQLiteChecklistRepository):
                         'ai_research_runs', 'ai_research_suggestions', 'ai_suggestion_decisions',
                         'management_people_versions', 'management_timeline_events',
                         'management_track_records', 'management_question_signals',
+                        'monitoring_rules', 'monitoring_observations',
+                        'delta_review_items', 'delta_review_decisions',
                     ):
                         cur.execute(f'ALTER TABLE {table} ENABLE ROW LEVEL SECURITY')
                         for role in ('anon', 'authenticated'):
