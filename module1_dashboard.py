@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Callable
+import os
 import warnings
 import html
 import json
 import re
 import base64
 
+# Matplotlib is only a report-export fallback, but importing the report module can still initialize
+# its font cache.  A stable writable cache avoids rebuilding fonts after every Streamlit process
+# restart and removes several seconds from cold navigation.
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/trecapital-matplotlib")
 
 import pandas as pd
 import streamlit as st
@@ -1490,6 +1495,14 @@ def _load_active_or_default(default_ticker: str = "DCM") -> tuple[Path, Path, Pa
         return Path(paths[0]), Path(paths[1]), Path(paths[2]), st.session_state.get("active_source_label", "Dữ liệu đang hoạt động"), active_ticker
 
     ticker = _safe_ticker(default_ticker) or "DCM"
+    # First paint after a reboot must be deterministic and network/workbook-free.  The packaged
+    # normalized CSV is a visibly labelled starter dataset; users fetch current data with the
+    # explicit update button.  This avoids opening the large XLSM merely to draw the page shell.
+    if all(path.exists() for path in (DEFAULT_OVERVIEW_CSV, DEFAULT_YEAR_CSV, DEFAULT_QUARTER_CSV)):
+        label = "Dữ liệu mẫu khởi động nhanh — bấm cập nhật để lấy dữ liệu live"
+        _activate_data_source(DEFAULT_OVERVIEW_CSV, DEFAULT_YEAR_CSV, DEFAULT_QUARTER_CSV, label, ticker)
+        return DEFAULT_OVERVIEW_CSV, DEFAULT_YEAR_CSV, DEFAULT_QUARTER_CSV, label, ticker
+
     if BUNDLED_XLSM.exists():
         overview, year, quarter, label = _export_bundled_financial_cached(str(BUNDLED_XLSM), ticker, str(DATA_CACHE_DIR))
         _activate_data_source(Path(overview), Path(year), Path(quarter), label, ticker)
@@ -1715,12 +1728,14 @@ def _render_search_panel() -> tuple[int, int]:
 
         safe = _safe_ticker(ticker)
         attempt_key = f"{safe}|{source}"
+        ticker_control_initialized = bool(st.session_state.get("_module1_ticker_control_initialized"))
+        st.session_state["_module1_ticker_control_initialized"] = True
         if submitted:
             st.session_state["last_query_ticker"] = safe
             st.session_state["last_query_source"] = source
             st.session_state["_last_auto_sync_attempt"] = attempt_key
             _search_and_bind(ticker, source)
-        elif auto_sync and len(safe) >= 3 and not _active_bundle_has_data_for_ticker(safe) and st.session_state.get("_last_auto_sync_attempt") != attempt_key:
+        elif ticker_control_initialized and auto_sync and len(safe) >= 3 and not _active_bundle_has_data_for_ticker(safe) and st.session_state.get("_last_auto_sync_attempt") != attempt_key:
             st.session_state["last_query_ticker"] = safe
             st.session_state["last_query_source"] = source
             st.session_state["_last_auto_sync_attempt"] = attempt_key

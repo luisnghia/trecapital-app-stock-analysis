@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from copy import copy
 from pathlib import Path
 from typing import Callable
@@ -124,30 +125,106 @@ def _active_reusable_bundle(ticker: str):
     return Path(str(paths[0])), Path(str(paths[1])), Path(str(paths[2])), label, ticker, statement_only
 
 
+def _cached_provider_bundle(ticker: str, *, fresh_quote_hours: float = 6.0):
+    """Return the newest complete provider cache without waiting for a crawler.
+
+    Streamlit sessions are intentionally isolated, while normalized provider CSVs live for the
+    lifetime of the app process.  A new browser tab therefore used to ignore an already-downloaded
+    bundle and spend 15--30 seconds fetching the same ticker again.  Reusing the complete cache is
+    safe for statements.  Quote fields are treated as statement-only once the bundle is older than
+    ``fresh_quote_hours`` so speed never silently turns a stale market price into current data.
+    """
+    safe = m1._safe_ticker(ticker)
+    if not safe:
+        return None
+    names = (
+        "company_overview_sample.csv",
+        "financial_timeseries_year.csv",
+        "financial_timeseries_quarter.csv",
+    )
+    candidates = []
+    try:
+        roots = [path / safe for path in m1.DATA_CACHE_DIR.iterdir() if path.is_dir()]
+    except Exception:
+        roots = []
+    for root in roots:
+        if root.parent.name == "financial_xlsm":
+            continue
+        paths = tuple(root / name for name in names)
+        if not all(path.exists() and path.stat().st_size > 20 for path in paths):
+            continue
+        updated_at = max(path.stat().st_mtime for path in paths)
+        candidates.append((updated_at, paths))
+    if not candidates:
+        return None
+
+    updated_at, paths = max(candidates, key=lambda item: item[0])
+    age_hours = max(0.0, (time.time() - updated_at) / 3600.0)
+    timestamp = pd.Timestamp.fromtimestamp(updated_at).strftime("%Y-%m-%d %H:%M:%S")
+    statement_only = age_hours > float(fresh_quote_hours)
+    label = (
+        f"Dữ liệu cache nhanh | {timestamp}"
+        + (" | quote đã cũ — cần cập nhật" if statement_only else "")
+    )
+    st.session_state["checklist_bundle_mode"] = "reused_process_cache"
+    if not statement_only:
+        m1._activate_data_source(paths[0], paths[1], paths[2], label, safe)
+    return paths[0], paths[1], paths[2], label, safe, statement_only
+
+
 def _load_checklist_bundle(ticker: str):
-    """Prefer the already-active Trecapital bundle; fetch only when no reusable bundle exists."""
+    """Open immediately from active/disk/bundled data; crawl only after an explicit refresh.
+
+    A diagnostic deployment may opt back into implicit crawling with
+    ``TREC_CHECKLIST_IMPLICIT_NETWORK=1``.  Normal page navigation keeps it disabled.  The search
+    button already calls the canonical forced-refresh pipeline, so an implicit crawler here only
+    duplicated work and blocked first paint.
+    """
     ticker = m1._safe_ticker(ticker) or "DCM"
     active = _active_reusable_bundle(ticker)
     if active:
         return active
 
+    cached = _cached_provider_bundle(ticker)
+    if cached:
+        return cached
+
     diagnostics = []
-    st.session_state["checklist_bundle_mode"] = "live_fetch"
-    try:
-        result, source_key = m1._fetch_source(ticker, "FireAnt + Vietstock")
-        diagnostics.append(
-            f"live score={m1._result_score(result)}, overview={len(result.overview)}, năm={len(result.annual)}, quý={len(result.quarterly)}"
+    allow_network = os.getenv("TREC_CHECKLIST_IMPLICIT_NETWORK", "").strip().lower() in {"1", "true", "yes"}
+    if allow_network:
+        st.session_state["checklist_bundle_mode"] = "live_fetch"
+        try:
+            result, source_key = m1._fetch_source(ticker, "FireAnt + Vietstock")
+            diagnostics.append(
+                f"live score={m1._result_score(result)}, overview={len(result.overview)}, năm={len(result.annual)}, quý={len(result.quarterly)}"
+            )
+            if m1._result_has_dashboard_data(result):
+                overview_csv, year_csv, quarter_csv, _counts = m1._export_provider_result_to_cache(result, ticker, source_key)
+                label = f"Dữ liệu cập nhật | {pd.Timestamp.now():%Y-%m-%d %H:%M:%S}"
+                m1._activate_data_source(overview_csv, year_csv, quarter_csv, label, ticker)
+                st.session_state["last_query_ticker"] = ticker
+                st.session_state["last_query_source"] = "FireAnt + Vietstock"
+                st.session_state["_last_auto_sync_attempt"] = f"{ticker}|FireAnt + Vietstock"
+                return overview_csv, year_csv, quarter_csv, label, ticker, False
+        except Exception as exc:
+            diagnostics.append(f"live error={exc}")
+
+    # The packaged normalized DCM sample is the deterministic first-paint dataset.  Prefer it to
+    # parsing the large bundled workbook after an app reboot; the UI labels it as sample data and
+    # keeps quote-dependent conclusions disabled until the analyst explicitly refreshes.  Never
+    # relabel this DCM bundle as another ticker.
+    sample_paths = (m1.DEFAULT_OVERVIEW_CSV, m1.DEFAULT_YEAR_CSV, m1.DEFAULT_QUARTER_CSV)
+    if ticker == "DCM" and all(path.exists() and path.stat().st_size > 20 for path in sample_paths):
+        st.session_state["checklist_live_load_diagnostics"] = diagnostics
+        st.session_state["checklist_bundle_mode"] = "instant_sample_fallback"
+        return (
+            sample_paths[0],
+            sample_paths[1],
+            sample_paths[2],
+            "Dữ liệu mẫu khởi động nhanh — bấm cập nhật để lấy dữ liệu live",
+            ticker,
+            True,
         )
-        if m1._result_has_dashboard_data(result):
-            overview_csv, year_csv, quarter_csv, _counts = m1._export_provider_result_to_cache(result, ticker, source_key)
-            label = f"Dữ liệu cập nhật | {pd.Timestamp.now():%Y-%m-%d %H:%M:%S}"
-            m1._activate_data_source(overview_csv, year_csv, quarter_csv, label, ticker)
-            st.session_state["last_query_ticker"] = ticker
-            st.session_state["last_query_source"] = "FireAnt + Vietstock"
-            st.session_state["_last_auto_sync_attempt"] = f"{ticker}|FireAnt + Vietstock"
-            return overview_csv, year_csv, quarter_csv, label, ticker, False
-    except Exception as exc:
-        diagnostics.append(f"live error={exc}")
 
     if m1.BUNDLED_XLSM.exists():
         try:
@@ -156,7 +233,7 @@ def _load_checklist_bundle(ticker: str):
             )
             fallback_label = "Dữ liệu tích hợp dự phòng — chỉ dùng BCTC, không dùng cached quote làm giá hiện tại"
             st.session_state["checklist_live_load_diagnostics"] = diagnostics
-            st.session_state["checklist_bundle_mode"] = "statement_fallback"
+            st.session_state["checklist_bundle_mode"] = "instant_statement_fallback"
             return Path(overview), Path(year), Path(quarter), fallback_label, ticker, True
         except Exception as exc:
             diagnostics.append(f"workbook error={exc}")
@@ -399,8 +476,13 @@ def render_page() -> None:
     with st.sidebar:
         st.caption(f"Checklist đang dùng dữ liệu: **{active_ticker}**")
         st.caption(f"Nguồn đang hoạt động: {m1._safe_source_label(source_label)}")
-        if st.session_state.get("checklist_bundle_mode") == "reused_active":
+        bundle_mode = st.session_state.get("checklist_bundle_mode")
+        if bundle_mode == "reused_active":
             st.caption("⚡ Fast entry: tái sử dụng bundle đang hoạt động, không gọi lại nguồn dữ liệu khi chuyển page.")
+        elif bundle_mode == "reused_process_cache":
+            st.caption("⚡ Fast start: mở ngay bundle cache hợp lệ; chỉ gọi nguồn live khi bấm nút cập nhật.")
+        elif bundle_mode == "instant_statement_fallback":
+            st.caption("⚡ Fast start: mở BCTC tích hợp ngay; bấm cập nhật để lấy quote/dữ liệu live mới.")
         else:
             st.caption("⚡ Fast mode: annual/TTM chỉ tải khi Analytical Tools/Watchlist thực sự cần.")
         # Keep the established performance contract explicit for regression checks and users.

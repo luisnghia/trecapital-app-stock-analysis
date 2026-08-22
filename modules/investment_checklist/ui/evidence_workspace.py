@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 from datetime import date
+from functools import lru_cache
+import json
+import time
 
 import pandas as pd
 import streamlit as st
 
 from ..repositories.sqlite_repository import ValidationError
+from ..catalog.catalog import load_questions
+from ..services.integration_service import CATALOG_PATH
 from ..services.evidence_workspace import (
     EVIDENCE_DIRECTIONS,
     EVIDENCE_TYPES,
@@ -53,6 +58,7 @@ def _notify(message: str) -> None:
 
 def _invalidate_review_evidence(review_id: int) -> None:
     st.session_state.pop(f"_evidence_links_fast_{int(review_id)}", None)
+    st.session_state.pop(f"_evidence_workspace_bundle_{int(review_id)}", None)
 
 
 def _rerun() -> None:
@@ -75,11 +81,84 @@ def _evidence_label(evidence: dict) -> str:
     return f"E#{evidence['id']} · v{evidence['version_no']} · {evidence['source_title']} · {excerpt}"
 
 
-def _render_summary(repo, review: dict | None) -> None:
+@lru_cache(maxsize=1)
+def _evidence_question_catalog() -> tuple[dict, ...]:
+    return tuple(load_questions(CATALOG_PATH))
+
+
+def _coverage_from_links(links: list[dict]) -> list[dict]:
+    by_question: dict[str, list[dict]] = {}
+    for link in links:
+        by_question.setdefault(str(link["question_id"]), []).append(link)
+    rows = []
+    for question in _evidence_question_catalog():
+        items = by_question.get(question["question_id"], [])
+        rows.append({
+            "question_id": question["question_id"],
+            "question_no": question["question_no"],
+            "group_name": question["group_name"],
+            "question_vi": question["question_vi"],
+            "evidence_count": len(items),
+            "verified_count": sum(item["verification_status"] == "verified" for item in items),
+            "contradiction_count": sum(
+                item["direction"] == "contradicts" or item["relationship"] == "contradicts"
+                for item in items
+            ),
+            "max_materiality": max((int(item["materiality"]) for item in items), default=0),
+        })
+    return rows
+
+
+def _summary_from_coverage(rows: list[dict]) -> dict:
+    covered = sum(int(row["evidence_count"]) > 0 for row in rows)
+    verified_questions = sum(int(row["verified_count"]) > 0 for row in rows)
+    return {
+        "questions": len(rows),
+        "covered_questions": covered,
+        "verified_questions": verified_questions,
+        "coverage_ratio": covered / len(rows) if rows else 0.0,
+        "verified_ratio": verified_questions / len(rows) if rows else 0.0,
+        "active_links": sum(int(row["evidence_count"]) for row in rows),
+        "contradictions": sum(int(row["contradiction_count"]) for row in rows),
+    }
+
+
+def _evidence_bundle_cached(repo, review_id: int, *, ttl_seconds: float = 30.0) -> dict:
+    key = f"_evidence_workspace_bundle_{int(review_id)}"
+    cached = st.session_state.get(key)
+    now = time.monotonic()
+    if isinstance(cached, dict) and now - float(cached.get("loaded_at", 0.0)) <= ttl_seconds:
+        return cached["bundle"]
+    links = list_review_evidence(repo, int(review_id))
+    coverage = _coverage_from_links(links)
+    bundle = {"links": links, "coverage": coverage, "summary": _summary_from_coverage(coverage)}
+    st.session_state[key] = {"loaded_at": now, "bundle": bundle}
+    return bundle
+
+
+def _export_bundle_json(bundle: dict) -> str:
+    summary = bundle["summary"]
+    payload = {
+        "schema": "research-evidence-v1",
+        "summary": {
+            "active_links": summary["active_links"],
+            "covered_questions": summary["covered_questions"],
+            "verified_links": sum(
+                int(row["verification_status"] == "verified") for row in bundle["links"]
+            ),
+            "contradictions": summary["contradictions"],
+            "total_questions": len(bundle["coverage"]),
+        },
+        "links": bundle["links"],
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+
+
+def _render_summary(repo, review: dict | None, *, bundle: dict | None = None) -> None:
     if not review:
         st.info("Tạo hoặc chọn review để theo dõi coverage và liên kết bằng chứng với Q01–Q59.")
         return
-    summary = evidence_summary(repo, review["id"])
+    summary = bundle["summary"] if bundle is not None else evidence_summary(repo, review["id"])
     cols = st.columns(5)
     cols[0].metric("Câu có evidence", f"{summary['covered_questions']}/59")
     cols[1].metric("Coverage", f"{summary['coverage_ratio'] * 100:.1f}%")
@@ -88,11 +167,11 @@ def _render_summary(repo, review: dict | None) -> None:
     cols[4].metric("Mâu thuẫn", summary["contradictions"])
 
 
-def _render_coverage(repo, review: dict | None) -> None:
+def _render_coverage(repo, review: dict | None, *, bundle: dict | None = None) -> None:
     if not review:
         st.info("Chưa có review để tính coverage.")
         return
-    rows = evidence_coverage(repo, review["id"])
+    rows = bundle["coverage"] if bundle is not None else evidence_coverage(repo, review["id"])
     frame = pd.DataFrame(rows).rename(columns={
         "question_id": "Q",
         "group_name": "Nhóm",
@@ -115,7 +194,7 @@ def _render_coverage(repo, review: dict | None) -> None:
         use_container_width=True, hide_index=True, height=520,
     )
 
-    linked = list_review_evidence(repo, review["id"])
+    linked = bundle["links"] if bundle is not None else list_review_evidence(repo, review["id"])
     if linked:
         st.markdown("##### Evidence package đang gắn với review")
         linked_df = pd.DataFrame(linked).rename(columns={
@@ -129,7 +208,7 @@ def _render_coverage(repo, review: dict | None) -> None:
         )
         st.download_button(
             "⬇️ Xuất Evidence Package JSON",
-            data=export_evidence_json(repo, review["id"]),
+            data=_export_bundle_json(bundle) if bundle is not None else export_evidence_json(repo, review["id"]),
             file_name=f"evidence_review_{review['id']}.json",
             mime="application/json",
             key=f"download_evidence_{review['id']}",
@@ -387,13 +466,14 @@ def render_evidence_workspace(repo, company_ref_id: int, review: dict | None, ac
     message = st.session_state.pop("evidence_workspace_message", None)
     if message:
         st.success(message)
-    _render_summary(repo, review)
+    bundle = _evidence_bundle_cached(repo, int(review["id"])) if review else None
+    _render_summary(repo, review, bundle=bundle)
     selected = st.radio(
         "Evidence workspace", EVIDENCE_SECTIONS, horizontal=True, label_visibility="collapsed",
         key=f"evidence_section_{company_ref_id}",
     )
     if selected == "Coverage":
-        _render_coverage(repo, review)
+        _render_coverage(repo, review, bundle=bundle)
     elif selected == "Nguồn":
         _render_sources(repo, company_ref_id, actor)
     elif selected == "Bằng chứng":

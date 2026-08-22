@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+import time
 from typing import Any
 
 import pandas as pd
@@ -26,7 +27,7 @@ from ..services.management_intelligence import (
     list_people,
     list_timeline_events,
     list_track_records,
-    management_research_summary,
+    management_research_bundle,
     save_management_signal,
     save_person_version,
     save_track_record,
@@ -68,8 +69,34 @@ SIGNAL_LABELS = {
 }
 
 
+def _management_cache_key(review_id: int) -> str:
+    return f"_management_bundle_fast_{int(review_id)}"
+
+
+def _invalidate_management_cache(review_id: int) -> None:
+    st.session_state.pop(_management_cache_key(review_id), None)
+
+
+def _management_bundle_cached(repo, review_id: int, *, ttl_seconds: float = 30.0) -> dict[str, Any]:
+    key = _management_cache_key(review_id)
+    cached = st.session_state.get(key)
+    now = time.monotonic()
+    if isinstance(cached, dict) and now - float(cached.get("loaded_at", 0.0)) <= ttl_seconds:
+        return cached["bundle"]
+    bundle = management_research_bundle(repo, int(review_id))
+    st.session_state[key] = {"loaded_at": now, "bundle": bundle}
+    return bundle
+
+
 def _evidence_options(company_ref_id: int) -> tuple[list[int], dict[int, str]]:
-    rows = list_latest_evidence(st.session_state["_management_repo"], company_ref_id)
+    cache_key = f"_management_evidence_fast_{int(company_ref_id)}"
+    cached = st.session_state.get(cache_key)
+    now = time.monotonic()
+    if isinstance(cached, dict) and now - float(cached.get("loaded_at", 0.0)) <= 30.0:
+        rows = cached["rows"]
+    else:
+        rows = list_latest_evidence(st.session_state["_management_repo"], company_ref_id)
+        st.session_state[cache_key] = {"loaded_at": now, "rows": rows}
     labels = {0: "— Chưa gắn evidence (không tính evidence coverage) —"}
     for row in rows:
         excerpt = str(row.get("excerpt") or "").replace("\n", " ")
@@ -85,8 +112,9 @@ def _evidence_select(label: str, company_ref_id: int, *, key: str) -> int | None
     return None if selected == 0 else int(selected)
 
 
-def _render_coverage(review_id: int) -> None:
-    signals = list_management_signals(st.session_state["_management_repo"], review_id)
+def _render_coverage(review_id: int, *, signals: list[dict[str, Any]] | None = None) -> None:
+    if signals is None:
+        signals = list_management_signals(st.session_state["_management_repo"], review_id)
     by_question: dict[str, list[dict[str, Any]]] = {}
     for signal in signals:
         by_question.setdefault(signal["question_id"], []).append(signal)
@@ -106,10 +134,18 @@ def _render_coverage(review_id: int) -> None:
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True, height=610)
 
 
-def _render_people_and_timeline(repo, company_ref_id: int, review: dict[str, Any], actor: str) -> None:
+def _render_people_and_timeline(
+    repo,
+    company_ref_id: int,
+    review: dict[str, Any],
+    actor: str,
+    *,
+    people: list[dict[str, Any]] | None = None,
+    timeline: list[dict[str, Any]] | None = None,
+) -> None:
     review_id = int(review["id"])
     locked = review["status"] == "completed"
-    people = list_people(repo, review_id)
+    people = list_people(repo, review_id) if people is None else people
     st.markdown("##### Hồ sơ lãnh đạo chủ chốt")
     if people:
         frame = pd.DataFrame([{
@@ -152,6 +188,7 @@ def _render_people_and_timeline(repo, company_ref_id: int, review: dict[str, Any
                     source_evidence_id=evidence_id, verification_status=verification,
                     change_reason=change_reason, actor=actor,
                 )
+                _invalidate_management_cache(review_id)
                 st.success("Đã lưu version hồ sơ manager.")
                 st.rerun()
             except ValidationError as exc:
@@ -162,7 +199,7 @@ def _render_people_and_timeline(repo, company_ref_id: int, review: dict[str, Any
         "Dựng chronology tối thiểu 5–10 năm cho nhóm lãnh đạo chủ chốt. Turnover là tín hiệu cần điều tra, "
         "không phải kết luận tự động về chất lượng management."
     )
-    timeline = list_timeline_events(repo, review_id)
+    timeline = list_timeline_events(repo, review_id) if timeline is None else timeline
     if timeline:
         st.dataframe(pd.DataFrame([{
             "Ngày": row["event_date"], "Person key": row["person_key"],
@@ -196,13 +233,21 @@ def _render_people_and_timeline(repo, company_ref_id: int, review: dict[str, Any
                     role_title=role_title, event_summary=summary, external_hire=external,
                     source_evidence_id=evidence_id, confidence=confidence, actor=actor,
                 )
+                _invalidate_management_cache(review_id)
                 st.success("Đã lưu timeline event.")
                 st.rerun()
             except ValidationError as exc:
                 st.error(str(exc))
 
 
-def _render_signals(repo, company_ref_id: int, review: dict[str, Any], actor: str) -> None:
+def _render_signals(
+    repo,
+    company_ref_id: int,
+    review: dict[str, Any],
+    actor: str,
+    *,
+    signals: list[dict[str, Any]] | None = None,
+) -> None:
     review_id = int(review["id"])
     locked = review["status"] == "completed"
     st.markdown("##### Table 7.1 — Lion vs Hyena & Management Character Matrix")
@@ -210,7 +255,7 @@ def _render_signals(repo, company_ref_id: int, review: dict[str, Any], actor: st
         "Lion/Hyena là khung định tính để kiểm tra hành vi xây tổ chức dài hạn, chia sẻ credit, phát triển người kế cận "
         "và hành xử khi khó khăn. Không gắn nhãn một con người từ vài phát biểu; ưu tiên hành động quan sát được qua nhiều chu kỳ."
     )
-    signals = list_management_signals(repo, review_id)
+    signals = list_management_signals(repo, review_id) if signals is None else signals
     if signals:
         st.dataframe(pd.DataFrame([{
             "Q": row["question_id"], "Dimension": MANAGEMENT_DIMENSIONS[row["question_id"]],
@@ -249,13 +294,21 @@ def _render_signals(repo, company_ref_id: int, review: dict[str, Any], actor: st
                     materiality=materiality, source_evidence_id=evidence_id,
                     change_reason=change_reason, actor=actor,
                 )
+                _invalidate_management_cache(review_id)
                 st.success("Đã lưu structured management signal. Final assessment chưa bị thay đổi.")
                 st.rerun()
             except ValidationError as exc:
                 st.error(str(exc))
 
 
-def _render_track_records(repo, company_ref_id: int, review: dict[str, Any], actor: str) -> None:
+def _render_track_records(
+    repo,
+    company_ref_id: int,
+    review: dict[str, Any],
+    actor: str,
+    *,
+    records: list[dict[str, Any]] | None = None,
+) -> None:
     review_id = int(review["id"])
     locked = review["status"] == "completed"
     st.markdown("##### Guidance, Capital Allocation, M&A & Human Intelligence")
@@ -263,7 +316,7 @@ def _render_track_records(repo, company_ref_id: int, review: dict[str, Any], act
         "Hậu kiểm guidance và M&A theo mốc hiện tại/1/3/5 năm. Human Intelligence cần phân loại nguồn và kiểm chứng chéo; "
         "nguồn đơn lẻ không được tự động trở thành kết luận."
     )
-    records = list_track_records(repo, review_id)
+    records = list_track_records(repo, review_id) if records is None else records
     if records:
         st.dataframe(pd.DataFrame([{
             "Loại": TRACK_LABELS[row["record_type"]], "Ngày": row.get("event_date") or "—",
@@ -318,6 +371,7 @@ def _render_track_records(repo, company_ref_id: int, review: dict[str, Any], act
                     corroboration_status=corroboration, confidential=confidential,
                     source_evidence_id=evidence_id, actor=actor,
                 )
+                _invalidate_management_cache(review_id)
                 st.success("Đã lưu management track record. Không có final assessment nào bị ghi tự động.")
                 st.rerun()
             except ValidationError as exc:
@@ -341,7 +395,8 @@ def render_management_intelligence(
 
     st.session_state["_management_repo"] = repo
     review_id = int(review["id"])
-    summary = management_research_summary(repo, review_id)
+    bundle = _management_bundle_cached(repo, review_id)
+    summary = bundle["summary"]
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Management coverage", f"{summary['coverage_pct'] * 100:.1f}%", f"{len(summary['covered_questions'])}/22 câu")
     c2.metric("Evidence coverage", f"{summary['evidence_coverage_pct'] * 100:.1f}%", f"{len(summary['evidence_backed_questions'])}/22 câu")
@@ -362,13 +417,16 @@ def render_management_intelligence(
         key=f"management_section_{company_ref_id}_{review_id}",
     )
     if section == "Coverage Q33–Q52/Q58–Q59":
-        _render_coverage(review_id)
+        _render_coverage(review_id, signals=bundle["signals"])
     elif section == "People & Tenure":
-        _render_people_and_timeline(repo, company_ref_id, review, actor)
+        _render_people_and_timeline(
+            repo, company_ref_id, review, actor,
+            people=bundle["people"], timeline=bundle["timeline"],
+        )
     elif section == "Lion/Hyena & Signals":
-        _render_signals(repo, company_ref_id, review, actor)
+        _render_signals(repo, company_ref_id, review, actor, signals=bundle["signals"])
     else:
-        _render_track_records(repo, company_ref_id, review, actor)
+        _render_track_records(repo, company_ref_id, review, actor, records=bundle["track_records"])
 
 
 __all__ = ["render_management_intelligence"]

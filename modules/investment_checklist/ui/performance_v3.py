@@ -204,6 +204,83 @@ def _fragment_rerun() -> None:
         st.rerun()
 
 
+def render_home_fast(repo, company_ref_id: int, review: dict[str, Any] | None, *, reviews=None) -> None:
+    """Render Research Home from two SQL statements on one pooled connection.
+
+    The legacy renderer independently fetched metrics, quality tally, the 59-question catalog and
+    assessment progress.  On Supabase that made the default section slower than the actual work.
+    The catalog is immutable packaged data; metrics and group progress are derived from one current
+    assessment bundle, while screening tally is read beside it on the same connection.
+    """
+    if not review:
+        st.info("Tạo review để bắt đầu nghiên cứu.")
+        return
+    review_id = int(review["id"])
+    with repo._conn() as c:
+        assessments = repo.latest_assessments_for_review(review_id, conn=c)
+        screening = repo.latest_screening_for_review(review_id, conn=c)
+
+    na = sum(row["status"] == "na" for row in assessments)
+    answered = sum(row["status"] == "answered" for row in assessments)
+    denominator = 59 - na
+    metrics = {
+        "answered": answered,
+        "research_completion": answered / denominator if denominator else 1.0,
+        "research_gaps": sum(row["status"] == "research_gap" for row in assessments),
+        "critical_unknowns": sum(
+            row["status"] == "research_gap" and row["materiality"] == 5 for row in assessments
+        ),
+        "red_flags": sum(
+            row["status"] in {"answered", "needs_review"} and row["assessment"] == -2
+            for row in assessments
+        ),
+    }
+    tally = sum(row["analyst_value"] == "yes" for row in screening)
+    cols = st.columns(6)
+    values = [
+        ("Table 1.1", f"{tally}/10"),
+        ("Checklist answered", f"{metrics['answered']}/59"),
+        ("Research completion", f"{metrics['research_completion'] * 100:.1f}%"),
+        ("Research gaps", metrics["research_gaps"]),
+        ("Critical unknowns", metrics["critical_unknowns"]),
+        ("Red flags (-2)", metrics["red_flags"]),
+    ]
+    for column, (label, value) in zip(cols, values):
+        column.metric(label, value)
+    st.caption(
+        "Research Completion = Answered / (59 − N/A). Research Gap không được tính là Answered "
+        "và không bị quy đổi thành Assessment 0."
+    )
+
+    by_question = {row["question_id"]: row for row in assessments}
+    catalog = list(question_catalog_cached())
+    rows = []
+    for group in dict.fromkeys(question["group_name"] for question in catalog):
+        group_questions = [question for question in catalog if question["group_name"] == group]
+        current = [by_question.get(question["question_id"]) for question in group_questions]
+        group_na = sum(bool(row) and row["status"] == "na" for row in current)
+        group_answered = sum(bool(row) and row["status"] == "answered" for row in current)
+        group_gaps = sum(bool(row) and row["status"] == "research_gap" for row in current)
+        group_needs = sum(bool(row) and row["status"] == "needs_review" for row in current)
+        group_denominator = len(group_questions) - group_na
+        rows.append({
+            "Nhóm": group,
+            "Đã trả lời": group_answered,
+            "N/A": group_na,
+            "Research Gap": group_gaps,
+            "Cần xem lại": group_needs,
+            "Tổng áp dụng": group_denominator,
+            "Hoàn thành": f"{(group_answered / group_denominator if group_denominator else 1.0) * 100:.1f}%",
+        })
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    with st.expander("Lịch sử review — theo dõi thay đổi doanh nghiệp", expanded=False):
+        history = list(reviews) if reviews is not None else repo.list_reviews(company_ref_id)
+        if history:
+            st.dataframe(pd.DataFrame(history), use_container_width=True, hide_index=True)
+        else:
+            st.caption("Chưa có lịch sử review.")
+
+
 def render_workspace_fast(repo, company_ref_id: int, review: dict[str, Any] | None, actor: str) -> None:
     st.markdown("#### Analyst Workspace — Q01–Q59")
     if not review:

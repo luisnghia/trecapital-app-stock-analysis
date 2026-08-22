@@ -525,11 +525,12 @@ def list_management_signals(repo, review_id: int, *, conn=None) -> list[dict[str
         return query(c)
 
 
-def management_research_summary(repo, review_id: int, *, conn=None) -> dict[str, Any]:
-    people = list_people(repo, review_id, conn=conn)
-    timeline = list_timeline_events(repo, review_id, conn=conn)
-    records = list_track_records(repo, review_id, conn=conn)
-    signals = list_management_signals(repo, review_id, conn=conn)
+def _management_summary_from_rows(
+    people: list[dict[str, Any]],
+    timeline: list[dict[str, Any]],
+    records: list[dict[str, Any]],
+    signals: list[dict[str, Any]],
+) -> dict[str, Any]:
     covered = sorted({row["question_id"] for row in signals if row["signal_status"] not in {"research_gap", "not_reviewed"}})
     evidence_backed = sorted({
         row["question_id"] for row in signals
@@ -548,15 +549,46 @@ def management_research_summary(repo, review_id: int, *, conn=None) -> dict[str,
     }
 
 
+def management_research_bundle(repo, review_id: int, *, conn=None) -> dict[str, Any]:
+    """Load all Phase 5 read models through one pooled connection.
+
+    The four SELECTs remain deliberately separate and auditable, but keeping them inside a single
+    connection removes repeated Supabase/PgBouncer checkout latency.  The returned rows are also
+    reused by the selected sub-view instead of immediately querying the same table again.
+    """
+    def build(c):
+        people = list_people(repo, review_id, conn=c)
+        timeline = list_timeline_events(repo, review_id, conn=c)
+        records = list_track_records(repo, review_id, conn=c)
+        signals = list_management_signals(repo, review_id, conn=c)
+        return {
+            "people": people,
+            "timeline": timeline,
+            "track_records": records,
+            "signals": signals,
+            "summary": _management_summary_from_rows(people, timeline, records, signals),
+        }
+
+    if conn is not None:
+        return build(conn)
+    with repo._conn() as c:
+        return build(c)
+
+
+def management_research_summary(repo, review_id: int, *, conn=None) -> dict[str, Any]:
+    return management_research_bundle(repo, review_id, conn=conn)["summary"]
+
+
 def snapshot_management_for_review(repo, review_id: int, *, conn=None) -> dict[str, Any]:
+    bundle = management_research_bundle(repo, review_id, conn=conn)
     return {
         "schema": "management-human-intelligence-v1",
         "question_scope": list(MANAGEMENT_QUESTION_IDS),
-        "summary": management_research_summary(repo, review_id, conn=conn),
-        "people": list_people(repo, review_id, conn=conn),
-        "timeline": list_timeline_events(repo, review_id, conn=conn),
-        "track_records": list_track_records(repo, review_id, conn=conn),
-        "question_signals": list_management_signals(repo, review_id, conn=conn),
+        "summary": bundle["summary"],
+        "people": bundle["people"],
+        "timeline": bundle["timeline"],
+        "track_records": bundle["track_records"],
+        "question_signals": bundle["signals"],
     }
 
 
@@ -566,7 +598,7 @@ __all__ = [
     "MANAGEMENT_QUESTION_IDS", "SIGNAL_STATUSES", "TIMELINE_EVENT_TYPES",
     "TRACK_RECORD_TYPES", "TRACK_RESULT_STATUSES", "VERIFICATION_STATUSES",
     "add_timeline_event", "list_management_signals", "list_people", "list_timeline_events",
-    "list_track_records", "management_research_summary", "normalize_person_key",
+    "list_track_records", "management_research_bundle", "management_research_summary", "normalize_person_key",
     "save_management_signal", "save_person_version", "save_track_record",
     "snapshot_management_for_review",
 ]

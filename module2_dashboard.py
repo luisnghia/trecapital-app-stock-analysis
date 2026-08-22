@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import warnings
 import html
 import json
 import re
 import base64
+
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/trecapital-matplotlib")
 
 import pandas as pd
 import streamlit as st
@@ -1086,23 +1089,52 @@ def _load_data(ticker: str, source: str) -> tuple[object, pd.DataFrame, pd.DataF
             _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label, ticker)
             return company, annual, quarterly, label, (overview_csv, year_csv, quarter_csv)
 
-        # 2) Không có cache thì tự gọi pipeline crawler Tổng quan doanh nghiệp.
-        overview, year, quarter, label = _export_module1_crawler_cached(ticker, "FireAnt + Vietstock", str(DATA_CACHE_DIR), str(RAW_DIR))
-        overview_csv, year_csv, quarter_csv = Path(overview), Path(year), Path(quarter)
-        company, annual, quarterly = _load_csv_bundle(overview_csv, year_csv, quarter_csv, ticker)
-        if _has_real_financial_data(annual):
-            _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label + " | Auto-sync từ Định giá chuyên sâu", ticker)
-            return company, annual, quarterly, label + " | Auto-sync từ Định giá chuyên sâu", (overview_csv, year_csv, quarter_csv)
+        # 2) Fast start: use the packaged normalized sample when it belongs to the requested ticker.
+        # It is explicitly labelled and keeps first paint independent from network/XLSM parsing.
+        try:
+            company, annual, quarterly = _load_csv_bundle(
+                DEFAULT_OVERVIEW_CSV, DEFAULT_YEAR_CSV, DEFAULT_QUARTER_CSV, ticker
+            )
+            if _safe_ticker(str(getattr(company, "ticker", ""))) == ticker and _has_real_financial_data(annual):
+                label = "Dữ liệu mẫu khởi động nhanh — bấm cập nhật để lấy dữ liệu live"
+                _set_active_module1_bundle(
+                    DEFAULT_OVERVIEW_CSV, DEFAULT_YEAR_CSV, DEFAULT_QUARTER_CSV, label, ticker
+                )
+                return company, annual, quarterly, label, (
+                    DEFAULT_OVERVIEW_CSV, DEFAULT_YEAR_CSV, DEFAULT_QUARTER_CSV
+                )
+        except Exception:
+            pass
 
-        # 3) Fallback cuối: dữ liệu tích hợp, chỉ dùng nếu mã có dữ liệu thật.
+        # 3) Fast fallback: open integrated data before any crawler. Switching pages must not wait
+        # for network; "Tìm kiếm/cập nhật tất cả" already selects FireAnt + Vietstock explicitly.
         if BUNDLED_XLSM.exists():
             overview, year, quarter, label2 = _export_bundled_financial_cached(str(BUNDLED_XLSM), ticker, str(DATA_CACHE_DIR))
             overview_csv, year_csv, quarter_csv = Path(overview), Path(year), Path(quarter)
             company, annual, quarterly = _load_csv_bundle(overview_csv, year_csv, quarter_csv, ticker)
             if _has_real_financial_data(annual):
-                _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label2 + " | fallback Financial", ticker)
-                return company, annual, quarterly, label2 + " | fallback Financial", (overview_csv, year_csv, quarter_csv)
-        return company, annual, quarterly, label, (Path(overview), Path(year), Path(quarter))
+                _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label2 + " | fast start Financial", ticker)
+                return company, annual, quarterly, label2 + " | fast start Financial", (overview_csv, year_csv, quarter_csv)
+
+        # Diagnostic opt-in only. Production navigation remains network-free until the user clicks
+        # update, which avoids a 15--30 second first paint after every app reboot/new session.
+        allow_implicit = os.getenv("TREC_MODULE2_IMPLICIT_NETWORK", "").strip().lower() in {"1", "true", "yes"}
+        if allow_implicit:
+            overview, year, quarter, label = _export_module1_crawler_cached(
+                ticker, "FireAnt + Vietstock", str(DATA_CACHE_DIR), str(RAW_DIR)
+            )
+            overview_csv, year_csv, quarter_csv = Path(overview), Path(year), Path(quarter)
+            company, annual, quarterly = _load_csv_bundle(overview_csv, year_csv, quarter_csv, ticker)
+            if _has_real_financial_data(annual):
+                _set_active_module1_bundle(
+                    overview_csv, year_csv, quarter_csv, label + " | Auto-sync từ Định giá chuyên sâu", ticker
+                )
+                return company, annual, quarterly, label + " | Auto-sync từ Định giá chuyên sâu", (
+                    overview_csv, year_csv, quarter_csv
+                )
+        raise ValueError(
+            f"Chưa có cache/BCTC tích hợp cho {ticker}. Bấm 'Tìm kiếm/cập nhật tất cả' để tải dữ liệu live."
+        )
 
     elif source in {"FireAnt", "Vietstock", "FireAnt + Vietstock"}:
         overview, year, quarter, label = _export_module1_crawler_cached(ticker, source, str(DATA_CACHE_DIR), str(RAW_DIR))
@@ -3561,7 +3593,7 @@ def render_dashboard() -> None:
             index=0,
         )
         source = _to_internal_source(source_display)
-        ticker = st.text_input("Mã cổ phiếu", value=st.session_state.get("module2_ticker", st.session_state.get("last_query_ticker", "DGC")), max_chars=12).upper()
+        ticker = st.text_input("Mã cổ phiếu", value=st.session_state.get("module2_ticker", st.session_state.get("last_query_ticker", "DCM")), max_chars=12).upper()
         mos_canonical = _prepare_mos_widget("module2_mos_widget")
         target_mos_pct = st.selectbox(
             "Mức MOS yêu cầu (%)",

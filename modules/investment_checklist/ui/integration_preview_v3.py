@@ -17,6 +17,7 @@ from .management_intelligence import render_management_intelligence
 from .performance_v3 import (
     render_analytical_fast,
     render_formula_assumptions_v3,
+    render_home_fast,
     render_watchlist_fast,
     render_workspace_fast,
 )
@@ -77,7 +78,22 @@ def _render_delete_review(repo, selected_review, actor: str, state_key: str, com
         if selected_review is None:
             st.caption("Chưa có review để xóa.")
             return
-        preview = review_delete_preview(repo, selected_review["id"])
+        preview_key = f"_delete_review_preview_{int(selected_review['id'])}"
+        preview = st.session_state.get(preview_key)
+        if preview is None:
+            st.caption(
+                "Bản xem trước phạm vi xóa chỉ được tải khi cần, để chuyển khu vực Checklist không phải chạy "
+                "hàng loạt COUNT trên Supabase."
+            )
+            if st.button(
+                "Tải phạm vi xóa review",
+                use_container_width=True,
+                key=f"load_delete_preview_{int(selected_review['id'])}",
+            ):
+                preview = review_delete_preview(repo, selected_review["id"])
+                st.session_state[preview_key] = preview
+        if preview is None:
+            return
         counts = preview["counts"]
         st.warning(
             f"Xóa REVIEW #{selected_review['id']} ({selected_review['as_of_date']} · {selected_review['status']}) sẽ xóa "
@@ -107,6 +123,7 @@ def _render_delete_review(repo, selected_review, actor: str, state_key: str, com
                     repo, selected_review["id"], actor=actor, reason=reason, confirmation_text=confirm
                 )
                 st.session_state.pop(state_key, None)
+                st.session_state.pop(preview_key, None)
                 _invalidate_reviews(company_ref_id)
                 st.session_state["checklist_last_admin_message"] = f"Đã xóa REVIEW #{selected_review['id']}."
                 _fragment_rerun()
@@ -252,7 +269,7 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     )
 
     if section == "🏠 Research Home":
-        _page._render_home(repo, company_ref_id, review)
+        render_home_fast(repo, company_ref_id, review, reviews=reviews)
     elif section == "🧮 Analytical Tools":
         render_analytical_fast(repo, integration, company_ref_id, review, actor, data_provider, host.company.company_type)
     elif section == "🧠 Analyst Workspace Q01–Q59":
