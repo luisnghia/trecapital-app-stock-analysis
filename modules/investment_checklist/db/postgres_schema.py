@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS ai_research_runs(
     error_text TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_ai_runs_review_created ON ai_research_runs(review_id,id DESC);
+CREATE INDEX IF NOT EXISTS ix_ai_runs_company ON ai_research_runs(company_ref_id);
 
 CREATE TABLE IF NOT EXISTS ai_research_suggestions(
     id BIGSERIAL PRIMARY KEY,
@@ -178,6 +179,9 @@ CREATE TABLE IF NOT EXISTS ai_research_suggestions(
     UNIQUE(run_id,suggestion_no)
 );
 CREATE INDEX IF NOT EXISTS ix_ai_suggestions_review_question ON ai_research_suggestions(review_id,question_id,id DESC);
+CREATE INDEX IF NOT EXISTS ix_ai_suggestions_company ON ai_research_suggestions(company_ref_id);
+CREATE INDEX IF NOT EXISTS ix_ai_suggestions_source ON ai_research_suggestions(source_id);
+CREATE INDEX IF NOT EXISTS ix_ai_suggestions_question ON ai_research_suggestions(question_id);
 
 CREATE TABLE IF NOT EXISTS ai_suggestion_decisions(
     id BIGSERIAL PRIMARY KEY,
@@ -190,6 +194,8 @@ CREATE TABLE IF NOT EXISTS ai_suggestion_decisions(
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text
 );
 CREATE INDEX IF NOT EXISTS ix_ai_decisions_created ON ai_suggestion_decisions(created_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS ix_ai_decisions_evidence ON ai_suggestion_decisions(created_evidence_id);
+CREATE INDEX IF NOT EXISTS ix_ai_decisions_link ON ai_suggestion_decisions(created_link_id);
 
 CREATE TABLE IF NOT EXISTS screening_assessments(
     id BIGSERIAL PRIMARY KEY,

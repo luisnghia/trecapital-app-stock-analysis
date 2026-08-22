@@ -10,6 +10,7 @@
 - Immutable review snapshot nhúng toàn bộ AI runs, suggestions và analyst decisions.
 - Review deletion dọn AI workflow theo đúng FK order nhưng giữ promoted evidence như evidence thủ công.
 - PostgreSQL/Supabase bật RLS và thu hồi quyền `anon`/`authenticated` trên ba bảng AI nội bộ.
+- Security Advisor follow-up bật cùng guardrail cho ba bảng Evidence Workspace cũ và bổ sung index bao phủ các FK Phase 4A.
 - Phase 4A chưa tự gọi model/network; JSON model output được ingest có kiểm soát. Provider execution là Phase 4B.
 
 ## Validation
