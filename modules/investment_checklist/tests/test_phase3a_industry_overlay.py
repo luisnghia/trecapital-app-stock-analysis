@@ -56,6 +56,8 @@ def test_phase3a_is_single_source_and_top_level_navigation_contract():
     assert "white-space:normal!important" in ui
     assert "overflow-wrap:anywhere" in ui
     assert "-webkit-overflow-scrolling:touch" in ui
+    assert "st.html(markup)" in ui
+    assert "st.markdown(\n        markup" not in ui
 
 
 def test_phase3a_streamlit_overlay_renders_without_exception():
@@ -78,12 +80,10 @@ render_industry_overlay(Integration(), host, Provider())
     at = AppTest.from_string(app, default_timeout=15).run()
     assert len(at.exception) == 0
     assert any("Industry & Moat" in str(item.value) for item in at.markdown)
-    responsive_tables = [
-        item for item in at.markdown
-        if "industry-" in str(item.value) and "overflow-wrap:anywhere" in str(item.value)
-    ]
-    assert len(responsive_tables) >= 4
-    # Leading indentation turns otherwise-valid HTML into a Markdown code block in the real app.
-    # Lock the renderer to actual HTML so tablet wrapping/overflow CSS can take effect.
-    assert all(str(item.value).startswith("<style>") for item in responsive_tables)
-    assert all('<div class="industry-' in str(item.value) for item in responsive_tables)
+    # V23.89 proved that de-indenting Markdown was insufficient in the live
+    # fragment. Lock the production renderer to Streamlit's HTML element so
+    # raw <div>/<table> markup can never become visible page text again.
+    html_elements = at.get("html")
+    assert len(html_elements) >= 4
+    assert all(str(item.proto.body).startswith("<style>") for item in html_elements)
+    assert all('<div class="industry-' in str(item.proto.body) for item in html_elements)

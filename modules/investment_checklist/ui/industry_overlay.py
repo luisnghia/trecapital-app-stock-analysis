@@ -2,7 +2,6 @@ from __future__ import annotations
 
 """Phase 3A Industry & Moat UI. No network, AI, or assessment writes."""
 
-from textwrap import dedent
 from typing import Any
 
 import pandas as pd
@@ -68,9 +67,7 @@ def _render_responsive_table(
     layout = "auto" if wide_numeric else "fixed"
     cell_min_width = "96px" if wide_numeric else "0"
     html = shown.to_html(index=False, escape=True, border=0, classes=[css_class])
-    markup = dedent(
-        f"""
-        <style>
+    markup = f"""<style>
         .{css_class}-scroll{{
             width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;
             margin:.35rem 0 1rem;border:1px solid #DDD4C2;border-radius:.45rem;
@@ -96,13 +93,11 @@ def _render_responsive_table(
             table.{css_class} th,table.{css_class} td{{padding:.42rem}}
         }}
         </style>
-        <div class="{css_class}-scroll">{html}</div>
-        """,
-    ).strip()
-    st.markdown(
-        markup,
-        unsafe_allow_html=True,
-    )
+        <div class="{css_class}-scroll">{html}</div>"""
+    # Use Streamlit's dedicated HTML renderer. st.markdown can still surface a
+    # complete <div>/<table> string as literal code in the production fragment,
+    # even when leading indentation has been removed.
+    st.html(markup)
 
 
 def _overview(host, integration, annual_df: pd.DataFrame) -> CompanyOverview:
