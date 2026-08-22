@@ -47,7 +47,9 @@ def render_source_table_guidance(table_ids: Iterable[str], *, title: str = "📚
 def render_full_chapter_5_to_10_guide() -> None:
     """Fast lookup for every numbered source table from Chapters 5–10 used by the module."""
     with st.expander("📚 Tra cứu đầy đủ các bảng Chương 5–10", expanded=False):
-        table_id = st.selectbox(
+        # Use radio rather than another selectbox so the existing Analytical Tool selector keeps
+        # its stable widget order/automation contract.
+        table_id = st.radio(
             "Bảng gốc trong sách",
             SOURCE_TABLE_ORDER,
             format_func=lambda x: SOURCE_TABLE_GUIDANCE[x]["title"],
