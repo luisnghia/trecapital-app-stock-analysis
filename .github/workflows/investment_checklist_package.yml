@@ -1,0 +1,66 @@
+name: Investment Checklist Source Package
+
+on:
+  push:
+    branches:
+      - feature/investment-checklist-phase1c
+    paths:
+      - .github/workflows/investment_checklist_package.yml
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Build clean source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '\r\n' < VERSION.txt)"
+          commit="$(git rev-parse HEAD)"
+          package="Trecapital_Investment_Checklist_${version}.zip"
+          tmp="$(mktemp -d)"
+          mkdir -p "$tmp/app"
+          git archive HEAD | tar -x -C "$tmp/app"
+          cat > "$tmp/app/PACKAGE_MANIFEST.txt" <<EOF
+          Trecapital Investment Checklist source package
+          Branch: feature/investment-checklist-phase1c
+          Commit: ${commit}
+          Version: ${version}
+          Built by: GitHub Actions
+          Secrets: NOT included by this packaging workflow
+          EOF
+          rm -f "$tmp/app/.streamlit/secrets.toml"
+          find "$tmp/app" -type d -name '__pycache__' -prune -exec rm -rf {} + || true
+          find "$tmp/app" -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) -delete || true
+          (cd "$tmp/app" && zip -qr "$GITHUB_WORKSPACE/$package" .)
+          echo "PACKAGE=$package" >> "$GITHUB_ENV"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "COMMIT=$commit" >> "$GITHUB_ENV"
+
+      - name: Verify no secrets or local databases are packaged
+        shell: bash
+        run: |
+          set -euo pipefail
+          entries="$(unzip -Z1 "$PACKAGE")"
+          if printf '%s\n' "$entries" | grep -Eqi '(^|/)secrets\.toml$|\.env$|\.sqlite3?$|\.db$'; then
+            echo "Sensitive/runtime file found in package" >&2
+            printf '%s\n' "$entries" | grep -Ei '(^|/)secrets\.toml$|\.env$|\.sqlite3?$|\.db$' >&2 || true
+            exit 1
+          fi
+          unzip -p "$PACKAGE" PACKAGE_MANIFEST.txt
+
+      - name: Upload source package
+        uses: actions/upload-artifact@v4
+        with:
+          name: trecapital-investment-checklist-source-${{ env.VERSION }}
+          path: ${{ env.PACKAGE }}
+          if-no-files-found: error
+          retention-days: 30
