@@ -1,4 +1,5 @@
 name: Investment Checklist Source Package
+# Package revision: V23.78 final after global-ticker, source-table guidance and fast-entry fixes.
 
 on:
   push:
