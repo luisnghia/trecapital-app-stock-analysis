@@ -213,7 +213,13 @@ render_management_intelligence(repo, {company_ref_id}, repo.get_review({review_i
         assert forbidden not in service
         assert forbidden not in ui
     shell = Path("modules/investment_checklist/ui/integration_preview.py").read_text(encoding="utf-8")
+    active_shell = Path("modules/investment_checklist/ui/integration_preview_v3.py").read_text(encoding="utf-8")
+    page = Path("pages/05_Investment_Checklist.py").read_text(encoding="utf-8")
     assert '"👥 Management & Human Intel"' in shell
+    assert "from .management_intelligence import render_management_intelligence" in active_shell
+    assert 'elif section == "👥 Management & Human Intel":' in active_shell
+    assert "render_management_intelligence(repo, company_ref_id, review, actor)" in active_shell
+    assert "integration_preview_v3 import render_investment_checklist" in page
 
 
 def test_postgres_phase5_end_to_end():

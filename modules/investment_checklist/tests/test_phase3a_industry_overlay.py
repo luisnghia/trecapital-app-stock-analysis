@@ -52,6 +52,10 @@ def test_phase3a_is_single_source_and_top_level_navigation_contract():
     assert "build_porter_moat_scorecard" in ui
     assert "build_value_chain_table" in ui
     assert "không tự ghi assessment" in ui
+    assert "_render_responsive_table" in ui
+    assert "white-space:normal!important" in ui
+    assert "overflow-wrap:anywhere" in ui
+    assert "-webkit-overflow-scrolling:touch" in ui
 
 
 def test_phase3a_streamlit_overlay_renders_without_exception():
@@ -74,4 +78,8 @@ render_industry_overlay(Integration(), host, Provider())
     at = AppTest.from_string(app, default_timeout=15).run()
     assert len(at.exception) == 0
     assert any("Industry & Moat" in str(item.value) for item in at.markdown)
-    assert len(at.dataframe) >= 4
+    responsive_tables = [
+        item for item in at.markdown
+        if "industry-" in str(item.value) and "overflow-wrap:anywhere" in str(item.value)
+    ]
+    assert len(responsive_tables) >= 4

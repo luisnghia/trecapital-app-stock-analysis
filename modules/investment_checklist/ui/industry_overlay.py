@@ -52,6 +52,55 @@ def _display(df: pd.DataFrame) -> pd.DataFrame:
     return shown
 
 
+def _render_responsive_table(
+    df: pd.DataFrame,
+    *,
+    css_class: str,
+    wide_numeric: bool = False,
+) -> None:
+    """Render complete cell contents with wrapping and tablet-safe horizontal overflow."""
+    if df is None or df.empty:
+        st.caption("Chưa có dữ liệu.")
+        return
+    shown = df.copy()
+    min_width = max(760, 112 * len(shown.columns)) if wide_numeric else 760
+    layout = "auto" if wide_numeric else "fixed"
+    cell_min_width = "96px" if wide_numeric else "0"
+    html = shown.to_html(index=False, escape=True, border=0, classes=[css_class])
+    st.markdown(
+        f"""
+        <style>
+        .{css_class}-scroll{{
+            width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;
+            margin:.35rem 0 1rem;border:1px solid #DDD4C2;border-radius:.45rem;
+        }}
+        table.{css_class}{{
+            width:max(100%, {min_width}px);table-layout:{layout};border-collapse:collapse;
+            font-size:.84rem;line-height:1.38;background:rgba(255,255,255,.72);
+        }}
+        table.{css_class} th{{
+            background:#EEF7F2;color:#173F38;font-weight:800;padding:.55rem;
+            border:1px solid #DDD4C2;white-space:normal!important;
+            word-break:break-word;overflow-wrap:anywhere;vertical-align:top;
+            min-width:{cell_min_width};
+        }}
+        table.{css_class} td{{
+            padding:.52rem;vertical-align:top;border:1px solid #E5DED0;
+            white-space:normal!important;word-break:break-word;overflow-wrap:anywhere;
+            min-width:{cell_min_width};max-width:28rem;
+        }}
+        table.{css_class} tbody tr:nth-child(even){{background:rgba(246,242,232,.48)}}
+        @media (max-width:900px){{
+            table.{css_class}{{font-size:.78rem}}
+            table.{css_class} th,table.{css_class} td{{padding:.42rem}}
+        }}
+        </style>
+        <div class="{css_class}-scroll">{html}</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _overview(host, integration, annual_df: pd.DataFrame) -> CompanyOverview:
     pre = integration.get_inventory_prefill()
     latest = annual_df.iloc[-1] if not annual_df.empty else {}
@@ -97,7 +146,7 @@ def render_industry_overlay(
     raw = canonical_annual_df(data_provider)
     if raw.empty:
         st.warning("Không có annual/TTM Data Layer để dựng Industry Overlay. App giữ trạng thái Research gap, không tự điền 0.")
-        st.dataframe(QUESTION_MAP, use_container_width=True, hide_index=True)
+        _render_responsive_table(QUESTION_MAP, css_class="industry-question-map-empty")
         return
 
     st.markdown(f"**Overlay hiệu lực:** `{company_type}` · **Ngành:** {host.company.industry_name or 'Chưa gán ngành'}")
@@ -106,13 +155,19 @@ def render_industry_overlay(
     if kpi.empty or len(kpi.columns) <= 1:
         st.info("Chưa có KPI ngành nào trong Data Layer hiện tại.")
     else:
-        st.dataframe(_display(kpi.iloc[::-1].reset_index(drop=True)), use_container_width=True, hide_index=True, height=min(500, 38 * len(kpi) + 90))
+        _render_responsive_table(
+            _display(kpi.iloc[::-1].reset_index(drop=True)),
+            css_class="industry-kpi-table",
+            wide_numeric=True,
+        )
     with st.expander("Coverage KPI & Research gaps", expanded=False):
-        st.dataframe(build_metric_coverage(raw, company_type), use_container_width=True, hide_index=True)
+        _render_responsive_table(
+            build_metric_coverage(raw, company_type), css_class="industry-kpi-coverage"
+        )
 
     st.markdown("#### Operating Driver → EPS bridge")
     drivers = build_driver_coverage(raw, company_type)
-    st.dataframe(drivers, use_container_width=True, hide_index=True)
+    _render_responsive_table(drivers, css_class="industry-driver-table")
     missing = drivers[drivers["Trạng thái"].eq("Research gap")]
     if not missing.empty:
         st.caption("Field còn thiếu được giữ là Research gap cho Q22/Q55–Q57; app không thay bằng doanh thu một cách âm thầm.")
@@ -132,11 +187,11 @@ def render_industry_overlay(
         if total is not None:
             st.metric("Moat evidence score", f"{float(total):.1f}/100", help="Điểm định lượng định hướng kiểm tra; analyst vẫn phải xác minh bằng chứng định tính.")
             st.caption(f"Tín hiệu máy: {level}. Trường hợp LNST âm, CFO/LNST và FCF/LNST bị khóa N/A; âm/âm không nhận điểm.")
-        st.dataframe(_display(moat), use_container_width=True, hide_index=True, height=440)
+        _render_responsive_table(_display(moat), css_class="industry-moat-scorecard")
 
         st.markdown("#### Porter Value Chain")
         value_chain = build_value_chain_table(company, annual)
-        st.dataframe(_display(value_chain), use_container_width=True, hide_index=True, height=430)
+        _render_responsive_table(_display(value_chain), css_class="industry-value-chain")
 
     if repo is not None and company_ref_id is not None:
         render_peer_snapshot(
@@ -151,7 +206,7 @@ def render_industry_overlay(
         st.caption("Chưa có repository/review context; peer ranking vẫn có thể chạy tại trang So sánh doanh nghiệp.")
 
     st.markdown("#### Bridge sang Checklist")
-    st.dataframe(QUESTION_MAP, use_container_width=True, hide_index=True)
+    _render_responsive_table(QUESTION_MAP, css_class="industry-question-map")
     st.info("Peer ranking dùng trang So sánh doanh nghiệp hiện có; Phase 3B chỉ lưu khi analyst xác nhận và không tải peer trong mỗi lần đổi Question.")
     try:
         st.page_link("pages/03_So_sanh_doanh_nghiep.py", label="Mở So sánh doanh nghiệp", icon="⚖️")

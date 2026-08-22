@@ -13,6 +13,7 @@ from .evidence_workspace import render_evidence_workspace
 from .ai_research_assistant import render_ai_research_assistant
 from .industry_overlay import render_industry_overlay
 from .integration_preview import SECTIONS
+from .management_intelligence import render_management_intelligence
 from .performance_v3 import (
     render_analytical_fast,
     render_formula_assumptions_v3,
@@ -84,6 +85,10 @@ def _render_delete_review(repo, selected_review, actor: str, state_key: str, com
             f"{counts['evidence_links']} evidence link, "
             f"{counts.get('peer_snapshots', 0)} peer snapshot, "
             f"{counts.get('ai_runs', 0)} AI run/{counts.get('ai_suggestions', 0)} suggestion, "
+            f"{counts.get('management_people', 0)} management profile version/"
+            f"{counts.get('management_timeline', 0)} timeline event/"
+            f"{counts.get('management_track_records', 0)} track record/"
+            f"{counts.get('management_signals', 0)} signal, "
             f"{counts['inventory_snapshots']} inventory snapshot và {counts['immutable_snapshots']} immutable snapshot gắn với review này. "
             "Audit tombstone vẫn được giữ."
         )
@@ -256,6 +261,8 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
         render_evidence_workspace(repo, company_ref_id, review, actor)
     elif section == "🤖 AI Research Assistant":
         render_ai_research_assistant(repo, company_ref_id, review, actor)
+    elif section == "👥 Management & Human Intel":
+        render_management_intelligence(repo, company_ref_id, review, actor)
     elif section == "🏭 Industry & Moat":
         render_industry_overlay(
             integration,
