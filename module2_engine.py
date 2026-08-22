@@ -247,7 +247,14 @@ def classify_company(company: CompanyOverview, annual_df: pd.DataFrame) -> Class
             ["Không tìm thấy dữ liệu BCTC nhiều kỳ cho mã đang nhập trong nguồn đã chọn. Hãy chọn mã có sẵn trong file tích hợp, import dữ liệu từ Tổng quan doanh nghiệp, hoặc chạy crawler/tải dữ liệu trước khi định giá."],
             ["Chưa thể chọn phương pháp định giá"],
         )
-    industry = _clean_text(f"{getattr(company, 'industry', '')} {getattr(company, 'sub_industry', '')}")
+    # Some upstream feeds expose only a numeric industry code (for example VCB = ``1357``)
+    # while the Vietnamese company name still carries the decisive financial-sector label.
+    # Include the company name so banks/insurers/brokers never fall through to the industrial
+    # classifier merely because the industry display mapping is missing.
+    industry = _clean_text(
+        f"{getattr(company, 'company_name', '')} "
+        f"{getattr(company, 'industry', '')} {getattr(company, 'sub_industry', '')}"
+    )
     latest = _latest_row(annual_df)
     reasons: List[str] = []
     preferred: List[str] = []
