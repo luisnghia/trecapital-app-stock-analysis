@@ -106,7 +106,7 @@ def test_evidence_versioning_coverage_and_immutable_snapshot(tmp_path):
     assert {row["version_no"] for row in snapshot_before["links"]} == {1, 2}
     snapshot_id = repo.finalize_review(review_id, actor="analyst", finalize_reason="Đủ bằng chứng")
     immutable = repo.get_snapshot(snapshot_id)["payload"]
-    assert immutable["snapshot_schema"] == "phase1b-review-v6-evidence-peer-ai-management-monitoring-delta"
+    assert immutable["snapshot_schema"] == "phase1b-review-v7-evidence-peer-ai-management-monitoring-decision"
     assert immutable["research_evidence"] == snapshot_before
 
     with pytest.raises(ValidationError, match="read-only"):

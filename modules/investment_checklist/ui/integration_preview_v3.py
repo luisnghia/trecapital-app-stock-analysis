@@ -15,6 +15,7 @@ from .industry_overlay import render_industry_overlay
 from .integration_preview import SECTIONS
 from .management_intelligence import render_management_intelligence
 from .monitoring_delta_review import render_monitoring_delta_review
+from .investment_decision_journal import render_investment_decision_journal
 from .performance_v3 import (
     render_analytical_fast,
     render_formula_assumptions_v3,
@@ -108,6 +109,9 @@ def _render_delete_review(repo, selected_review, actor: str, state_key: str, com
             f"{counts.get('management_signals', 0)} signal, "
             f"{counts.get('monitoring_rules', 0)} monitoring rule/{counts.get('monitoring_observations', 0)} observation/"
             f"{counts.get('delta_items', 0)} delta item/{counts.get('delta_decisions', 0)} decision, "
+            f"{counts.get('investment_memos', 0)} memo/{counts.get('thesis_pillars', 0)} thesis pillar/"
+            f"{counts.get('investment_risks', 0)} risk/{counts.get('investment_decisions', 0)} signed decision/"
+            f"{counts.get('decision_outcomes', 0)} outcome review, "
             f"{counts['inventory_snapshots']} inventory snapshot và {counts['immutable_snapshots']} immutable snapshot gắn với review này. "
             "Audit tombstone vẫn được giữ."
         )
@@ -285,6 +289,8 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
         render_management_intelligence(repo, company_ref_id, review, actor)
     elif section == "📡 Monitoring & Delta Review":
         render_monitoring_delta_review(repo, company_ref_id, review, actor)
+    elif section == "📝 Investment Memo & Decision":
+        render_investment_decision_journal(repo, company_ref_id, review, actor)
     elif section == "🏭 Industry & Moat":
         render_industry_overlay(
             integration,

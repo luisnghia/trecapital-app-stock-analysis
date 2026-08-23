@@ -434,8 +434,8 @@ def render_page() -> None:
         st.markdown("#### 🔎 Mã phân tích")
         requested_ticker = _render_ticker_search()
         st.caption(
-            "Checklist Phase 6 dùng AI có kiểm soát: AI chỉ tạo suggestion; Management & Human Intelligence tổ chức bằng chứng; "
-            "Monitoring & Delta Review theo dõi thay đổi có kiểm soát. Mọi assessment cuối cùng vẫn thuộc analyst."
+            "Checklist Phase 7 dùng AI có kiểm soát: AI chỉ tạo suggestion; Management & Human Intelligence tổ chức bằng chứng; "
+            "Monitoring theo dõi thay đổi; Investment Memo & Decision Journal chỉ lưu quyết định do analyst trực tiếp ký."
         )
         if database_url:
             st.success("Lưu trữ Checklist: PostgreSQL/Supabase bền vững")

@@ -561,6 +561,133 @@ CREATE INDEX IF NOT EXISTS ix_delta_decisions_company ON delta_review_decisions(
 CREATE INDEX IF NOT EXISTS ix_delta_decisions_question ON delta_review_decisions(question_id);
 CREATE INDEX IF NOT EXISTS ix_delta_decisions_assessment ON delta_review_decisions(resulting_assessment_id);
 
+CREATE TABLE IF NOT EXISTS investment_memo_versions(
+    id BIGSERIAL PRIMARY KEY,
+    company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),
+    review_id BIGINT NOT NULL REFERENCES research_reviews(id),
+    memo_key TEXT NOT NULL DEFAULT 'primary',
+    version_no INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    thesis_summary TEXT NOT NULL,
+    variant_perception TEXT NOT NULL,
+    business_quality TEXT NOT NULL,
+    valuation_summary TEXT NOT NULL,
+    catalysts TEXT NOT NULL,
+    invalidation_conditions TEXT NOT NULL,
+    time_horizon_months INTEGER NOT NULL CHECK(time_horizon_months BETWEEN 1 AND 120),
+    source_evidence_id BIGINT REFERENCES research_evidence(id),
+    change_reason TEXT,
+    supersedes_memo_id BIGINT REFERENCES investment_memo_versions(id),
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
+    UNIQUE(review_id,memo_key,version_no)
+);
+CREATE INDEX IF NOT EXISTS ix_investment_memos_review ON investment_memo_versions(review_id,memo_key,version_no DESC);
+CREATE INDEX IF NOT EXISTS ix_investment_memos_company ON investment_memo_versions(company_ref_id,review_id);
+CREATE INDEX IF NOT EXISTS ix_investment_memos_evidence ON investment_memo_versions(source_evidence_id);
+CREATE INDEX IF NOT EXISTS ix_investment_memos_supersedes ON investment_memo_versions(supersedes_memo_id);
+
+CREATE TABLE IF NOT EXISTS investment_thesis_pillars(
+    id BIGSERIAL PRIMARY KEY,
+    company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),
+    review_id BIGINT NOT NULL REFERENCES research_reviews(id),
+    pillar_key TEXT NOT NULL,
+    version_no INTEGER NOT NULL,
+    pillar_type TEXT NOT NULL CHECK(pillar_type IN('business','moat','management','financial','valuation','catalyst','risk','other')),
+    statement_text TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN('supported','mixed','contradicted','research_gap')),
+    supporting_evidence_id BIGINT REFERENCES research_evidence(id),
+    contradicting_evidence_id BIGINT REFERENCES research_evidence(id),
+    falsification_test TEXT NOT NULL,
+    confidence INTEGER NOT NULL CHECK(confidence BETWEEN 1 AND 5),
+    materiality INTEGER NOT NULL CHECK(materiality BETWEEN 1 AND 5),
+    change_reason TEXT,
+    supersedes_pillar_id BIGINT REFERENCES investment_thesis_pillars(id),
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
+    UNIQUE(review_id,pillar_key,version_no)
+);
+CREATE INDEX IF NOT EXISTS ix_thesis_pillars_review ON investment_thesis_pillars(review_id,pillar_key,version_no DESC);
+CREATE INDEX IF NOT EXISTS ix_thesis_pillars_company ON investment_thesis_pillars(company_ref_id,review_id);
+CREATE INDEX IF NOT EXISTS ix_thesis_pillars_support ON investment_thesis_pillars(supporting_evidence_id);
+CREATE INDEX IF NOT EXISTS ix_thesis_pillars_contradict ON investment_thesis_pillars(contradicting_evidence_id);
+CREATE INDEX IF NOT EXISTS ix_thesis_pillars_supersedes ON investment_thesis_pillars(supersedes_pillar_id);
+
+CREATE TABLE IF NOT EXISTS investment_risk_register(
+    id BIGSERIAL PRIMARY KEY,
+    company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),
+    review_id BIGINT NOT NULL REFERENCES research_reviews(id),
+    risk_key TEXT NOT NULL,
+    version_no INTEGER NOT NULL,
+    risk_category TEXT NOT NULL CHECK(risk_category IN('business','financial','management','valuation','industry','regulatory','governance','execution','other')),
+    statement_text TEXT NOT NULL,
+    probability INTEGER NOT NULL CHECK(probability BETWEEN 1 AND 5),
+    impact INTEGER NOT NULL CHECK(impact BETWEEN 1 AND 5),
+    resilience INTEGER NOT NULL CHECK(resilience BETWEEN 1 AND 5),
+    mitigation TEXT NOT NULL,
+    early_warning TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN('open','monitoring','mitigated','realized','closed')),
+    source_evidence_id BIGINT REFERENCES research_evidence(id),
+    monitoring_rule_id BIGINT REFERENCES monitoring_rules(id),
+    change_reason TEXT,
+    supersedes_risk_id BIGINT REFERENCES investment_risk_register(id),
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
+    UNIQUE(review_id,risk_key,version_no)
+);
+CREATE INDEX IF NOT EXISTS ix_investment_risks_review ON investment_risk_register(review_id,risk_key,version_no DESC);
+CREATE INDEX IF NOT EXISTS ix_investment_risks_company ON investment_risk_register(company_ref_id,review_id);
+CREATE INDEX IF NOT EXISTS ix_investment_risks_evidence ON investment_risk_register(source_evidence_id);
+CREATE INDEX IF NOT EXISTS ix_investment_risks_monitoring ON investment_risk_register(monitoring_rule_id);
+CREATE INDEX IF NOT EXISTS ix_investment_risks_supersedes ON investment_risk_register(supersedes_risk_id);
+
+CREATE TABLE IF NOT EXISTS investment_decisions(
+    id BIGSERIAL PRIMARY KEY,
+    company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),
+    review_id BIGINT NOT NULL UNIQUE REFERENCES research_reviews(id),
+    memo_id BIGINT NOT NULL REFERENCES investment_memo_versions(id),
+    decision TEXT NOT NULL CHECK(decision IN('pass','watch','buy','add','hold','trim','sell')),
+    decision_reason TEXT NOT NULL,
+    market_price DOUBLE PRECISION,
+    intrinsic_low DOUBLE PRECISION,
+    intrinsic_base DOUBLE PRECISION,
+    intrinsic_high DOUBLE PRECISION,
+    mos_base DOUBLE PRECISION,
+    target_position_pct DOUBLE PRECISION CHECK(target_position_pct BETWEEN 0 AND 100),
+    max_position_pct DOUBLE PRECISION CHECK(max_position_pct BETWEEN 0 AND 100),
+    time_horizon_months INTEGER NOT NULL CHECK(time_horizon_months BETWEEN 1 AND 120),
+    primary_invalidation TEXT NOT NULL,
+    acknowledged_gaps INTEGER NOT NULL CHECK(acknowledged_gaps=1),
+    analyst_confirmed INTEGER NOT NULL CHECK(analyst_confirmed=1),
+    memo_snapshot_json TEXT NOT NULL,
+    memo_snapshot_hash TEXT NOT NULL,
+    decided_by TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text
+);
+CREATE INDEX IF NOT EXISTS ix_investment_decisions_company ON investment_decisions(company_ref_id,created_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS ix_investment_decisions_memo ON investment_decisions(memo_id);
+
+CREATE TABLE IF NOT EXISTS decision_outcome_reviews(
+    id BIGSERIAL PRIMARY KEY,
+    decision_id BIGINT NOT NULL REFERENCES investment_decisions(id),
+    company_ref_id BIGINT NOT NULL REFERENCES checklist_company_refs(id),
+    review_id BIGINT NOT NULL REFERENCES research_reviews(id),
+    as_of_date TEXT NOT NULL,
+    market_price DOUBLE PRECISION,
+    thesis_status TEXT NOT NULL CHECK(thesis_status IN('intact','weakened','broken','realized','unknown')),
+    outcome_label TEXT NOT NULL CHECK(outcome_label IN('pending','positive','negative','mixed','unknown')),
+    process_grade INTEGER NOT NULL CHECK(process_grade BETWEEN 1 AND 5),
+    outcome_summary TEXT NOT NULL,
+    lessons_learned TEXT NOT NULL,
+    source_evidence_id BIGINT REFERENCES research_evidence(id),
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text
+);
+CREATE INDEX IF NOT EXISTS ix_decision_outcomes_decision ON decision_outcome_reviews(decision_id,as_of_date DESC,id DESC);
+CREATE INDEX IF NOT EXISTS ix_decision_outcomes_review ON decision_outcome_reviews(review_id,id DESC);
+CREATE INDEX IF NOT EXISTS ix_decision_outcomes_company ON decision_outcome_reviews(company_ref_id,as_of_date DESC,id DESC);
+CREATE INDEX IF NOT EXISTS ix_decision_outcomes_evidence ON decision_outcome_reviews(source_evidence_id);
+
 CREATE TABLE IF NOT EXISTS persistence_probes(
     probe_key TEXT PRIMARY KEY,
     deployment_marker TEXT,

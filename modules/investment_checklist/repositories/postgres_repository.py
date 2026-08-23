@@ -30,6 +30,11 @@ _INSERT_ID_TABLES = {
     'monitoring_observations',
     'delta_review_items',
     'delta_review_decisions',
+    'investment_memo_versions',
+    'investment_thesis_pillars',
+    'investment_risk_register',
+    'investment_decisions',
+    'decision_outcome_reviews',
     'screening_assessments',
     'opportunity_inventory_snapshots',
     'data_snapshots',
@@ -156,6 +161,9 @@ class PostgresChecklistRepository(SQLiteChecklistRepository):
                         'management_track_records', 'management_question_signals',
                         'monitoring_rules', 'monitoring_observations',
                         'delta_review_items', 'delta_review_decisions',
+                        'investment_memo_versions', 'investment_thesis_pillars',
+                        'investment_risk_register', 'investment_decisions',
+                        'decision_outcome_reviews',
                     ):
                         cur.execute(f'ALTER TABLE {table} ENABLE ROW LEVEL SECURITY')
                         for role in ('anon', 'authenticated'):

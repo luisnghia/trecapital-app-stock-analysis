@@ -40,6 +40,14 @@ def review_delete_preview(repo, review_id: int) -> dict[str, Any]:
             "monitoring_observations": int(c.execute("SELECT COUNT(*) n FROM monitoring_observations WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "delta_items": int(c.execute("SELECT COUNT(*) n FROM delta_review_items WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "delta_decisions": int(c.execute("SELECT COUNT(*) n FROM delta_review_decisions WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "investment_memos": int(c.execute("SELECT COUNT(*) n FROM investment_memo_versions WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "thesis_pillars": int(c.execute("SELECT COUNT(*) n FROM investment_thesis_pillars WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "investment_risks": int(c.execute("SELECT COUNT(*) n FROM investment_risk_register WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "investment_decisions": int(c.execute("SELECT COUNT(*) n FROM investment_decisions WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "decision_outcomes": int(c.execute(
+                "SELECT COUNT(*) n FROM decision_outcome_reviews WHERE review_id=? OR decision_id IN "
+                "(SELECT id FROM investment_decisions WHERE review_id=?)", (review_id, review_id)
+            ).fetchone()["n"]),
             "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
         }
     return {"review": review, "counts": counts, "confirmation_token": review_delete_token(review_id)}
@@ -88,6 +96,14 @@ def delete_review_manually(
             "monitoring_observations": int(c.execute("SELECT COUNT(*) n FROM monitoring_observations WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "delta_items": int(c.execute("SELECT COUNT(*) n FROM delta_review_items WHERE review_id=?", (review_id,)).fetchone()["n"]),
             "delta_decisions": int(c.execute("SELECT COUNT(*) n FROM delta_review_decisions WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "investment_memos": int(c.execute("SELECT COUNT(*) n FROM investment_memo_versions WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "thesis_pillars": int(c.execute("SELECT COUNT(*) n FROM investment_thesis_pillars WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "investment_risks": int(c.execute("SELECT COUNT(*) n FROM investment_risk_register WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "investment_decisions": int(c.execute("SELECT COUNT(*) n FROM investment_decisions WHERE review_id=?", (review_id,)).fetchone()["n"]),
+            "decision_outcomes": int(c.execute(
+                "SELECT COUNT(*) n FROM decision_outcome_reviews WHERE review_id=? OR decision_id IN "
+                "(SELECT id FROM investment_decisions WHERE review_id=?)", (review_id, review_id)
+            ).fetchone()["n"]),
             "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
         }
 
@@ -126,6 +142,14 @@ def delete_review_manually(
         c.execute("DELETE FROM management_track_records WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM management_timeline_events WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM management_people_versions WHERE review_id=?", (review_id,))
+        c.execute(
+            "DELETE FROM decision_outcome_reviews WHERE review_id=? OR decision_id IN "
+            "(SELECT id FROM investment_decisions WHERE review_id=?)", (review_id, review_id)
+        )
+        c.execute("DELETE FROM investment_decisions WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM investment_risk_register WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM investment_thesis_pillars WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM investment_memo_versions WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM delta_review_decisions WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM delta_review_items WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM monitoring_observations WHERE review_id=?", (review_id,))

@@ -14,6 +14,7 @@ from .ai_research_assistant import render_ai_research_assistant
 from .industry_overlay import render_industry_overlay
 from .management_intelligence import render_management_intelligence
 from .monitoring_delta_review import render_monitoring_delta_review
+from .investment_decision_journal import render_investment_decision_journal
 
 
 SECTIONS = [
@@ -24,6 +25,7 @@ SECTIONS = [
     "🤖 AI Research Assistant",
     "👥 Management & Human Intel",
     "📡 Monitoring & Delta Review",
+    "📝 Investment Memo & Decision",
     "🏭 Industry & Moat",
     "⭐ Watchlist",
     "🕘 Snapshot & History",
@@ -253,6 +255,10 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
         render_ai_research_assistant(repo, cid, review, actor)
     elif section == "👥 Management & Human Intel":
         render_management_intelligence(repo, cid, review, actor)
+    elif section == "📡 Monitoring & Delta Review":
+        render_monitoring_delta_review(repo, cid, review, actor)
+    elif section == "📝 Investment Memo & Decision":
+        render_investment_decision_journal(repo, cid, review, actor)
     elif section == "🏭 Industry & Moat":
         render_industry_overlay(integration, host, data_provider)
     elif section == "⭐ Watchlist":
