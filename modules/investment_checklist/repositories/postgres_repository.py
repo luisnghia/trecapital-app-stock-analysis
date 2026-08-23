@@ -130,7 +130,39 @@ class PostgresChecklistRepository(SQLiteChecklistRepository):
                 conn.rollback()
                 raise
 
+    def _runtime_schema_ready(self) -> tuple[bool, bool]:
+        """Check the migration checkpoint with one catalog query.
+
+        Production schema changes are applied by migrations. Replaying every CREATE/ALTER plus 69
+        catalog UPSERTs on each Streamlit worker cold-start added hundreds of protocol round-trips.
+        Presence of the latest append-only Phase 7 tables is the runtime compatibility checkpoint;
+        a genuinely old/empty database still falls through to the full idempotent initializer.
+        """
+        core_tables = (
+            'checklist_company_refs', 'checklist_questions', 'screening_criteria',
+            'research_reviews', 'research_source_contents', 'monitoring_rules',
+            'investment_decisions', 'decision_outcome_reviews',
+        )
+        extension_tables = ('checklist_watchlist', 'analyst_table_overrides')
+        names = core_tables + extension_tables
+        placeholders = ','.join(['%s'] * len(names))
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""SELECT table_name FROM information_schema.tables
+                    WHERE table_schema=current_schema() AND table_name IN ({placeholders})""",
+                    names,
+                )
+                present = {row['table_name'] for row in cur.fetchall()}
+        return set(core_tables).issubset(present), set(extension_tables).issubset(present)
+
     def initialize(self):
+        core_ready, extension_ready = self._runtime_schema_ready()
+        if core_ready:
+            # The extension wrapper can skip its own CREATE TABLE probes as well.
+            if extension_ready:
+                self._portfolio_extension_schema_ready = True
+            return
         with self._pool.connection() as conn:
             try:
                 with conn.cursor() as cur:

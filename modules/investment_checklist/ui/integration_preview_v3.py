@@ -5,17 +5,8 @@ import streamlit as st
 
 from ..source_policy import SourcePolicyDataProvider
 from ..services.integration_service import ChecklistIntegrationService, build_repository
-from ..services.portfolio_extensions import ensure_extension_schema, is_watchlisted, set_watchlist
-from ..services.review_admin import delete_review_manually, review_delete_preview
-from ..services.watchlist_v2 import refresh_watchlist_cagrs_if_changed
+from ..services.extension_schema_cache import ensure_extension_schema
 from . import page as _page
-from .evidence_workspace import render_evidence_workspace
-from .ai_research_assistant import render_ai_research_assistant
-from .industry_overlay import render_industry_overlay
-from .integration_preview import SECTIONS
-from .management_intelligence import render_management_intelligence
-from .monitoring_delta_review import render_monitoring_delta_review
-from .investment_decision_journal import render_investment_decision_journal
 from .performance_v3 import (
     render_analytical_fast,
     render_formula_assumptions_v3,
@@ -23,6 +14,69 @@ from .performance_v3 import (
     render_watchlist_fast,
     render_workspace_fast,
 )
+
+
+# Importing SECTIONS from the legacy shell eagerly loaded every Phase 4--7 workspace (including
+# httpx/OpenAI) before the default Research Home could paint. Keep routing metadata dependency-free
+# and load a workspace only when the analyst selects it.
+SECTIONS = [
+    "🏠 Research Home",
+    "🧮 Analytical Tools",
+    "🧠 Analyst Workspace Q01–Q59",
+    "🔎 Research Evidence",
+    "🤖 AI Research Assistant",
+    "👥 Management & Human Intel",
+    "📡 Monitoring & Delta Review",
+    "📝 Investment Memo & Decision",
+    "🏭 Industry & Moat",
+    "⭐ Watchlist",
+    "🕘 Snapshot & History",
+    "📐 Công thức & giả định",
+]
+
+
+def _host_signature(host) -> tuple:
+    company = host.company
+    return (
+        company.company_key, company.ticker, company.company_name, company.exchange,
+        company.industry_name, company.company_type, company.currency,
+        tuple(sorted((str(key), str(value)) for key, value in dict(company.metadata).items())),
+    )
+
+
+def _navigation_bootstrap_cached(integration, host) -> dict:
+    """Cache one-transaction navigation bootstrap for the active Streamlit session."""
+    signature = _host_signature(host)
+    key = f"_checklist_navigation_bootstrap_{host.company.company_key}"
+    cached = st.session_state.get(key)
+    if cached and cached.get("signature") == signature:
+        return cached
+
+    preferred_review_id = st.session_state.get(f"checklist_review_{host.company.company_key}")
+    desired_section = st.session_state.get("checklist_section_global")
+    loaded = integration.navigation_bootstrap(
+        preferred_review_id=preferred_review_id,
+        include_home=desired_section in (None, "🏠 Research Home"),
+    )
+    loaded["signature"] = signature
+    company_ref_id = int(loaded["company_ref_id"])
+    st.session_state[key] = loaded
+    st.session_state[f"_checklist_navigation_key_{company_ref_id}"] = key
+    st.session_state[f"_checklist_company_context_{host.company.company_key}"] = {
+        "sig": signature,
+        "cid": company_ref_id,
+        "company": loaded["company"],
+    }
+    st.session_state[_review_cache_key(company_ref_id)] = loaded["reviews"]
+    st.session_state[_watch_key(company_ref_id)] = bool(loaded["watchlisted"])
+    return loaded
+
+
+def _invalidate_navigation_bootstrap(company_ref_id: int) -> None:
+    reverse_key = f"_checklist_navigation_key_{int(company_ref_id)}"
+    key = st.session_state.pop(reverse_key, None)
+    if key:
+        st.session_state.pop(key, None)
 
 
 def _review_cache_key(company_ref_id: int) -> str:
@@ -40,6 +94,7 @@ def _reviews_cached(repo, company_ref_id: int):
 
 def _invalidate_reviews(company_ref_id: int) -> None:
     st.session_state.pop(_review_cache_key(company_ref_id), None)
+    _invalidate_navigation_bootstrap(company_ref_id)
 
 
 def _watch_key(company_ref_id: int) -> str:
@@ -49,6 +104,7 @@ def _watch_key(company_ref_id: int) -> str:
 def _watchlisted_cached(repo, company_ref_id: int) -> bool:
     key = _watch_key(company_ref_id)
     if key not in st.session_state:
+        from ..services.portfolio_extensions import is_watchlisted
         st.session_state[key] = bool(is_watchlisted(repo, company_ref_id))
     return bool(st.session_state[key])
 
@@ -64,8 +120,11 @@ def _render_watch_toggle(repo, company_ref_id: int, ticker: str, actor: str, dat
     active = _watchlisted_cached(repo, company_ref_id)
     label = "★ Đang trong Watchlist — bấm để bỏ" if active else "☆ Đưa doanh nghiệp vào Watchlist"
     if st.button(label, key=f"watch_fast_{company_ref_id}", use_container_width=True):
+        from ..services.portfolio_extensions import set_watchlist
+        from ..services.watchlist_v2 import refresh_watchlist_cagrs_if_changed
         set_watchlist(repo, company_ref_id, active=not active, actor=actor, provider=data_provider)
         st.session_state[_watch_key(company_ref_id)] = not active
+        _invalidate_navigation_bootstrap(company_ref_id)
         if not active:
             # Populate the current-financial cache immediately. Watchlist no longer depends on reviews.
             refresh_watchlist_cagrs_if_changed(repo, company_ref_id, provider=data_provider, actor=actor)
@@ -92,6 +151,7 @@ def _render_delete_review(repo, selected_review, actor: str, state_key: str, com
                 use_container_width=True,
                 key=f"load_delete_preview_{int(selected_review['id'])}",
             ):
+                from ..services.review_admin import review_delete_preview
                 preview = review_delete_preview(repo, selected_review["id"])
                 st.session_state[preview_key] = preview
         if preview is None:
@@ -126,6 +186,7 @@ def _render_delete_review(repo, selected_review, actor: str, state_key: str, com
             disabled=not reason.strip() or confirm.strip() != token,
         ):
             try:
+                from ..services.review_admin import delete_review_manually
                 delete_review_manually(
                     repo, selected_review["id"], actor=actor, reason=reason, confirmation_text=confirm
                 )
@@ -205,7 +266,9 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     repo = repo or build_repository(host)
     ensure_extension_schema(repo)
     integration = ChecklistIntegrationService(repo, host, data_provider)
-    company_ref_id, company = _page._company_cached(integration, host)
+    bootstrap = _navigation_bootstrap_cached(integration, host)
+    company_ref_id = int(bootstrap["company_ref_id"])
+    company = bootstrap["company"]
     actor = host.analyst.user_id
 
     st.markdown('<div class="checklist-module">', unsafe_allow_html=True)
@@ -224,7 +287,7 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     if admin_message:
         st.success(admin_message)
 
-    reviews = _reviews_cached(repo, company_ref_id)
+    reviews = bootstrap["reviews"]
     review = None
     left, create_col, delete_col, watch_col = st.columns([2.0, 0.9, 0.9, 1.25])
     state = f"checklist_review_{company['host_company_key']}"
@@ -276,22 +339,31 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     )
 
     if section == "🏠 Research Home":
-        render_home_fast(repo, company_ref_id, review, reviews=reviews)
+        # Consume the first-paint bundle once. Later fragment changes read fresh state so an analyst
+        # edit cannot be hidden by a stale navigation cache.
+        home_bundle = bootstrap.pop("home_bundle", None)
+        render_home_fast(repo, company_ref_id, review, reviews=reviews, home_bundle=home_bundle)
     elif section == "🧮 Analytical Tools":
         render_analytical_fast(repo, integration, company_ref_id, review, actor, data_provider, host.company.company_type)
     elif section == "🧠 Analyst Workspace Q01–Q59":
         render_workspace_fast(repo, company_ref_id, review, actor)
     elif section == "🔎 Research Evidence":
+        from .evidence_workspace import render_evidence_workspace
         render_evidence_workspace(repo, company_ref_id, review, actor)
     elif section == "🤖 AI Research Assistant":
+        from .ai_research_assistant import render_ai_research_assistant
         render_ai_research_assistant(repo, company_ref_id, review, actor)
     elif section == "👥 Management & Human Intel":
+        from .management_intelligence import render_management_intelligence
         render_management_intelligence(repo, company_ref_id, review, actor)
     elif section == "📡 Monitoring & Delta Review":
+        from .monitoring_delta_review import render_monitoring_delta_review
         render_monitoring_delta_review(repo, company_ref_id, review, actor)
     elif section == "📝 Investment Memo & Decision":
+        from .investment_decision_journal import render_investment_decision_journal
         render_investment_decision_journal(repo, company_ref_id, review, actor)
     elif section == "🏭 Industry & Moat":
+        from .industry_overlay import render_industry_overlay
         render_industry_overlay(
             integration,
             host,

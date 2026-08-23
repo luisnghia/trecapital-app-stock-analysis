@@ -10,15 +10,12 @@ import pandas as pd
 import streamlit as st
 
 import module1_dashboard as m1
-from module1_engine import append_ttm_row
-from module2_engine import build_module2_valuation_table, build_valuation_range, load_assumptions
 from tre_full_width import apply_full_width
 from tre_sidebar_nav import render_tre_sidebar_nav
 from ui_oaktree_theme import inject_oaktree_theme
 
 from modules.investment_checklist.contracts import AnalystContext, CompanyContext, HostContext
 from modules.investment_checklist.trecapital_bridge import CurrentRepoDataProvider
-from modules.investment_checklist.trecapital_debt_enricher import augment_debt_from_latest_fireant_raw
 from modules.investment_checklist.ui.integration_preview_v3 import render_investment_checklist
 
 APP_DIR = Path(__file__).resolve().parents[1]
@@ -86,6 +83,8 @@ def _valuation_range(company, annual: pd.DataFrame):
     if annual is None or annual.empty:
         return None
     try:
+        from module2_engine import build_module2_valuation_table, build_valuation_range, load_assumptions
+
         assumptions = load_assumptions(ASSUMPTIONS_PATH)
         target_mos = float(st.session_state.get("target_mos_pct", assumptions.get("target_mos_pct", 50.0)))
         assumptions["target_mos_pct"] = target_mos
@@ -346,6 +345,9 @@ def _prepare_financials_cached(
     raw_dir_sig: int,
 ):
     """Prepare annual/TTM only when a Checklist section actually needs quantitative data."""
+    from module1_engine import append_ttm_row
+    from modules.investment_checklist.trecapital_debt_enricher import augment_debt_from_latest_fireant_raw
+
     del overview_sig, year_sig, quarter_sig, raw_dir_sig  # cache-key only
     company = m1._load_overview_cached(overview_path, ticker)
     annual_raw = m1._load_timeseries_cached(year_path, ticker, "Y", 11)

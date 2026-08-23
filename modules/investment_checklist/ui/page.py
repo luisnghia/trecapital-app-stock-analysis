@@ -146,12 +146,12 @@ def _override_input(col, label, auto_value, key, *, formatter=fmt_vnd_bn):
 def _effective(auto_value, manual_value): return manual_value if manual_value is not None else auto_value
 
 
-def _company_cached(integration, host):
+def _company_cached(integration, host, *, conn=None):
     c = host.company
     sig = (c.company_key, c.ticker, c.company_name, c.exchange, c.industry_name, c.company_type, c.currency, tuple(sorted((str(k), str(v)) for k, v in dict(c.metadata).items())))
     key = f"_checklist_company_context_{c.company_key}"; cached = st.session_state.get(key)
     if cached and cached.get("sig") == sig: return cached["cid"], cached["company"]
-    cid = integration.sync_company_context(); company = integration.repo.get_company_ref(cid)
+    cid = integration.sync_company_context(conn=conn); company = integration.repo.get_company_ref(cid,conn=conn)
     st.session_state[key] = {"sig": sig, "cid": cid, "company": company}; return cid, company
 
 

@@ -87,19 +87,42 @@ class SQLiteChecklistRepository:
     def list_company_refs(self):
         with self._conn() as c: return [dict(r) for r in c.execute("SELECT * FROM checklist_company_refs WHERE is_active=1 ORDER BY ticker")]
 
-    def upsert_company_ref(self,*,host_company_key,ticker,company_name,exchange='UNKNOWN',industry_name='',company_type='normal',currency='VND',host_metadata=None,actor='system'):
+    def upsert_company_ref(self,*,host_company_key,ticker,company_name,exchange='UNKNOWN',industry_name='',company_type='normal',currency='VND',host_metadata=None,actor='system',conn=None):
+        """Create/update a company context, but do no write when the context is unchanged.
+
+        Page navigation used to execute an UPSERT plus an audit INSERT for every new Streamlit
+        session, even when the company payload was byte-for-byte identical. ``conn`` lets the
+        Checklist bootstrap share one transaction with its initial reads and removes those nested
+        connection round-trips.
+        """
         key=str(host_company_key).strip(); ticker=str(ticker).strip().upper(); name=str(company_name).strip()
         if not key or not ticker or not name: raise ValidationError('host_company_key, ticker và tên doanh nghiệp là bắt buộc.')
-        with self._conn() as c:
+        exchange_value=str(exchange or 'UNKNOWN').upper(); industry_value=str(industry_name or '')
+        metadata=host_metadata or {}; metadata_json=json.dumps(metadata,ensure_ascii=False,default=str,sort_keys=True)
+
+        def run(c):
             before=self._d(c.execute("SELECT * FROM checklist_company_refs WHERE host_company_key=?",(key,)).fetchone())
+            if before is not None:
+                try: before_metadata=json.loads(before.get('host_metadata_json') or '{}')
+                except Exception: before_metadata={}
+                unchanged=(
+                    before.get('ticker')==ticker and before.get('exchange')==exchange_value and
+                    before.get('company_name')==name and (before.get('industry_name') or '')==industry_value and
+                    before.get('company_type')==company_type and before.get('currency')==currency and
+                    int(before.get('is_active') or 0)==1 and before_metadata==metadata
+                )
+                if unchanged: return before['id']
             c.execute("""INSERT INTO checklist_company_refs(host_company_key,ticker,exchange,company_name,industry_name,company_type,currency,host_metadata_json,updated_at)
             VALUES(?,?,?,?,?,?,?,?,datetime('now')) ON CONFLICT(host_company_key) DO UPDATE SET ticker=excluded.ticker,exchange=excluded.exchange,
             company_name=excluded.company_name,industry_name=excluded.industry_name,company_type=excluded.company_type,currency=excluded.currency,
             host_metadata_json=excluded.host_metadata_json,is_active=1,updated_at=datetime('now')""",
-            (key,ticker,str(exchange or 'UNKNOWN').upper(),name,str(industry_name or ''),company_type,currency,json.dumps(host_metadata or {},ensure_ascii=False,default=str)))
+            (key,ticker,exchange_value,name,industry_value,company_type,currency,metadata_json))
             row=self._d(c.execute("SELECT * FROM checklist_company_refs WHERE host_company_key=?",(key,)).fetchone()); cid=row['id']
             self._audit(c,company_ref_id=cid,actor=actor,action='create' if before is None else 'sync',entity_type='company_ref',entity_id=cid,before=before,after=row)
             return cid
+
+        if conn is not None: return run(conn)
+        with self._conn() as c: return run(c)
 
     def get_company_ref(self,company_ref_id,conn=None):
         if conn is not None: return self._d(conn.execute("SELECT * FROM checklist_company_refs WHERE id=?",(company_ref_id,)).fetchone())
@@ -112,8 +135,10 @@ class SQLiteChecklistRepository:
     def get_question(self,qid):
         with self._conn() as c: return self._d(c.execute("SELECT * FROM checklist_questions WHERE question_id=?",(qid,)).fetchone())
 
-    def list_reviews(self,cid):
-        with self._conn() as c: return [dict(r) for r in c.execute("SELECT * FROM research_reviews WHERE company_ref_id=? ORDER BY as_of_date DESC,id DESC",(cid,))]
+    def list_reviews(self,cid,conn=None):
+        def run(c): return [dict(r) for r in c.execute("SELECT * FROM research_reviews WHERE company_ref_id=? ORDER BY as_of_date DESC,id DESC",(cid,))]
+        if conn is not None: return run(conn)
+        with self._conn() as c: return run(c)
     def get_review(self,rid,conn=None):
         if conn is not None: return self._d(conn.execute("SELECT * FROM research_reviews WHERE id=?",(rid,)).fetchone())
         with self._conn() as c: return self._d(c.execute("SELECT * FROM research_reviews WHERE id=?",(rid,)).fetchone())

@@ -92,7 +92,7 @@ class ChecklistIntegrationService:
         self.host = host
         self.data_provider = data_provider
 
-    def sync_company_context(self) -> int:
+    def sync_company_context(self, *, conn=None) -> int:
         c = self.host.company
         return self.repo.upsert_company_ref(
             host_company_key=c.company_key,
@@ -104,7 +104,43 @@ class ChecklistIntegrationService:
             currency=c.currency,
             host_metadata=dict(c.metadata),
             actor=self.host.analyst.user_id,
+            conn=conn,
         )
+
+    def navigation_bootstrap(self, *, preferred_review_id=None, include_home: bool = True) -> dict:
+        """Load the cross-page first paint through one pooled database checkout.
+
+        The previous page entry path opened separate transactions for company sync, company read,
+        reviews and watchlist state. On a remote Supabase connection the SQL itself is sub-ms, but
+        the sequential network round-trips were visible on every first visit from another page.
+        """
+        with self.repo._conn() as conn:
+            company_ref_id = self.sync_company_context(conn=conn)
+            company = self.repo.get_company_ref(company_ref_id, conn=conn)
+            reviews = self.repo.list_reviews(company_ref_id, conn=conn)
+            watchlisted = conn.execute(
+                "SELECT company_ref_id FROM checklist_watchlist WHERE company_ref_id=?",
+                (company_ref_id,),
+            ).fetchone() is not None
+            review = next(
+                (row for row in reviews if preferred_review_id is not None and int(row["id"]) == int(preferred_review_id)),
+                reviews[0] if reviews else None,
+            )
+            home_bundle = None
+            if include_home and review is not None:
+                review_id = int(review["id"])
+                home_bundle = {
+                    "review_id": review_id,
+                    "assessments": self.repo.latest_assessments_for_review(review_id, conn=conn),
+                    "screening": self.repo.latest_screening_for_review(review_id, conn=conn),
+                }
+        return {
+            "company_ref_id": company_ref_id,
+            "company": company,
+            "reviews": reviews,
+            "watchlisted": watchlisted,
+            "home_bundle": home_bundle,
+        }
 
     def get_inventory_prefill(self) -> Optional[InventorySourceData]:
         if self.data_provider is None:

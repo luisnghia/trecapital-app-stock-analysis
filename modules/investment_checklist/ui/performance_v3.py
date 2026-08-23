@@ -17,15 +17,10 @@ import pandas as pd
 import streamlit as st
 
 from ..catalog.catalog import load_questions
-from ..formula_assumptions import EVALUATION_RULES, FORMULA_ROWS, GLOSSARY, SOURCE_NOTES
-from ..services.formulas import inventory_metrics
 from ..services.integration_service import CATALOG_PATH
 from ..services.evidence_workspace import list_review_evidence
 from . import page as _page
-from . import portfolio_extensions as _pe
-from .analytical_hub_v2 import render_analytical_hub_v2
 from .present import ASSESSMENT_LABELS, STATUS_LABELS
-from .watchlist_v2 import render_watchlist_v2
 
 
 @lru_cache(maxsize=1)
@@ -58,11 +53,6 @@ def metric_candidates_v3(df: pd.DataFrame, excluded: Iterable[str]) -> list[str]
         if coerced.notna().any() and coerced.notna().sum() == series.notna().sum():
             out.append(name)
     return out
-
-
-# Existing editors resolve this global at runtime, so one safe patch fixes every Analytical table
-# without duplicating the large rendering module.
-_pe._metric_candidates = metric_candidates_v3
 
 
 def render_fit_table(df: pd.DataFrame, *, css_class: str = "checklist-fit-table") -> None:
@@ -108,6 +98,9 @@ def _fmt_current(value, kind: str = "money") -> str:
 
 
 def render_formula_assumptions_v3(integration, host) -> None:
+    from ..formula_assumptions import EVALUATION_RULES, FORMULA_ROWS, GLOSSARY, SOURCE_NOTES
+    from ..services.formulas import inventory_metrics
+
     st.markdown("#### Công thức & giả định")
     st.markdown(
         "<div class='principle'><b>Nguyên tắc Trecapital:</b> công thức phải bám tài liệu nguồn; "
@@ -204,7 +197,14 @@ def _fragment_rerun() -> None:
         st.rerun()
 
 
-def render_home_fast(repo, company_ref_id: int, review: dict[str, Any] | None, *, reviews=None) -> None:
+def render_home_fast(
+    repo,
+    company_ref_id: int,
+    review: dict[str, Any] | None,
+    *,
+    reviews=None,
+    home_bundle: dict[str, Any] | None = None,
+) -> None:
     """Render Research Home from two SQL statements on one pooled connection.
 
     The legacy renderer independently fetched metrics, quality tally, the 59-question catalog and
@@ -216,9 +216,13 @@ def render_home_fast(repo, company_ref_id: int, review: dict[str, Any] | None, *
         st.info("Tạo review để bắt đầu nghiên cứu.")
         return
     review_id = int(review["id"])
-    with repo._conn() as c:
-        assessments = repo.latest_assessments_for_review(review_id, conn=c)
-        screening = repo.latest_screening_for_review(review_id, conn=c)
+    if home_bundle and int(home_bundle.get("review_id") or 0) == review_id:
+        assessments = list(home_bundle.get("assessments") or [])
+        screening = list(home_bundle.get("screening") or [])
+    else:
+        with repo._conn() as c:
+            assessments = repo.latest_assessments_for_review(review_id, conn=c)
+            screening = repo.latest_screening_for_review(review_id, conn=c)
 
     na = sum(row["status"] == "na" for row in assessments)
     answered = sum(row["status"] == "answered" for row in assessments)
@@ -407,6 +411,12 @@ def render_workspace_fast(repo, company_ref_id: int, review: dict[str, Any] | No
 
 def render_analytical_fast(repo, integration, company_ref_id: int, review, actor: str, data_provider, company_type: str) -> None:
     """Patch formula table renderer while retaining the tested lazy 11-tool analytical hub."""
+    from . import portfolio_extensions as _pe
+    from .analytical_hub_v2 import render_analytical_hub_v2
+
+    # Existing editors resolve this global at runtime, so one safe patch fixes every Analytical
+    # table without importing the large hub before Research Home has painted.
+    _pe._metric_candidates = metric_candidates_v3
     original = _pe.render_wrapped_table
     _pe.render_wrapped_table = render_fit_table
     try:
@@ -416,4 +426,5 @@ def render_analytical_fast(repo, integration, company_ref_id: int, review, actor
 
 
 def render_watchlist_fast(repo, company_ref_id: int, ticker: str, *, actor: str, data_provider) -> None:
+    from .watchlist_v2 import render_watchlist_v2
     render_watchlist_v2(repo, company_ref_id, ticker, actor=actor, data_provider=data_provider)
