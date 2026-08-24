@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from modules.investment_checklist.contracts import CompanyContext, HostContext
+from modules.investment_checklist.repositories.postgres_repository import PostgresChecklistRepository
 from modules.investment_checklist.repositories.sqlite_repository import SQLiteChecklistRepository
 from modules.investment_checklist.services.extension_schema_cache import ensure_extension_schema
 from modules.investment_checklist.services.integration_service import ChecklistIntegrationService
@@ -81,5 +82,70 @@ def test_postgres_runtime_uses_migration_checkpoint_instead_of_replaying_schema(
     source = Path("modules/investment_checklist/repositories/postgres_repository.py").read_text(encoding="utf-8")
     assert "def _runtime_schema_ready" in source
     assert "information_schema.tables" in source
+    assert "question_count" in source
+    assert "screening_count" in source
     assert "if core_ready:" in source
     assert "self._portfolio_extension_schema_ready = True" in source
+
+
+def test_postgres_runtime_checkpoint_rejects_empty_seed_catalogs():
+    class FakeCursor:
+        def __init__(self, *, question_count: int, screening_count: int):
+            self.question_count = question_count
+            self.screening_count = screening_count
+            self.query_no = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, _sql, _params=()):
+            self.query_no += 1
+
+        def fetchall(self):
+            return [
+                {"table_name": name}
+                for name in (
+                    "checklist_company_refs", "checklist_questions", "screening_criteria",
+                    "research_reviews", "research_source_contents", "monitoring_rules",
+                    "investment_decisions", "decision_outcome_reviews", "checklist_watchlist",
+                    "analyst_table_overrides",
+                )
+            ]
+
+        def fetchone(self):
+            return {
+                "question_count": self.question_count,
+                "screening_count": self.screening_count,
+            }
+
+    class FakeConnection:
+        def __init__(self, cursor):
+            self._cursor = cursor
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return self._cursor
+
+    class FakePool:
+        def __init__(self, cursor):
+            self._cursor = cursor
+
+        def connection(self):
+            return FakeConnection(self._cursor)
+
+    repo = object.__new__(PostgresChecklistRepository)
+    repo.question_catalog_path = Path(CATALOG)
+
+    repo._pool = FakePool(FakeCursor(question_count=0, screening_count=0))
+    assert repo._runtime_schema_ready() == (False, True)
+
+    repo._pool = FakePool(FakeCursor(question_count=59, screening_count=10))
+    assert repo._runtime_schema_ready() == (True, True)

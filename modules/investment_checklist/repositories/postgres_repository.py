@@ -131,12 +131,14 @@ class PostgresChecklistRepository(SQLiteChecklistRepository):
                 raise
 
     def _runtime_schema_ready(self) -> tuple[bool, bool]:
-        """Check the migration checkpoint with one catalog query.
+        """Check the migration checkpoint and its required seed catalogs.
 
         Production schema changes are applied by migrations. Replaying every CREATE/ALTER plus 69
         catalog UPSERTs on each Streamlit worker cold-start added hundreds of protocol round-trips.
-        Presence of the latest append-only Phase 7 tables is the runtime compatibility checkpoint;
-        a genuinely old/empty database still falls through to the full idempotent initializer.
+        Presence of the latest append-only Phase 7 tables is the runtime compatibility checkpoint.
+        The two lookup catalogs must also be populated: a fresh/migrated database can already have
+        every table while still needing the 59 questions and 10 screening criteria.  A genuinely
+        old, empty, or partially seeded database falls through to the full idempotent initializer.
         """
         core_tables = (
             'checklist_company_refs', 'checklist_questions', 'screening_criteria',
@@ -146,6 +148,7 @@ class PostgresChecklistRepository(SQLiteChecklistRepository):
         extension_tables = ('checklist_watchlist', 'analyst_table_overrides')
         names = core_tables + extension_tables
         placeholders = ','.join(['%s'] * len(names))
+        seed_ready = False
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -154,7 +157,19 @@ class PostgresChecklistRepository(SQLiteChecklistRepository):
                     names,
                 )
                 present = {row['table_name'] for row in cur.fetchall()}
-        return set(core_tables).issubset(present), set(extension_tables).issubset(present)
+                if set(core_tables).issubset(present):
+                    cur.execute(
+                        """SELECT
+                        (SELECT COUNT(*) FROM checklist_questions WHERE active=1) AS question_count,
+                        (SELECT COUNT(*) FROM screening_criteria) AS screening_count"""
+                    )
+                    counts = cur.fetchone()
+                    seed_ready = (
+                        int(counts['question_count']) == len(load_questions(self.question_catalog_path))
+                        and int(counts['screening_count']) == len(SCREENING_CRITERIA)
+                    )
+        core_ready = set(core_tables).issubset(present) and seed_ready
+        return core_ready, set(extension_tables).issubset(present)
 
     def initialize(self):
         core_ready, extension_ready = self._runtime_schema_ready()
