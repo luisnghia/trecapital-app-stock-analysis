@@ -338,13 +338,13 @@
       "mode": "automatic_proxy",
       "source_code": "imf_datamapper",
       "adapter": "imf_datamapper",
-      "series_code": "GGX_NGDP",
+      "series_code": "G_X_G01_GDP_PT",
       "frequency": "annual",
       "unit": "% GDP",
       "direction_multiplier": 1,
       "stale_after_days": 550,
       "score_rule": {"enabled": false},
-      "note": "WEO là proxy tổng chi; giải ngân thực tế phải đối chiếu Cổng công khai ngân sách."
+      "note": "IMF Fiscal Monitor là proxy tổng chi Chính phủ; giải ngân thực tế phải đối chiếu Cổng công khai ngân sách."
     },
     {
       "driver_id": "price_control",

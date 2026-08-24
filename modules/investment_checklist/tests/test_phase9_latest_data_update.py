@@ -77,6 +77,23 @@ def _client(call_log: list[str] | None = None) -> httpx.Client:
                 },
                 request=request,
             )
+        if "G_X_G01_GDP_PT" in path:
+            return httpx.Response(
+                200,
+                json={
+                    "values": {
+                        "G_X_G01_GDP_PT": {
+                            "VNM": {
+                                "2024": 19.12,
+                                "2025": 22.15,
+                                "2026": 21.77,
+                                "2027": 21.33,
+                            }
+                        }
+                    }
+                },
+                request=request,
+            )
         if "NE.GDI.FTOT.KD.ZG" in path:
             return httpx.Response(
                 200,
@@ -151,6 +168,33 @@ def test_phase9_manual_click_fetches_latest_only_creates_suggestions_and_never_a
         assert c.execute(
             "SELECT COUNT(*) n FROM analyst_assessments WHERE review_id=?", (review_id,)
         ).fetchone()["n"] == 0
+
+
+def test_phase9_government_spending_uses_active_imf_fiscal_monitor_series(tmp_path):
+    repo = _repo(tmp_path)
+    company_ref_id, review_id = _seed(repo, "GOVSPEND")
+    calls: list[str] = []
+    client = _client(calls)
+    run_id = run_latest_data_update(
+        repo,
+        company_ref_id=company_ref_id,
+        review_id=review_id,
+        driver_ids=["gov_spending"],
+        actor="analyst",
+        http_client=client,
+        api_keys={},
+        now=NOW,
+    )
+    client.close()
+
+    assert len(calls) == 1
+    assert "G_X_G01_GDP_PT" in calls[0]
+    bundle = get_update_run_bundle(repo, run_id)
+    assert bundle["run"]["status"] == "completed"
+    assert bundle["observations"][0]["period_label"] == "2026"
+    assert bundle["observations"][0]["value_numeric"] == 21.77
+    assert bundle["suggestions"][0]["suggested_score"] is None
+    assert "proxy" in bundle["suggestions"][0]["rationale"]
 
 
 def test_phase9_optional_key_is_never_called_without_key_and_key_is_never_persisted(tmp_path):
