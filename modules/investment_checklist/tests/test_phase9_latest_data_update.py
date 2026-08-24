@@ -303,12 +303,13 @@ def test_phase9_route_ui_no_background_network_and_schema_security_contract(tmp_
     company_ref_id, review_id = _seed(repo, "UI")
     app = f'''
 import httpx
-httpx.Client.get = lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("background network call"))
+from unittest.mock import patch
 from modules.investment_checklist.repositories.sqlite_repository import SQLiteChecklistRepository
 from modules.investment_checklist.ui.topdown_data_update import render_topdown_data_update
 repo = SQLiteChecklistRepository(r"{repo.db_path}", r"{CATALOG}")
 repo.initialize()
-render_topdown_data_update(repo, {company_ref_id}, repo.get_review({review_id}), "analyst")
+with patch.object(httpx.Client, "get", side_effect=AssertionError("background network call")):
+    render_topdown_data_update(repo, {company_ref_id}, repo.get_review({review_id}), "analyst")
 '''
     at = AppTest.from_string(app, default_timeout=20).run()
     assert len(at.exception) == 0
