@@ -12,7 +12,7 @@
     "asset_allocation": 70.0,
     "sub_asset_allocation": 20.0,
     "security_selection": 10.0,
-    "dien_giai": "Nghiên cứu của Fisher Investments cho thấy khoảng 70% biến thiên lợi nhuận đến từ quyết định phân bổ tài sản, 20% từ phân bổ tiểu nhóm (quốc gia, ngành, quy mô, phong cách) và 10% từ lựa chọn cổ phiếu. App này phục vụ trực tiếp phần 20% và định hướng cho phần 10%."
+    "dien_giai": "Nghiên cứu của Fisher Investments cho thấy khoảng 70% biến thiên lợi nhuận đến từ quyết định phân bổ tài sản, 20% từ phân bổ tiểu nhóm (quốc gia, ngành, quy mô, phong cách) và 10% từ lựa chọn cổ phiếu. Module độc lập này chỉ phục vụ quyết định Top-Down ở cấp tài sản/ngành; lựa chọn và phân tích doanh nghiệp nằm ngoài phạm vi."
   },
   "trong_so_diem_nganh": {
     "driver_kinh_te": 40.0,

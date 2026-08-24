@@ -65,8 +65,26 @@ class _Ctx:
         return getattr(sys.modules["streamlit"], name)
 
 
+class _Progress:
+    def progress(self, *a, **k):
+        return self
+
+    def empty(self):
+        return None
+
+
+class _Secrets(dict):
+    @staticmethod
+    def load_if_toml_exists():
+        return False
+
+    def to_dict(self):
+        return dict(self)
+
+
 class _StubStreamlit(types.ModuleType):
     session_state = _SessionState()
+    secrets = _Secrets()
 
     # --- các hàm chỉ hiển thị, không trả giá trị ---
     def _noop(self, *a, **k):
@@ -113,6 +131,16 @@ class _StubStreamlit(types.ModuleType):
     empty = container
     spinner = container
 
+    def progress(self, *a, **k):
+        return _Progress()
+
+    @staticmethod
+    def cache_resource(func=None, **kwargs):
+        def decorate(inner):
+            return inner
+
+        return decorate(func) if func is not None else decorate
+
     # --- widget: trả về giá trị mặc định hoặc giá trị được kịch bản ép ---
     _ep: dict[str, object] = {}
 
@@ -150,6 +178,11 @@ class _StubStreamlit(types.ModuleType):
         return self._lay(key, value)
 
     def text_input(self, label, value="", key=None, **k):
+        return self._lay(key, value)
+
+    text_area = text_input
+
+    def date_input(self, label, value=None, key=None, **k):
         return self._lay(key, value)
 
     def checkbox(self, label, value=False, key=None, **k):
@@ -337,7 +370,7 @@ ktra(len(pct) > 0, f"Phần trăm hiển thị đúng 1 chữ số thập phân 
 pct_sai = re.findall(r">(\d[\d,]*\.\d{2,})%<", tat_ca)
 ktra(not pct_sai, f"Không có ô phần trăm nhiều hơn 1 thập phân (sai: {pct_sai[:5]})")
 
-# Kiểm tra kết quả đã đẩy sang session dùng chung (nguyên tắc số 7).
+# V1.2 guardrail: Fisher Top-Down không đẩy context sang phân tích doanh nghiệp/Checklist.
 for k in [
     "topdown_ranking",
     "topdown_weights",
@@ -345,12 +378,7 @@ for k in [
     "topdown_cycle_phase",
     "topdown_governed_snapshot_payload",
 ]:
-    ktra(k in stub.session_state, f"Đã đẩy '{k}' sang session dùng chung")
-ktra(
-    stub.session_state.get("topdown_governed_snapshot_payload", {}).get("schema")
-    == "trecapital-topdown-sector-context-v1",
-    "Governed session payload dùng đúng Phase 8 schema",
-)
+    ktra(k not in stub.session_state, f"Không tạo bridge session '{k}' sang module khác")
 
 print("\n=== 8. THỐNG KÊ WIDGET ĐÃ DỰNG ===")
 for k, v in sorted(GHI_NHAN.items()):

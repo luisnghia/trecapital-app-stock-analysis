@@ -26,7 +26,7 @@ from tre_log import log_event, traced
 APP_ROOT = Path(__file__).resolve().parent
 CONFIG_DIR = APP_ROOT / "configs"
 
-APP_VERSION = "V1.1_TOPDOWN_SECTOR"
+APP_VERSION = "V1.2_TOPDOWN_STANDALONE"
 APP_NAME = "Trecapital — Phân tích Top-Down theo ngành"
 
 NHOM_KT = "Kinh tế"
@@ -529,9 +529,22 @@ def chay_sang_loc(df: pd.DataFrame, tieu_chi: dict) -> pd.DataFrame:
             ly_do.append("Dòng trống — chưa nhập mã chứng khoán.")
             continue
         loi: list[str] = []
+        thieu: list[str] = []
         von, pe, pb = _num(r.get("Vốn hóa (tỷ đồng)")), _num(r.get("P/E (lần)")), _num(r.get("P/B (lần)"))
         pcf, ps = _num(r.get("P/CF (lần)")), _num(r.get("P/S (lần)"))
         no, tk = _num(r.get("Nợ vay/Vốn chủ (lần)")), _num(r.get("GTGD bình quân 20 phiên (tỷ đồng)"))
+
+        for label, value in (
+            ("Vốn hóa", von),
+            ("P/E", pe),
+            ("P/B", pb),
+            ("P/CF", pcf),
+            ("P/S", ps),
+            ("Nợ vay/Vốn chủ", no),
+            ("GTGD bình quân 20 phiên", tk),
+        ):
+            if value is None:
+                thieu.append(label)
 
         if von is not None and von < float(tieu_chi.get("von_hoa_toi_thieu_ty", 0)):
             loi.append(f"Vốn hóa {fmt_ty(von)} tỷ dưới ngưỡng {fmt_ty(tieu_chi.get('von_hoa_toi_thieu_ty'))} tỷ")
@@ -556,13 +569,29 @@ def chay_sang_loc(df: pd.DataFrame, tieu_chi: dict) -> pd.DataFrame:
                 f"{fmt_ty(tieu_chi.get('thanh_khoan_binh_quan_ty_toi_thieu'))} tỷ"
             )
 
-        ket_qua.append("Đạt" if not loi else "Không đạt")
-        ly_do.append("; ".join(loi) if loi else "Đạt toàn bộ tiêu chí sàng lọc")
+        if loi:
+            ket_qua.append("Không đạt")
+            if thieu:
+                loi.append("Đồng thời thiếu dữ liệu: " + ", ".join(thieu))
+            ly_do.append("; ".join(loi))
+        elif thieu:
+            ket_qua.append("Thiếu dữ liệu")
+            ly_do.append(
+                "Chưa được phép kết luận Đạt vì thiếu: " + ", ".join(thieu)
+            )
+        else:
+            ket_qua.append("Đạt")
+            ly_do.append("Đạt toàn bộ tiêu chí sàng lọc")
 
     out["Kết quả"] = ket_qua
     out["Lý do loại"] = ly_do
     n_dat = sum(1 for k in ket_qua if k == "Đạt")
-    log_event("INFO", "engine", f"Sàng lọc định lượng: {n_dat}/{len(out)} mã đạt tiêu chí.")
+    n_thieu = sum(1 for k in ket_qua if k == "Thiếu dữ liệu")
+    log_event(
+        "INFO",
+        "engine",
+        f"Sàng lọc định lượng: {n_dat}/{len(out)} mã đạt; {n_thieu} mã thiếu dữ liệu.",
+    )
     return out
 
 
@@ -787,9 +816,9 @@ def note_sang_loc(rowd: dict, tieu_chi: dict) -> str:
             "   Riêng P/E âm: doanh nghiệp đang lỗ nên hệ số P/E mất ý nghĩa định giá, cần đánh giá",
             "   bằng P/B, P/S hoặc giá trị tài sản thay vì loại bỏ máy móc.",
             "",
-            "5) BƯỚC TIẾP THEO",
-            "   Chuyển các mã đạt sang module Tổng quan doanh nghiệp và Định giá chuyên sâu của Trecapital",
-            "   để chạy quy trình phân tích 5 bước và tính biên an toàn.",
+            "5) PHẠM VI CỦA MODULE",
+            "   Fisher Top-Down chỉ lưu kết quả sàng lọc như một đầu ra độc lập ở cấp ngành/thị trường.",
+            "   Mọi phân tích doanh nghiệp hoặc quyết định mua bán nằm ngoài phạm vi của module này.",
         ]
     )
 

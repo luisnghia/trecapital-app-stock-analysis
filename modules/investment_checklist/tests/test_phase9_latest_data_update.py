@@ -323,13 +323,15 @@ def test_phase9_accept_reject_lock_snapshot_and_review_delete(tmp_path):
             assert c.execute(f"SELECT COUNT(*) n FROM {table}").fetchone()["n"] == 0
 
 
-def test_phase9_route_ui_no_background_network_and_schema_security_contract(tmp_path):
+def test_phase9_historical_ui_no_background_network_and_schema_security_contract(tmp_path):
     shell = Path("modules/investment_checklist/ui/integration_preview_v3.py").read_text(encoding="utf-8")
     service = Path("modules/investment_checklist/services/topdown_data_update.py").read_text(encoding="utf-8")
     ui = Path("modules/investment_checklist/ui/topdown_data_update.py").read_text(encoding="utf-8")
     migration = Path("sql/schema_checklist_phase9_latest_data.sql").read_text(encoding="utf-8").lower()
-    assert '"🔄 Latest Data Update"' in shell
-    assert 'elif section == "🔄 Latest Data Update":' in shell
+    # The historical governed Phase 9 service remains testable, but its company-review route is
+    # intentionally removed now that macro updates live in the standalone Fisher Top-Down page.
+    assert '"🔄 Latest Data Update"' not in shell
+    assert 'elif section == "🔄 Latest Data Update":' not in shell
     assert "st_autorefresh" not in service + ui
     assert "schedule" not in service.lower()
     assert "save_assessment(" not in service + ui

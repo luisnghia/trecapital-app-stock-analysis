@@ -23,7 +23,8 @@ import hashlib
 import html
 import io
 import json
-from datetime import datetime, timezone
+import os
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -31,6 +32,9 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 import module_topdown_engine as E
+from module_topdown_macro_update import available_macro_drivers, run_macro_update
+from module_topdown_screening_data import fetch_screening_table, parse_tickers
+from module_topdown_snapshot_store import TopDownMacroSnapshotStore, compare_snapshots
 from tre_log import clear_memory_log, log_event, memory_log_rows
 
 APP_ROOT = Path(__file__).resolve().parent
@@ -540,6 +544,8 @@ SS_LECH = "topdown_lech_toi_da"
 SS_TRONG_SO = "topdown_trong_so"
 SS_NGANH_CHON = "topdown_nganh_dang_chon"
 SS_SANG_LOC = "topdown_bang_sang_loc"
+SS_MACRO_UPDATE = "topdown_macro_update_standalone"
+SS_SCREENING_TICKERS = "topdown_screening_tickers"
 
 
 def _init_state() -> None:
@@ -551,7 +557,9 @@ def _init_state() -> None:
     st.session_state.setdefault(SS_LECH, d.lech_toi_da)
     st.session_state.setdefault(SS_TRONG_SO, dict(d.trong_so))
     st.session_state.setdefault(SS_NGANH_CHON, E.sector_codes()[0] if E.sector_codes() else "FIN")
-    st.session_state.setdefault(SS_SANG_LOC, E.mau_bang_sang_loc(8))
+    st.session_state.setdefault(SS_SANG_LOC, E.mau_bang_sang_loc(1))
+    st.session_state.setdefault(SS_MACRO_UPDATE, None)
+    st.session_state.setdefault(SS_SCREENING_TICKERS, "")
 
 
 def _current_input() -> E.TopDownInput:
@@ -572,10 +580,7 @@ def _governed_snapshot_payload(
     tt_df: pd.DataFrame,
     kt_df: pd.DataFrame,
 ) -> dict:
-    """Build the versioned, source-traceable payload consumed by Investment Checklist.
-
-    This is context only. It contains no ticker-level assessment and no buy/sell decision.
-    """
+    """Build a versioned, source-traceable standalone Fisher Top-Down snapshot."""
     bm_meta = next(
         (b for b in E.benchmark_config().get("benchmarks", []) if b.get("id") == inp.benchmark_id),
         {},
@@ -611,7 +616,7 @@ def _governed_snapshot_payload(
     ]
     checks = kt_df.to_dict("records") if kt_df is not None and not kt_df.empty else []
     return {
-        "schema": "trecapital-topdown-sector-context-v1",
+        "schema": "fisher-topdown-macro-snapshot-v1",
         "methodology_version": E.APP_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "cycle_phase": inp.pha_chu_ky,
@@ -630,31 +635,46 @@ def _governed_snapshot_payload(
         "ranking": ranking,
         "weights": weights,
         "sync_checks": checks,
+        "latest_macro_update": st.session_state.get(SS_MACRO_UPDATE),
         "source_mapping_sha256": source_mapping_hash,
     }
 
 
-def _bridge_to_other_modules(
-    inp: E.TopDownInput,
-    diem_df: pd.DataFrame,
-    tt_df: pd.DataFrame,
-    kt_df: pd.DataFrame,
-) -> None:
-    """Đẩy kết quả sang session chung để module 1, 2, 3 của Trecapital dùng lại."""
+def _secret_database_url() -> str | None:
+    """Read the server-side durable database URL without displaying or logging it."""
+    for key in ("TREC_CHECKLIST_DATABASE_URL", "DATABASE_URL", "SUPABASE_DB_URL"):
+        value = os.getenv(key)
+        if value and str(value).strip():
+            return str(value).strip()
     try:
-        st.session_state["topdown_ranking"] = diem_df.to_dict("records")
-        st.session_state["topdown_weights"] = tt_df.to_dict("records")
-        if not diem_df.empty:
-            top = diem_df.iloc[0]
-            st.session_state["topdown_top_sector_code"] = top["Mã ngành"]
-            st.session_state["topdown_top_sector_name"] = top["Ngành"]
-        st.session_state["topdown_cycle_phase"] = st.session_state.get(SS_PHA)
-        st.session_state["topdown_governed_snapshot_payload"] = _governed_snapshot_payload(
-            inp, diem_df, tt_df, kt_df
-        )
-        log_event("DEBUG", "sync", "Đã đẩy kết quả top-down sang session dùng chung.")
-    except Exception as exc:  # noqa: BLE001
-        log_event("ERROR", "sync", f"Không đồng bộ được sang session chung: {exc}")
+        if not st.secrets.load_if_toml_exists():
+            return None
+        secrets = st.secrets.to_dict()
+    except Exception:
+        return None
+    for key in ("TREC_CHECKLIST_DATABASE_URL", "DATABASE_URL", "SUPABASE_DB_URL"):
+        value = secrets.get(key)
+        if value and str(value).strip():
+            return str(value).strip()
+    try:
+        connections = secrets.get("connections", {})
+        postgres = connections.get("postgresql", {}) if hasattr(connections, "get") else {}
+        value = postgres.get("url") if hasattr(postgres, "get") else None
+        return str(value).strip() if value and str(value).strip() else None
+    except Exception:
+        return None
+
+
+@st.cache_resource(show_spinner=False)
+def _snapshot_store_cached(database: str) -> TopDownMacroSnapshotStore:
+    store = TopDownMacroSnapshotStore(database)
+    store.initialize()
+    return store
+
+
+def _snapshot_store() -> TopDownMacroSnapshotStore:
+    database = _secret_database_url() or str(APP_ROOT / "data_cache" / "topdown_macro_snapshots.db")
+    return _snapshot_store_cached(database)
 
 
 # ======================================================================================
@@ -720,7 +740,17 @@ def _render_sidebar() -> None:
 
         st.divider()
         if st.button("↺ Đặt lại toàn bộ tham số", use_container_width=True):
-            for k in [SS_TRIEN_VONG, SS_PHA, SS_BM_ID, SS_BM_W, SS_LECH, SS_TRONG_SO, SS_SANG_LOC]:
+            for k in [
+                SS_TRIEN_VONG,
+                SS_PHA,
+                SS_BM_ID,
+                SS_BM_W,
+                SS_LECH,
+                SS_TRONG_SO,
+                SS_SANG_LOC,
+                SS_MACRO_UPDATE,
+                SS_SCREENING_TICKERS,
+            ]:
                 st.session_state.pop(k, None)
             log_event("INFO", "ui", "Người dùng đặt lại toàn bộ tham số.")
             st.rerun()
@@ -744,11 +774,11 @@ def _tab_khung_phuong_phap() -> None:
     _render_important_red(
         "Nguyên lý 70 – 20 – 10",
         cfg.get("dien_giai", "")
-        + "\n\nHệ quả trực tiếp: dành phần lớn thời gian cho việc chọn ĐÚNG NGÀNH thay vì "
-        "dò tìm từng cổ phiếu. App này phục vụ trực tiếp phần 20% và định hướng cho phần 10%.",
+        + "\n\nPhạm vi của app dừng ở quyết định Top-Down: driver, chu kỳ, ngành, benchmark và "
+        "sàng lọc định lượng. App không đưa ra đánh giá doanh nghiệp hay quyết định mua/bán.",
     )
 
-    st.markdown("<div class='tre-section-title'>Ba bước và bảy tab của module</div>", unsafe_allow_html=True)
+    st.markdown("<div class='tre-section-title'>Hai lớp phân tích độc lập của module</div>", unsafe_allow_html=True)
     quy_trinh = pd.DataFrame(
         [
             {
@@ -765,13 +795,6 @@ def _tab_khung_phuong_phap() -> None:
                 "Tab tương ứng": "Đào sâu nhóm ngành → Sàng lọc định lượng",
                 "Tỷ trọng đóng góp": 5.0,
             },
-            {
-                "Bước": "Bước 3",
-                "Tên bước": "Lựa chọn cổ phiếu",
-                "Việc phải làm": "Phân tích cơ bản 5 bước, tìm thuộc tính chiến lược phù hợp với driver đang thắng thế.",
-                "Tab tương ứng": "Phân tích cổ phiếu 5 bước → chuyển sang module Định giá chuyên sâu",
-                "Tỷ trọng đóng góp": 10.0,
-            },
         ]
     )
     notes = [
@@ -785,30 +808,16 @@ def _tab_khung_phuong_phap() -> None:
         "với kỳ vọng thị trường đang định giá sẵn hay không'. Thị trường đã phản ánh thông tin phổ biến.\n\n"
         "Đầu ra: bảng xếp hạng 11 ngành và tỷ trọng đề xuất so với benchmark.",
         "BƯỚC 2 — SÀNG LỌC ĐỊNH LƯỢNG\n\n"
-        "Mục đích duy nhất là thu hẹp phạm vi để bước 3 làm được. Fisher ví von: quy trình bottom-up "
+        "Mục đích duy nhất là thu hẹp universe theo các điều kiện định lượng. Fisher ví von: quy trình bottom-up "
         "giống mò kim đáy bể; quy trình top-down là tìm đống rơm có mật độ kim cao nhất.\n\n"
         "Bốn lớp sàng lọc theo sơ đồ trong sách:\n"
         "  • Capitalization — vốn hóa tối thiểu\n"
         "  • Valuation — P/E, P/B, P/CF, P/S\n"
         "  • Solvency — đòn bẩy, khả năng trả nợ\n"
         "  • Liquidity — thanh khoản đủ để mua bán\n\n"
-        "Độ chặt của bộ lọc hoàn toàn do bạn quyết định. Bộ lọc càng chặt thì danh sách càng ngắn "
-        "và bước 3 càng nhẹ, nhưng rủi ro bỏ sót cơ hội càng cao.\n\n"
+        "Độ chặt của bộ lọc hoàn toàn do bạn quyết định. Bộ lọc càng chặt thì danh sách càng ngắn, "
+        "nhưng rủi ro bỏ sót cơ hội càng cao.\n\n"
         "Cảnh báo: vượt qua sàng lọc KHÔNG có nghĩa là nên mua.",
-        "BƯỚC 3 — LỰA CHỌN CỔ PHIẾU\n\n"
-        "Quy trình 5 bước của Fisher:\n"
-        "  1. Hiểu mô hình kinh doanh và động lực lợi nhuận\n"
-        "  2. Xác định các thuộc tính chiến lược (lợi thế cạnh tranh)\n"
-        "  3. Phân tích cơ bản và diễn biến giá cổ phiếu\n"
-        "  4. Nhận diện rủi ro\n"
-        "  5. Phân tích định giá và kỳ vọng đồng thuận\n\n"
-        "Hai mục tiêu của bước chọn cổ phiếu:\n"
-        "  (a) Tìm doanh nghiệp có thuộc tính chiến lược PHÙ HỢP với driver đang thắng thế.\n"
-        "  (b) Tối đa hóa xác suất thắng cả NHÓM ngành, chứ không phải cố chọn ra 'mã tốt nhất'.\n\n"
-        "Điểm (b) rất phản trực giác nhưng quan trọng: tránh các mã quá dị biệt so với nhóm giúp "
-        "giảm rủi ro danh mục trong khi vẫn tạo giá trị ở cấp lựa chọn cổ phiếu.\n\n"
-        "Sau bước này, chuyển sang module Tổng quan doanh nghiệp và Định giá chuyên sâu của Trecapital "
-        "để định giá và tính biên an toàn.",
     ]
     render_bang_giai_thich(quy_trinh, notes, "quy_trinh", height=260)
 
@@ -825,10 +834,109 @@ def _tab_khung_phuong_phap() -> None:
     )
 
 
+def _render_macro_update_controls() -> None:
+    st.markdown("<div class='tre-section-title'>Cập nhật dữ liệu vĩ mô mới nhất</div>", unsafe_allow_html=True)
+    st.caption(
+        "Đây là nơi cập nhật thông tin vĩ mô của Fisher Top-Down. Nguồn chỉ được gọi khi bạn bấm nút; "
+        "không polling, không cron và không tự thay đổi điểm driver."
+    )
+    try:
+        available = available_macro_drivers()
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"Không nạp được Source Registry: {exc}")
+        log_event("ERROR", "macro_update", f"Không nạp được Source Registry: {exc}")
+        return
+    names = {row["driver_id"]: row["driver_name"] for row in available}
+    default_ids = [
+        row["driver_id"]
+        for row in available
+        if row["mode"] in {"automatic", "automatic_proxy"}
+    ]
+    selected = st.multiselect(
+        "Chọn driver cần gọi nguồn",
+        options=list(names),
+        default=default_ids,
+        format_func=lambda driver_id: names.get(driver_id, driver_id),
+        key="topdown_macro_driver_selection",
+    )
+    if st.button(
+        "🔄 Cập nhật dữ liệu vĩ mô mới nhất",
+        type="primary",
+        use_container_width=True,
+        disabled=not selected,
+        key="topdown_macro_update_button",
+    ):
+        try:
+            with st.spinner("Đang gọi đúng các nguồn đã chọn…"):
+                result = run_macro_update(selected)
+            st.session_state[SS_MACRO_UPDATE] = result
+            log_event(
+                "INFO",
+                "macro_update",
+                f"Cập nhật vĩ mô: {result['success_count']} thành công, {result['failure_count']} lỗi.",
+            )
+        except Exception as exc:  # noqa: BLE001
+            st.error(f"Không chạy được cập nhật vĩ mô: {exc}")
+            log_event("ERROR", "macro_update", f"Cập nhật vĩ mô lỗi: {exc}")
+
+    latest = st.session_state.get(SS_MACRO_UPDATE)
+    if not latest:
+        st.info("Chưa có lần cập nhật nào trong phiên này.")
+        return
+    st.caption(
+        f"Lần cập nhật: {latest.get('retrieved_at', '—')} · "
+        f"{latest.get('success_count', 0)} thành công · {latest.get('failure_count', 0)} research gap/lỗi."
+    )
+    observations = latest.get("observations", [])
+    if observations:
+        display = pd.DataFrame(
+            [
+                {
+                    "Driver": row.get("driver_name"),
+                    "Nguồn": row.get("source_code"),
+                    "Series": row.get("series_code"),
+                    "Kỳ": row.get("period_label"),
+                    "Giá trị": row.get("value_numeric"),
+                    "Kỳ trước": row.get("previous_value_numeric"),
+                    "Đơn vị": row.get("unit"),
+                    "Độ mới": row.get("freshness_status"),
+                    "Fallback": row.get("fallback_from") or "—",
+                }
+                for row in observations
+            ]
+        )
+        render_bang_tinh(display, height=min(440, 85 + 36 * len(display)))
+    suggestions = latest.get("suggestions", [])
+    if suggestions:
+        with st.expander("Gợi ý điểm để analyst tham khảo — không tự áp dụng", expanded=False):
+            suggestion_df = pd.DataFrame(
+                [
+                    {
+                        "Driver": row.get("driver_name"),
+                        "Điểm gợi ý": row.get("suggested_score"),
+                        "Độ tin cậy": row.get("confidence"),
+                        "Lập luận": row.get("rationale"),
+                        "Research gap": row.get("data_gap_reason"),
+                    }
+                    for row in suggestions
+                ]
+            )
+            render_bang_tinh(suggestion_df, height=min(420, 85 + 46 * len(suggestion_df)))
+            st.warning(
+                "App không tự chấp nhận gợi ý. Nếu đồng ý, analyst tự điều chỉnh slider tương ứng bên dưới."
+            )
+    errors = latest.get("errors", [])
+    if errors:
+        with st.expander(f"Research gap / lỗi nguồn ({len(errors)})", expanded=True):
+            st.dataframe(pd.DataFrame(errors), use_container_width=True, hide_index=True)
+
+
 def _tab_drivers() -> None:
     inp = _current_input()
     cfg = E.drivers_config()
     thang = cfg.get("thang_trien_vong", {})
+
+    _render_macro_update_controls()
 
     st.markdown("<div class='tre-section-title'>Bước 1 — Chấm triển vọng 12 tháng cho từng driver</div>", unsafe_allow_html=True)
     st.caption(
@@ -902,6 +1010,106 @@ def _tab_drivers() -> None:
             f"Bạn đã chấm {n_active}/{len(inp.trien_vong_driver)} driver khác 0. "
             "Kết quả đã được đồng bộ sang tất cả các tab còn lại.",
         )
+
+
+def _tab_snapshot_vi_mo(
+    diem_df: pd.DataFrame,
+    tt_df: pd.DataFrame,
+    kt_df: pd.DataFrame,
+) -> None:
+    st.markdown("<div class='tre-section-title'>Snapshot đánh giá vĩ mô độc lập</div>", unsafe_allow_html=True)
+    st.caption(
+        "Mỗi lần bấm lưu sẽ tạo một phiên bản append-only gồm driver, pha chu kỳ, xếp hạng ngành, "
+        "tỷ trọng đề xuất và lần cập nhật nguồn gần nhất. Snapshot không gắn với mã cổ phiếu hay review Checklist."
+    )
+    try:
+        store = _snapshot_store()
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"Không kết nối được kho snapshot vĩ mô: {exc}")
+        log_event("ERROR", "macro_snapshot", f"Khởi tạo kho snapshot lỗi: {exc}")
+        return
+
+    c1, c2 = st.columns(2)
+    asof = c1.date_input("Ngày đánh giá", value=date.today(), key="topdown_snapshot_asof")
+    label = c2.text_input(
+        "Tên snapshot *",
+        value=f"Macro proxy {date.today().isoformat()}",
+        key="topdown_snapshot_label",
+    )
+    actor = c1.text_input("Người thực hiện *", value="analyst", key="topdown_snapshot_actor")
+    reason = c2.text_input(
+        "Lý do lưu *",
+        placeholder="Ví dụ: baseline trước kỳ họp chính sách",
+        key="topdown_snapshot_reason",
+    )
+    if st.button(
+        "💾 Lưu snapshot vĩ mô",
+        type="primary",
+        use_container_width=True,
+        disabled=not label.strip() or not actor.strip() or not reason.strip(),
+        key="topdown_snapshot_save_button",
+    ):
+        try:
+            payload = _governed_snapshot_payload(_current_input(), diem_df, tt_df, kt_df)
+            latest_macro = st.session_state.get(SS_MACRO_UPDATE) or {}
+            saved = store.save(
+                payload,
+                as_of_date=asof,
+                snapshot_label=label,
+                save_reason=reason,
+                created_by=actor,
+                methodology_version=E.APP_VERSION,
+                source_registry_hash=latest_macro.get("source_registry_hash"),
+            )
+            st.session_state["topdown_snapshot_last_saved"] = saved["version_no"]
+            st.success(f"Đã lưu snapshot vĩ mô phiên bản #{saved['version_no']}.")
+            log_event("INFO", "macro_snapshot", f"Lưu snapshot vĩ mô #{saved['version_no']}.")
+        except Exception as exc:  # noqa: BLE001
+            st.error(f"Không lưu được snapshot: {exc}")
+            log_event("ERROR", "macro_snapshot", f"Lưu snapshot lỗi: {exc}")
+
+    try:
+        snapshots = store.list(limit=100)
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"Không đọc được lịch sử snapshot: {exc}")
+        return
+    if not snapshots:
+        st.info("Chưa có snapshot vĩ mô nào.")
+        return
+
+    st.markdown("<div class='tre-section-title'>Lịch sử proxy vĩ mô</div>", unsafe_allow_html=True)
+    history = pd.DataFrame(
+        [
+            {
+                "Phiên bản": row["version_no"],
+                "As-of": row["as_of_date"],
+                "Tên snapshot": row["snapshot_label"],
+                "Lý do": row["save_reason"],
+                "Người lưu": row["created_by"],
+                "Thời điểm tạo": row["created_at"],
+                "Payload hash": row["payload_hash"],
+            }
+            for row in snapshots
+        ]
+    )
+    render_bang_tinh(history, height=min(430, 90 + 36 * len(history)))
+
+    if len(snapshots) >= 2:
+        st.markdown("<div class='tre-section-title'>Thay đổi so với snapshot liền trước</div>", unsafe_allow_html=True)
+        delta = compare_snapshots(snapshots[0], snapshots[1])
+        d1, d2 = st.columns(2)
+        with d1:
+            st.markdown("**Driver thay đổi**")
+            if delta["drivers"]:
+                st.dataframe(pd.DataFrame(delta["drivers"]), use_container_width=True, hide_index=True)
+            else:
+                st.caption("Không đổi điểm driver.")
+        with d2:
+            st.markdown("**Xếp hạng ngành thay đổi**")
+            if delta["sectors"]:
+                st.dataframe(pd.DataFrame(delta["sectors"]), use_container_width=True, hide_index=True)
+            else:
+                st.caption("Không đổi xếp hạng/điểm ngành.")
 
 
 def _tab_chu_ky() -> None:
@@ -1145,47 +1353,94 @@ def _tab_sang_loc() -> None:
     )
     render_bang_tinh(nguong_df, height=290)
 
-    st.markdown("<div class='tre-section-title'>Nhập danh sách cổ phiếu cần sàng lọc</div>", unsafe_allow_html=True)
-    st.caption("Nhập trực tiếp vào bảng, hoặc tải file CSV có đúng các cột dưới đây. Đơn vị vốn hóa và thanh khoản: tỷ đồng.")
-
-    up = st.file_uploader("Tải lên CSV danh sách cổ phiếu (tùy chọn)", type=["csv"])
-    if up is not None:
-        try:
-            df_up = pd.read_csv(up)
-            thieu = [c for c in E.COT_SANG_LOC if c not in df_up.columns]
-            if thieu:
-                st.error(f"File thiếu các cột: {', '.join(thieu)}")
-                log_event("WARNING", "sang_loc", f"File tải lên thiếu cột: {thieu}")
-            else:
-                st.session_state[SS_SANG_LOC] = df_up[E.COT_SANG_LOC].copy()
-                st.success(f"Đã nạp {len(df_up)} dòng từ file.")
-                log_event("INFO", "sang_loc", f"Nạp {len(df_up)} dòng từ CSV.")
-        except Exception as exc:  # noqa: BLE001
-            st.error(f"Không đọc được file: {exc}")
-            log_event("ERROR", "sang_loc", f"Lỗi đọc CSV: {exc}")
-
-    st.download_button(
-        "⬇️ Tải mẫu CSV trống",
-        E.mau_bang_sang_loc(3).to_csv(index=False).encode("utf-8-sig"),
-        file_name="mau_sang_loc_topdown.csv",
-        mime="text/csv",
+    st.markdown("<div class='tre-section-title'>Tự lấy dữ liệu và đánh giá</div>", unsafe_allow_html=True)
+    st.caption(
+        "Nhập mã rồi bấm nút. App gọi đúng public crawler và bộ nhớ dữ liệu chuẩn hóa đang dùng ở "
+        "Trecapital để lấy vốn hóa, P/E, P/B, P/S, tính P/CF từ CFO TTM, tính nợ vay/vốn chủ và "
+        "GTGD bình quân 20 phiên. Không có gọi nguồn khi chỉ mở trang."
     )
+    ticker_text = st.text_area(
+        "Mã chứng khoán (phân tách bằng dấu phẩy, khoảng trắng hoặc xuống dòng)",
+        value=str(st.session_state.get(SS_SCREENING_TICKERS, "")),
+        placeholder="Ví dụ: DCM, DPM, FPT",
+        height=90,
+        key="topdown_screening_ticker_input",
+    )
+    if st.button(
+        "🔄 Lấy dữ liệu & sàng lọc",
+        type="primary",
+        use_container_width=True,
+        disabled=not ticker_text.strip(),
+        key="topdown_screening_fetch_button",
+    ):
+        try:
+            symbols = parse_tickers(ticker_text)
+            st.session_state[SS_SCREENING_TICKERS] = ", ".join(symbols)
+            progress_bar = st.progress(0.0, text="Chuẩn bị gọi nguồn…")
 
-    cur = st.session_state.get(SS_SANG_LOC, E.mau_bang_sang_loc(8))
+            def update_progress(index: int, total: int, ticker: str) -> None:
+                progress_bar.progress(
+                    min(index / max(total, 1), 1.0),
+                    text=f"Đang cập nhật {ticker} ({index}/{total})…",
+                )
+
+            with st.spinner("Đang lấy dữ liệu từ lớp dữ liệu Trecapital…"):
+                fetched = fetch_screening_table(symbols, progress=update_progress)
+            progress_bar.empty()
+            st.session_state[SS_SANG_LOC] = fetched
+            st.success(f"Đã lấy và chuẩn hóa {len(fetched)} mã.")
+            log_event("INFO", "sang_loc", f"Cập nhật tự động {len(fetched)} mã: {', '.join(symbols)}.")
+        except Exception as exc:  # noqa: BLE001
+            st.error(f"Không cập nhật được dữ liệu sàng lọc: {exc}")
+            log_event("ERROR", "sang_loc", f"Cập nhật tự động lỗi: {exc}")
+
+    with st.expander("Nhập CSV / hiệu chỉnh thủ công khi nguồn còn thiếu", expanded=False):
+        st.caption(
+            "Đây là fallback có chủ đích. Giá trị sửa tay chỉ nằm trong bảng sàng lọc Fisher; "
+            "không ghi ngược vào Data Layer gốc."
+        )
+        up = st.file_uploader("Tải lên CSV danh sách cổ phiếu (tùy chọn)", type=["csv"])
+        if up is not None:
+            try:
+                df_up = pd.read_csv(up)
+                thieu = [column for column in E.COT_SANG_LOC if column not in df_up.columns]
+                if thieu:
+                    st.error(f"File thiếu các cột: {', '.join(thieu)}")
+                else:
+                    df_up["Nguồn dữ liệu"] = "CSV analyst"
+                    df_up["Ghi chú dữ liệu"] = "Analyst nhập; không sửa Data Layer gốc."
+                    st.session_state[SS_SANG_LOC] = df_up
+                    st.success(f"Đã nạp {len(df_up)} dòng từ file.")
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"Không đọc được file: {exc}")
+        st.download_button(
+            "⬇️ Tải mẫu CSV trống",
+            E.mau_bang_sang_loc(3).to_csv(index=False).encode("utf-8-sig"),
+            file_name="mau_sang_loc_topdown.csv",
+            mime="text/csv",
+        )
+
+    cur = st.session_state.get(SS_SANG_LOC, E.mau_bang_sang_loc(1))
+    disabled_columns = [
+        column for column in ("Nguồn dữ liệu", "Ghi chú dữ liệu") if column in cur.columns
+    ]
     edited = st.data_editor(
         cur,
         use_container_width=True,
         num_rows="dynamic",
         hide_index=True,
+        disabled=disabled_columns,
         column_config={
-            "Mã ngành": st.column_config.SelectboxColumn("Mã ngành", options=E.sector_codes()),
+            "Mã ngành": st.column_config.SelectboxColumn("Mã ngành", options=[""] + E.sector_codes()),
             "Vốn hóa (tỷ đồng)": st.column_config.NumberColumn("Vốn hóa (tỷ đồng)", format="%.0f"),
             "P/E (lần)": st.column_config.NumberColumn("P/E (lần)", format="%.1f"),
             "P/B (lần)": st.column_config.NumberColumn("P/B (lần)", format="%.1f"),
             "P/CF (lần)": st.column_config.NumberColumn("P/CF (lần)", format="%.1f"),
             "P/S (lần)": st.column_config.NumberColumn("P/S (lần)", format="%.1f"),
-            "Nợ vay/Vốn chủ (lần)": st.column_config.NumberColumn("Nợ vay/Vốn chủ (lần)", format="%.1f"),
-            "GTGD bình quân 20 phiên (tỷ đồng)": st.column_config.NumberColumn("GTGD bình quân 20 phiên (tỷ đồng)", format="%.0f"),
+            "Nợ vay/Vốn chủ (lần)": st.column_config.NumberColumn("Nợ vay/Vốn chủ (lần)", format="%.2f"),
+            "GTGD bình quân 20 phiên (tỷ đồng)": st.column_config.NumberColumn(
+                "GTGD bình quân 20 phiên (tỷ đồng)", format="%.1f"
+            ),
         },
         key="sang_loc_editor",
     )
@@ -1198,10 +1453,12 @@ def _tab_sang_loc() -> None:
         return
 
     n_dat = int((da_nhap["Kết quả"] == "Đạt").sum())
-    c1, c2, c3 = st.columns(3)
+    n_thieu = int((da_nhap["Kết quả"] == "Thiếu dữ liệu").sum())
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("Số mã đã nhập", f"{len(da_nhap)}")
     c2.metric("Số mã đạt", f"{n_dat}")
-    c3.metric("Tỷ lệ đạt", E.fmt_pct(n_dat / max(len(da_nhap), 1) * 100))
+    c3.metric("Thiếu dữ liệu", f"{n_thieu}")
+    c4.metric("Tỷ lệ đạt", E.fmt_pct(n_dat / max(len(da_nhap), 1) * 100))
 
     st.markdown("<div class='tre-section-title'>Kết quả sàng lọc</div>", unsafe_allow_html=True)
     notes = [E.note_sang_loc(r.to_dict(), base) for _, r in da_nhap.iterrows()]
@@ -1209,82 +1466,10 @@ def _tab_sang_loc() -> None:
 
     _render_warning_card(
         "Vượt qua sàng lọc không có nghĩa là nên mua",
-        "Sàng lọc định lượng chỉ làm một việc: thu hẹp phạm vi để bước phân tích cơ bản khả thi. "
-        "Quyết định mua bán phải đến từ Bước 3 — phân tích 5 bước và định giá. "
-        "Hãy chuyển các mã đạt sang module Tổng quan doanh nghiệp và Định giá chuyên sâu của Trecapital.",
+        "Sàng lọc định lượng chỉ thu hẹp phạm vi ở cấp Top-Down. Kết quả “Thiếu dữ liệu” không bao giờ "
+        "được tính là Đạt; kết quả “Đạt” cũng không phải khuyến nghị mua/bán. Phân tích doanh nghiệp nằm "
+        "ngoài phạm vi của module Fisher Top-Down độc lập này.",
     )
-
-
-def _tab_phan_tich_5_buoc() -> None:
-    cfg = E.scoring_config()
-    st.markdown("<div class='tre-section-title'>Bước 6 — Quy trình phân tích cổ phiếu 5 bước</div>", unsafe_allow_html=True)
-
-    steps = cfg.get("nam_buoc_phan_tich_co_phieu", [])
-    df = pd.DataFrame([{"Bước": s["buoc"], "Nội dung": s["ten"], "Việc cụ thể": s["chi_tiet"]} for s in steps])
-    chi_tiet_map = {
-        1: "BƯỚC 1 — HIỂU MÔ HÌNH KINH DOANH VÀ ĐỘNG LỰC LỢI NHUẬN\n\n"
-        "Các việc phải làm theo Fisher:\n"
-        "  • Tổng quan ngành: driver và rủi ro của ngành, xu hướng kinh tế đang tác động thế nào.\n"
-        "  • Mô tả doanh nghiệp: sản phẩm, dịch vụ trong từng mảng — đọc thẳng từ báo cáo tài chính.\n"
-        "  • Lịch sử doanh nghiệp: họ dẫn đầu ngành nhiều thập kỷ hay mới gia nhập? Có hay đổi chiến lược không?\n"
-        "  • Tách doanh thu và lợi nhuận theo mảng và theo địa bàn: họ kiếm tiền ở đâu và bằng cách nào.\n"
-        "  • Tin tức và công bố gần đây: truyền thông đánh giá doanh nghiệp thế nào.\n"
-        "  • Khách hàng và thị trường: có phụ thuộc một khách hàng lớn không.\n"
-        "  • Cạnh tranh: thị phần so với đối thủ. Lưu ý đối thủ lớn nhất đôi khi nằm ở ngành khác, thậm chí lĩnh vực khác.\n\n"
-        "Liên kết với Trecapital: dùng module Tổng quan doanh nghiệp để lấy số liệu nhiều kỳ.",
-        2: "BƯỚC 2 — XÁC ĐỊNH THUỘC TÍNH CHIẾN LƯỢC\n\n"
-        "Thuộc tính chiến lược là đặc điểm riêng cho phép doanh nghiệp vượt trội so với chính nhóm ngành của nó. "
-        "Vì các doanh nghiệp cùng ngành chịu chung driver vĩ mô, thuộc tính chiến lược mới là thứ tạo khác biệt.\n\n"
-        "Điểm mấu chốt mà Fisher nhấn mạnh: KHÔNG phải thuộc tính nào cũng có lợi trong mọi môi trường.\n"
-        "Ví dụ tích hợp dọc: khi cầu mạnh, doanh nghiệp kiểm soát được sản lượng, chạy nhà máy công suất cao, "
-        "chi phí cố định trên mỗi đơn vị giảm và lợi nhuận tăng vọt. Nhưng khi cầu yếu, chính doanh nghiệp đó "
-        "gánh toàn bộ thiệt hại từ công suất thấp, trong khi doanh nghiệp thuê ngoài thì không.\n\n"
-        "Vì vậy phải chọn thuộc tính chiến lược PHÙ HỢP với driver đang thắng thế ở Bước 1.\n\n"
-        "Thuộc tính chỉ có giá trị khi ban điều hành nhận ra và khai thác được nó. Thực thi mới là điều quyết định.",
-        3: "BƯỚC 3 — PHÂN TÍCH CƠ BẢN VÀ DIỄN BIẾN GIÁ\n\n"
-        "So sánh với chính nhóm ngành, không so với thị trường chung:\n"
-        "  • Tăng trưởng doanh thu và lợi nhuận nhiều kỳ\n"
-        "  • Biên lợi nhuận gộp và biên lợi nhuận ròng\n"
-        "  • ROIC và ROE — hiệu quả sử dụng vốn\n"
-        "  • Chất lượng dòng tiền: CFO so với lợi nhuận sau thuế\n"
-        "  • Diễn biến giá tương đối so với nhóm ngành\n\n"
-        "Liên kết với Trecapital: module Định giá chuyên sâu và module So sánh doanh nghiệp làm sẵn phần này.",
-        4: "BƯỚC 4 — NHẬN DIỆN RỦI RO\n\n"
-        "Bốn tầng rủi ro cần tách bạch:\n"
-        "  • Rủi ro đặc thù doanh nghiệp: phụ thuộc khách hàng lớn, đòn bẩy cao, quản trị yếu, thao túng số liệu.\n"
-        "  • Rủi ro ngành: chu kỳ giá hàng hóa, dư cung, công nghệ thay thế, hết hạn bằng sáng chế.\n"
-        "  • Rủi ro hệ thống: suy thoái, khủng hoảng thanh khoản, biến động tỷ giá.\n"
-        "  • Rủi ro chính sách: thay đổi thuế, siết quản lý, kiểm soát giá, rào cản thương mại.\n\n"
-        "Liên kết với Trecapital: module Định giá chuyên sâu có phần phát hiện thao túng tài chính 4 lớp.",
-        5: "BƯỚC 5 — ĐỊNH GIÁ VÀ KỲ VỌNG ĐỒNG THUẬN\n\n"
-        "Hai câu hỏi phải trả lời:\n"
-        "  1. Doanh nghiệp đang được định giá bao nhiêu so với nhóm ngành?\n"
-        "  2. Thị trường đang định giá sẵn kỳ vọng gì, và bạn có tin kỳ vọng đó sai không?\n\n"
-        "Câu hỏi thứ hai mới là nơi tạo ra lợi nhuận vượt trội. Một doanh nghiệp tốt với giá đã phản ánh "
-        "hết mọi điều tốt đẹp thì không còn là cơ hội đầu tư.\n\n"
-        "Liên kết với Trecapital: chuyển sang module Định giá chuyên sâu để tính dải giá trị nội tại và biên an toàn.",
-    }
-    notes = [chi_tiet_map.get(int(s["buoc"]), "") for s in steps]
-    render_bang_giai_thich(df, notes, "5buoc", height=280)
-
-    st.markdown("<div class='tre-section-title'>Danh mục thuộc tính chiến lược</div>", unsafe_allow_html=True)
-    st.caption(
-        "Đánh dấu các thuộc tính mà doanh nghiệp bạn đang xem xét thực sự sở hữu, rồi đối chiếu xem chúng có "
-        "phù hợp với driver đang thắng thế ở Bước 1 hay không."
-    )
-    attrs = cfg.get("strategic_attributes", [])
-    cols = st.columns(3)
-    chon = []
-    for i, a in enumerate(attrs):
-        with cols[i % 3]:
-            if st.checkbox(a, key=f"attr_{i}"):
-                chon.append(a)
-    if chon:
-        _render_ok_card(
-            f"Đã chọn {len(chon)} thuộc tính chiến lược",
-            "\n".join(f"• {a}" for a in chon)
-            + "\n\nCâu hỏi tiếp theo: mỗi thuộc tính này sẽ gặp thuận gió hay ngược gió với bộ driver bạn đã chấm ở Bước 1?",
-        )
 
 
 def _tab_bao_cao(diem_df: pd.DataFrame, tt_df: pd.DataFrame, kt_df: pd.DataFrame) -> None:
@@ -1427,23 +1612,15 @@ def render_dashboard() -> None:
 
     _render_brand_page_header(
         "Phân tích Top-Down theo ngành",
-        "Chọn đúng ngành trước, chọn cổ phiếu sau. Quy trình ba bước theo phương pháp top-down của "
-        "Fisher Investments: phân tích Portfolio Drivers, sàng lọc định lượng, rồi mới đến phân tích cổ phiếu.",
+        "Module Fisher Top-Down độc lập: cập nhật Portfolio Drivers, định vị chu kỳ, xếp hạng ngành, "
+        "quản lý độ lệch benchmark và sàng lọc định lượng ở cấp thị trường/ngành.",
     )
-    phase9_count = int(st.session_state.get("topdown_phase9_applied_count", 0) or 0)
-    if phase9_count:
-        review_id = st.session_state.get("topdown_phase9_applied_review_id")
-        st.info(
-            f"Đang dùng {phase9_count} Portfolio Driver đã được analyst duyệt từ "
-            f"Phase 9 / Review #{review_id}. Các driver còn lại giữ nguyên giá trị analyst đang chọn."
-        )
 
     inp = _current_input()
     try:
         diem_df = E.cham_diem_tat_ca_nganh(inp)
         tt_df = E.bang_ty_trong_de_xuat(diem_df, inp)
         kt_df = E.kiem_tra_dong_bo(inp, diem_df, tt_df)
-        _bridge_to_other_modules(inp, diem_df, tt_df, kt_df)
     except Exception as exc:  # noqa: BLE001
         log_event("ERROR", "dashboard", f"Lỗi tính toán chính: {exc}")
         st.error(f"Có lỗi khi tính toán: {exc}. Xem chi tiết ở tab Nhật ký.")
@@ -1459,12 +1636,12 @@ def render_dashboard() -> None:
         [
             "🧭 Khung phương pháp",
             "📈 Portfolio Drivers",
+            "💾 Snapshot vĩ mô",
             "🔄 Chu kỳ kinh tế",
             "🏆 Xếp hạng ngành",
             "⚖️ Tỷ trọng danh mục",
             "🔬 Đào sâu nhóm ngành",
             "🔎 Sàng lọc định lượng",
-            "🏢 Phân tích cổ phiếu 5 bước",
             "📄 Báo cáo tổng hợp",
             "📖 Thuật ngữ",
             "🧾 Nhật ký",
@@ -1476,17 +1653,17 @@ def render_dashboard() -> None:
     with tabs[1]:
         _tab_drivers()
     with tabs[2]:
-        _tab_chu_ky()
+        _tab_snapshot_vi_mo(diem_df, tt_df, kt_df)
     with tabs[3]:
-        _tab_xep_hang(diem_df)
+        _tab_chu_ky()
     with tabs[4]:
-        _tab_ty_trong(diem_df, tt_df)
+        _tab_xep_hang(diem_df)
     with tabs[5]:
-        _tab_dao_sau()
+        _tab_ty_trong(diem_df, tt_df)
     with tabs[6]:
-        _tab_sang_loc()
+        _tab_dao_sau()
     with tabs[7]:
-        _tab_phan_tich_5_buoc()
+        _tab_sang_loc()
     with tabs[8]:
         _tab_bao_cao(diem_df, tt_df, kt_df)
     with tabs[9]:
