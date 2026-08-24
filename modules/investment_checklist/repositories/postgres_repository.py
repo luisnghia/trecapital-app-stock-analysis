@@ -36,6 +36,10 @@ _INSERT_ID_TABLES = {
     'investment_decisions',
     'decision_outcome_reviews',
     'topdown_sector_snapshots',
+    'topdown_data_update_runs',
+    'topdown_data_observations',
+    'topdown_driver_suggestions',
+    'topdown_driver_decisions',
     'screening_assessments',
     'opportunity_inventory_snapshots',
     'data_snapshots',
@@ -145,7 +149,9 @@ class PostgresChecklistRepository(SQLiteChecklistRepository):
             'checklist_company_refs', 'checklist_questions', 'screening_criteria',
             'research_reviews', 'research_source_contents', 'monitoring_rules',
             'investment_decisions', 'decision_outcome_reviews',
-            'topdown_sector_snapshots',
+            'topdown_sector_snapshots', 'topdown_data_update_runs',
+            'topdown_data_observations', 'topdown_driver_suggestions',
+            'topdown_driver_decisions',
         )
         extension_tables = ('checklist_watchlist', 'analyst_table_overrides')
         names = core_tables + extension_tables
@@ -214,6 +220,8 @@ class PostgresChecklistRepository(SQLiteChecklistRepository):
                         'investment_risk_register', 'investment_decisions',
                         'decision_outcome_reviews',
                         'topdown_sector_snapshots',
+                        'topdown_data_update_runs', 'topdown_data_observations',
+                        'topdown_driver_suggestions', 'topdown_driver_decisions',
                     ):
                         cur.execute(f'ALTER TABLE {table} ENABLE ROW LEVEL SECURITY')
                         for role in ('anon', 'authenticated'):

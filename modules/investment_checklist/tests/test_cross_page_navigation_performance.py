@@ -109,11 +109,12 @@ def test_postgres_runtime_checkpoint_rejects_empty_seed_catalogs():
                 {"table_name": name}
                 for name in (
                     "checklist_company_refs", "checklist_questions", "screening_criteria",
-                    "research_reviews", "research_source_contents", "monitoring_rules",
-                    "investment_decisions", "decision_outcome_reviews", "topdown_sector_snapshots", "checklist_watchlist",
-                    "analyst_table_overrides",
-                )
-            ]
+                        "research_reviews", "research_source_contents", "monitoring_rules",
+                        "investment_decisions", "decision_outcome_reviews", "topdown_sector_snapshots", "checklist_watchlist",
+                        "analyst_table_overrides", "topdown_data_update_runs", "topdown_data_observations",
+                        "topdown_driver_suggestions", "topdown_driver_decisions",
+                    )
+                ]
 
         def fetchone(self):
             return {

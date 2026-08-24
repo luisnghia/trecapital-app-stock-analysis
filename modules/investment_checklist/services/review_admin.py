@@ -51,6 +51,18 @@ def review_delete_preview(repo, review_id: int) -> dict[str, Any]:
             "topdown_sector_snapshots": int(c.execute(
                 "SELECT COUNT(*) n FROM topdown_sector_snapshots WHERE review_id=?", (review_id,)
             ).fetchone()["n"]),
+            "topdown_data_runs": int(c.execute(
+                "SELECT COUNT(*) n FROM topdown_data_update_runs WHERE review_id=?", (review_id,)
+            ).fetchone()["n"]),
+            "topdown_data_observations": int(c.execute(
+                "SELECT COUNT(*) n FROM topdown_data_observations WHERE review_id=?", (review_id,)
+            ).fetchone()["n"]),
+            "topdown_driver_suggestions": int(c.execute(
+                "SELECT COUNT(*) n FROM topdown_driver_suggestions WHERE review_id=?", (review_id,)
+            ).fetchone()["n"]),
+            "topdown_driver_decisions": int(c.execute(
+                "SELECT COUNT(*) n FROM topdown_driver_decisions WHERE review_id=?", (review_id,)
+            ).fetchone()["n"]),
             "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
         }
     return {"review": review, "counts": counts, "confirmation_token": review_delete_token(review_id)}
@@ -110,6 +122,18 @@ def delete_review_manually(
             "topdown_sector_snapshots": int(c.execute(
                 "SELECT COUNT(*) n FROM topdown_sector_snapshots WHERE review_id=?", (review_id,)
             ).fetchone()["n"]),
+            "topdown_data_runs": int(c.execute(
+                "SELECT COUNT(*) n FROM topdown_data_update_runs WHERE review_id=?", (review_id,)
+            ).fetchone()["n"]),
+            "topdown_data_observations": int(c.execute(
+                "SELECT COUNT(*) n FROM topdown_data_observations WHERE review_id=?", (review_id,)
+            ).fetchone()["n"]),
+            "topdown_driver_suggestions": int(c.execute(
+                "SELECT COUNT(*) n FROM topdown_driver_suggestions WHERE review_id=?", (review_id,)
+            ).fetchone()["n"]),
+            "topdown_driver_decisions": int(c.execute(
+                "SELECT COUNT(*) n FROM topdown_driver_decisions WHERE review_id=?", (review_id,)
+            ).fetchone()["n"]),
             "later_reviews_linked": int(c.execute("SELECT COUNT(*) n FROM research_reviews WHERE prior_review_id=?", (review_id,)).fetchone()["n"]),
         }
 
@@ -140,6 +164,10 @@ def delete_review_manually(
 
         # Review-owned snapshots/versions are deleted together with the review to avoid orphan history.
         c.execute("DELETE FROM data_snapshots WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM topdown_driver_decisions WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM topdown_driver_suggestions WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM topdown_data_observations WHERE review_id=?", (review_id,))
+        c.execute("DELETE FROM topdown_data_update_runs WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM topdown_sector_snapshots WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM peer_comparison_snapshots WHERE review_id=?", (review_id,))
         c.execute("DELETE FROM ai_suggestion_decisions WHERE suggestion_id IN (SELECT id FROM ai_research_suggestions WHERE review_id=?)", (review_id,))

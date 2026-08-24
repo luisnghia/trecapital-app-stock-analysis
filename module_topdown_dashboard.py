@@ -1430,6 +1430,13 @@ def render_dashboard() -> None:
         "Chọn đúng ngành trước, chọn cổ phiếu sau. Quy trình ba bước theo phương pháp top-down của "
         "Fisher Investments: phân tích Portfolio Drivers, sàng lọc định lượng, rồi mới đến phân tích cổ phiếu.",
     )
+    phase9_count = int(st.session_state.get("topdown_phase9_applied_count", 0) or 0)
+    if phase9_count:
+        review_id = st.session_state.get("topdown_phase9_applied_review_id")
+        st.info(
+            f"Đang dùng {phase9_count} Portfolio Driver đã được analyst duyệt từ "
+            f"Phase 9 / Review #{review_id}. Các driver còn lại giữ nguyên giá trị analyst đang chọn."
+        )
 
     inp = _current_input()
     try:
