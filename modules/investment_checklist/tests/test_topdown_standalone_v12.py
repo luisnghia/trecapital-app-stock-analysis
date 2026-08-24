@@ -174,3 +174,16 @@ def test_fisher_page_and_checklist_routes_are_decoupled():
     assert "_bridge_to_other_modules(" not in dashboard
     assert "topdown_phase9_applied" not in dashboard
     assert '"🔄 Latest Data Update"' not in legacy + fast
+
+
+def test_topdown_tables_wrap_responsively_and_autosize_component_frames():
+    dashboard = Path("module_topdown_dashboard.py").read_text(encoding="utf-8")
+
+    assert "table-layout:fixed" in dashboard
+    assert "white-space:normal!important" in dashboard
+    assert "overflow-wrap:anywhere" in dashboard
+    assert "data-label=" in dashboard
+    assert "@media (max-width:760px)" in dashboard
+    assert "streamlit:setFrameHeight" in dashboard
+    assert "scrolling=False" in dashboard
+    assert "st.dataframe(" not in dashboard

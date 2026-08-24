@@ -335,6 +335,153 @@ def _fmt_cell(col: str, value) -> str:
     return str(value)
 
 
+_TABLE_LONG_TEXT_MARKERS = (
+    "driver",
+    "diễn giải",
+    "việc phải làm",
+    "tab tương ứng",
+    "chi tiết",
+    "nội dung",
+    "ghi chú",
+    "lập luận",
+    "research gap",
+    "lý do",
+    "tên bước",
+    "tên doanh nghiệp",
+    "ngành hưởng",
+    "ngành chịu",
+)
+_TABLE_COMPACT_COLUMNS = {
+    "STT",
+    "Bước",
+    "Mã CK",
+    "Mã ngành",
+    "Xếp hạng",
+    "Hạng cũ",
+    "Hạng mới",
+    "Kỳ",
+    "Nguồn",
+}
+_TABLE_STATUS_COLUMNS = {
+    "Tình trạng",
+    "Mức độ",
+    "Kết quả",
+    "Khuyến nghị",
+    "Độ mới",
+    "Phân bổ thực tế",
+}
+
+
+def _table_column_kind(column: object, series: pd.Series) -> str:
+    """Phân nhóm cột để chia độ rộng theo nội dung thay vì chia đều máy móc."""
+    name = str(column)
+    lower = name.lower()
+    if name in _TABLE_COMPACT_COLUMNS:
+        return "compact"
+    if name in _TABLE_STATUS_COLUMNS:
+        return "status"
+    if any(marker in lower for marker in _TABLE_LONG_TEXT_MARKERS):
+        return "long"
+    if pd.api.types.is_numeric_dtype(series) or any(
+        marker in lower
+        for marker in ("%", "điểm", "tỷ trọng", "độ lệch", "hệ số", "triển vọng", "đóng góp", "(lần)", "tỷ đồng")
+    ):
+        return "number"
+    return "text"
+
+
+def _table_layout(display_df: pd.DataFrame) -> tuple[str, dict[str, str]]:
+    """Tạo colgroup co giãn để bảng vừa khung nhưng vẫn ưu tiên cột mô tả dài."""
+    kinds = {str(column): _table_column_kind(column, display_df[column]) for column in display_df.columns}
+    weights = {"compact": 0.68, "number": 0.82, "status": 1.00, "text": 1.28, "long": 2.20}
+    total = sum(weights[kinds[str(column)]] for column in display_df.columns) or 1.0
+    cols = "".join(
+        f"<col class='col-{kinds[str(column)]}' style='width:{weights[kinds[str(column)]] / total * 100:.3f}%'>"
+        for column in display_df.columns
+    )
+    return f"<colgroup>{cols}</colgroup>", kinds
+
+
+def _table_headers(display_df: pd.DataFrame, kinds: dict[str, str]) -> str:
+    return "".join(
+        f"<th class='col-{kinds[str(column)]}'>{html.escape(str(column))}</th>"
+        for column in display_df.columns
+    )
+
+
+def _table_cells(display_df: pd.DataFrame, kinds: dict[str, str], with_notes: list[str] | None = None) -> str:
+    """Dựng cell có data-label để tự chuyển thành thẻ đọc được trên màn hình hẹp."""
+    grad_ranges: dict[str, tuple[float, float]] = {}
+    for column in display_df.columns:
+        if column in _COT_SO_DUONG_AM:
+            vals = [value for value in (_num(item) for item in display_df[column]) if value is not None]
+            grad_ranges[str(column)] = (
+                max([value for value in vals if value > 0], default=1.0),
+                abs(min([value for value in vals if value < 0], default=-1.0)),
+            )
+
+    rows_html: list[str] = []
+    for index, (_, row) in enumerate(display_df.iterrows()):
+        tds: list[str] = []
+        for column in display_df.columns:
+            name = str(column)
+            raw = row.get(column)
+            text = _fmt_cell(name, raw)
+            classes = [f"col-{kinds[name]}"]
+            style = ""
+            if column in _COT_DIEM_HEAT:
+                classes.append(_class_diem(raw))
+            elif column in _COT_TIN_HIEU:
+                classes.append(_class_tin_hieu(raw))
+            elif name in grad_ranges:
+                style = _grad_color(_num(raw), *grad_ranges[name])
+            tds.append(
+                f"<td class='{html.escape(' '.join(filter(None, classes)), quote=True)}' "
+                f"data-label='{html.escape(name, quote=True)}' style='{style}'>{html.escape(text)}</td>"
+            )
+        note_attr = ""
+        if with_notes is not None:
+            note = with_notes[index] if index < len(with_notes) else "Chưa có ghi chú cho dòng này."
+            note_attr = f" data-note='{html.escape(json.dumps(note, ensure_ascii=False), quote=True)}'"
+        rows_html.append(f"<tr{note_attr}>{''.join(tds)}</tr>")
+    return "".join(rows_html)
+
+
+def _responsive_table_css(scope: str, max_height: int, column_count: int) -> str:
+    """CSS dùng chung: vừa khung desktop, thẻ hai cột trên tablet và một cột trên mobile."""
+    dense = column_count >= 9
+    font_size = "11.5px" if dense else "13px"
+    pad = "6px 5px" if dense else "7px 8px"
+    return f"""
+      #{scope} {{width:100%;max-width:100%;}}
+      #{scope} .tre-table-scroll {{max-height:{max(160, int(max_height))}px;overflow:auto;border:1px solid #E2E8F0;
+        border-radius:12px;background:#FFFFFF;scrollbar-gutter:stable both-edges;}}
+      #{scope} table {{border-collapse:collapse;width:100%;max-width:100%;table-layout:fixed;font-size:{font_size};}}
+      #{scope} th {{position:sticky;top:0;background:#EAF7F1;color:#123D3A;text-align:left;padding:{pad};
+        border-bottom:1px solid #D8E5DF;z-index:8;font-weight:950;box-shadow:0 2px 0 rgba(11,127,117,.18);
+        white-space:normal!important;word-break:normal;overflow-wrap:anywhere;vertical-align:top;line-height:1.28;}}
+      #{scope} td {{border-bottom:1px solid #EDF2F7;padding:{pad};vertical-align:top;color:#123D3A;line-height:1.38;
+        white-space:normal!important;word-break:normal;overflow-wrap:anywhere;min-width:0;}}
+      #{scope} th.col-number,#{scope} td.col-number,#{scope} th.col-compact,#{scope} td.col-compact {{text-align:center;}}
+      #{scope} tbody tr:nth-child(even) td {{background:#FBFDFB;}}
+      #{scope} tbody tr:hover td {{background:#F7FBF8;}}
+      @media (max-width:760px) {{
+        #{scope} .tre-table-scroll {{max-height:none;overflow:visible;border:0;background:transparent;}}
+        #{scope} table,#{scope} tbody {{display:block;width:100%;}}
+        #{scope} colgroup,#{scope} thead {{display:none;}}
+        #{scope} tr {{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 10px;margin:0 0 12px;
+          padding:7px 9px;border:1px solid #D8E5DF;border-radius:12px;background:#FFFFFF;box-shadow:0 3px 10px rgba(11,127,117,.06);}}
+        #{scope} td {{display:grid;grid-template-columns:minmax(7.2rem,40%) minmax(0,1fr);gap:7px;padding:6px 3px;
+          border-bottom:1px dashed #E5EDEA;text-align:left!important;font-size:12.5px;}}
+        #{scope} td::before {{content:attr(data-label);font-weight:900;color:#0B655E;overflow-wrap:anywhere;}}
+      }}
+      @media (max-width:520px) {{
+        #{scope} tr {{grid-template-columns:minmax(0,1fr);}}
+        #{scope} td {{grid-template-columns:minmax(6.8rem,42%) minmax(0,1fr);}}
+      }}
+    """
+
+
 def render_bang_giai_thich(
     df: pd.DataFrame,
     notes: list[str],
@@ -353,56 +500,48 @@ def render_bang_giai_thich(
 
     display_df = df.drop(columns=[c for c in df.columns if str(c).startswith("_")], errors="ignore")
 
-    # Tính biên độ để tô gradient cho các cột dương/âm.
-    grad_ranges: dict[str, tuple[float, float]] = {}
-    for c in display_df.columns:
-        if c in _COT_SO_DUONG_AM:
-            vals = [v for v in (_num(x) for x in display_df[c]) if v is not None]
-            grad_ranges[c] = (
-                max([v for v in vals if v > 0], default=1.0),
-                abs(min([v for v in vals if v < 0], default=-1.0)),
-            )
-
-    headers = "".join(f"<th>{html.escape(str(c))}</th>" for c in display_df.columns)
-    rows_html = []
-    for i, (_, row) in enumerate(display_df.iterrows()):
-        tds = []
-        for c in display_df.columns:
-            raw = row.get(c)
-            text = _fmt_cell(c, raw)
-            cls, style = "", ""
-            if c in _COT_DIEM_HEAT:
-                cls = _class_diem(raw)
-            elif c in _COT_TIN_HIEU:
-                cls = _class_tin_hieu(raw)
-            elif c in grad_ranges:
-                style = _grad_color(_num(raw), *grad_ranges[c])
-            tds.append(f"<td class='{cls}' style='{style}'>{html.escape(text)}</td>")
-        note = notes[i] if i < len(notes) else "Chưa có ghi chú cho dòng này."
-        rows_html.append(
-            f"<tr data-note='{html.escape(json.dumps(note, ensure_ascii=False), quote=True)}'>{''.join(tds)}</tr>"
-        )
-
-    tid = "tbl_" + str(abs(hash((table_key, tuple(display_df.columns), len(display_df)))))[:10]
+    colgroup, kinds = _table_layout(display_df)
+    headers = _table_headers(display_df, kinds)
+    rows_html = _table_cells(display_df, kinds, notes)
+    digest = hashlib.sha1(
+        f"{table_key}|{'|'.join(map(str, display_df.columns))}|{len(display_df)}".encode("utf-8")
+    ).hexdigest()[:10]
+    tid = f"tbl_{digest}"
     glossary_json = json.dumps(E.glossary_terms(), ensure_ascii=False)
-    component_height = min(max(height + 300, 520), 1200)
+    component_height = min(max(int(height) + 150, 220), 900)
+    table_css = _responsive_table_css(f"{tid}_scope", height, len(display_df.columns))
 
     html_doc = f"""
+    <div id='{tid}_scope'>
     <div class='hint'>{html.escape(hint)}</div>
-    <div class='wrap'>
-      <table id='{tid}'>
+    <div class='tre-table-scroll'>
+      <table id='{tid}' aria-label='Bảng {html.escape(str(table_key), quote=True)}'>
+        {colgroup}
         <thead><tr>{headers}</tr></thead>
-        <tbody>{''.join(rows_html)}</tbody>
+        <tbody>{rows_html}</tbody>
       </table>
     </div>
     <div id='{tid}_note' class='note'>Chưa chọn chỉ tiêu. Hãy nhấp đôi vào một dòng trong bảng để xem diễn giải.</div>
     <div id='{tid}_tip' class='termtip'></div>
+    </div>
     <script>
       (function() {{
         const GLOSSARY = {glossary_json};
         const table = document.getElementById('{tid}');
         const note  = document.getElementById('{tid}_note');
         const tip   = document.getElementById('{tid}_tip');
+        let lastFrameHeight = 0;
+
+        function fitFrameHeight() {{
+          const nextHeight = Math.ceil(Math.max(document.body.scrollHeight, document.documentElement.scrollHeight) + 4);
+          if (Math.abs(nextHeight - lastFrameHeight) < 2) return;
+          lastFrameHeight = nextHeight;
+          window.parent.postMessage({{
+            isStreamlitMessage: true,
+            type: 'streamlit:setFrameHeight',
+            height: nextHeight
+          }}, '*');
+        }}
 
         function showNote(row) {{
           table.querySelectorAll('tbody tr').forEach(r => r.classList.remove('selected'));
@@ -411,6 +550,7 @@ def render_bang_giai_thich(
           let msg = '';
           try {{ msg = JSON.parse(raw); }} catch(e) {{ msg = raw; }}
           note.innerText = msg;
+          window.requestAnimationFrame(fitFrameHeight);
         }}
 
         if (table && note) {{
@@ -453,30 +593,33 @@ def render_bang_giai_thich(
         document.addEventListener('mousedown', function(ev) {{
           if (tip && !tip.contains(ev.target)) tip.style.display = 'none';
         }});
+
+        window.addEventListener('load', function() {{ window.requestAnimationFrame(fitFrameHeight); }});
+        window.addEventListener('resize', function() {{ window.requestAnimationFrame(fitFrameHeight); }});
+        if (window.ResizeObserver) {{
+          const observer = new ResizeObserver(function() {{ window.requestAnimationFrame(fitFrameHeight); }});
+          observer.observe(document.body);
+        }}
+        window.requestAnimationFrame(fitFrameHeight);
       }})();
     </script>
     <style>
-      body {{font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;}}
+      html,body {{margin:0;padding:0 1px 2px;overflow:hidden;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;}}
       .hint {{font-size:13px; color:#0B7F75; margin:2px 0 8px 0; font-weight:700;}}
-      .wrap {{max-height:{height}px; overflow:auto; border:1px solid #E2E8F0; border-radius:12px; background:#FFFFFF;}}
-      table {{border-collapse:collapse; width:100%; font-size:13px;}}
-      th {{position:sticky; top:0; background:#EAF7F1; color:#123D3A; text-align:left; padding:8px;
-           border-bottom:1px solid #E2E8F0; z-index:8; font-weight:950; box-shadow:0 2px 0 rgba(11,127,117,.18); white-space:nowrap;}}
-      td {{border-bottom:1px solid #EDF2F7; padding:7px 8px; vertical-align:top; color:#123D3A; line-height:1.40;}}
-      tbody tr:nth-child(even) td {{background:#FBFDFB;}}
-      tr:hover td {{background:#F7FBF8; cursor:pointer;}}
-      tr.selected td {{outline:2px solid #F5B21B; outline-offset:-2px;}}
+{table_css}
+      #{tid}_scope tr:hover td {{cursor:pointer;}}
+      #{tid}_scope tr.selected td {{outline:2px solid #F5B21B;outline-offset:-2px;}}
 {_HEAT_CSS}
       .note {{white-space:pre-wrap; margin-top:10px; padding:13px 15px; border-radius:14px; background:#FFF7E6;
               border:1px solid rgba(245,178,27,.52); color:#5F3B00; font-size:13px; line-height:1.52;
-              max-height:300px; overflow-y:auto;}}
+              max-height:220px; overflow-y:auto;overflow-wrap:anywhere;}}
       .termtip {{display:none; position:absolute; z-index:9999; max-width:360px; padding:11px 13px; border-radius:12px;
                  background:#FFFDF5; border:2px solid #F5B21B; box-shadow:0 12px 28px rgba(11,127,117,.20);
                  font-size:12.5px; line-height:1.5; color:#3F2D06;}}
       .termtip-title {{font-weight:950; color:#064E47; margin-bottom:5px; font-size:13px;}}
     </style>
     """
-    components.html(html_doc, height=component_height, scrolling=True)
+    components.html(html_doc, height=component_height, scrolling=False)
 
 
 def render_bang_tinh(df: pd.DataFrame, height: int = 320) -> None:
@@ -484,7 +627,29 @@ def render_bang_tinh(df: pd.DataFrame, height: int = 320) -> None:
     if df is None or df.empty:
         st.info("Chưa có dữ liệu.")
         return
-    st.dataframe(df, use_container_width=True, height=height, hide_index=True)
+    display_df = df.drop(columns=[column for column in df.columns if str(column).startswith("_")], errors="ignore")
+    colgroup, kinds = _table_layout(display_df)
+    digest = hashlib.sha1(
+        f"static|{'|'.join(map(str, display_df.columns))}|{len(display_df)}|{height}".encode("utf-8")
+    ).hexdigest()[:10]
+    scope = f"tre_static_{digest}"
+    headers = _table_headers(display_df, kinds)
+    rows_html = _table_cells(display_df, kinds)
+    table_css = _responsive_table_css(scope, height, len(display_df.columns))
+    st.html(
+        f"""
+        <div id="{scope}">
+          <div class="tre-table-scroll">
+            <table aria-label="Bảng dữ liệu Top-Down">
+              {colgroup}
+              <thead><tr>{headers}</tr></thead>
+              <tbody>{rows_html}</tbody>
+            </table>
+          </div>
+        </div>
+        <style>{table_css}{_HEAT_CSS}</style>
+        """
+    )
 
 
 def render_bang_thuat_ngu(df: pd.DataFrame) -> None:
@@ -928,7 +1093,7 @@ def _render_macro_update_controls() -> None:
     errors = latest.get("errors", [])
     if errors:
         with st.expander(f"Research gap / lỗi nguồn ({len(errors)})", expanded=True):
-            st.dataframe(pd.DataFrame(errors), use_container_width=True, hide_index=True)
+            render_bang_tinh(pd.DataFrame(errors), height=min(380, 90 + 48 * len(errors)))
 
 
 def _tab_drivers() -> None:
@@ -1101,13 +1266,19 @@ def _tab_snapshot_vi_mo(
         with d1:
             st.markdown("**Driver thay đổi**")
             if delta["drivers"]:
-                st.dataframe(pd.DataFrame(delta["drivers"]), use_container_width=True, hide_index=True)
+                render_bang_tinh(
+                    pd.DataFrame(delta["drivers"]),
+                    height=min(360, 90 + 44 * len(delta["drivers"])),
+                )
             else:
                 st.caption("Không đổi điểm driver.")
         with d2:
             st.markdown("**Xếp hạng ngành thay đổi**")
             if delta["sectors"]:
-                st.dataframe(pd.DataFrame(delta["sectors"]), use_container_width=True, hide_index=True)
+                render_bang_tinh(
+                    pd.DataFrame(delta["sectors"]),
+                    height=min(360, 90 + 44 * len(delta["sectors"])),
+                )
             else:
                 st.caption("Không đổi xếp hạng/điểm ngành.")
 

@@ -26,7 +26,7 @@ from tre_log import log_event, traced
 APP_ROOT = Path(__file__).resolve().parent
 CONFIG_DIR = APP_ROOT / "configs"
 
-APP_VERSION = "V1.2_TOPDOWN_STANDALONE"
+APP_VERSION = "V1.2.1_TOPDOWN_TABLE_FIT"
 APP_NAME = "Trecapital — Phân tích Top-Down theo ngành"
 
 NHOM_KT = "Kinh tế"
