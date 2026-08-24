@@ -72,7 +72,7 @@ class _StubStreamlit(types.ModuleType):
     def _noop(self, *a, **k):
         return None
 
-    markdown = caption = write = divider = _noop
+    markdown = html = caption = write = divider = _noop
     header = subheader = title = text = code = json = _noop
     info = warning = error = success = _noop
     page_link = _noop

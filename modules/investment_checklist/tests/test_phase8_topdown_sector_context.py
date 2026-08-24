@@ -109,6 +109,27 @@ def _payload(*, benchmark_id: str = "vnindex_khoi_tao", requires_update: bool = 
     }
 
 
+def test_phase8_actual_allocation_direction_matches_normalized_weight_delta():
+    inp = topdown.default_input()
+    inp.pha_chu_ky = "contraction"
+    ranking_df = topdown.cham_diem_tat_ca_nganh(inp)
+    weights_df = topdown.bang_ty_trong_de_xuat(ranking_df, inp)
+
+    assert "Phân bổ thực tế" in weights_df.columns
+    for _, row in weights_df.iterrows():
+        delta = float(row["Độ lệch điểm %"])
+        expected = "Tăng tỷ trọng" if delta > 0.05 else "Giảm tỷ trọng" if delta < -0.05 else "Bám benchmark"
+        assert row["Phân bổ thực tế"] == expected
+
+    # Reproduces the live acceptance case: a neutral pre-normalization signal can become
+    # an actual overweight after underweighted sectors are normalized back to 100%.
+    neutral_overweights = weights_df[
+        (weights_df["Khuyến nghị"] == "Trung lập theo benchmark")
+        & (weights_df["Phân bổ thực tế"] == "Tăng tỷ trọng")
+    ]
+    assert not neutral_overweights.empty
+
+
 def test_phase8_unverified_snapshot_is_append_only_hashed_and_never_writes_assessment(tmp_path):
     repo = _repo(tmp_path)
     company_ref_id, review_id = _seed(repo)
@@ -272,10 +293,16 @@ def test_phase8_route_standalone_page_and_no_ai_no_assessment_contract():
     active_shell = Path("modules/investment_checklist/ui/integration_preview_v3.py").read_text(encoding="utf-8")
     service = Path("modules/investment_checklist/services/topdown_sector_context.py").read_text(encoding="utf-8").lower()
     ui = Path("modules/investment_checklist/ui/topdown_sector_context.py").read_text(encoding="utf-8").lower()
+    dashboard = Path("module_topdown_dashboard.py").read_text(encoding="utf-8")
     nav = Path("tre_sidebar_nav.py").read_text(encoding="utf-8")
     assert '"🧭 Fisher Top-down & Sector"' in active_shell
     assert 'elif section == "🧭 Fisher Top-down & Sector":' in active_shell
     assert "pages/06_Phan_tich_TopDown_Nganh.py" in nav
+    assert "render_bang_thuat_ngu(df)" in dashboard
+    assert "table-layout:fixed" in dashboard
+    assert "white-space:normal!important" in dashboard
+    assert "overflow-wrap:anywhere" in dashboard
+    assert "st.html(" in dashboard
     for forbidden in ("save_assessment(", "import openai", "import requests", "import httpx", "urlopen("):
         assert forbidden not in service and forbidden not in ui
 

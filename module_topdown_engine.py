@@ -399,6 +399,10 @@ def bang_ty_trong_de_xuat(diem_df: pd.DataFrame, inp: TopDownInput) -> pd.DataFr
     capped = _phan_bo_trong_gioi_han(tam, list(df["Tỷ trọng benchmark %"].astype(float)), float(inp.lech_toi_da))
     df["Tỷ trọng đề xuất %"] = [round_pct(w) for w in capped]
     df["Độ lệch điểm %"] = [round_pct(w - float(b)) for w, b in zip(capped, df["Tỷ trọng benchmark %"])]
+    df["Phân bổ thực tế"] = [
+        "Tăng tỷ trọng" if float(delta) > 0.05 else "Giảm tỷ trọng" if float(delta) < -0.05 else "Bám benchmark"
+        for delta in df["Độ lệch điểm %"]
+    ]
     df = df.drop(columns=["_tho"]).sort_values("Điểm tổng hợp", ascending=False).reset_index(drop=True)
     df.insert(0, "STT", range(1, len(df) + 1))
 

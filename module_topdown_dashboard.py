@@ -268,7 +268,14 @@ def _grad_color(value: float, vmax_pos: float, vmax_neg: float) -> str:
 
 _COT_SO_DUONG_AM = {"Độ nhạy", "Triển vọng", "Đóng góp", "Độ lệch điểm %", "Điểm tinh chỉnh"}
 _COT_DIEM_HEAT = {"Điểm tổng hợp", "Điểm kinh tế", "Điểm chính trị", "Điểm tâm lý", "Điểm chu kỳ", "Điểm sau tinh chỉnh", "Điểm thừa hưởng"}
-_COT_TIN_HIEU = {"Khuyến nghị", "Tình trạng", "Kết quả", "Mức độ", "Tính chất"}
+_COT_TIN_HIEU = {
+    "Khuyến nghị",
+    "Phân bổ thực tế",
+    "Tình trạng",
+    "Kết quả",
+    "Mức độ",
+    "Tính chất",
+}
 
 
 def _class_diem(value) -> str:
@@ -474,6 +481,51 @@ def render_bang_tinh(df: pd.DataFrame, height: int = 320) -> None:
         st.info("Chưa có dữ liệu.")
         return
     st.dataframe(df, use_container_width=True, height=height, hide_index=True)
+
+
+def render_bang_thuat_ngu(df: pd.DataFrame) -> None:
+    """Render glossary with fully wrapped text and no clipped description cells on tablets."""
+    if df is None or df.empty:
+        st.info("Chưa có dữ liệu.")
+        return
+    table_html = df.to_html(index=False, escape=True, border=0, classes=["tre-glossary-table"])
+    st.html(
+        f"""
+        <style>
+          .tre-glossary-wrap{{
+            width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;
+            margin:.35rem 0 1rem;border:1px solid #D8E5DF;border-radius:.6rem;background:#FFFFFF;
+          }}
+          table.tre-glossary-table{{
+            width:100%;max-width:100%;table-layout:fixed;border-collapse:collapse;
+            font-size:.84rem;line-height:1.42;color:#123D3A;
+          }}
+          table.tre-glossary-table th{{
+            position:sticky;top:0;z-index:2;background:#EAF7F1;color:#123D3A;font-weight:900;
+            padding:.55rem;border:1px solid #D8E5DF;white-space:normal!important;
+            word-break:normal;overflow-wrap:anywhere;vertical-align:top;
+          }}
+          table.tre-glossary-table td{{
+            padding:.52rem;border:1px solid #E5EDEA;white-space:normal!important;
+            word-break:normal;overflow-wrap:anywhere;vertical-align:top;
+          }}
+          table.tre-glossary-table th:nth-child(1),table.tre-glossary-table td:nth-child(1){{
+            width:6%;text-align:center;
+          }}
+          table.tre-glossary-table th:nth-child(2),table.tre-glossary-table td:nth-child(2){{width:22%;}}
+          table.tre-glossary-table th:nth-child(3),table.tre-glossary-table td:nth-child(3){{width:72%;}}
+          table.tre-glossary-table tbody tr:nth-child(even){{background:#FBFDFB;}}
+          @media (max-width:760px){{
+            table.tre-glossary-table{{font-size:.78rem;}}
+            table.tre-glossary-table th,table.tre-glossary-table td{{padding:.42rem;}}
+            table.tre-glossary-table th:nth-child(1),table.tre-glossary-table td:nth-child(1){{width:9%;}}
+            table.tre-glossary-table th:nth-child(2),table.tre-glossary-table td:nth-child(2){{width:27%;}}
+            table.tre-glossary-table th:nth-child(3),table.tre-glossary-table td:nth-child(3){{width:64%;}}
+          }}
+        </style>
+        <div class="tre-glossary-wrap">{table_html}</div>
+        """
+    )
 
 
 # ======================================================================================
@@ -975,6 +1027,11 @@ def _tab_ty_trong(diem_df: pd.DataFrame, tt_df: pd.DataFrame) -> None:
     c1.metric("Số ngành tăng tỷ trọng", f"{n_tang}")
     c2.metric("Số ngành giảm tỷ trọng", f"{n_giam}")
     c3.metric("Tổng tỷ trọng đề xuất", E.fmt_pct(tt_df["Tỷ trọng đề xuất %"].sum()))
+    st.caption(
+        "`Khuyến nghị` là tín hiệu từ điểm ngành và hệ số tilt trước chuẩn hóa. "
+        "`Phân bổ thực tế` được xác định từ tỷ trọng cuối cùng sau khi danh mục được đưa về 100% "
+        "và áp dụng giới hạn độ lệch benchmark."
+    )
 
     notes = [E.note_ty_trong(r.to_dict(), inp) for _, r in tt_df.iterrows()]
     render_bang_giai_thich(tt_df, notes, "ty_trong", height=430)
@@ -1325,7 +1382,7 @@ def _tab_thuat_ngu() -> None:
         return
     df.insert(0, "STT", range(1, len(df) + 1))
     st.download_button("⬇️ Tải bảng thuật ngữ", df.to_csv(index=False).encode("utf-8-sig"), "glossary_topdown.csv", "text/csv")
-    render_bang_tinh(df, height=560)
+    render_bang_thuat_ngu(df)
 
 
 def _tab_nhat_ky() -> None:
