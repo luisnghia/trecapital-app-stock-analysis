@@ -181,7 +181,7 @@ def test_phase7_post_decision_review_snapshot_lock_and_manual_delete(tmp_path):
     )
     snapshot_id = repo.finalize_review(decision_review_id, actor="analyst", finalize_reason="Ký và đóng memo")
     payload = repo.get_snapshot(snapshot_id)["payload"]
-    assert payload["snapshot_schema"] == "phase1b-review-v7-evidence-peer-ai-management-monitoring-decision"
+    assert payload["snapshot_schema"] == "phase1b-review-v8-evidence-peer-ai-management-monitoring-decision-topdown"
     assert payload["investment_memo_decision_journal"]["schema"] == "investment-memo-decision-journal-v1"
     assert payload["investment_memo_decision_journal"]["decision"]["id"] == decision_id
     outcome_review_id = repo.create_review(

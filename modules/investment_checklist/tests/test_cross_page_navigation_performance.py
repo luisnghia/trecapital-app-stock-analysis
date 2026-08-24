@@ -110,7 +110,7 @@ def test_postgres_runtime_checkpoint_rejects_empty_seed_catalogs():
                 for name in (
                     "checklist_company_refs", "checklist_questions", "screening_criteria",
                     "research_reviews", "research_source_contents", "monitoring_rules",
-                    "investment_decisions", "decision_outcome_reviews", "checklist_watchlist",
+                    "investment_decisions", "decision_outcome_reviews", "topdown_sector_snapshots", "checklist_watchlist",
                     "analyst_table_overrides",
                 )
             ]

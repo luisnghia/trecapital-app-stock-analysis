@@ -183,7 +183,7 @@ def test_phase6_snapshot_review_lock_and_review_deletion(tmp_path):
     )
     snapshot_id = repo.finalize_review(review_id, actor="analyst", finalize_reason="Đóng Phase 6 QA")
     payload = repo.get_snapshot(snapshot_id)["payload"]
-    assert payload["snapshot_schema"] == "phase1b-review-v7-evidence-peer-ai-management-monitoring-decision"
+    assert payload["snapshot_schema"] == "phase1b-review-v8-evidence-peer-ai-management-monitoring-decision-topdown"
     assert payload["monitoring_delta_review"]["schema"] == "monitoring-delta-review-v1"
     assert payload["monitoring_delta_review"]["summary"]["open_delta_items"] == 1
     with pytest.raises(ValidationError, match="read-only"):

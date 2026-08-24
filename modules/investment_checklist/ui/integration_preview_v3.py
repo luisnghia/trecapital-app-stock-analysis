@@ -28,6 +28,7 @@ SECTIONS = [
     "👥 Management & Human Intel",
     "📡 Monitoring & Delta Review",
     "📝 Investment Memo & Decision",
+    "🧭 Fisher Top-down & Sector",
     "🏭 Industry & Moat",
     "⭐ Watchlist",
     "🕘 Snapshot & History",
@@ -172,6 +173,7 @@ def _render_delete_review(repo, selected_review, actor: str, state_key: str, com
             f"{counts.get('investment_memos', 0)} memo/{counts.get('thesis_pillars', 0)} thesis pillar/"
             f"{counts.get('investment_risks', 0)} risk/{counts.get('investment_decisions', 0)} signed decision/"
             f"{counts.get('decision_outcomes', 0)} outcome review, "
+            f"{counts.get('topdown_sector_snapshots', 0)} Fisher Top-down/Sector snapshot, "
             f"{counts['inventory_snapshots']} inventory snapshot và {counts['immutable_snapshots']} immutable snapshot gắn với review này. "
             "Audit tombstone vẫn được giữ."
         )
@@ -362,6 +364,9 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     elif section == "📝 Investment Memo & Decision":
         from .investment_decision_journal import render_investment_decision_journal
         render_investment_decision_journal(repo, company_ref_id, review, actor)
+    elif section == "🧭 Fisher Top-down & Sector":
+        from .topdown_sector_context import render_topdown_sector_context
+        render_topdown_sector_context(repo, company_ref_id, review, actor)
     elif section == "🏭 Industry & Moat":
         from .industry_overlay import render_industry_overlay
         render_industry_overlay(

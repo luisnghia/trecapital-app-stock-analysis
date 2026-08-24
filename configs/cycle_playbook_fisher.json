@@ -1,0 +1,51 @@
+{
+  "_meta": {
+    "ten_file": "cycle_playbook_fisher.json",
+    "muc_dich": "Định vị từng ngành theo pha chu kỳ kinh tế, dùng cho Bước 2 của quy trình top-down.",
+    "nguon_goc": [
+      "Fisher Investments on Technology — Chapter 3: bảng pha chu kỳ Trough / Early Cycle / Mid Cycle / Late Cycle / Contraction gắn với Real GDP và Fixed Investment",
+      "Fisher Investments on Consumer Staples — Chapter 1: The Business Cycle's Winds of Change (Staples vs Discretionary qua chu kỳ)",
+      "Fisher Investments on Utilities — Utilities Outperform During Recessions",
+      "Fisher Investments on Telecom — Risk Aversion và Value versus Growth cycles",
+      "Fisher Investments on Health Care — Defensive Nature of Health Care"
+    ],
+    "canh_bao_quan_trong": "Fisher cảnh báo rõ: không có công thức bất biến. Bảng này là điểm xuất phát để đặt câu hỏi, không phải tín hiệu mua bán. Thị trường định giá trước chu kỳ, nên phải so sánh với kỳ vọng đang được định giá sẵn."
+  },
+  "pha_chu_ky": [
+    {
+      "id": "trough",
+      "ten_vi": "Đáy chu kỳ (Trough)",
+      "dac_diem": "GDP chạm đáy, thất nghiệp cao nhất, chính sách tiền tệ nới lỏng mạnh, tâm lý bi quan cực độ. Thị trường cổ phiếu thường tạo đáy TRƯỚC nền kinh tế.",
+      "diem_theo_nganh": {"ENE": -1, "MAT": 1, "IND": 1, "CDI": 3, "CST": 0, "HEA": 0, "FIN": 3, "ITE": 2, "TEL": 0, "UTI": -1, "REA": 2}
+    },
+    {
+      "id": "early",
+      "ten_vi": "Đầu chu kỳ phục hồi (Early Cycle)",
+      "dac_diem": "GDP tăng tốc từ nền thấp, tín dụng mở lại, hàng tồn kho được bổ sung, lãi suất còn thấp. Fisher xem đây là giai đoạn tốt nhất cho nhóm nhạy chu kỳ.",
+      "diem_theo_nganh": {"ENE": 0, "MAT": 2, "IND": 3, "CDI": 3, "CST": -1, "HEA": -1, "FIN": 3, "ITE": 3, "TEL": -1, "UTI": -2, "REA": 2}
+    },
+    {
+      "id": "mid",
+      "ten_vi": "Giữa chu kỳ (Mid Cycle)",
+      "dac_diem": "Tăng trưởng ổn định ở mức cao, công suất sử dụng tăng, chi đầu tư tài sản cố định và chi IT doanh nghiệp bùng nổ, lãi suất bắt đầu nhích lên.",
+      "diem_theo_nganh": {"ENE": 1, "MAT": 2, "IND": 3, "CDI": 1, "CST": -1, "HEA": 0, "FIN": 1, "ITE": 3, "TEL": -1, "UTI": -1, "REA": 1}
+    },
+    {
+      "id": "late",
+      "ten_vi": "Cuối chu kỳ (Late Cycle)",
+      "dac_diem": "Công suất căng, lạm phát và giá hàng hóa tăng, ngân hàng trung ương siết chính sách, đường cong lãi suất phẳng dần. Nhóm hàng hóa và phòng thủ bắt đầu vượt trội.",
+      "diem_theo_nganh": {"ENE": 3, "MAT": 3, "IND": 0, "CDI": -2, "CST": 1, "HEA": 1, "FIN": -1, "ITE": -1, "TEL": 1, "UTI": 1, "REA": -2}
+    },
+    {
+      "id": "contraction",
+      "ten_vi": "Suy thoái / thu hẹp (Contraction)",
+      "dac_diem": "GDP giảm, thất nghiệp tăng, nợ xấu tăng, ngại rủi ro lên cao. Fisher dẫn chứng Tiện ích vượt trội trong hầu hết các kỳ suy thoái.",
+      "diem_theo_nganh": {"ENE": -2, "MAT": -3, "IND": -3, "CDI": -3, "CST": 3, "HEA": 3, "FIN": -3, "ITE": -2, "TEL": 2, "UTI": 3, "REA": -3}
+    }
+  ],
+  "phan_loai_phong_thu_chu_ky": {
+    "chu_ky_manh": ["CDI", "IND", "MAT", "FIN", "REA"],
+    "chu_ky_vua": ["ENE", "ITE"],
+    "phong_thu": ["CST", "HEA", "TEL", "UTI"]
+  }
+}
