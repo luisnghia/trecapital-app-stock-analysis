@@ -10,7 +10,7 @@ import pytest
 
 from adapters.base import ProviderResult
 import module_topdown_engine as engine
-from module_topdown_macro_update import run_macro_update
+from module_topdown_macro_update import resolve_effective_driver_scores, run_macro_update
 from module_topdown_screening_data import screening_row_from_provider
 from module_topdown_snapshot_store import TopDownMacroSnapshotStore, compare_snapshots
 
@@ -112,6 +112,30 @@ def test_standalone_macro_update_uses_world_bank_fallback_and_never_writes_drive
     assert observation["series_code"] == "NY.GDP.MKTP.KD.ZG"
     assert observation["fallback_from"] == "imf_datamapper:NGDP_RPCH"
     assert result["suggestions"][0]["suggested_score"] == 2
+
+
+def test_automatic_driver_suggestion_is_baseline_but_analyst_override_wins():
+    resolved = resolve_effective_driver_scores(
+        {"gdp_growth": 0.0, "inflation": 1.0, "employment": -1.0},
+        {
+            "gdp_growth": "default",
+            "inflation": "analyst_override",
+            "employment": "automatic_suggestion",
+        },
+        [
+            {"driver_id": "gdp_growth", "suggested_score": 2},
+            {"driver_id": "inflation", "suggested_score": -2},
+            {"driver_id": "employment", "suggested_score": None},
+        ],
+    )
+
+    assert resolved["effective_scores"]["gdp_growth"] == 2.0
+    assert resolved["score_sources"]["gdp_growth"] == "automatic_suggestion"
+    assert resolved["effective_scores"]["inflation"] == 1.0
+    assert resolved["score_sources"]["inflation"] == "analyst_override"
+    assert resolved["applied_driver_ids"] == ["gdp_growth"]
+    assert resolved["analyst_override_ids"] == ["inflation"]
+    assert resolved["research_gap_ids"] == ["employment"]
 
 
 def _snapshot_payload(score: float, rank: int) -> dict:

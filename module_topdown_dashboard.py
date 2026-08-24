@@ -32,7 +32,11 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 import module_topdown_engine as E
-from module_topdown_macro_update import available_macro_drivers, run_macro_update
+from module_topdown_macro_update import (
+    available_macro_drivers,
+    resolve_effective_driver_scores,
+    run_macro_update,
+)
 from module_topdown_screening_data import fetch_screening_table, parse_tickers
 from module_topdown_snapshot_store import TopDownMacroSnapshotStore, compare_snapshots
 from tre_log import clear_memory_log, log_event, memory_log_rows
@@ -710,12 +714,25 @@ SS_TRONG_SO = "topdown_trong_so"
 SS_NGANH_CHON = "topdown_nganh_dang_chon"
 SS_SANG_LOC = "topdown_bang_sang_loc"
 SS_MACRO_UPDATE = "topdown_macro_update_standalone"
+SS_DRIVER_SCORE_SOURCES = "topdown_driver_score_sources"
+SS_DRIVER_AUTOMATIC = "topdown_driver_automatic_scores"
 SS_SCREENING_TICKERS = "topdown_screening_tickers"
 
 
 def _init_state() -> None:
     d = E.default_input()
     st.session_state.setdefault(SS_TRIEN_VONG, dict(d.trien_vong_driver))
+    if SS_DRIVER_SCORE_SOURCES not in st.session_state:
+        existing_scores = dict(st.session_state.get(SS_TRIEN_VONG, {}))
+        st.session_state[SS_DRIVER_SCORE_SOURCES] = {
+            str(driver_id): (
+                "analyst_override"
+                if float(existing_scores.get(driver_id, default_score)) != float(default_score)
+                else "default"
+            )
+            for driver_id, default_score in d.trien_vong_driver.items()
+        }
+    st.session_state.setdefault(SS_DRIVER_AUTOMATIC, {})
     st.session_state.setdefault(SS_PHA, d.pha_chu_ky)
     st.session_state.setdefault(SS_BM_ID, d.benchmark_id)
     st.session_state.setdefault(SS_BM_W, dict(d.benchmark_weights))
@@ -796,6 +813,8 @@ def _governed_snapshot_payload(
             "max_deviation_pct": float(inp.lech_toi_da),
             "scoring_weights": {str(key): float(value) for key, value in inp.trong_so.items()},
             "driver_outlook": {str(key): float(value) for key, value in inp.trien_vong_driver.items()},
+            "driver_score_sources": dict(st.session_state.get(SS_DRIVER_SCORE_SOURCES, {})),
+            "automatic_driver_scores": dict(st.session_state.get(SS_DRIVER_AUTOMATIC, {})),
         },
         "ranking": ranking,
         "weights": weights,
@@ -914,9 +933,13 @@ def _render_sidebar() -> None:
                 SS_TRONG_SO,
                 SS_SANG_LOC,
                 SS_MACRO_UPDATE,
+                SS_DRIVER_SCORE_SOURCES,
+                SS_DRIVER_AUTOMATIC,
                 SS_SCREENING_TICKERS,
             ]:
                 st.session_state.pop(k, None)
+            for driver in E.drivers_config().get("drivers", []):
+                st.session_state.pop(f"drv_{driver['id']}", None)
             log_event("INFO", "ui", "Người dùng đặt lại toàn bộ tham số.")
             st.rerun()
 
@@ -999,11 +1022,53 @@ def _tab_khung_phuong_phap() -> None:
     )
 
 
+def _apply_macro_suggestions_to_state(result: dict) -> dict:
+    """Apply automatic scores to Streamlit state without touching analyst overrides."""
+    resolution = resolve_effective_driver_scores(
+        dict(st.session_state.get(SS_TRIEN_VONG, {})),
+        dict(st.session_state.get(SS_DRIVER_SCORE_SOURCES, {})),
+        result.get("suggestions", []),
+    )
+    st.session_state[SS_TRIEN_VONG] = resolution["effective_scores"]
+    st.session_state[SS_DRIVER_SCORE_SOURCES] = resolution["score_sources"]
+
+    automatic_scores = dict(st.session_state.get(SS_DRIVER_AUTOMATIC, {}))
+    automatic_scores.update(resolution["automatic_scores"])
+    st.session_state[SS_DRIVER_AUTOMATIC] = automatic_scores
+
+    # Widget keys must be synchronized before the sliders are rendered later in this run.
+    for driver_id in resolution["applied_driver_ids"]:
+        st.session_state[f"drv_{driver_id}"] = float(resolution["effective_scores"][driver_id])
+
+    result["score_application"] = {
+        "applied_driver_ids": list(resolution["applied_driver_ids"]),
+        "analyst_override_ids": list(resolution["analyst_override_ids"]),
+        "research_gap_ids": list(resolution["research_gap_ids"]),
+        "precedence_rule": "analyst_override > automatic_suggestion > default",
+    }
+    return resolution
+
+
+def _mark_driver_analyst_override(driver_id: str) -> None:
+    """Widget callback: update the single source of truth before the dashboard is recalculated."""
+    widget_key = f"drv_{driver_id}"
+    if widget_key not in st.session_state:
+        return
+    score = float(st.session_state[widget_key])
+    scores = dict(st.session_state.get(SS_TRIEN_VONG, {}))
+    sources = dict(st.session_state.get(SS_DRIVER_SCORE_SOURCES, {}))
+    scores[driver_id] = score
+    sources[driver_id] = "analyst_override"
+    st.session_state[SS_TRIEN_VONG] = scores
+    st.session_state[SS_DRIVER_SCORE_SOURCES] = sources
+    log_event("INFO", "ui", f"Analyst override driver {driver_id}: {score:+.0f}.")
+
+
 def _render_macro_update_controls() -> None:
     st.markdown("<div class='tre-section-title'>Cập nhật dữ liệu vĩ mô mới nhất</div>", unsafe_allow_html=True)
     st.caption(
         "Đây là nơi cập nhật thông tin vĩ mô của Fisher Top-Down. Nguồn chỉ được gọi khi bạn bấm nút; "
-        "không polling, không cron và không tự thay đổi điểm driver."
+        "không polling, không cron. Điểm gợi ý hợp lệ được dùng tự động; điểm analyst tự chấm luôn ưu tiên."
     )
     try:
         available = available_macro_drivers()
@@ -1024,6 +1089,7 @@ def _render_macro_update_controls() -> None:
         format_func=lambda driver_id: names.get(driver_id, driver_id),
         key="topdown_macro_driver_selection",
     )
+    rerun_after_update = False
     if st.button(
         "🔄 Cập nhật dữ liệu vĩ mô mới nhất",
         type="primary",
@@ -1034,15 +1100,21 @@ def _render_macro_update_controls() -> None:
         try:
             with st.spinner("Đang gọi đúng các nguồn đã chọn…"):
                 result = run_macro_update(selected)
+            resolution = _apply_macro_suggestions_to_state(result)
             st.session_state[SS_MACRO_UPDATE] = result
             log_event(
                 "INFO",
                 "macro_update",
-                f"Cập nhật vĩ mô: {result['success_count']} thành công, {result['failure_count']} lỗi.",
+                f"Cập nhật vĩ mô: {result['success_count']} thành công, {result['failure_count']} lỗi; "
+                f"tự áp dụng {len(resolution['applied_driver_ids'])} điểm, "
+                f"giữ {len(resolution['analyst_override_ids'])} analyst override.",
             )
+            rerun_after_update = True
         except Exception as exc:  # noqa: BLE001
             st.error(f"Không chạy được cập nhật vĩ mô: {exc}")
             log_event("ERROR", "macro_update", f"Cập nhật vĩ mô lỗi: {exc}")
+    if rerun_after_update:
+        st.rerun()
 
     latest = st.session_state.get(SS_MACRO_UPDATE)
     if not latest:
@@ -1073,12 +1145,20 @@ def _render_macro_update_controls() -> None:
         render_bang_tinh(display, height=min(440, 85 + 36 * len(display)))
     suggestions = latest.get("suggestions", [])
     if suggestions:
-        with st.expander("Gợi ý điểm để analyst tham khảo — không tự áp dụng", expanded=False):
+        current_scores = dict(st.session_state.get(SS_TRIEN_VONG, {}))
+        score_sources = dict(st.session_state.get(SS_DRIVER_SCORE_SOURCES, {}))
+        with st.expander("Điểm gợi ý đã dùng tự động và căn cứ chấm", expanded=False):
             suggestion_df = pd.DataFrame(
                 [
                     {
                         "Driver": row.get("driver_name"),
                         "Điểm gợi ý": row.get("suggested_score"),
+                        "Điểm đang dùng": current_scores.get(str(row.get("driver_id", ""))),
+                        "Nguồn điểm": {
+                            "analyst_override": "Analyst override",
+                            "automatic_suggestion": "Tự động từ dữ liệu",
+                            "default": "Mặc định / chưa có dữ liệu",
+                        }.get(score_sources.get(str(row.get("driver_id", ""))), "Mặc định / chưa có dữ liệu"),
                         "Độ tin cậy": row.get("confidence"),
                         "Lập luận": row.get("rationale"),
                         "Research gap": row.get("data_gap_reason"),
@@ -1087,8 +1167,11 @@ def _render_macro_update_controls() -> None:
                 ]
             )
             render_bang_tinh(suggestion_df, height=min(420, 85 + 46 * len(suggestion_df)))
-            st.warning(
-                "App không tự chấp nhận gợi ý. Nếu đồng ý, analyst tự điều chỉnh slider tương ứng bên dưới."
+            application = latest.get("score_application", {})
+            st.info(
+                f"Đã tự áp dụng {len(application.get('applied_driver_ids', []))} điểm hợp lệ; "
+                f"giữ nguyên {len(application.get('analyst_override_ids', []))} điểm analyst override. "
+                "Driver không có điểm gợi ý tiếp tục giữ giá trị trước đó."
             )
     errors = latest.get("errors", [])
     if errors:
@@ -1097,7 +1180,6 @@ def _render_macro_update_controls() -> None:
 
 
 def _tab_drivers() -> None:
-    inp = _current_input()
     cfg = E.drivers_config()
     thang = cfg.get("thang_trien_vong", {})
 
@@ -1114,6 +1196,8 @@ def _tab_drivers() -> None:
         groups.setdefault(d.get("nhom", E.NHOM_KT), []).append(d)
 
     tv = dict(st.session_state.get(SS_TRIEN_VONG, {}))
+    score_sources = dict(st.session_state.get(SS_DRIVER_SCORE_SOURCES, {}))
+    automatic_scores = dict(st.session_state.get(SS_DRIVER_AUTOMATIC, {}))
     changed = False
     for nhom, icon in [(E.NHOM_KT, "📈"), (E.NHOM_CT, "🏛️"), (E.NHOM_TL, "🧠")]:
         with st.expander(f"{icon} Driver {nhom} ({len(groups.get(nhom, []))} yếu tố)", expanded=(nhom == E.NHOM_KT)):
@@ -1127,15 +1211,33 @@ def _tab_drivers() -> None:
                         value=old if old in {-2.0, -1.0, 0.0, 1.0, 2.0} else 0.0,
                         format_func=lambda x: f"{int(x):+d}  {thang.get(str(int(x)), '')}",
                         key=f"drv_{d['id']}",
+                        on_change=_mark_driver_analyst_override,
+                        args=(d["id"],),
                     )
                     if new != old:
                         tv[d["id"]] = float(new)
+                        score_sources[d["id"]] = "analyst_override"
                         changed = True
                     else:
                         tv[d["id"]] = float(new)
+                        score_sources.setdefault(d["id"], "default")
+
+                    source = score_sources.get(d["id"], "default")
+                    if source == "analyst_override":
+                        auto_note = (
+                            f"; điểm tự động gần nhất {int(automatic_scores[d['id']]):+d}"
+                            if d["id"] in automatic_scores
+                            else ""
+                        )
+                        st.caption(f"Nguồn điểm: **Analyst override**{auto_note}")
+                    elif source == "automatic_suggestion":
+                        st.caption("Nguồn điểm: **Tự động từ dữ liệu vĩ mô mới nhất**")
+                    else:
+                        st.caption("Nguồn điểm: **Mặc định / chưa có dữ liệu tự động**")
     st.session_state[SS_TRIEN_VONG] = tv
+    st.session_state[SS_DRIVER_SCORE_SOURCES] = score_sources
     if changed:
-        log_event("INFO", "ui", "Người dùng cập nhật triển vọng driver.")
+        log_event("INFO", "ui", "Analyst cập nhật triển vọng driver; analyst override được ưu tiên.")
 
     inp = _current_input()
     st.markdown("<div class='tre-section-title'>Bảng tổng hợp driver và tác động</div>", unsafe_allow_html=True)

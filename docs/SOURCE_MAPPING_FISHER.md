@@ -134,6 +134,19 @@ App hiện cảnh báo đỏ liên tục khi đang dùng benchmark chưa kiểm 
 của benchmark đang dùng" trong bảng tự kiểm tra luôn báo Cảnh báo cho đến khi người dùng chuyển
 sang benchmark đã kiểm chứng hoặc tự nhập số liệu từ nguồn chính thống.
 
+### B.8. Điểm Portfolio Driver tự động và quyền ưu tiên analyst
+
+Khi người dùng bấm **Cập nhật dữ liệu vĩ mô mới nhất**, app dùng quy tắc hướng biến đã khai báo
+trong `topdown_phase9_sources.json` để chuyển thay đổi của series chính thống thành điểm gợi ý
+`[-2; +2]`. Điểm gợi ý hợp lệ trở thành baseline tự động của Portfolio Driver; nguồn không đủ
+dữ liệu hoặc chỉ là proxy chưa có quy tắc chấm vẫn giữ trạng thái Research gap.
+
+Thứ tự ưu tiên luôn là: **Analyst override > Điểm gợi ý tự động > Giá trị mặc định**. Khi analyst
+điều chỉnh slider, app giữ điểm analyst và các lần rerun/cập nhật tiếp theo không ghi đè. Snapshot
+vĩ mô lưu đồng thời điểm hiệu lực, nguồn điểm và baseline tự động gần nhất để có thể audit về sau.
+Logic này chỉ áp dụng trong module Fisher Top-Down độc lập; không ghi Q01–Q59, không sửa đánh giá
+doanh nghiệp và không tạo quyết định mua/bán.
+
 ---
 
 ## C. Những gì app KHÔNG lấy từ tài liệu nguồn

@@ -1,8 +1,9 @@
 """Standalone latest-on-click macro update for Fisher Top-Down.
 
 The source adapters are shared with the existing governed data layer, but this workflow is not tied
-to a company, a Checklist review, Q01--Q59, or an analyst-acceptance table.  A fetch only returns
-observations and non-binding suggestions; the Fisher page never changes a driver score automatically.
+to a company, a Checklist review, Q01--Q59, or an analyst-acceptance table. A fetch returns
+observations and rule-based score suggestions. The Fisher page may use valid suggestions as its
+automatic baseline; a score explicitly changed by the analyst always has priority.
 """
 
 from __future__ import annotations
@@ -24,7 +25,8 @@ from modules.investment_checklist.services.topdown_data_update import (
 )
 
 
-METHOD_VERSION = "fisher-topdown-latest-on-click-v1"
+METHOD_VERSION = "fisher-topdown-latest-on-click-v2"
+VALID_DRIVER_SCORES = {-2.0, -1.0, 0.0, 1.0, 2.0}
 
 # IMF DataMapper intermittently returns HTTP 403 from Streamlit Cloud.  These official WDI series
 # preserve a usable Vietnam macro proxy without pretending that the source/method is identical.
@@ -55,6 +57,54 @@ def available_macro_drivers(registry: dict[str, Any] | None = None) -> list[dict
         for entry in registry["driver_sources"]
         if entry.get("adapter")
     ]
+
+
+def resolve_effective_driver_scores(
+    current_scores: dict[str, float],
+    score_sources: dict[str, str],
+    suggestions: Iterable[dict[str, Any]],
+) -> dict[str, Any]:
+    """Apply valid automatic suggestions while preserving every analyst override."""
+    effective_scores = {str(key): float(value) for key, value in current_scores.items()}
+    effective_sources = {str(key): str(value) for key, value in score_sources.items()}
+    automatic_scores: dict[str, float] = {}
+    applied_driver_ids: list[str] = []
+    analyst_override_ids: list[str] = []
+    research_gap_ids: list[str] = []
+
+    for row in suggestions:
+        driver_id = str(row.get("driver_id", "")).strip()
+        if not driver_id:
+            continue
+        raw_score = row.get("suggested_score")
+        if raw_score is None:
+            research_gap_ids.append(driver_id)
+            continue
+        try:
+            score = float(raw_score)
+        except (TypeError, ValueError):
+            research_gap_ids.append(driver_id)
+            continue
+        if score not in VALID_DRIVER_SCORES:
+            research_gap_ids.append(driver_id)
+            continue
+
+        automatic_scores[driver_id] = score
+        if effective_sources.get(driver_id) == "analyst_override":
+            analyst_override_ids.append(driver_id)
+            continue
+        effective_scores[driver_id] = score
+        effective_sources[driver_id] = "automatic_suggestion"
+        applied_driver_ids.append(driver_id)
+
+    return {
+        "effective_scores": effective_scores,
+        "score_sources": effective_sources,
+        "automatic_scores": automatic_scores,
+        "applied_driver_ids": applied_driver_ids,
+        "analyst_override_ids": analyst_override_ids,
+        "research_gap_ids": research_gap_ids,
+    }
 
 
 def _world_bank_fallback_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
@@ -190,7 +240,10 @@ def run_macro_update(
         "observations": observations,
         "suggestions": suggestions,
         "errors": errors,
-        "guardrail": "manual_click_only; no polling; no driver-score write; no company/checklist write",
+        "guardrail": (
+            "manual_click_only; no polling; valid suggestions may become automatic driver baselines; "
+            "analyst override wins; no company/checklist write"
+        ),
     }
 
 
@@ -198,5 +251,6 @@ __all__ = [
     "METHOD_VERSION",
     "WORLD_BANK_FALLBACKS",
     "available_macro_drivers",
+    "resolve_effective_driver_scores",
     "run_macro_update",
 ]
