@@ -28,7 +28,6 @@ SECTIONS = [
     "👥 Management & Human Intel",
     "📡 Monitoring & Delta Review",
     "📝 Investment Memo & Decision",
-    "🧭 Fisher Top-down & Sector",
     "🔄 Latest Data Update",
     "🏭 Industry & Moat",
     "⭐ Watchlist",
@@ -369,9 +368,6 @@ def render_investment_checklist(host, *, repo=None, data_provider=None, theme=No
     elif section == "📝 Investment Memo & Decision":
         from .investment_decision_journal import render_investment_decision_journal
         render_investment_decision_journal(repo, company_ref_id, review, actor)
-    elif section == "🧭 Fisher Top-down & Sector":
-        from .topdown_sector_context import render_topdown_sector_context
-        render_topdown_sector_context(repo, company_ref_id, review, actor)
     elif section == "🔄 Latest Data Update":
         from .topdown_data_update import render_topdown_data_update
         render_topdown_data_update(repo, company_ref_id, review, actor)

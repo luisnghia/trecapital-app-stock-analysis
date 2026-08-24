@@ -295,8 +295,8 @@ def test_phase8_route_standalone_page_and_no_ai_no_assessment_contract():
     ui = Path("modules/investment_checklist/ui/topdown_sector_context.py").read_text(encoding="utf-8").lower()
     dashboard = Path("module_topdown_dashboard.py").read_text(encoding="utf-8")
     nav = Path("tre_sidebar_nav.py").read_text(encoding="utf-8")
-    assert '"🧭 Fisher Top-down & Sector"' in active_shell
-    assert 'elif section == "🧭 Fisher Top-down & Sector":' in active_shell
+    assert '"🧭 Fisher Top-down & Sector"' not in active_shell
+    assert 'elif section == "🧭 Fisher Top-down & Sector":' not in active_shell
     assert "pages/06_Phan_tich_TopDown_Nganh.py" in nav
     assert "render_bang_thuat_ngu(df)" in dashboard
     assert "table-layout:fixed" in dashboard
