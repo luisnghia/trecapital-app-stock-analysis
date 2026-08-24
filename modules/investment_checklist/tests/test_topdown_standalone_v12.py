@@ -1,17 +1,26 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 import sqlite3
 
 import httpx
+from openpyxl import load_workbook
 import pandas as pd
+from pypdf import PdfReader
 import pytest
 
 from adapters.base import ProviderResult
 import module_topdown_engine as engine
 from module_topdown_macro_update import resolve_effective_driver_scores, run_macro_update
 from module_topdown_screening_data import screening_row_from_provider
+from module_topdown_snapshot_export import (
+    build_snapshot_excel_bytes,
+    build_snapshot_pdf_bytes,
+    snapshot_detail_frames,
+    snapshot_export_filename,
+)
 from module_topdown_snapshot_store import TopDownMacroSnapshotStore, compare_snapshots
 
 
@@ -184,6 +193,149 @@ def test_macro_snapshot_store_is_append_only_and_comparable(tmp_path):
         sqlite3.IntegrityError, match="append-only"
     ):
         conn.execute("UPDATE topdown_macro_snapshots SET snapshot_label='mutated' WHERE id=1")
+
+
+def test_snapshot_detail_and_excel_pdf_exports_use_the_immutable_payload(tmp_path):
+    payload = {
+        "schema": "fisher-topdown-macro-snapshot-v1",
+        "methodology_version": "V1.4",
+        "generated_at": "2026-08-24T09:12:57+00:00",
+        "cycle_phase": "mid",
+        "benchmark": {"id": "vnindex", "name": "VN-Index"},
+        "parameters": {
+            "driver_outlook": {"gdp_growth": 1.0, "inflation": -1.0},
+            "driver_score_sources": {
+                "gdp_growth": "automatic_suggestion",
+                "inflation": "analyst_override",
+            },
+            "automatic_driver_scores": {"gdp_growth": 1.0, "inflation": 0.0},
+        },
+        "latest_macro_update": {
+            "retrieved_at": "2026-08-24T09:12:57+00:00",
+            "observations": [
+                {
+                    "driver_id": "gdp_growth",
+                    "driver_name": "Tăng trưởng GDP thực",
+                    "source_code": "world_bank_wdi",
+                    "series_code": "NY.GDP.MKTP.KD.ZG",
+                    "period_label": "2025",
+                    "value_numeric": 8.02,
+                    "previous_value_numeric": 7.04,
+                    "delta_numeric": 0.98,
+                    "unit": "%",
+                    "freshness_status": "current",
+                    "source_url": "https://data.worldbank.org/",
+                }
+            ],
+            "suggestions": [
+                {
+                    "driver_id": "gdp_growth",
+                    "driver_name": "Tăng trưởng GDP thực",
+                    "suggested_score": 1,
+                    "confidence": "high",
+                    "rationale": "Tăng nhanh hơn kỳ trước.",
+                }
+            ],
+        },
+        "ranking": [
+            {
+                "rank": 1,
+                "sector_code": "IND",
+                "sector_name": "Công nghiệp",
+                "character": "Chu kỳ",
+                "economy_score": 3.0,
+                "politics_score": 0.0,
+                "sentiment_score": 0.0,
+                "cycle_score": 3.0,
+                "score": 60.0,
+            }
+        ],
+        "weights": [
+            {
+                "sector_code": "IND",
+                "sector_name": "Công nghiệp",
+                "sector_score": 60.0,
+                "signal": "Tăng tỷ trọng",
+                "tilt_factor": 1.1,
+                "benchmark_weight_pct": 10.0,
+                "proposed_weight_pct": 11.0,
+                "tilt_pct": 1.0,
+            }
+        ],
+        "sync_checks": [{"Hạng mục kiểm tra": "Tổng tỷ trọng", "Tình trạng": "Đạt"}],
+    }
+    store = TopDownMacroSnapshotStore(tmp_path / "export.db")
+    store.initialize()
+    snapshot = store.save(
+        payload,
+        as_of_date="2026-08-24",
+        snapshot_label="Baseline vĩ mô",
+        save_reason="Lưu proxy tháng 8",
+        created_by="analyst",
+        methodology_version="V1.4",
+        source_registry_hash="registry-hash",
+    )
+    catalog = [
+        {"id": "gdp_growth", "nhom": "Kinh tế", "ten_vi": "Tăng trưởng GDP thực"},
+        {"id": "inflation", "nhom": "Kinh tế", "ten_vi": "Lạm phát"},
+    ]
+    frames = snapshot_detail_frames(
+        snapshot,
+        driver_catalog=catalog,
+        cycle_labels={"mid": "Giữa chu kỳ"},
+    )
+    assert list(frames) == [
+        "Tổng quan",
+        "Portfolio Drivers",
+        "Dữ liệu vĩ mô",
+        "Xếp hạng ngành",
+        "Tỷ trọng đề xuất",
+        "Kiểm tra dữ liệu",
+    ]
+    drivers = frames["Portfolio Drivers"].set_index("Driver ID")
+    assert drivers.loc["gdp_growth", "Nguồn điểm"] == "Gợi ý tự động"
+    assert drivers.loc["inflation", "Nguồn điểm"] == "Analyst tự chấm"
+    assert frames["Dữ liệu vĩ mô"].iloc[0]["Giá trị"] == pytest.approx(8.02)
+
+    excel_bytes = build_snapshot_excel_bytes(
+        snapshot,
+        driver_catalog=catalog,
+        cycle_labels={"mid": "Giữa chu kỳ"},
+    )
+    assert excel_bytes.startswith(b"PK")
+    workbook = load_workbook(BytesIO(excel_bytes), data_only=False)
+    assert workbook.sheetnames == [
+        "Tổng quan",
+        "Portfolio Drivers",
+        "Dữ liệu vĩ mô",
+        "Xếp hạng ngành",
+        "Tỷ trọng đề xuất",
+        "Kiểm tra dữ liệu",
+    ]
+    assert workbook["Portfolio Drivers"]["D5"].value == -1.0
+    assert workbook["Portfolio Drivers"]["D5"].font.color.rgb == "00C00000"
+
+    pdf_bytes = build_snapshot_pdf_bytes(
+        snapshot,
+        driver_catalog=catalog,
+        cycle_labels={"mid": "Giữa chu kỳ"},
+    )
+    assert pdf_bytes.startswith(b"%PDF")
+    pdf = PdfReader(BytesIO(pdf_bytes))
+    assert len(pdf.pages) >= 6
+    assert "Fisher Top-Down" in (pdf.pages[0].extract_text() or "")
+    assert snapshot_export_filename(snapshot, "xlsx") == "fisher_topdown_snapshot_v1_2026-08-24.xlsx"
+
+
+def test_snapshot_history_ui_is_read_only_and_supports_arbitrary_comparison_and_exports():
+    dashboard = Path("module_topdown_dashboard.py").read_text(encoding="utf-8")
+    assert '"Chọn snapshot để xem chi tiết"' in dashboard
+    assert '"Bản mới"' in dashboard and '"Bản gốc"' in dashboard
+    assert '"⬇️ Tải snapshot Excel"' in dashboard
+    assert '"⬇️ Tải snapshot PDF"' in dashboard
+    assert "Snapshot cũ không được nạp ngược" in dashboard
+    assert "store.update(" not in dashboard
+    assert "store.delete(" not in dashboard
 
 
 def test_fisher_page_and_checklist_routes_are_decoupled():

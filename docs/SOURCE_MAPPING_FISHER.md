@@ -147,6 +147,17 @@ vĩ mô lưu đồng thời điểm hiệu lực, nguồn điểm và baseline t
 Logic này chỉ áp dụng trong module Fisher Top-Down độc lập; không ghi Q01–Q59, không sửa đánh giá
 doanh nghiệp và không tạo quyết định mua/bán.
 
+### B.9. Lịch sử proxy vĩ mô bất biến
+
+- Mỗi snapshot được lưu theo cơ chế append-only và giữ nguyên payload, hash, phiên bản phương pháp,
+  nguồn điểm, dữ liệu vĩ mô, pha chu kỳ, xếp hạng ngành và tỷ trọng đề xuất tại thời điểm lưu.
+- Giao diện lịch sử chỉ đọc: người dùng có thể mở lại bất kỳ snapshot nào nhưng không thể sửa, xóa
+  hoặc nạp ngược điểm cũ vào phiên phân tích hiện tại.
+- Hai snapshot bất kỳ có thể được chọn để so sánh thay đổi điểm driver và xếp hạng ngành; không giới
+  hạn ở hai phiên bản gần nhất.
+- File Excel/PDF được tạo từ đúng payload bất biến của snapshot đang chọn, không lấy lại dữ liệu mới
+  và không thay đổi nội dung đã lưu.
+
 ---
 
 ## C. Những gì app KHÔNG lấy từ tài liệu nguồn

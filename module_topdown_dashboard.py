@@ -38,6 +38,13 @@ from module_topdown_macro_update import (
     run_macro_update,
 )
 from module_topdown_screening_data import fetch_screening_table, parse_tickers
+from module_topdown_snapshot_export import (
+    build_snapshot_excel_bytes,
+    build_snapshot_pdf_bytes,
+    snapshot_detail_frames,
+    snapshot_export_filename,
+    snapshot_option_label,
+)
 from module_topdown_snapshot_store import TopDownMacroSnapshotStore, compare_snapshots
 from tre_log import clear_memory_log, log_event, memory_log_rows
 
@@ -1361,9 +1368,125 @@ def _tab_snapshot_vi_mo(
     )
     render_bang_tinh(history, height=min(430, 90 + 36 * len(history)))
 
+    snapshot_by_version = {int(row["version_no"]): row for row in snapshots}
+    versions = list(snapshot_by_version)
+    driver_catalog = E.drivers_config().get("drivers", [])
+    cycle_labels = {
+        str(row.get("id")): str(row.get("ten_vi", row.get("id", "")))
+        for row in E.cycle_config().get("pha_chu_ky", [])
+    }
+
+    st.markdown("<div class='tre-section-title'>Mở lại một snapshot đã lưu</div>", unsafe_allow_html=True)
+    st.caption(
+        "Chế độ chỉ đọc: xem toàn bộ dữ liệu và kết quả tại thời điểm lưu. "
+        "Snapshot cũ không được nạp ngược vào điểm hiện tại, không thể sửa và không thể xóa."
+    )
+    selected_version = st.selectbox(
+        "Chọn snapshot để xem chi tiết",
+        versions,
+        index=0,
+        format_func=lambda version: snapshot_option_label(snapshot_by_version[int(version)]),
+        key="topdown_snapshot_detail_version",
+    )
+    selected_snapshot = snapshot_by_version[int(selected_version)]
+    selected_payload = selected_snapshot.get("payload", {})
+    selected_benchmark = selected_payload.get("benchmark", {}) if isinstance(selected_payload, dict) else {}
+    selected_cycle = str(selected_payload.get("cycle_phase", "")) if isinstance(selected_payload, dict) else ""
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Phiên bản", f"#{selected_snapshot['version_no']}")
+    m2.metric("Ngày đánh giá", str(selected_snapshot.get("as_of_date", "—")))
+    m3.metric("Pha chu kỳ", cycle_labels.get(selected_cycle, selected_cycle or "—"))
+    m4.metric(
+        "Benchmark",
+        str(selected_benchmark.get("name") or selected_benchmark.get("id") or "—")
+        if isinstance(selected_benchmark, dict)
+        else "—",
+    )
+    st.caption(
+        f"{selected_snapshot.get('snapshot_label', '')} · Lý do: {selected_snapshot.get('save_reason', '')} · "
+        f"Người lưu: {selected_snapshot.get('created_by', '')} · Tạo lúc: {selected_snapshot.get('created_at', '')}"
+    )
+
+    detail_frames = snapshot_detail_frames(
+        selected_snapshot,
+        driver_catalog=driver_catalog,
+        cycle_labels=cycle_labels,
+    )
+    detail_expanders = [
+        ("Portfolio Drivers và nguồn điểm", "Portfolio Drivers", True),
+        ("Dữ liệu vĩ mô tại thời điểm lưu", "Dữ liệu vĩ mô", False),
+        ("Xếp hạng ngành", "Xếp hạng ngành", False),
+        ("Tỷ trọng đề xuất", "Tỷ trọng đề xuất", False),
+        ("Kiểm tra tính nhất quán", "Kiểm tra dữ liệu", False),
+        ("Metadata và dấu vết kiểm toán", "Tổng quan", False),
+    ]
+    for title, frame_name, expanded in detail_expanders:
+        frame = detail_frames[frame_name]
+        with st.expander(title, expanded=expanded):
+            render_bang_tinh(frame, height=min(460, 100 + 38 * max(1, len(frame))))
+
+    st.markdown("**Tải snapshot đang xem**")
+    export_excel, export_pdf = st.columns(2)
+    try:
+        excel_bytes = build_snapshot_excel_bytes(
+            selected_snapshot,
+            driver_catalog=driver_catalog,
+            cycle_labels=cycle_labels,
+        )
+        export_excel.download_button(
+            "⬇️ Tải snapshot Excel",
+            excel_bytes,
+            snapshot_export_filename(selected_snapshot, "xlsx"),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key=f"topdown_snapshot_excel_{selected_snapshot['version_no']}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        log_event("WARNING", "macro_snapshot", f"Không xuất được snapshot Excel: {exc}")
+        export_excel.info("Chưa xuất được Excel cho snapshot này.")
+    try:
+        pdf_bytes = build_snapshot_pdf_bytes(
+            selected_snapshot,
+            driver_catalog=driver_catalog,
+            cycle_labels=cycle_labels,
+        )
+        export_pdf.download_button(
+            "⬇️ Tải snapshot PDF",
+            pdf_bytes,
+            snapshot_export_filename(selected_snapshot, "pdf"),
+            "application/pdf",
+            use_container_width=True,
+            key=f"topdown_snapshot_pdf_{selected_snapshot['version_no']}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        log_event("WARNING", "macro_snapshot", f"Không xuất được snapshot PDF: {exc}")
+        export_pdf.info("Chưa xuất được PDF cho snapshot này.")
+
     if len(snapshots) >= 2:
-        st.markdown("<div class='tre-section-title'>Thay đổi so với snapshot liền trước</div>", unsafe_allow_html=True)
-        delta = compare_snapshots(snapshots[0], snapshots[1])
+        st.markdown("<div class='tre-section-title'>So sánh hai snapshot bất kỳ</div>", unsafe_allow_html=True)
+        compare_left, compare_right = st.columns(2)
+        newer_version = compare_left.selectbox(
+            "Bản mới",
+            versions,
+            index=0,
+            format_func=lambda version: snapshot_option_label(snapshot_by_version[int(version)]),
+            key="topdown_snapshot_compare_newer",
+        )
+        older_version = compare_right.selectbox(
+            "Bản gốc",
+            versions,
+            index=1,
+            format_func=lambda version: snapshot_option_label(snapshot_by_version[int(version)]),
+            key="topdown_snapshot_compare_older",
+        )
+        if int(newer_version) == int(older_version):
+            st.info("Hãy chọn hai snapshot khác nhau để xem thay đổi.")
+            return
+        delta = compare_snapshots(
+            snapshot_by_version[int(newer_version)],
+            snapshot_by_version[int(older_version)],
+        )
         d1, d2 = st.columns(2)
         with d1:
             st.markdown("**Driver thay đổi**")
