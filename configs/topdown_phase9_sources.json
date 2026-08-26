@@ -1,0 +1,448 @@
+{
+  "_meta": {
+    "version": "phase9-source-registry-v1",
+    "purpose": "Danh mục nguồn cho Phase 9. Chỉ truy xuất khi analyst bấm Cập nhật dữ liệu mới nhất; không polling, không cron, không realtime.",
+    "country": "VNM",
+    "guardrail": "Nguồn không có API hoặc không có phép đo đáng tin cậy chỉ tạo research gap; app không suy đoán và không tự ghi assessment/decision."
+  },
+  "sources": {
+    "imf_datamapper": {
+      "publisher": "International Monetary Fund",
+      "tier": "official_international",
+      "access_mode": "api_no_key",
+      "base_url": "https://www.imf.org/external/datamapper/api/v2",
+      "homepage": "https://www.imf.org/external/datamapper/api/"
+    },
+    "world_bank_wdi": {
+      "publisher": "World Bank",
+      "tier": "official_international",
+      "access_mode": "api_no_key",
+      "base_url": "https://api.worldbank.org/v2",
+      "homepage": "https://datahelpdesk.worldbank.org/knowledgebase/articles/889392"
+    },
+    "fred": {
+      "publisher": "Federal Reserve Bank of St. Louis",
+      "tier": "official_international",
+      "access_mode": "api_key_optional",
+      "base_url": "https://api.stlouisfed.org/fred",
+      "homepage": "https://fred.stlouisfed.org/docs/api/fred/"
+    },
+    "eia": {
+      "publisher": "U.S. Energy Information Administration",
+      "tier": "official_international",
+      "access_mode": "api_key_optional",
+      "base_url": "https://api.eia.gov/v2",
+      "homepage": "https://www.eia.gov/opendata/documentation.php"
+    },
+    "nso": {
+      "publisher": "Cục Thống kê Việt Nam",
+      "tier": "official_vietnam",
+      "access_mode": "official_publication",
+      "homepage": "https://www.nso.gov.vn/"
+    },
+    "sbv": {
+      "publisher": "Ngân hàng Nhà nước Việt Nam",
+      "tier": "official_vietnam",
+      "access_mode": "official_publication",
+      "homepage": "https://www.sbv.gov.vn/"
+    },
+    "hnx": {
+      "publisher": "Sở Giao dịch Chứng khoán Hà Nội",
+      "tier": "official_vietnam",
+      "access_mode": "official_publication",
+      "homepage": "https://www.hnx.vn/"
+    },
+    "hose": {
+      "publisher": "Sở Giao dịch Chứng khoán TP.HCM",
+      "tier": "official_vietnam",
+      "access_mode": "official_publication",
+      "homepage": "https://www.hsx.vn/"
+    },
+    "vsdc": {
+      "publisher": "Tổng công ty Lưu ký và Bù trừ Chứng khoán Việt Nam",
+      "tier": "official_vietnam",
+      "access_mode": "official_publication",
+      "homepage": "https://www.vsd.vn/"
+    },
+    "mof": {
+      "publisher": "Bộ Tài chính",
+      "tier": "official_vietnam",
+      "access_mode": "official_publication",
+      "homepage": "https://ckns.mof.gov.vn/"
+    },
+    "customs_trade_portal": {
+      "publisher": "Hải quan Việt Nam / Vietnam Trade Information Portal",
+      "tier": "official_vietnam",
+      "access_mode": "official_publication",
+      "homepage": "https://www.vietnamtradeportal.gov.vn/"
+    },
+    "moit": {
+      "publisher": "Bộ Công Thương",
+      "tier": "official_vietnam",
+      "access_mode": "official_publication",
+      "homepage": "https://moit.gov.vn/"
+    },
+    "legal_portal": {
+      "publisher": "Cổng thông tin văn bản Chính phủ / CSDL pháp luật quốc gia",
+      "tier": "official_vietnam",
+      "access_mode": "official_publication",
+      "homepage": "https://vanban.chinhphu.vn/"
+    },
+    "ip_vietnam": {
+      "publisher": "Cục Sở hữu trí tuệ",
+      "tier": "official_vietnam",
+      "access_mode": "official_publication",
+      "homepage": "https://ipvietnam.gov.vn/"
+    },
+    "trecapital_internal": {
+      "publisher": "Trecapital Data Layer",
+      "tier": "internal_derived",
+      "access_mode": "internal_calculation",
+      "homepage": ""
+    },
+    "licensed_consensus": {
+      "publisher": "FiinPro-X / licensed consensus provider",
+      "tier": "licensed_optional",
+      "access_mode": "licensed_optional",
+      "homepage": "https://www.fiingroup.vn/en/fiinpro-x.html"
+    }
+  },
+  "driver_sources": [
+    {
+      "driver_id": "gdp_growth",
+      "driver_name": "Tăng trưởng GDP thực",
+      "mode": "automatic",
+      "source_code": "imf_datamapper",
+      "adapter": "imf_datamapper",
+      "series_code": "NGDP_RPCH",
+      "frequency": "annual",
+      "unit": "%",
+      "direction_multiplier": 1,
+      "stale_after_days": 550,
+      "score_rule": {"enabled": true, "mild_delta": 0.25, "strong_delta": 1.0},
+      "note": "Dự báo/ước tính WEO mới nhất; analyst vẫn phải đối chiếu số thực tế NSO và kỳ vọng thị trường."
+    },
+    {
+      "driver_id": "interest_rates",
+      "driver_name": "Mặt bằng lãi suất",
+      "mode": "automatic_optional_key",
+      "source_code": "fred",
+      "adapter": "fred",
+      "series_code": "IRSTCI01VNM156N",
+      "frequency": "monthly",
+      "unit": "%",
+      "direction_multiplier": 1,
+      "stale_after_days": 75,
+      "score_rule": {"enabled": true, "mild_delta": 0.25, "strong_delta": 1.0},
+      "note": "Cần FRED_API_KEY; SBV là nguồn đối chiếu chính thức trong nước."
+    },
+    {
+      "driver_id": "yield_curve",
+      "driver_name": "Độ dốc đường cong lãi suất",
+      "mode": "official_research_gap",
+      "source_code": "hnx",
+      "adapter": null,
+      "series_code": "HNX_GOVERNMENT_BOND_YIELD_CURVE",
+      "frequency": "daily",
+      "unit": "điểm %",
+      "stale_after_days": 10,
+      "note": "Cần adapter dữ liệu trái phiếu HNX được cấp phép/ổn định; không scrape giao diện động."
+    },
+    {
+      "driver_id": "inflation",
+      "driver_name": "Lạm phát",
+      "mode": "automatic",
+      "source_code": "imf_datamapper",
+      "adapter": "imf_datamapper",
+      "series_code": "PCPIPCH",
+      "frequency": "annual",
+      "unit": "%",
+      "direction_multiplier": 1,
+      "stale_after_days": 550,
+      "score_rule": {"enabled": true, "mild_delta": 0.25, "strong_delta": 1.0},
+      "note": "Dùng WEO cho bối cảnh; CPI tháng/quý phải đối chiếu NSO."
+    },
+    {
+      "driver_id": "commodity_prices",
+      "driver_name": "Giá hàng hóa cơ bản",
+      "mode": "automatic_optional_key",
+      "source_code": "eia",
+      "adapter": "eia_seriesid",
+      "series_code": "PET.RWTC.D",
+      "frequency": "daily",
+      "unit": "USD/thùng",
+      "direction_multiplier": 1,
+      "stale_after_days": 10,
+      "score_rule": {"enabled": true, "mild_delta": 3.0, "strong_delta": 8.0},
+      "note": "WTI là proxy năng lượng; cần EIA_API_KEY và không đại diện toàn bộ rổ hàng hóa."
+    },
+    {
+      "driver_id": "capex_cycle",
+      "driver_name": "Chu kỳ đầu tư tài sản cố định",
+      "mode": "automatic",
+      "source_code": "world_bank_wdi",
+      "adapter": "world_bank",
+      "series_code": "NE.GDI.FTOT.KD.ZG",
+      "frequency": "annual",
+      "unit": "% tăng trưởng",
+      "direction_multiplier": 1,
+      "stale_after_days": 550,
+      "score_rule": {"enabled": true, "mild_delta": 1.0, "strong_delta": 3.0},
+      "note": "Gross fixed capital formation growth; dữ liệu năm, không phải cập nhật live."
+    },
+    {
+      "driver_id": "consumer_spending",
+      "driver_name": "Tiêu dùng cá nhân",
+      "mode": "automatic",
+      "source_code": "world_bank_wdi",
+      "adapter": "world_bank",
+      "series_code": "NE.CON.PRVT.PC.KD.ZG",
+      "frequency": "annual",
+      "unit": "% tăng trưởng/người",
+      "direction_multiplier": 1,
+      "stale_after_days": 550,
+      "score_rule": {"enabled": true, "mild_delta": 0.5, "strong_delta": 1.5},
+      "note": "Dùng xu hướng dài hạn; bán lẻ mới nhất phải đối chiếu NSO."
+    },
+    {
+      "driver_id": "credit_growth",
+      "driver_name": "Tăng trưởng tín dụng và thanh khoản",
+      "mode": "automatic_proxy",
+      "source_code": "world_bank_wdi",
+      "adapter": "world_bank",
+      "series_code": "FS.AST.PRVT.GD.ZS",
+      "frequency": "annual",
+      "unit": "% GDP",
+      "direction_multiplier": 1,
+      "stale_after_days": 550,
+      "score_rule": {"enabled": false},
+      "note": "Chỉ là proxy private credit/GDP; không tự chấm thay cho tăng trưởng tín dụng SBV."
+    },
+    {
+      "driver_id": "currency",
+      "driver_name": "Sức mạnh VND",
+      "mode": "automatic",
+      "source_code": "world_bank_wdi",
+      "adapter": "world_bank",
+      "series_code": "PA.NUS.FCRF",
+      "frequency": "annual",
+      "unit": "VND/USD",
+      "direction_multiplier": -1,
+      "stale_after_days": 550,
+      "score_rule": {"enabled": true, "mild_delta": 250.0, "strong_delta": 750.0},
+      "note": "VND/USD giảm được hiểu là VND mạnh lên; tỷ giá ngày phải đối chiếu SBV."
+    },
+    {
+      "driver_id": "construction_infra",
+      "driver_name": "Đầu tư xây dựng và hạ tầng",
+      "mode": "automatic_proxy",
+      "source_code": "world_bank_wdi",
+      "adapter": "world_bank",
+      "series_code": "NE.GDI.FTOT.ZS",
+      "frequency": "annual",
+      "unit": "% GDP",
+      "direction_multiplier": 1,
+      "stale_after_days": 550,
+      "score_rule": {"enabled": false},
+      "note": "Proxy gross fixed capital formation/GDP; cần số giải ngân đầu tư công từ Bộ Tài chính."
+    },
+    {
+      "driver_id": "employment",
+      "driver_name": "Việc làm",
+      "mode": "automatic",
+      "source_code": "imf_datamapper",
+      "adapter": "imf_datamapper",
+      "series_code": "LUR",
+      "frequency": "annual",
+      "unit": "% thất nghiệp",
+      "direction_multiplier": -1,
+      "stale_after_days": 550,
+      "score_rule": {"enabled": true, "mild_delta": 0.2, "strong_delta": 0.6},
+      "note": "Thất nghiệp giảm được quy đổi thành chiều việc làm tăng; chỉ dùng để xác nhận chu kỳ."
+    },
+    {
+      "driver_id": "taxation",
+      "driver_name": "Áp lực thuế",
+      "mode": "official_research_gap",
+      "source_code": "mof",
+      "adapter": null,
+      "series_code": "VIETNAM_TAX_POLICY",
+      "frequency": "event",
+      "unit": "policy event",
+      "stale_after_days": 0,
+      "note": "Chỉ cập nhật khi có văn bản mới; cần analyst đọc phạm vi và ngày hiệu lực."
+    },
+    {
+      "driver_id": "regulation",
+      "driver_name": "Cường độ quản lý ngành",
+      "mode": "official_research_gap",
+      "source_code": "legal_portal",
+      "adapter": null,
+      "series_code": "VIETNAM_REGULATION",
+      "frequency": "event",
+      "unit": "policy event",
+      "stale_after_days": 0,
+      "note": "Không tự chuyển văn bản pháp luật thành điểm nếu chưa có analyst xác nhận."
+    },
+    {
+      "driver_id": "trade_policy",
+      "driver_name": "Chính sách thương mại",
+      "mode": "official_research_gap",
+      "source_code": "customs_trade_portal",
+      "adapter": null,
+      "series_code": "VIETNAM_TRADE_POLICY",
+      "frequency": "event",
+      "unit": "policy event",
+      "stale_after_days": 0,
+      "note": "Theo văn bản và biểu thuế mới nhất; không suy luận tự động."
+    },
+    {
+      "driver_id": "industrial_policy",
+      "driver_name": "Chính sách công nghiệp",
+      "mode": "official_research_gap",
+      "source_code": "moit",
+      "adapter": null,
+      "series_code": "VIETNAM_INDUSTRIAL_POLICY",
+      "frequency": "event",
+      "unit": "policy event",
+      "stale_after_days": 0,
+      "note": "Theo công bố Bộ Công Thương/Chính phủ."
+    },
+    {
+      "driver_id": "energy_env_policy",
+      "driver_name": "Chính sách năng lượng và môi trường",
+      "mode": "official_research_gap",
+      "source_code": "moit",
+      "adapter": null,
+      "series_code": "VIETNAM_ENERGY_ENV_POLICY",
+      "frequency": "event",
+      "unit": "policy event",
+      "stale_after_days": 0,
+      "note": "Theo công bố năng lượng/giá điện/phát thải mới nhất."
+    },
+    {
+      "driver_id": "property_rights_ip",
+      "driver_name": "Quyền tài sản và sở hữu trí tuệ",
+      "mode": "official_research_gap",
+      "source_code": "ip_vietnam",
+      "adapter": null,
+      "series_code": "VIETNAM_IP_POLICY",
+      "frequency": "event",
+      "unit": "policy event",
+      "stale_after_days": 0,
+      "note": "Công báo/văn bản mới cần analyst kiểm tra nội dung."
+    },
+    {
+      "driver_id": "gov_spending",
+      "driver_name": "Chi tiêu ngân sách",
+      "mode": "automatic_proxy",
+      "source_code": "imf_datamapper",
+      "adapter": "imf_datamapper",
+      "series_code": "G_X_G01_GDP_PT",
+      "frequency": "annual",
+      "unit": "% GDP",
+      "direction_multiplier": 1,
+      "stale_after_days": 550,
+      "score_rule": {"enabled": false},
+      "note": "IMF Fiscal Monitor là proxy tổng chi Chính phủ; giải ngân thực tế phải đối chiếu Cổng công khai ngân sách."
+    },
+    {
+      "driver_id": "price_control",
+      "driver_name": "Kiểm soát giá bán",
+      "mode": "official_research_gap",
+      "source_code": "moit",
+      "adapter": null,
+      "series_code": "VIETNAM_PRICE_CONTROL",
+      "frequency": "event",
+      "unit": "policy event",
+      "stale_after_days": 0,
+      "note": "Cần analyst xác định ngành chịu tác động và thời điểm hiệu lực."
+    },
+    {
+      "driver_id": "risk_aversion",
+      "driver_name": "Mức ngại rủi ro",
+      "mode": "automatic_optional_key",
+      "source_code": "fred",
+      "adapter": "fred",
+      "series_code": "VIXCLS",
+      "frequency": "daily",
+      "unit": "điểm VIX",
+      "direction_multiplier": 1,
+      "stale_after_days": 10,
+      "score_rule": {"enabled": true, "mild_delta": 2.0, "strong_delta": 6.0},
+      "note": "VIX là proxy rủi ro toàn cầu; cần FRED_API_KEY và phải đọc cùng thị trường Việt Nam."
+    },
+    {
+      "driver_id": "value_vs_growth",
+      "driver_name": "Value so với Growth",
+      "mode": "internal_research_gap",
+      "source_code": "trecapital_internal",
+      "adapter": null,
+      "series_code": "VN_VALUE_GROWTH_RELATIVE_RETURN",
+      "frequency": "daily",
+      "unit": "%",
+      "stale_after_days": 10,
+      "note": "Cần xây rổ Value/Growth Việt Nam minh bạch trước khi tự động hóa."
+    },
+    {
+      "driver_id": "relative_valuation",
+      "driver_name": "Định giá tương đối ngành",
+      "mode": "internal_research_gap",
+      "source_code": "trecapital_internal",
+      "adapter": null,
+      "series_code": "VN_SECTOR_RELATIVE_VALUATION",
+      "frequency": "daily",
+      "unit": "z-score",
+      "stale_after_days": 10,
+      "note": "Sẽ tính từ universe Trecapital sau khi chuẩn hóa free-float và taxonomy ngành."
+    },
+    {
+      "driver_id": "media_crowding",
+      "driver_name": "Độ phủ truyền thông và đám đông",
+      "mode": "licensed_research_gap",
+      "source_code": "licensed_consensus",
+      "adapter": null,
+      "series_code": "VN_MEDIA_CROWDING",
+      "frequency": "weekly",
+      "unit": "index",
+      "stale_after_days": 21,
+      "note": "Không scrape báo chí tùy tiện; chỉ tích hợp nguồn tin có quyền sử dụng."
+    },
+    {
+      "driver_id": "fund_flows",
+      "driver_name": "Dòng tiền quỹ và nước ngoài",
+      "mode": "official_research_gap",
+      "source_code": "hose",
+      "adapter": null,
+      "series_code": "HOSE_FOREIGN_SECTOR_FLOW",
+      "frequency": "daily",
+      "unit": "VND",
+      "stale_after_days": 10,
+      "note": "Cần ghép dữ liệu HOSE với taxonomy ngành; không dùng endpoint không công khai."
+    },
+    {
+      "driver_id": "consumer_confidence",
+      "driver_name": "Niềm tin người tiêu dùng",
+      "mode": "official_research_gap",
+      "source_code": "nso",
+      "adapter": null,
+      "series_code": "VIETNAM_CONSUMER_CONFIDENCE",
+      "frequency": "quarterly",
+      "unit": "index",
+      "stale_after_days": 150,
+      "note": "Không có chuỗi công khai ổn định được khóa; giữ Research gap nếu chưa có nguồn hợp lệ."
+    },
+    {
+      "driver_id": "analyst_forecast",
+      "driver_name": "Mức lạc quan của dự báo chuyên viên",
+      "mode": "licensed_research_gap",
+      "source_code": "licensed_consensus",
+      "adapter": null,
+      "series_code": "VN_ANALYST_CONSENSUS",
+      "frequency": "monthly",
+      "unit": "revision breadth",
+      "stale_after_days": 45,
+      "note": "Chỉ bật khi có FiinPro-X/FactSet/LSEG hợp lệ hoặc analyst nhập file được kiểm chứng."
+    }
+  ]
+}

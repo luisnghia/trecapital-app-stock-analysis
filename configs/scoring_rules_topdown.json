@@ -1,0 +1,83 @@
+{
+  "_meta": {
+    "ten_file": "scoring_rules_topdown.json",
+    "muc_dich": "Toàn bộ tham số chấm điểm của Bước 3 (xếp hạng ngành) và Bước 5 (sàng lọc định lượng).",
+    "nguon_goc": [
+      "Fisher Investments on Technology — Chapter 7: Top-Down Means Thinking 70-20-10; Benchmarks; Top-Down Deconstructed (3 bước)",
+      "Fisher Investments on Financials — Chapter 6: The Top-Down Method và Managing Against a Financials Benchmark",
+      "Fisher Investments on Technology — Chapter 8: A Five-Step Process và Strategic Attributes"
+    ]
+  },
+  "phan_bo_70_20_10": {
+    "asset_allocation": 70.0,
+    "sub_asset_allocation": 20.0,
+    "security_selection": 10.0,
+    "dien_giai": "Nghiên cứu của Fisher Investments cho thấy khoảng 70% biến thiên lợi nhuận đến từ quyết định phân bổ tài sản, 20% từ phân bổ tiểu nhóm (quốc gia, ngành, quy mô, phong cách) và 10% từ lựa chọn cổ phiếu. Module độc lập này chỉ phục vụ quyết định Top-Down ở cấp tài sản/ngành; lựa chọn và phân tích doanh nghiệp nằm ngoài phạm vi."
+  },
+  "trong_so_diem_nganh": {
+    "driver_kinh_te": 40.0,
+    "driver_chinh_tri": 20.0,
+    "driver_tam_ly": 20.0,
+    "vi_the_chu_ky": 20.0,
+    "dien_giai": "Fisher chia portfolio drivers thành 3 nhóm Kinh tế — Chính trị — Tâm lý. App thêm trục Vị thế chu kỳ để định lượng hóa phần business cycle được mô tả xuyên suốt các chương Sector Drivers."
+  },
+  "nguong_xep_hang_nganh": [
+    {"tu": 80.0, "den": 100.0, "nhan": "Tăng tỷ trọng mạnh", "ma_tin_hieu": "heat-green-strong", "he_so_tilt": 1.60},
+    {"tu": 65.0, "den": 79.9, "nhan": "Tăng tỷ trọng", "ma_tin_hieu": "heat-green", "he_so_tilt": 1.30},
+    {"tu": 45.0, "den": 64.9, "nhan": "Trung lập theo benchmark", "ma_tin_hieu": "heat-yellow", "he_so_tilt": 1.00},
+    {"tu": 30.0, "den": 44.9, "nhan": "Giảm tỷ trọng", "ma_tin_hieu": "heat-orange", "he_so_tilt": 0.70},
+    {"tu": 0.0, "den": 29.9, "nhan": "Giảm tỷ trọng mạnh", "ma_tin_hieu": "heat-red", "he_so_tilt": 0.40}
+  ],
+  "gioi_han_lech_benchmark": {
+    "lech_toi_da_diem_phan_tram": 8.0,
+    "canh_bao_do_lech": 5.0,
+    "dien_giai": "Fisher nhấn mạnh không nên về 0% chỉ vì bi quan. Hạ tỷ trọng dưới benchmark vẫn là một quyết định chủ động, nhưng giới hạn độ lệch giúp kiểm soát benchmark risk."
+  },
+  "sang_loc_dinh_luong_mac_dinh": {
+    "chat_che": {
+      "ten": "Tiêu chí chặt chẽ",
+      "von_hoa_toi_thieu_ty": 5000,
+      "pe_toi_da": 12.0,
+      "pb_toi_da": 8.0,
+      "pcf_toi_da": 10.0,
+      "ps_toi_da": 10.0,
+      "no_vay_tren_von_chu_toi_da": 1.0,
+      "thanh_khoan_binh_quan_ty_toi_thieu": 10.0
+    },
+    "rong": {
+      "ten": "Tiêu chí rộng",
+      "von_hoa_toi_thieu_ty": 1000,
+      "pe_toi_da": 25.0,
+      "pb_toi_da": 5.0,
+      "pcf_toi_da": 20.0,
+      "ps_toi_da": 5.0,
+      "no_vay_tren_von_chu_toi_da": 2.0,
+      "thanh_khoan_binh_quan_ty_toi_thieu": 2.0
+    },
+    "dien_giai": "Fisher trình bày hai ví dụ sàng lọc: một bộ chặt chẽ (giới hạn ngành, khu vực, vốn hóa và bốn hệ số định giá P/E, P/B, P/CF, P/S) và một bộ rộng. App bổ sung thêm hai lớp Solvency và Liquidity đúng như sơ đồ Bước 2 trong sách."
+  },
+  "strategic_attributes": [
+    "Thị phần tương đối cao",
+    "Nhà sản xuất chi phí thấp",
+    "Quan hệ bán hàng và hệ thống phân phối",
+    "Độ nhạy kinh tế phù hợp với kịch bản",
+    "Tích hợp dọc chuỗi giá trị",
+    "Chiến lược và năng lực ban điều hành",
+    "Lợi thế địa lý hoặc đa dạng địa bàn",
+    "Vai trò người hợp nhất ngành (Consolidator)",
+    "Bảng cân đối kế toán mạnh",
+    "Thị trường ngách",
+    "Pure play — thuần một mảng kinh doanh",
+    "Ứng viên bị thâu tóm",
+    "Công nghệ độc quyền",
+    "Thương hiệu mạnh",
+    "Lợi thế người đi trước"
+  ],
+  "nam_buoc_phan_tich_co_phieu": [
+    {"buoc": 1, "ten": "Hiểu mô hình kinh doanh và động lực lợi nhuận", "chi_tiet": "Tổng quan ngành, mô tả doanh nghiệp, lịch sử, các mảng kinh doanh, tin tức gần đây, thị trường và khách hàng, đối thủ cạnh tranh."},
+    {"buoc": 2, "ten": "Xác định các thuộc tính chiến lược", "chi_tiet": "Lợi thế cạnh tranh đặc thù cho phép doanh nghiệp vượt trội so với nhóm ngành, và phải phù hợp với driver đang chiếm ưu thế."},
+    {"buoc": 3, "ten": "Phân tích cơ bản và diễn biến giá cổ phiếu", "chi_tiet": "So sánh tăng trưởng doanh thu, biên lợi nhuận, ROIC và diễn biến giá với nhóm ngành."},
+    {"buoc": 4, "ten": "Nhận diện rủi ro", "chi_tiet": "Rủi ro đặc thù doanh nghiệp, rủi ro ngành, rủi ro hệ thống và rủi ro chính sách."},
+    {"buoc": 5, "ten": "Phân tích định giá và kỳ vọng đồng thuận", "chi_tiet": "Định giá tương đối so với nhóm ngành và so với kỳ vọng đang được định giá sẵn."}
+  ]
+}

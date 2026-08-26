@@ -1,0 +1,400 @@
+{
+  "_meta": {
+    "ten_file": "sector_taxonomy_gics.json",
+    "muc_dich": "Cây phân loại ngành theo chuẩn GICS, bám sát chương 'Sector Breakdown' của bộ Fisher Investments On series.",
+    "nguon": [
+      "Fisher Investments on Technology — Chapter 4: Technology Sector Breakdown (GICS)",
+      "Fisher Investments on Consumer Discretionary — Chapter 4: Consumer Discretionary Sector Landscape",
+      "Fisher Investments on Consumer Staples — Chapter 4: Consumer Staples Sector Breakdown",
+      "Fisher Investments on Industrials — Industrials Sector Breakdown",
+      "Fisher Investments on Materials / Energy / Utilities / Telecom — Sector Breakdown",
+      "Fisher Investments on Financials — Chapter 1: Financials Sector Breakdown",
+      "Fisher Investments on Health Care — Chapter 5: Health Care Sector Breakdown"
+    ],
+    "ghi_chu": "GICS có 4 cấp: Sector > Industry Group > Industry > Sub-Industry. App dùng 3 cấp đầu để giữ độ đọc."
+  },
+  "sectors": [
+    {
+      "code": "ENE",
+      "ten_vi": "Năng lượng",
+      "ten_en": "Energy",
+      "tinh_chat": "Chu kỳ — nhạy giá hàng hóa",
+      "mo_ta": "Tìm kiếm, khai thác, lọc dầu, vận chuyển và dịch vụ thiết bị dầu khí. Lợi nhuận bám rất chặt vào giá dầu và giá khí.",
+      "industry_groups": [
+        {
+          "ten_vi": "Dầu khí",
+          "ten_en": "Oil, Gas & Consumable Fuels",
+          "industries": [
+            "Thượng nguồn — Thăm dò và khai thác (Upstream E&P)",
+            "Trung nguồn — Vận chuyển và trữ chứa (Midstream)",
+            "Hạ nguồn — Lọc hóa dầu và phân phối (Downstream Refining & Marketing)",
+            "Than và nhiên liệu tiêu hao (Coal & Consumable Fuels)"
+          ]
+        },
+        {
+          "ten_vi": "Thiết bị và dịch vụ năng lượng",
+          "ten_en": "Energy Equipment & Services",
+          "industries": [
+            "Khoan dầu khí (Drilling)",
+            "Dịch vụ và thiết bị mỏ dầu (Oil & Gas Equipment & Services)"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "MAT",
+      "ten_vi": "Nguyên vật liệu",
+      "ten_en": "Materials",
+      "tinh_chat": "Chu kỳ — nhạy giá hàng hóa",
+      "mo_ta": "Hóa chất, kim loại và khai khoáng, giấy và bao bì, vật liệu xây dựng. Biên lợi nhuận phụ thuộc chênh lệch giá đầu ra trừ giá đầu vào.",
+      "industry_groups": [
+        {
+          "ten_vi": "Hóa chất",
+          "ten_en": "Chemicals",
+          "industries": [
+            "Hóa chất cơ bản (Commodity Chemicals)",
+            "Hóa chất đặc chủng (Specialty Chemicals)",
+            "Phân bón và hóa chất nông nghiệp (Fertilizers & Agricultural Chemicals)",
+            "Khí công nghiệp (Industrial Gases)"
+          ]
+        },
+        {
+          "ten_vi": "Kim loại và khai khoáng",
+          "ten_en": "Metals & Mining",
+          "industries": [
+            "Thép (Steel)",
+            "Nhôm (Aluminum)",
+            "Kim loại đa dạng và khai khoáng (Diversified Metals & Mining)",
+            "Vàng và kim loại quý (Gold & Precious Metals)"
+          ]
+        },
+        {
+          "ten_vi": "Vật liệu xây dựng, bao bì và giấy",
+          "ten_en": "Construction Materials, Containers & Paper",
+          "industries": [
+            "Vật liệu xây dựng — xi măng, đá (Construction Materials)",
+            "Bao bì kim loại, thủy tinh, nhựa (Containers & Packaging)",
+            "Giấy và sản phẩm gỗ (Paper & Forest Products)"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "IND",
+      "ten_vi": "Công nghiệp",
+      "ten_en": "Industrials",
+      "tinh_chat": "Chu kỳ — nhạy chu kỳ đầu tư",
+      "mo_ta": "Hàng vốn, dịch vụ thương mại và vận tải. Là ngành hưởng lợi trực tiếp từ chu kỳ đầu tư tài sản cố định, xây dựng và chi tiêu hạ tầng.",
+      "industry_groups": [
+        {
+          "ten_vi": "Hàng vốn",
+          "ten_en": "Capital Goods",
+          "industries": [
+            "Xây dựng và kỹ thuật (Construction & Engineering)",
+            "Máy móc thiết bị (Machinery)",
+            "Thiết bị điện (Electrical Equipment)",
+            "Hàng không vũ trụ và quốc phòng (Aerospace & Defense)",
+            "Sản phẩm xây dựng (Building Products)",
+            "Tập đoàn đa ngành công nghiệp (Industrial Conglomerates)",
+            "Thương mại và phân phối hàng vốn (Trading Companies & Distributors)"
+          ]
+        },
+        {
+          "ten_vi": "Dịch vụ thương mại và chuyên nghiệp",
+          "ten_en": "Commercial & Professional Services",
+          "industries": [
+            "Dịch vụ và vật tư thương mại (Commercial Services & Supplies)",
+            "Dịch vụ chuyên nghiệp (Professional Services)"
+          ]
+        },
+        {
+          "ten_vi": "Vận tải",
+          "ten_en": "Transportation",
+          "industries": [
+            "Đường sắt (Railroads)",
+            "Vận tải đường bộ (Trucking)",
+            "Vận tải biển (Marine)",
+            "Hàng không (Airlines)",
+            "Hạ tầng và dịch vụ vận tải — cảng, sân bay (Transportation Infrastructure)"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "CDI",
+      "ten_vi": "Tiêu dùng không thiết yếu",
+      "ten_en": "Consumer Discretionary",
+      "tinh_chat": "Chu kỳ — nhạy tiêu dùng",
+      "mo_ta": "Nhu cầu có thể trì hoãn. Doanh thu bám sát thu nhập khả dụng, việc làm, tín dụng tiêu dùng và niềm tin người tiêu dùng.",
+      "industry_groups": [
+        {
+          "ten_vi": "Ô tô và linh kiện",
+          "ten_en": "Automobiles & Components",
+          "industries": [
+            "Nhà sản xuất ô tô (Automobile Manufacturers)",
+            "Linh kiện ô tô (Auto Components)",
+            "Lốp xe (Tires & Rubber)"
+          ]
+        },
+        {
+          "ten_vi": "Bán lẻ",
+          "ten_en": "Retailing",
+          "industries": [
+            "Bán lẻ đa ngành — bách hóa, đại lý (Multiline Retail)",
+            "Bán lẻ chuyên biệt (Specialty Retail)",
+            "Bán lẻ internet và đặt hàng trực tiếp (Internet & Direct Marketing Retail)",
+            "Phân phối bán lẻ (Distributors)"
+          ]
+        },
+        {
+          "ten_vi": "Hàng lâu bền và may mặc",
+          "ten_en": "Consumer Durables & Apparel",
+          "industries": [
+            "Xây dựng nhà ở (Homebuilding)",
+            "Hàng gia dụng lâu bền (Household Durables)",
+            "Dệt may, may mặc và hàng xa xỉ (Textiles, Apparel & Luxury Goods)",
+            "Sản phẩm giải trí (Leisure Products)"
+          ]
+        },
+        {
+          "ten_vi": "Dịch vụ tiêu dùng",
+          "ten_en": "Consumer Services",
+          "industries": [
+            "Khách sạn, nhà hàng và giải trí (Hotels, Restaurants & Leisure)",
+            "Dịch vụ giáo dục và tiêu dùng khác (Diversified Consumer Services)"
+          ]
+        },
+        {
+          "ten_vi": "Truyền thông",
+          "ten_en": "Media",
+          "industries": [
+            "Quảng cáo (Advertising)",
+            "Truyền hình và phát sóng (Broadcasting)",
+            "Truyền hình cáp và vệ tinh (Cable & Satellite)",
+            "Xuất bản (Publishing)",
+            "Giải trí — phim ảnh (Movies & Entertainment)"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "CST",
+      "ten_vi": "Tiêu dùng thiết yếu",
+      "ten_en": "Consumer Staples",
+      "tinh_chat": "Phòng thủ",
+      "mo_ta": "Nhu cầu khó trì hoãn. Doanh thu ổn định qua chu kỳ nhưng tăng trưởng chậm, biên lợi nhuận nhạy với giá đầu vào nông sản và năng lượng.",
+      "industry_groups": [
+        {
+          "ten_vi": "Thực phẩm, đồ uống và thuốc lá",
+          "ten_en": "Food, Beverage & Tobacco",
+          "industries": [
+            "Sản phẩm thực phẩm (Food Products)",
+            "Đồ uống không cồn (Soft Drinks)",
+            "Đồ uống có cồn (Brewers, Distillers & Wineries)",
+            "Nông nghiệp và chế biến nông sản (Agricultural Products)",
+            "Thuốc lá (Tobacco)"
+          ]
+        },
+        {
+          "ten_vi": "Hàng gia dụng và chăm sóc cá nhân",
+          "ten_en": "Household & Personal Products",
+          "industries": [
+            "Hàng gia dụng (Household Products)",
+            "Sản phẩm chăm sóc cá nhân (Personal Products)"
+          ]
+        },
+        {
+          "ten_vi": "Bán lẻ thiết yếu",
+          "ten_en": "Food & Staples Retailing",
+          "industries": [
+            "Siêu thị và đại siêu thị (Hypermarkets & Super Centers)",
+            "Chuỗi thực phẩm (Food Retail)",
+            "Chuỗi nhà thuốc (Drug Retail)"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "HEA",
+      "ten_vi": "Chăm sóc sức khỏe",
+      "ten_en": "Health Care",
+      "tinh_chat": "Phòng thủ — dẫn dắt bởi đổi mới",
+      "mo_ta": "Dược phẩm, công nghệ sinh học, thiết bị y tế, bệnh viện và bảo hiểm y tế. Nhu cầu ít phụ thuộc chu kỳ nhưng phụ thuộc mạnh vào chính sách và chu kỳ bằng sáng chế.",
+      "industry_groups": [
+        {
+          "ten_vi": "Dược phẩm, công nghệ sinh học và khoa học sự sống",
+          "ten_en": "Pharmaceuticals, Biotechnology & Life Sciences",
+          "industries": [
+            "Dược phẩm (Pharmaceuticals)",
+            "Công nghệ sinh học (Biotechnology)",
+            "Công cụ và dịch vụ khoa học sự sống (Life Sciences Tools & Services)"
+          ]
+        },
+        {
+          "ten_vi": "Thiết bị và dịch vụ y tế",
+          "ten_en": "Health Care Equipment & Services",
+          "industries": [
+            "Thiết bị và vật tư y tế (Health Care Equipment & Supplies)",
+            "Nhà cung cấp và dịch vụ y tế (Health Care Providers & Services)",
+            "Bệnh viện và cơ sở y tế (Health Care Facilities)",
+            "Bảo hiểm y tế quản lý (Managed Health Care)",
+            "Công nghệ y tế (Health Care Technology)"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "FIN",
+      "ten_vi": "Tài chính",
+      "ten_en": "Financials",
+      "tinh_chat": "Chu kỳ — nhạy lãi suất và tín dụng",
+      "mo_ta": "Ngân hàng, tài chính đa dạng, bảo hiểm. Lợi nhuận bám vào độ dốc đường cong lãi suất, tăng trưởng tín dụng và chất lượng tài sản.",
+      "industry_groups": [
+        {
+          "ten_vi": "Ngân hàng",
+          "ten_en": "Banks",
+          "industries": [
+            "Ngân hàng thương mại đa năng (Diversified Banks)",
+            "Ngân hàng khu vực (Regional Banks)",
+            "Tài chính tiết kiệm và thế chấp (Thrifts & Mortgage Finance)"
+          ]
+        },
+        {
+          "ten_vi": "Tài chính đa dạng",
+          "ten_en": "Diversified Financials",
+          "industries": [
+            "Thị trường vốn — chứng khoán, quản lý tài sản (Capital Markets)",
+            "Tài chính tiêu dùng (Consumer Finance)",
+            "Dịch vụ tài chính đa dạng (Diversified Financial Services)"
+          ]
+        },
+        {
+          "ten_vi": "Bảo hiểm",
+          "ten_en": "Insurance",
+          "industries": [
+            "Bảo hiểm nhân thọ và sức khỏe (Life & Health Insurance)",
+            "Bảo hiểm tài sản và thiệt hại (Property & Casualty Insurance)",
+            "Tái bảo hiểm (Reinsurance)",
+            "Môi giới bảo hiểm (Insurance Brokers)"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ITE",
+      "ten_vi": "Công nghệ thông tin",
+      "ten_en": "Information Technology",
+      "tinh_chat": "Chu kỳ — nhạy chi đầu tư IT",
+      "mo_ta": "Bán dẫn, phần cứng, phần mềm và dịch vụ IT. Doanh thu bám vào chu kỳ chi đầu tư công nghệ của doanh nghiệp và chu kỳ nâng cấp sản phẩm.",
+      "industry_groups": [
+        {
+          "ten_vi": "Phần mềm và dịch vụ",
+          "ten_en": "Software & Services",
+          "industries": [
+            "Phần mềm hệ thống (Systems Software)",
+            "Phần mềm ứng dụng (Application Software)",
+            "Dịch vụ IT và tư vấn (IT Consulting & Services)",
+            "Phần mềm và dịch vụ internet (Internet Software & Services)",
+            "Xử lý dữ liệu và thuê ngoài (Data Processing & Outsourced Services)"
+          ]
+        },
+        {
+          "ten_vi": "Phần cứng và thiết bị",
+          "ten_en": "Technology Hardware & Equipment",
+          "industries": [
+            "Máy tính và thiết bị ngoại vi (Computers & Peripherals)",
+            "Thiết bị truyền thông (Communications Equipment)",
+            "Thiết bị điện tử và linh kiện (Electronic Equipment & Components)",
+            "Phân phối công nghệ (Technology Distributors)"
+          ]
+        },
+        {
+          "ten_vi": "Bán dẫn và thiết bị bán dẫn",
+          "ten_en": "Semiconductors & Semiconductor Equipment",
+          "industries": [
+            "Bán dẫn (Semiconductors)",
+            "Thiết bị sản xuất bán dẫn (Semiconductor Equipment)"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "TEL",
+      "ten_vi": "Dịch vụ viễn thông",
+      "ten_en": "Telecommunication Services",
+      "tinh_chat": "Phòng thủ — nhạy lãi suất",
+      "mo_ta": "Viễn thông cố định và di động. Đặc điểm là cổ tức cao, đòn bẩy tài chính lớn nên hành xử gần giống trái phiếu, chịu quản lý chặt về giá cước và tần số.",
+      "industry_groups": [
+        {
+          "ten_vi": "Viễn thông cố định",
+          "ten_en": "Integrated Telecommunication Services",
+          "industries": [
+            "Viễn thông tích hợp (Integrated Telecommunication Services)",
+            "Viễn thông thay thế (Alternative Carriers)"
+          ]
+        },
+        {
+          "ten_vi": "Viễn thông di động",
+          "ten_en": "Wireless Telecommunication Services",
+          "industries": ["Dịch vụ viễn thông di động (Wireless Telecommunication Services)"]
+        }
+      ]
+    },
+    {
+      "code": "UTI",
+      "ten_vi": "Tiện ích công cộng",
+      "ten_en": "Utilities",
+      "tinh_chat": "Phòng thủ — nhạy lãi suất mạnh nhất",
+      "mo_ta": "Điện, khí, nước và năng lượng độc lập. Nhóm được điều tiết có dòng tiền dự báo được; nhóm không điều tiết chịu biến động giá điện bán buôn và giá khí.",
+      "industry_groups": [
+        {
+          "ten_vi": "Điện",
+          "ten_en": "Electric Utilities",
+          "industries": [
+            "Điện được điều tiết (Regulated Electric)",
+            "Sản xuất điện độc lập và năng lượng tái tạo (IPP & Renewable Electricity)"
+          ]
+        },
+        {
+          "ten_vi": "Khí và nước",
+          "ten_en": "Gas & Water Utilities",
+          "industries": ["Phân phối khí (Gas Utilities)", "Cấp thoát nước (Water Utilities)"]
+        },
+        {
+          "ten_vi": "Tiện ích đa dạng",
+          "ten_en": "Multi-Utilities",
+          "industries": ["Tiện ích tổng hợp (Multi-Utilities)"]
+        }
+      ]
+    },
+    {
+      "code": "REA",
+      "ten_vi": "Bất động sản",
+      "ten_en": "Real Estate",
+      "tinh_chat": "Chu kỳ — nhạy lãi suất và tín dụng",
+      "mo_ta": "Phát triển bất động sản, quản lý và REIT. Biến động theo lãi suất, tín dụng và chu kỳ xây dựng.",
+      "industry_groups": [
+        {
+          "ten_vi": "Quỹ tín thác bất động sản",
+          "ten_en": "Equity REITs",
+          "industries": [
+            "REIT bán lẻ",
+            "REIT văn phòng",
+            "REIT khu công nghiệp và kho vận",
+            "REIT nhà ở",
+            "REIT hạ tầng và trung tâm dữ liệu"
+          ]
+        },
+        {
+          "ten_vi": "Phát triển và quản lý bất động sản",
+          "ten_en": "Real Estate Management & Development",
+          "industries": [
+            "Phát triển bất động sản nhà ở",
+            "Phát triển khu công nghiệp",
+            "Quản lý và môi giới bất động sản"
+          ]
+        }
+      ]
+    }
+  ]
+}

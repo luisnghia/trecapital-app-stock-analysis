@@ -1,8 +1,12 @@
-import streamlit as st
-from module2_dashboard import render_module3_comparison_dashboard
-from tre_full_width import apply_full_width
+from __future__ import annotations
 
-render_module3_comparison_dashboard()
-with st.sidebar:
-    st.page_link("pages/05_Investment_Checklist.py", label="Investment Checklist", icon="📋")
+import module2_dashboard as md
+from tre_full_width import apply_full_width
+from tre_sidebar_nav import render_tre_sidebar_nav
+
+# Keep navigation identical on every page, including Investment Checklist.
+if hasattr(md, "_render_tre_sidebar_nav"):
+    md._render_tre_sidebar_nav = render_tre_sidebar_nav
+
+md.render_module3_comparison_dashboard()
 apply_full_width()

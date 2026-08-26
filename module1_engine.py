@@ -9,6 +9,8 @@ import warnings
 
 import pandas as pd
 
+from financial_sign_policy import conversion_state
+
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=pd.errors.PerformanceWarning)
 
@@ -87,6 +89,17 @@ def _capex_signed_outflow(series: pd.Series) -> pd.Series:
     """
     capex = pd.to_numeric(series, errors="coerce")
     return -capex.abs()
+
+
+def _ratio_on_positive_denominator(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
+    """Vectorized economic ratio: preserve numerator sign, require denominator > 0."""
+    num = pd.to_numeric(numerator, errors="coerce")
+    den = pd.to_numeric(denominator, errors="coerce")
+    return (num / den.where(den > 0)).replace([math.inf, -math.inf], pd.NA)
+
+
+def _magnitude_ratio_on_positive_denominator(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
+    return _ratio_on_positive_denominator(pd.to_numeric(numerator, errors="coerce").abs(), denominator)
 
 
 def _interest_bearing_debt_series(df: pd.DataFrame) -> pd.Series:
@@ -470,21 +483,30 @@ def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) 
         if "roe_actual_pct" not in df.columns:
             df["roe_actual_pct"] = pd.NA
         # ROE tự tính/thực tế = LNST / VCSH bình quân; không dùng VCSH cuối kỳ trừ khi thiếu kỳ trước.
-        df["roe_actual_pct"] = df["roe_actual_pct"].fillna(df["net_profit_bil"] / df["avg_equity_bil"].replace({0: pd.NA}) * 100)
+        df["roe_actual_pct"] = df["roe_actual_pct"].where(df["avg_equity_bil"] > 0)
+        df["roe_actual_pct"] = df["roe_actual_pct"].fillna(
+            _ratio_on_positive_denominator(df["net_profit_bil"], df["avg_equity_bil"]) * 100
+        )
         if "roe_pct" in df.columns:
             df["roe_pct"] = df["roe_pct"].fillna(df["roe_actual_pct"])
 
     if {"net_profit_bil", "shares_outstanding_mil"}.issubset(df.columns):
         if "eps_vnd" not in df.columns:
             df["eps_vnd"] = pd.NA
-        df["eps_vnd"] = df["eps_vnd"].fillna(df["net_profit_bil"] * 1000 / df["shares_outstanding_mil"].replace({0: pd.NA}))
+        df["eps_vnd"] = df["eps_vnd"].where(df["shares_outstanding_mil"] > 0)
+        df["eps_vnd"] = df["eps_vnd"].fillna(
+            _ratio_on_positive_denominator(df["net_profit_bil"] * 1000, df["shares_outstanding_mil"])
+        )
     if {"owner_earnings_bil", "shares_outstanding_mil"}.issubset(df.columns):
         if "oeps_vnd" not in df.columns:
             df["oeps_vnd"] = pd.NA
-        df["oeps_vnd"] = df["oeps_vnd"].fillna(df["owner_earnings_bil"] * 1000 / df["shares_outstanding_mil"].replace({0: pd.NA}))
+        df["oeps_vnd"] = df["oeps_vnd"].where(df["shares_outstanding_mil"] > 0)
+        df["oeps_vnd"] = df["oeps_vnd"].fillna(
+            _ratio_on_positive_denominator(df["owner_earnings_bil"] * 1000, df["shares_outstanding_mil"])
+        )
 
     if "net_margin_pct" not in df.columns and {"net_profit_bil", "revenue_bil"}.issubset(df.columns):
-        df["net_margin_pct"] = df["net_profit_bil"] / df["revenue_bil"] * 100
+        df["net_margin_pct"] = _ratio_on_positive_denominator(df["net_profit_bil"], df["revenue_bil"]) * 100
 
     # DuPont dùng tài sản/VCSH bình quân để nhất quán với ROA/ROE tự tính.
     if {"revenue_bil", "total_assets_bil"}.issubset(df.columns):
@@ -493,7 +515,11 @@ def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) 
         df["avg_total_assets_bil"] = df["avg_total_assets_bil"].fillna(_avg_current_and_previous(df, "total_assets_bil"))
         if "asset_turnover" not in df.columns:
             df["asset_turnover"] = pd.NA
-        df["asset_turnover"] = df["asset_turnover"].fillna(df["revenue_bil"] / df["avg_total_assets_bil"].replace({0: pd.NA}))
+        valid_asset_turnover = (df["avg_total_assets_bil"] > 0) & (df["revenue_bil"] > 0)
+        df["asset_turnover"] = df["asset_turnover"].where(valid_asset_turnover)
+        df["asset_turnover"] = df["asset_turnover"].fillna(
+            _ratio_on_positive_denominator(df["revenue_bil"], df["avg_total_assets_bil"]).where(df["revenue_bil"] > 0)
+        )
 
     if {"total_assets_bil", "equity_bil"}.issubset(df.columns):
         if "avg_total_assets_bil" not in df.columns:
@@ -504,7 +530,10 @@ def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) 
         df["avg_equity_bil"] = df["avg_equity_bil"].fillna(_avg_current_and_previous(df, "equity_bil"))
         if "equity_multiplier" not in df.columns:
             df["equity_multiplier"] = pd.NA
-        df["equity_multiplier"] = df["equity_multiplier"].fillna(df["avg_total_assets_bil"] / df["avg_equity_bil"].replace({0: pd.NA}))
+        df["equity_multiplier"] = df["equity_multiplier"].where((df["avg_equity_bil"] > 0) & (df["avg_total_assets_bil"] > 0))
+        df["equity_multiplier"] = df["equity_multiplier"].fillna(
+            _ratio_on_positive_denominator(df["avg_total_assets_bil"], df["avg_equity_bil"]).where(df["avg_total_assets_bil"] > 0)
+        )
 
     if {"net_margin_pct", "asset_turnover", "equity_multiplier"}.issubset(df.columns):
         if "roe_dupont_pct" not in df.columns:
@@ -515,31 +544,52 @@ def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) 
     if {"net_profit_bil", "cfo_bil"}.issubset(df.columns):
         if "cfo_to_net_profit" not in df.columns:
             df["cfo_to_net_profit"] = pd.NA
-        df["cfo_to_net_profit"] = df["cfo_to_net_profit"].fillna(df["cfo_bil"] / df["net_profit_bil"].replace({0: pd.NA}))
+        df["cfo_to_net_profit"] = df["cfo_to_net_profit"].where(df["net_profit_bil"] > 0)
+        df["cfo_to_net_profit"] = df["cfo_to_net_profit"].fillna(
+            _ratio_on_positive_denominator(df["cfo_bil"], df["net_profit_bil"])
+        )
 
     if {"net_profit_bil", "free_cash_flow_bil"}.issubset(df.columns):
         if "fcf_to_net_profit" not in df.columns:
             df["fcf_to_net_profit"] = pd.NA
-        df["fcf_to_net_profit"] = df["fcf_to_net_profit"].fillna(df["free_cash_flow_bil"] / df["net_profit_bil"].replace({0: pd.NA}))
+        df["fcf_to_net_profit"] = df["fcf_to_net_profit"].where(df["net_profit_bil"] > 0)
+        df["fcf_to_net_profit"] = df["fcf_to_net_profit"].fillna(
+            _ratio_on_positive_denominator(df["free_cash_flow_bil"], df["net_profit_bil"])
+        )
     if {"pretax_profit_bil", "free_cash_flow_bil"}.issubset(df.columns):
         if "fcf_to_pretax" not in df.columns:
             df["fcf_to_pretax"] = pd.NA
-        df["fcf_to_pretax"] = df["fcf_to_pretax"].fillna(df["free_cash_flow_bil"] / df["pretax_profit_bil"].replace({0: pd.NA}))
+        df["fcf_to_pretax"] = df["fcf_to_pretax"].where(df["pretax_profit_bil"] > 0)
+        df["fcf_to_pretax"] = df["fcf_to_pretax"].fillna(
+            _ratio_on_positive_denominator(df["free_cash_flow_bil"], df["pretax_profit_bil"])
+        )
         if "nibt_to_fcf" not in df.columns:
             df["nibt_to_fcf"] = pd.NA
-        df["nibt_to_fcf"] = df["nibt_to_fcf"].fillna(df["pretax_profit_bil"] / df["free_cash_flow_bil"].replace({0: pd.NA}))
+        df["nibt_to_fcf"] = df["nibt_to_fcf"].where(df["free_cash_flow_bil"] > 0)
+        df["nibt_to_fcf"] = df["nibt_to_fcf"].fillna(
+            _ratio_on_positive_denominator(df["pretax_profit_bil"], df["free_cash_flow_bil"])
+        )
     if {"noncash_adjustments_bil", "pretax_profit_bil"}.issubset(df.columns):
         if "noncash_to_pretax" not in df.columns:
             df["noncash_to_pretax"] = pd.NA
-        df["noncash_to_pretax"] = df["noncash_to_pretax"].fillna(df["noncash_adjustments_bil"] / df["pretax_profit_bil"].replace({0: pd.NA}))
+        df["noncash_to_pretax"] = df["noncash_to_pretax"].where(df["pretax_profit_bil"] > 0)
+        df["noncash_to_pretax"] = df["noncash_to_pretax"].fillna(
+            _ratio_on_positive_denominator(df["noncash_adjustments_bil"], df["pretax_profit_bil"])
+        )
     if {"working_capital_change_bil", "pretax_profit_bil"}.issubset(df.columns):
         if "wc_to_pretax" not in df.columns:
             df["wc_to_pretax"] = pd.NA
-        df["wc_to_pretax"] = df["wc_to_pretax"].fillna(df["working_capital_change_bil"] / df["pretax_profit_bil"].replace({0: pd.NA}))
+        df["wc_to_pretax"] = df["wc_to_pretax"].where(df["pretax_profit_bil"] > 0)
+        df["wc_to_pretax"] = df["wc_to_pretax"].fillna(
+            _ratio_on_positive_denominator(df["working_capital_change_bil"], df["pretax_profit_bil"])
+        )
     if {"capex_bil", "pretax_profit_bil"}.issubset(df.columns):
         if "capex_to_pretax" not in df.columns:
             df["capex_to_pretax"] = pd.NA
-        df["capex_to_pretax"] = df["capex_to_pretax"].fillna(_capex_signed_outflow(df["capex_bil"]) / df["pretax_profit_bil"].replace({0: pd.NA}))
+        df["capex_to_pretax"] = df["capex_to_pretax"].where(df["pretax_profit_bil"] > 0)
+        df["capex_to_pretax"] = df["capex_to_pretax"].fillna(
+            _ratio_on_positive_denominator(_capex_signed_outflow(df["capex_bil"]), df["pretax_profit_bil"])
+        )
 
     if "owner_earnings_bil" not in df.columns:
         df["owner_earnings_bil"] = pd.NA
@@ -576,19 +626,23 @@ def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) 
     if {"gross_profit_bil", "revenue_bil"}.issubset(df.columns):
         if "gross_margin_pct" not in df.columns:
             df["gross_margin_pct"] = pd.NA
-        df["gross_margin_pct"] = df["gross_margin_pct"].fillna(df["gross_profit_bil"] / df["revenue_bil"].replace({0: pd.NA}) * 100)
+        df["gross_margin_pct"] = df["gross_margin_pct"].where(df["revenue_bil"] > 0)
+        df["gross_margin_pct"] = df["gross_margin_pct"].fillna(_ratio_on_positive_denominator(df["gross_profit_bil"], df["revenue_bil"]) * 100)
     if {"core_operating_profit_bil", "revenue_bil"}.issubset(df.columns):
         if "core_operating_margin_pct" not in df.columns:
             df["core_operating_margin_pct"] = pd.NA
-        df["core_operating_margin_pct"] = df["core_operating_margin_pct"].fillna(df["core_operating_profit_bil"] / df["revenue_bil"].replace({0: pd.NA}) * 100)
+        df["core_operating_margin_pct"] = df["core_operating_margin_pct"].where(df["revenue_bil"] > 0)
+        df["core_operating_margin_pct"] = df["core_operating_margin_pct"].fillna(_ratio_on_positive_denominator(df["core_operating_profit_bil"], df["revenue_bil"]) * 100)
     if {"net_profit_bil", "revenue_bil"}.issubset(df.columns):
         if "net_margin_pct" not in df.columns:
             df["net_margin_pct"] = pd.NA
-        df["net_margin_pct"] = df["net_margin_pct"].fillna(df["net_profit_bil"] / df["revenue_bil"].replace({0: pd.NA}) * 100)
+        df["net_margin_pct"] = df["net_margin_pct"].where(df["revenue_bil"] > 0)
+        df["net_margin_pct"] = df["net_margin_pct"].fillna(_ratio_on_positive_denominator(df["net_profit_bil"], df["revenue_bil"]) * 100)
     if {"financial_income_bil", "revenue_bil"}.issubset(df.columns):
         if "financial_income_to_revenue_pct" not in df.columns:
             df["financial_income_to_revenue_pct"] = pd.NA
-        df["financial_income_to_revenue_pct"] = df["financial_income_to_revenue_pct"].fillna(df["financial_income_bil"] / df["revenue_bil"].replace({0: pd.NA}) * 100)
+        df["financial_income_to_revenue_pct"] = df["financial_income_to_revenue_pct"].where(df["revenue_bil"] > 0)
+        df["financial_income_to_revenue_pct"] = df["financial_income_to_revenue_pct"].fillna(_ratio_on_positive_denominator(df["financial_income_bil"], df["revenue_bil"]) * 100)
 
     # EBITDA chỉ dùng như chỉ số hỗ trợ; không dùng thay thế CFO/FCF.
     if "ebitda_bil" not in df.columns:
@@ -598,7 +652,8 @@ def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) 
     if {"ebitda_bil", "revenue_bil"}.issubset(df.columns):
         if "ebitda_margin_pct" not in df.columns:
             df["ebitda_margin_pct"] = pd.NA
-        df["ebitda_margin_pct"] = df["ebitda_margin_pct"].fillna(df["ebitda_bil"] / df["revenue_bil"].replace({0: pd.NA}) * 100)
+        df["ebitda_margin_pct"] = df["ebitda_margin_pct"].where(df["revenue_bil"] > 0)
+        df["ebitda_margin_pct"] = df["ebitda_margin_pct"].fillna(_ratio_on_positive_denominator(df["ebitda_bil"], df["revenue_bil"]) * 100)
 
     # ROA dùng tổng tài sản bình quân, không dùng số cuối kỳ khi có đủ dữ liệu.
     if {"net_profit_bil", "total_assets_bil"}.issubset(df.columns):
@@ -607,7 +662,8 @@ def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) 
         df["avg_total_assets_bil"] = df["avg_total_assets_bil"].fillna(_avg_current_and_previous(df, "total_assets_bil"))
         if "roa_actual_pct" not in df.columns:
             df["roa_actual_pct"] = pd.NA
-        df["roa_actual_pct"] = df["roa_actual_pct"].fillna(df["net_profit_bil"] / df["avg_total_assets_bil"].replace({0: pd.NA}) * 100)
+        df["roa_actual_pct"] = df["roa_actual_pct"].where(df["avg_total_assets_bil"] > 0)
+        df["roa_actual_pct"] = df["roa_actual_pct"].fillna(_ratio_on_positive_denominator(df["net_profit_bil"], df["avg_total_assets_bil"]) * 100)
         if "roa_pct" not in df.columns:
             df["roa_pct"] = pd.NA
         df["roa_pct"] = df["roa_pct"].fillna(df["roa_actual_pct"])
@@ -639,12 +695,14 @@ def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) 
     if {"current_assets_bil", "current_liabilities_bil"}.issubset(df.columns):
         if "current_ratio" not in df.columns:
             df["current_ratio"] = pd.NA
-        df["current_ratio"] = df["current_ratio"].fillna(df["current_assets_bil"] / df["current_liabilities_bil"].replace({0: pd.NA}))
+        df["current_ratio"] = df["current_ratio"].where(df["current_liabilities_bil"] > 0)
+        df["current_ratio"] = df["current_ratio"].fillna(_ratio_on_positive_denominator(df["current_assets_bil"], df["current_liabilities_bil"]))
     if {"cash_equivalents_bil", "short_term_investments_bil", "current_liabilities_bil"}.issubset(df.columns):
         if "quick_ratio" not in df.columns:
             df["quick_ratio"] = pd.NA
         ar = df["accounts_receivable_bil"] if "accounts_receivable_bil" in df.columns else 0
-        df["quick_ratio"] = df["quick_ratio"].fillna((df["cash_equivalents_bil"] + df["short_term_investments_bil"] + ar) / df["current_liabilities_bil"].replace({0: pd.NA}))
+        df["quick_ratio"] = df["quick_ratio"].where(df["current_liabilities_bil"] > 0)
+        df["quick_ratio"] = df["quick_ratio"].fillna(_ratio_on_positive_denominator(df["cash_equivalents_bil"] + df["short_term_investments_bil"] + ar, df["current_liabilities_bil"]))
         if "net_liquid_assets_bil" not in df.columns:
             df["net_liquid_assets_bil"] = pd.NA
         df["net_liquid_assets_bil"] = df["net_liquid_assets_bil"].fillna(df["cash_equivalents_bil"] + df["short_term_investments_bil"] + ar - df["current_liabilities_bil"])
@@ -654,13 +712,16 @@ def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) 
         df["liabilities_bil"] = df["liabilities_bil"].fillna(df["total_assets_bil"] - df["equity_bil"])
         if "equity_to_assets_pct" not in df.columns:
             df["equity_to_assets_pct"] = pd.NA
-        df["equity_to_assets_pct"] = df["equity_to_assets_pct"].fillna(df["equity_bil"] / df["total_assets_bil"].replace({0: pd.NA}) * 100)
+        df["equity_to_assets_pct"] = df["equity_to_assets_pct"].where(df["total_assets_bil"] > 0)
+        df["equity_to_assets_pct"] = df["equity_to_assets_pct"].fillna(_ratio_on_positive_denominator(df["equity_bil"], df["total_assets_bil"]) * 100)
         if "liabilities_to_assets_pct" not in df.columns:
             df["liabilities_to_assets_pct"] = pd.NA
-        df["liabilities_to_assets_pct"] = df["liabilities_to_assets_pct"].fillna(df["liabilities_bil"] / df["total_assets_bil"].replace({0: pd.NA}) * 100)
+        df["liabilities_to_assets_pct"] = df["liabilities_to_assets_pct"].where(df["total_assets_bil"] > 0)
+        df["liabilities_to_assets_pct"] = df["liabilities_to_assets_pct"].fillna(_ratio_on_positive_denominator(df["liabilities_bil"], df["total_assets_bil"]) * 100)
         if "liabilities_to_equity" not in df.columns:
             df["liabilities_to_equity"] = pd.NA
-        df["liabilities_to_equity"] = df["liabilities_to_equity"].fillna(df["liabilities_bil"] / df["equity_bil"].replace({0: pd.NA}))
+        df["liabilities_to_equity"] = df["liabilities_to_equity"].where(df["equity_bil"] > 0)
+        df["liabilities_to_equity"] = df["liabilities_to_equity"].fillna(_ratio_on_positive_denominator(df["liabilities_bil"], df["equity_bil"]))
     if {"cash_equivalents_bil", "short_term_investments_bil"}.issubset(df.columns):
         if "net_debt_bil" not in df.columns:
             df["net_debt_bil"] = pd.NA
@@ -672,11 +733,15 @@ def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) 
         if {"net_debt_bil", "equity_bil"}.issubset(df.columns):
             if "net_debt_to_equity" not in df.columns:
                 df["net_debt_to_equity"] = pd.NA
-            df["net_debt_to_equity"] = df["net_debt_to_equity"].fillna(df["net_debt_bil"] / df["equity_bil"].replace({0: pd.NA}))
+            df["net_debt_to_equity"] = df["net_debt_to_equity"].where(df["equity_bil"] > 0)
+            df["net_debt_to_equity"] = df["net_debt_to_equity"].fillna(_ratio_on_positive_denominator(df["net_debt_bil"], df["equity_bil"]))
         if {"net_debt_bil", "ebitda_bil"}.issubset(df.columns):
             if "net_debt_to_ebitda" not in df.columns:
                 df["net_debt_to_ebitda"] = pd.NA
-            df["net_debt_to_ebitda"] = df["net_debt_to_ebitda"].fillna(df["net_debt_bil"] / df["ebitda_bil"].replace({0: pd.NA}))
+            # A negative EBITDA must not turn a leveraged balance sheet into a
+            # deceptively low/negative Debt/EBITDA multiple.
+            df["net_debt_to_ebitda"] = df["net_debt_to_ebitda"].where(df["ebitda_bil"] > 0)
+            df["net_debt_to_ebitda"] = df["net_debt_to_ebitda"].fillna(_ratio_on_positive_denominator(df["net_debt_bil"], df["ebitda_bil"]))
     if "core_operating_profit_bil" in df.columns:
         if "interest_coverage" not in df.columns:
             df["interest_coverage"] = pd.NA
@@ -695,7 +760,8 @@ def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) 
         df["avg_accounts_receivable_bil"] = df["avg_accounts_receivable_bil"].fillna(_avg_current_and_previous(df, "accounts_receivable_bil"))
         if "receivables_turnover" not in df.columns:
             df["receivables_turnover"] = pd.NA
-        df["receivables_turnover"] = df["receivables_turnover"].fillna(df["revenue_bil"] / df["avg_accounts_receivable_bil"].replace({0: pd.NA}))
+        df["receivables_turnover"] = df["receivables_turnover"].where((df["avg_accounts_receivable_bil"] > 0) & (df["revenue_bil"] > 0))
+        df["receivables_turnover"] = df["receivables_turnover"].fillna(_ratio_on_positive_denominator(df["revenue_bil"], df["avg_accounts_receivable_bil"]).where(df["revenue_bil"] > 0))
         if "dso_days" not in df.columns:
             df["dso_days"] = pd.NA
         df["dso_days"] = df["dso_days"].fillna(365 / df["receivables_turnover"].replace({0: pd.NA}))
@@ -705,7 +771,8 @@ def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) 
         df["avg_inventory_bil"] = df["avg_inventory_bil"].fillna(_avg_current_and_previous(df, "inventory_bil"))
         if "inventory_turnover" not in df.columns:
             df["inventory_turnover"] = pd.NA
-        df["inventory_turnover"] = df["inventory_turnover"].fillna(df["cost_of_goods_sold_bil"] / df["avg_inventory_bil"].replace({0: pd.NA}))
+        df["inventory_turnover"] = df["inventory_turnover"].where((df["avg_inventory_bil"] > 0) & (df["cost_of_goods_sold_bil"] > 0))
+        df["inventory_turnover"] = df["inventory_turnover"].fillna(_ratio_on_positive_denominator(df["cost_of_goods_sold_bil"], df["avg_inventory_bil"]).where(df["cost_of_goods_sold_bil"] > 0))
         if "dio_days" not in df.columns:
             df["dio_days"] = pd.NA
         df["dio_days"] = df["dio_days"].fillna(365 / df["inventory_turnover"].replace({0: pd.NA}))
@@ -715,7 +782,8 @@ def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) 
         df["avg_accounts_payable_bil"] = df["avg_accounts_payable_bil"].fillna(_avg_current_and_previous(df, "accounts_payable_bil"))
         if "payables_turnover" not in df.columns:
             df["payables_turnover"] = pd.NA
-        df["payables_turnover"] = df["payables_turnover"].fillna(df["cost_of_goods_sold_bil"] / df["avg_accounts_payable_bil"].replace({0: pd.NA}))
+        df["payables_turnover"] = df["payables_turnover"].where((df["avg_accounts_payable_bil"] > 0) & (df["cost_of_goods_sold_bil"] > 0))
+        df["payables_turnover"] = df["payables_turnover"].fillna(_ratio_on_positive_denominator(df["cost_of_goods_sold_bil"], df["avg_accounts_payable_bil"]).where(df["cost_of_goods_sold_bil"] > 0))
         if "dpo_days" not in df.columns:
             df["dpo_days"] = pd.NA
         df["dpo_days"] = df["dpo_days"].fillna(365 / df["payables_turnover"].replace({0: pd.NA}))
@@ -1247,6 +1315,11 @@ def build_flags(c: CompanyOverview, annual_df: Optional[pd.DataFrame] = None, qu
             latest = h.tail(1).iloc[0]
             if pd.notna(latest.get("net_profit_bil")) and latest.get("net_profit_bil") > 0 and pd.notna(latest.get("cfo_bil")) and latest.get("cfo_bil") < 0:
                 flags.append({"level": "risk", "title": "LNST dương nhưng CFO âm", "detail": "Chất lượng lợi nhuận cần kiểm tra kỹ; lợi nhuận chưa chuyển hóa thành tiền."})
+            if pd.notna(latest.get("net_profit_bil")) and latest.get("net_profit_bil") <= 0 and pd.notna(latest.get("cfo_bil")):
+                if latest.get("cfo_bil") <= 0:
+                    flags.append({"level": "risk", "title": "LNST và CFO cùng âm", "detail": "CFO/LNST được khóa N/A; không dùng âm chia âm để tạo tín hiệu chất lượng giả."})
+                else:
+                    flags.append({"level": "watch", "title": "LNST âm nhưng CFO dương", "detail": "CFO/LNST được khóa N/A; cần kiểm tra khấu hao, vốn lưu động và khả năng phục hồi."})
         if "free_cash_flow_bil" in h.columns:
             fcf_neg = (pd.to_numeric(h["free_cash_flow_bil"], errors="coerce") < 0).sum()
             if fcf_neg >= 2:
@@ -1500,38 +1573,74 @@ def build_cashflow_scorecard(df: pd.DataFrame) -> pd.DataFrame:
     cash_change = _num_series(src, "cash_and_short_investments_change_bil")
 
     cfo_positive_rate = float((cfo > 0).mean()) if cfo.notna().any() else float("nan")
-    latest_cfo_to_ni = _to_float(latest.get("cfo_to_net_profit"))
-    median_cfo_to_ni = float((cfo / ni.where(ni != 0)).replace([math.inf, -math.inf], pd.NA).median(skipna=True)) if ni.notna().any() else float("nan")
+    latest_ni = _to_float(latest.get("net_profit_bil"))
+    latest_cfo = _to_float(latest.get("cfo_bil"))
+    latest_cfo_to_ni = _to_float(latest.get("cfo_to_net_profit")) if latest_ni is not None and latest_ni > 0 else None
+    valid_cfo_conversion = _ratio_on_positive_denominator(cfo, ni)
+    median_cfo_to_ni = float(valid_cfo_conversion.median(skipna=True)) if valid_cfo_conversion.notna().any() else float("nan")
     score = 0
     score += _score_pct(cfo_positive_rate, 0.8, 0.6, 8)
     score += _score_pct(latest_cfo_to_ni, 1.0, 0.8, 7)
     score += _score_pct(median_cfo_to_ni, 0.8, 0.5, 5)
-    add("1. Chất lượng CFO", 20, score,
-        "Tốt" if score >= 15 else "Theo dõi" if score >= 8 else "Cảnh báo",
-        f"CFO dương {cfo_positive_rate:.0%} số kỳ; CFO/LNST kỳ gần nhất {latest_cfo_to_ni:.2f} lần." if pd.notna(latest_cfo_to_ni) else "Thiếu dữ liệu CFO/LNST để đánh giá đầy đủ.")
+    cfo_state = conversion_state(latest_cfo, latest_ni)
+    cfo_signal = "Tốt" if score >= 15 else "Theo dõi" if score >= 8 else "Cảnh báo"
+    if cfo_state != "valid_positive_base" and cfo_signal == "Tốt":
+        cfo_signal = "Theo dõi"
+    if cfo_state == "loss_and_nonpositive_cash":
+        cfo_signal = "Cảnh báo"
+    cfo_note = (
+        f"CFO dương {cfo_positive_rate:.0%} số kỳ; CFO/LNST kỳ gần nhất {latest_cfo_to_ni:.2f} lần."
+        if latest_cfo_to_ni is not None
+        else "CFO/LNST không áp dụng vì LNST kỳ gần nhất âm/bằng 0; đánh giá trực tiếp dấu và xu hướng CFO, không dùng âm chia âm."
+        if latest_ni is not None and latest_ni <= 0
+        else "Thiếu dữ liệu CFO/LNST để đánh giá đầy đủ."
+    )
+    add("1. Chất lượng CFO", 20, score, cfo_signal, cfo_note)
 
     fcf_positive_rate = float((fcf > 0).mean()) if fcf.notna().any() else float("nan")
-    latest_fcf_to_ni = _to_float(latest.get("fcf_to_net_profit"))
+    latest_fcf = _to_float(latest.get("free_cash_flow_bil"))
+    latest_fcf_to_ni = _to_float(latest.get("fcf_to_net_profit")) if latest_ni is not None and latest_ni > 0 else None
     score = 0
     score += _score_pct(fcf_positive_rate, 0.7, 0.5, 8)
     score += _score_pct(latest_fcf_to_ni, 0.8, 0.5, 7)
     score += 5 if _to_float(latest.get("free_cash_flow_bil")) is not None and _to_float(latest.get("free_cash_flow_bil")) > 0 else 0
-    add("2. Chất lượng FCF", 20, score,
-        "Tốt" if score >= 15 else "Theo dõi" if score >= 8 else "Cảnh báo",
-        f"FCF dương {fcf_positive_rate:.0%} số kỳ; FCF/LNST kỳ gần nhất {latest_fcf_to_ni:.2f} lần." if pd.notna(latest_fcf_to_ni) else "Thiếu dữ liệu FCF/LNST để đánh giá đầy đủ.")
+    fcf_signal = "Tốt" if score >= 15 else "Theo dõi" if score >= 8 else "Cảnh báo"
+    if latest_ni is not None and latest_ni <= 0 and fcf_signal == "Tốt":
+        fcf_signal = "Theo dõi"
+    if latest_ni is not None and latest_ni <= 0 and (latest_fcf is None or latest_fcf <= 0):
+        fcf_signal = "Cảnh báo"
+    fcf_note = (
+        f"FCF dương {fcf_positive_rate:.0%} số kỳ; FCF/LNST kỳ gần nhất {latest_fcf_to_ni:.2f} lần."
+        if latest_fcf_to_ni is not None
+        else "FCF/LNST không áp dụng vì LNST kỳ gần nhất âm/bằng 0; FCF được đánh giá theo dấu, xu hướng và nguyên nhân đầu tư."
+        if latest_ni is not None and latest_ni <= 0
+        else "Thiếu dữ liệu FCF/LNST để đánh giá đầy đủ."
+    )
+    add("2. Chất lượng FCF", 20, score, fcf_signal, fcf_note)
 
     oe_positive_rate = float((oe > 0).mean()) if oe.notna().any() else float("nan")
-    oe_to_ni = (oe / ni.where(ni != 0)).replace([math.inf, -math.inf], pd.NA)
+    oe_to_ni = _ratio_on_positive_denominator(oe, ni)
     latest_oe_to_ni = float(oe_to_ni.iloc[-1]) if len(oe_to_ni) and pd.notna(oe_to_ni.iloc[-1]) else float("nan")
     score = 0
     score += _score_pct(oe_positive_rate, 0.7, 0.5, 8)
     score += _score_pct(latest_oe_to_ni, 0.8, 0.5, 7)
     score += 5 if _to_float(latest.get("owner_earnings_bil")) is not None and _to_float(latest.get("owner_earnings_bil")) > 0 else 0
-    add("3. Owner Earnings", 20, score,
-        "Tốt" if score >= 15 else "Theo dõi" if score >= 8 else "Cảnh báo",
-        f"Owner Earnings dương {oe_positive_rate:.0%} số kỳ; OE/LNST kỳ gần nhất {latest_oe_to_ni:.2f} lần." if pd.notna(latest_oe_to_ni) else "Thiếu dữ liệu Owner Earnings/LNST để đánh giá đầy đủ.")
+    latest_oe = _to_float(latest.get("owner_earnings_bil"))
+    oe_signal = "Tốt" if score >= 15 else "Theo dõi" if score >= 8 else "Cảnh báo"
+    if latest_ni is not None and latest_ni <= 0 and oe_signal == "Tốt":
+        oe_signal = "Theo dõi"
+    if latest_ni is not None and latest_ni <= 0 and (latest_oe is None or latest_oe <= 0):
+        oe_signal = "Cảnh báo"
+    oe_note = (
+        f"Owner Earnings dương {oe_positive_rate:.0%} số kỳ; OE/LNST kỳ gần nhất {latest_oe_to_ni:.2f} lần."
+        if pd.notna(latest_oe_to_ni)
+        else "OE/LNST không áp dụng vì LNST kỳ gần nhất âm/bằng 0; không dùng tỷ lệ âm/âm để đánh giá chất lượng."
+        if latest_ni is not None and latest_ni <= 0
+        else "Thiếu dữ liệu Owner Earnings/LNST để đánh giá đầy đủ."
+    )
+    add("3. Owner Earnings", 20, score, oe_signal, oe_note)
 
-    wc_abs_to_nibt = (wc.abs() / nibt.abs().where(nibt != 0)).replace([math.inf, -math.inf], pd.NA)
+    wc_abs_to_nibt = _magnitude_ratio_on_positive_denominator(wc, nibt)
     latest_wc_ratio = float(wc_abs_to_nibt.iloc[-1]) if len(wc_abs_to_nibt) and pd.notna(wc_abs_to_nibt.iloc[-1]) else float("nan")
     median_wc_ratio = float(wc_abs_to_nibt.median(skipna=True)) if wc_abs_to_nibt.notna().any() else float("nan")
     score = 0
@@ -1539,16 +1648,19 @@ def build_cashflow_scorecard(df: pd.DataFrame) -> pd.DataFrame:
     score += _score_pct(median_wc_ratio, 0.3, 0.5, 7, reverse=True)
     add("4. Vốn lưu động", 15, score,
         "Tốt" if score >= 11 else "Theo dõi" if score >= 6 else "Cảnh báo",
-        f"|ΔWC|/LNTT kỳ gần nhất {latest_wc_ratio:.1%}; trung vị {median_wc_ratio:.1%}." if pd.notna(latest_wc_ratio) else "Thiếu dữ liệu thay đổi vốn lưu động.")
+        f"|ΔWC|/LNTT kỳ gần nhất {latest_wc_ratio:.1%}; trung vị {median_wc_ratio:.1%}." if pd.notna(latest_wc_ratio)
+        else "|ΔWC|/LNTT không áp dụng khi LNTT âm/bằng 0; cần đọc trực tiếp bridge CFO và nguyên nhân biến động vốn lưu động." if _to_float(latest.get("pretax_profit_bil")) is not None and _to_float(latest.get("pretax_profit_bil")) <= 0
+        else "Thiếu dữ liệu thay đổi vốn lưu động.")
 
-    capex_to_cfo = (capex.abs() / cfo.abs().where(cfo != 0)).replace([math.inf, -math.inf], pd.NA)
+    capex_to_cfo = _magnitude_ratio_on_positive_denominator(capex, cfo)
     latest_capex_ratio = float(capex_to_cfo.iloc[-1]) if len(capex_to_cfo) and pd.notna(capex_to_cfo.iloc[-1]) else float("nan")
     score = _score_pct(latest_capex_ratio, 0.5, 0.8, 10, reverse=True)
     add("5. Capex & cường độ đầu tư", 10, score,
         "Tốt" if score >= 8 else "Theo dõi" if score >= 5 else "Cảnh báo",
-        f"ABS(Capex)/CFO kỳ gần nhất {latest_capex_ratio:.1%}." if pd.notna(latest_capex_ratio) else "Thiếu dữ liệu Capex/CFO.")
+        f"ABS(Capex)/CFO kỳ gần nhất {latest_capex_ratio:.1%}." if pd.notna(latest_capex_ratio)
+        else "ABS(Capex)/CFO không áp dụng vì CFO âm/bằng 0; cường độ Capex không được chấm tốt bằng trị tuyệt đối của CFO." if latest_cfo is not None and latest_cfo <= 0
+        else "Thiếu dữ liệu Capex/CFO.")
 
-    latest_fcf = _to_float(latest.get("free_cash_flow_bil"))
     latest_debt = _to_float(latest.get("net_debt_cashflow_bil"))
     latest_div = _to_float(latest.get("cash_dividend_bil"))
     latest_cash_change = _to_float(latest.get("cash_and_short_investments_change_bil"))
@@ -1611,9 +1723,16 @@ def build_cashflow_situation_alerts(df: pd.DataFrame) -> pd.DataFrame:
         add("Dòng tiền mạnh", "Tốt", "LNST chuyển hóa tốt thành CFO và FCF; doanh nghiệp có khả năng tự tài trợ tốt.")
     if ni and ni > 0 and ((cfo is not None and cfo < 0) or (cfo_to_ni is not None and cfo_to_ni < 0.5) or (fcf is not None and fcf < 0)):
         add("Lợi nhuận tăng nhưng dòng tiền yếu", "Cảnh báo", "Cần kiểm tra phải thu, tồn kho, chính sách ghi nhận doanh thu và chất lượng lợi nhuận.")
+    if ni is not None and ni <= 0:
+        if cfo is not None and cfo > 0:
+            add("LNST âm nhưng CFO dương", "Theo dõi", "Không tính CFO/LNST. Cần xác định CFO dương do khấu hao/vốn lưu động hay là dấu hiệu phục hồi bền vững.")
+        elif cfo is not None and cfo <= 0:
+            add("LNST và CFO cùng âm", "Cảnh báo", "Không dùng âm chia âm để tạo tỷ lệ chuyển đổi dương; doanh nghiệp đang lỗ và hoạt động chưa tạo tiền.")
     if wc_ratio is not None and pd.notna(wc_ratio) and abs(wc_ratio) > 0.3:
         add("Bị hút tiền vào vốn lưu động", "Cảnh báo" if abs(wc_ratio) > 0.5 else "Theo dõi", "Thay đổi vốn lưu động lớn so với LNTT; cần kiểm tra phải thu, tồn kho, phải trả.")
-    if cfo not in [None, 0] and capex is not None and abs(capex) / abs(cfo) > 0.8:
+    if cfo is not None and cfo <= 0 and capex is not None:
+        add("CFO không đủ nền để đánh giá Capex", "Cảnh báo", "CFO âm/bằng 0 nên ABS(Capex)/CFO không có ý nghĩa kinh tế; kiểm tra nguyên nhân CFO âm trước khi đọc cường độ đầu tư.")
+    elif cfo is not None and cfo > 0 and capex is not None and abs(capex) / cfo > 0.8:
         add("Capex nặng", "Cảnh báo" if abs(capex) > abs(cfo) else "Theo dõi", "Capex tiêu thụ phần lớn CFO; cần phân biệt growth capex và maintenance capex.")
     if cfo and cfo > 0 and fcf and fcf < 0:
         add("FCF âm do đầu tư", "Theo dõi", "Nếu capex phục vụ mở rộng và tăng trưởng sau đầu tư tốt thì chưa nhất thiết xấu.")
@@ -1817,6 +1936,7 @@ def build_financial_ratio_scorecard(df: pd.DataFrame) -> pd.DataFrame:
 
     cfo_to_ni = _safe_latest(src, "cfo_to_net_profit")
     fcf_to_ni = _safe_latest(src, "fcf_to_net_profit")
+    latest_net_profit = _safe_latest(src, "net_profit_bil")
     ccc = _safe_latest(src, "cash_conversion_cycle_days")
     dso = _safe_latest(src, "dso_days")
     dio = _safe_latest(src, "dio_days")
@@ -1828,6 +1948,9 @@ def build_financial_ratio_scorecard(df: pd.DataFrame) -> pd.DataFrame:
     score += _score_pct(dio if dio is not None else float("nan"), 90, 150, 1.5, reverse=True)
     add("4. Hiệu quả hoạt động & vốn lưu động", 15, score,
         "Tốt" if score >= 11 else "Theo dõi" if score >= 6 else "Cảnh báo",
+        "CFO/LNST và FCF/LNST được khóa N/A khi LNST âm/bằng 0; khi đó đọc trực tiếp dấu dòng tiền. "
+        "Đọc cùng DSO, DIO, DPO và CCC; không kết luận tốt chỉ vì doanh thu tăng."
+        if latest_net_profit is not None and latest_net_profit <= 0 else
         "Đọc cùng CFO/LNST, FCF/LNST, DSO, DIO, DPO và CCC; không kết luận tốt chỉ vì doanh thu tăng.")
 
     current_ratio = _safe_latest(src, "current_ratio")
@@ -1909,6 +2032,12 @@ def build_financial_ratio_alerts(df: pd.DataFrame) -> pd.DataFrame:
         add("ROE cao nhưng ROIC thấp", "Cảnh báo", "ROE có thể được khuếch đại bởi đòn bẩy hoặc yếu tố kế toán; cần kiểm tra vốn sử dụng và nợ.")
     if ni is not None and ni > 0 and (cfo_to_ni is not None and cfo_to_ni < 0.8 or fcf is not None and fcf < 0):
         add("Lợi nhuận chưa chuyển hóa thành tiền", "Cảnh báo", "Theo Graham/Buffett, lợi nhuận kế toán cần được kiểm chứng bằng dòng tiền; CFO/LNST hoặc FCF đang yếu.")
+    if ni is not None and ni <= 0:
+        raw_cfo = _to_float(latest.get("cfo_bil"))
+        if raw_cfo is not None and raw_cfo <= 0:
+            add("LNST và CFO cùng âm", "Cảnh báo", "CFO/LNST không áp dụng; không dùng tỷ lệ âm/âm để kết luận chất lượng lợi nhuận tốt.")
+        elif raw_cfo is not None:
+            add("LNST âm nhưng CFO dương", "Theo dõi", "CFO/LNST không áp dụng; cần xác nhận CFO dương có bền vững hay đến từ khấu hao/vốn lưu động.")
     if fcf_to_ni is not None and fcf_to_ni >= 0.8 and cfo_to_ni is not None and cfo_to_ni >= 1.0:
         add("Chất lượng lợi nhuận tốt", "Tốt", "CFO và FCF chuyển hóa tốt so với LNST, giảm rủi ro lợi nhuận giấy.")
     if gm is not None and gm < 15:
@@ -1944,6 +2073,8 @@ def build_value_investing_assessment(company: CompanyOverview, annual_df: pd.Dat
     roe = _to_float(latest.get("roe_actual_pct")) if hasattr(latest, "get") else company.roe
     roic = _to_float(latest.get("roic_standard_pct")) if hasattr(latest, "get") else company.roic
     cfo_to_ni = _to_float(latest.get("cfo_to_net_profit")) if hasattr(latest, "get") else None
+    ni = _to_float(latest.get("net_profit_bil")) if hasattr(latest, "get") else None
+    cfo = _to_float(latest.get("cfo_bil")) if hasattr(latest, "get") else None
     fcf = _to_float(latest.get("free_cash_flow_bil")) if hasattr(latest, "get") else None
     oe = _to_float(latest.get("owner_earnings_bil")) if hasattr(latest, "get") else None
     net_debt_to_eq = _to_float(latest.get("net_debt_to_equity")) if hasattr(latest, "get") else None
@@ -1962,6 +2093,11 @@ def build_value_investing_assessment(company: CompanyOverview, annual_df: pd.Dat
             parts.append("Chất lượng lợi nhuận được hỗ trợ bởi CFO/LNST tốt, đây là điểm cộng theo góc nhìn dòng tiền thật. ")
         elif cfo_to_ni < 0.8:
             parts.append("CFO/LNST thấp, cần kiểm tra phải thu, tồn kho và các khoản điều chỉnh vốn lưu động trước khi tin vào lợi nhuận kế toán. ")
+    elif ni is not None and ni <= 0:
+        if cfo is not None and cfo > 0:
+            parts.append("LNST đang âm nhưng CFO dương; CFO/LNST không áp dụng và cần xác định dòng tiền dương có bền vững hay không. ")
+        else:
+            parts.append("LNST và CFO đang âm; CFO/LNST không áp dụng, tuyệt đối không dùng âm chia âm để tạo tín hiệu chuyển đổi tích cực. ")
     if fcf is not None and oe is not None:
         if fcf > 0 and oe > 0:
             parts.append("FCF và Owner Earnings dương, cho thấy doanh nghiệp có khả năng tạo tiền cho chủ sở hữu sau nhu cầu đầu tư duy trì/Capex. ")

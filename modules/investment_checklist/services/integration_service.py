@@ -3,14 +3,34 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 from ..contracts import HostContext, InventorySourceData, TrecapitalDataProvider
 from ..repositories.sqlite_repository import SQLiteChecklistRepository
+from ..repositories.postgres_repository import PostgresChecklistRepository
 
 MODULE_ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = MODULE_ROOT / "catalog" / "question_catalog_prd.csv"
+ChecklistRepository = Union[SQLiteChecklistRepository, PostgresChecklistRepository]
+
+# Streamlit reruns the script for every widget change. Re-creating the repository on every
+# rerun caused schema checks + 59 question upserts + 10 screening upserts each time and also
+# destroyed any PostgreSQL connection pool. Keep one initialized repository per backend for
+# the lifetime of the Python process. Repository methods remain transaction-scoped/thread-safe.
+_REPOSITORY_CACHE: dict[tuple[str, str], ChecklistRepository] = {}
+_REPOSITORY_CACHE_LOCK = threading.Lock()
+
+
+def resolve_database_url(host: HostContext) -> Optional[str]:
+    if host.database_url and str(host.database_url).strip():
+        return str(host.database_url).strip()
+    for key in ("TREC_CHECKLIST_DATABASE_URL", "DATABASE_URL", "SUPABASE_DB_URL"):
+        value = os.getenv(key)
+        if value and value.strip():
+            return value.strip()
+    return None
 
 
 def resolve_db_path(host: HostContext) -> Path:
@@ -22,20 +42,57 @@ def resolve_db_path(host: HostContext) -> Path:
     return MODULE_ROOT / "data" / "checklist_phase1b_dev.db"
 
 
-def build_repository(host: HostContext) -> SQLiteChecklistRepository:
-    repo = SQLiteChecklistRepository(resolve_db_path(host), CATALOG_PATH)
-    repo.initialize()
-    return repo
+def _repository_key(host: HostContext) -> tuple[str, str]:
+    database_url = resolve_database_url(host)
+    if database_url:
+        digest = hashlib.sha256(database_url.encode("utf-8")).hexdigest()
+        return ("postgresql", digest)
+    return ("sqlite", str(resolve_db_path(host).resolve()))
+
+
+def build_repository(host: HostContext) -> ChecklistRepository:
+    key = _repository_key(host)
+    cached = _REPOSITORY_CACHE.get(key)
+    if cached is not None:
+        return cached
+    with _REPOSITORY_CACHE_LOCK:
+        cached = _REPOSITORY_CACHE.get(key)
+        if cached is not None:
+            return cached
+        database_url = resolve_database_url(host)
+        if database_url:
+            repo: ChecklistRepository = PostgresChecklistRepository(database_url, CATALOG_PATH)
+        else:
+            repo = SQLiteChecklistRepository(resolve_db_path(host), CATALOG_PATH)
+        repo.initialize()
+        _REPOSITORY_CACHE[key] = repo
+        return repo
+
+
+def clear_repository_cache() -> None:
+    with _REPOSITORY_CACHE_LOCK:
+        for repo in _REPOSITORY_CACHE.values():
+            close = getattr(repo, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
+        _REPOSITORY_CACHE.clear()
+
+
+def persistence_backend(host: HostContext) -> str:
+    return "postgresql" if resolve_database_url(host) else "sqlite-local"
 
 
 class ChecklistIntegrationService:
-    def __init__(self, repo: SQLiteChecklistRepository, host: HostContext,
+    def __init__(self, repo: ChecklistRepository, host: HostContext,
                  data_provider: Optional[TrecapitalDataProvider] = None):
         self.repo = repo
         self.host = host
         self.data_provider = data_provider
 
-    def sync_company_context(self) -> int:
+    def sync_company_context(self, *, conn=None) -> int:
         c = self.host.company
         return self.repo.upsert_company_ref(
             host_company_key=c.company_key,
@@ -47,7 +104,43 @@ class ChecklistIntegrationService:
             currency=c.currency,
             host_metadata=dict(c.metadata),
             actor=self.host.analyst.user_id,
+            conn=conn,
         )
+
+    def navigation_bootstrap(self, *, preferred_review_id=None, include_home: bool = True) -> dict:
+        """Load the cross-page first paint through one pooled database checkout.
+
+        The previous page entry path opened separate transactions for company sync, company read,
+        reviews and watchlist state. On a remote Supabase connection the SQL itself is sub-ms, but
+        the sequential network round-trips were visible on every first visit from another page.
+        """
+        with self.repo._conn() as conn:
+            company_ref_id = self.sync_company_context(conn=conn)
+            company = self.repo.get_company_ref(company_ref_id, conn=conn)
+            reviews = self.repo.list_reviews(company_ref_id, conn=conn)
+            watchlisted = conn.execute(
+                "SELECT company_ref_id FROM checklist_watchlist WHERE company_ref_id=?",
+                (company_ref_id,),
+            ).fetchone() is not None
+            review = next(
+                (row for row in reviews if preferred_review_id is not None and int(row["id"]) == int(preferred_review_id)),
+                reviews[0] if reviews else None,
+            )
+            home_bundle = None
+            if include_home and review is not None:
+                review_id = int(review["id"])
+                home_bundle = {
+                    "review_id": review_id,
+                    "assessments": self.repo.latest_assessments_for_review(review_id, conn=conn),
+                    "screening": self.repo.latest_screening_for_review(review_id, conn=conn),
+                }
+        return {
+            "company_ref_id": company_ref_id,
+            "company": company,
+            "reviews": reviews,
+            "watchlisted": watchlisted,
+            "home_bundle": home_bundle,
+        }
 
     def get_inventory_prefill(self) -> Optional[InventorySourceData]:
         if self.data_provider is None:
@@ -89,6 +182,7 @@ class ChecklistIntegrationService:
             market_price=data.market_price,
             fcf_estimate=data.fcf_estimate,
             target_price=data.target_price,
+            ccc_days=data.ccc_days,
             mos=data.mos if mos is None else mos,
             thesis_direction=thesis_direction,
             note=note,

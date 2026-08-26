@@ -41,6 +41,35 @@ class SQLiteChecklistRepository:
     def initialize(self):
         with self._conn() as c:
             c.executescript(SCHEMA_SQL)
+            # Backward-compatible local/dev migrations. Production PostgreSQL uses ADD COLUMN IF NOT EXISTS.
+            cols = {str(r[1]) for r in c.execute("PRAGMA table_info(opportunity_inventory_snapshots)")}
+            if "ccc_days" not in cols:
+                c.execute("ALTER TABLE opportunity_inventory_snapshots ADD COLUMN ccc_days REAL")
+            review_cols = {str(r[1]) for r in c.execute("PRAGMA table_info(research_reviews)")}
+            if "review_reason" not in review_cols:
+                c.execute("ALTER TABLE research_reviews ADD COLUMN review_reason TEXT")
+            if "finalize_reason" not in review_cols:
+                c.execute("ALTER TABLE research_reviews ADD COLUMN finalize_reason TEXT")
+            ai_run_cols = {str(r[1]) for r in c.execute("PRAGMA table_info(ai_research_runs)")}
+            for column, definition in (
+                ("provider_request_id", "TEXT"),
+                ("provider_response_id", "TEXT"),
+                ("client_request_id", "TEXT"),
+                ("input_tokens", "INTEGER"),
+                ("output_tokens", "INTEGER"),
+                ("total_tokens", "INTEGER"),
+                ("latency_ms", "INTEGER"),
+                ("attempt_count", "INTEGER"),
+                ("service_tier", "TEXT"),
+            ):
+                if column not in ai_run_cols:
+                    c.execute(f"ALTER TABLE ai_research_runs ADD COLUMN {column} {definition}")
+            ai_suggestion_cols = {str(r[1]) for r in c.execute("PRAGMA table_info(ai_research_suggestions)")}
+            if "source_content_id" not in ai_suggestion_cols:
+                c.execute("ALTER TABLE ai_research_suggestions ADD COLUMN source_content_id INTEGER REFERENCES research_source_contents(id)")
+            if "source_content_hash_at_run" not in ai_suggestion_cols:
+                c.execute("ALTER TABLE ai_research_suggestions ADD COLUMN source_content_hash_at_run TEXT")
+            c.execute("CREATE INDEX IF NOT EXISTS ix_ai_suggestions_source_content ON ai_research_suggestions(source_content_id)")
             for q in load_questions(self.question_catalog_path):
                 c.execute("""INSERT INTO checklist_questions(question_id,question_no,group_name,question_vi,guidance,research_mode,supporting_tool)
                 VALUES(?,?,?,?,?,?,?) ON CONFLICT(question_id) DO UPDATE SET question_no=excluded.question_no,group_name=excluded.group_name,
@@ -58,19 +87,42 @@ class SQLiteChecklistRepository:
     def list_company_refs(self):
         with self._conn() as c: return [dict(r) for r in c.execute("SELECT * FROM checklist_company_refs WHERE is_active=1 ORDER BY ticker")]
 
-    def upsert_company_ref(self,*,host_company_key,ticker,company_name,exchange='UNKNOWN',industry_name='',company_type='normal',currency='VND',host_metadata=None,actor='system'):
+    def upsert_company_ref(self,*,host_company_key,ticker,company_name,exchange='UNKNOWN',industry_name='',company_type='normal',currency='VND',host_metadata=None,actor='system',conn=None):
+        """Create/update a company context, but do no write when the context is unchanged.
+
+        Page navigation used to execute an UPSERT plus an audit INSERT for every new Streamlit
+        session, even when the company payload was byte-for-byte identical. ``conn`` lets the
+        Checklist bootstrap share one transaction with its initial reads and removes those nested
+        connection round-trips.
+        """
         key=str(host_company_key).strip(); ticker=str(ticker).strip().upper(); name=str(company_name).strip()
         if not key or not ticker or not name: raise ValidationError('host_company_key, ticker và tên doanh nghiệp là bắt buộc.')
-        with self._conn() as c:
+        exchange_value=str(exchange or 'UNKNOWN').upper(); industry_value=str(industry_name or '')
+        metadata=host_metadata or {}; metadata_json=json.dumps(metadata,ensure_ascii=False,default=str,sort_keys=True)
+
+        def run(c):
             before=self._d(c.execute("SELECT * FROM checklist_company_refs WHERE host_company_key=?",(key,)).fetchone())
+            if before is not None:
+                try: before_metadata=json.loads(before.get('host_metadata_json') or '{}')
+                except Exception: before_metadata={}
+                unchanged=(
+                    before.get('ticker')==ticker and before.get('exchange')==exchange_value and
+                    before.get('company_name')==name and (before.get('industry_name') or '')==industry_value and
+                    before.get('company_type')==company_type and before.get('currency')==currency and
+                    int(before.get('is_active') or 0)==1 and before_metadata==metadata
+                )
+                if unchanged: return before['id']
             c.execute("""INSERT INTO checklist_company_refs(host_company_key,ticker,exchange,company_name,industry_name,company_type,currency,host_metadata_json,updated_at)
             VALUES(?,?,?,?,?,?,?,?,datetime('now')) ON CONFLICT(host_company_key) DO UPDATE SET ticker=excluded.ticker,exchange=excluded.exchange,
             company_name=excluded.company_name,industry_name=excluded.industry_name,company_type=excluded.company_type,currency=excluded.currency,
             host_metadata_json=excluded.host_metadata_json,is_active=1,updated_at=datetime('now')""",
-            (key,ticker,str(exchange or 'UNKNOWN').upper(),name,str(industry_name or ''),company_type,currency,json.dumps(host_metadata or {},ensure_ascii=False,default=str)))
+            (key,ticker,exchange_value,name,industry_value,company_type,currency,metadata_json))
             row=self._d(c.execute("SELECT * FROM checklist_company_refs WHERE host_company_key=?",(key,)).fetchone()); cid=row['id']
             self._audit(c,company_ref_id=cid,actor=actor,action='create' if before is None else 'sync',entity_type='company_ref',entity_id=cid,before=before,after=row)
             return cid
+
+        if conn is not None: return run(conn)
+        with self._conn() as c: return run(c)
 
     def get_company_ref(self,company_ref_id,conn=None):
         if conn is not None: return self._d(conn.execute("SELECT * FROM checklist_company_refs WHERE id=?",(company_ref_id,)).fetchone())
@@ -83,17 +135,22 @@ class SQLiteChecklistRepository:
     def get_question(self,qid):
         with self._conn() as c: return self._d(c.execute("SELECT * FROM checklist_questions WHERE question_id=?",(qid,)).fetchone())
 
-    def list_reviews(self,cid):
-        with self._conn() as c: return [dict(r) for r in c.execute("SELECT * FROM research_reviews WHERE company_ref_id=? ORDER BY as_of_date DESC,id DESC",(cid,))]
+    def list_reviews(self,cid,conn=None):
+        def run(c): return [dict(r) for r in c.execute("SELECT * FROM research_reviews WHERE company_ref_id=? ORDER BY as_of_date DESC,id DESC",(cid,))]
+        if conn is not None: return run(conn)
+        with self._conn() as c: return run(c)
     def get_review(self,rid,conn=None):
         if conn is not None: return self._d(conn.execute("SELECT * FROM research_reviews WHERE id=?",(rid,)).fetchone())
         with self._conn() as c: return self._d(c.execute("SELECT * FROM research_reviews WHERE id=?",(rid,)).fetchone())
-    def create_review(self,cid,as_of_date,review_type='full',analyst_user_id='analyst'):
+    def create_review(self,cid,as_of_date,review_type='full',analyst_user_id='analyst',review_reason=None):
         if review_type not in {'full','delta','screening'}: raise ValidationError('review_type không hợp lệ')
+        # None is accepted only for legacy/import/test callers. Production UI always passes an explicit reason.
+        if review_reason is not None and not str(review_reason).strip(): raise ValidationError('Lý do tạo review là bắt buộc.')
+        reason = str(review_reason).strip() if review_reason is not None else 'Legacy/imported review — reason not recorded'
         asof=self._date(as_of_date)
         with self._conn() as c:
             p=c.execute("SELECT id FROM research_reviews WHERE company_ref_id=? AND status='completed' AND as_of_date<=? ORDER BY as_of_date DESC,id DESC LIMIT 1",(cid,asof)).fetchone()
-            cur=c.execute("INSERT INTO research_reviews(company_ref_id,review_type,as_of_date,status,prior_review_id,analyst_user_id) VALUES(?,?,?,'in_progress',?,?)",(cid,review_type,asof,p['id'] if p else None,analyst_user_id)); rid=cur.lastrowid
+            cur=c.execute("INSERT INTO research_reviews(company_ref_id,review_type,as_of_date,status,prior_review_id,analyst_user_id,review_reason) VALUES(?,?,?,'in_progress',?,?,?)",(cid,review_type,asof,p['id'] if p else None,analyst_user_id,reason)); rid=cur.lastrowid
             self._audit(c,company_ref_id=cid,review_id=rid,actor=analyst_user_id,action='create',entity_type='review',entity_id=rid,after=self.get_review(rid,conn=c)); return rid
     def _editable(self,c,rid):
         r=self.get_review(rid,conn=c)
@@ -185,8 +242,25 @@ class SQLiteChecklistRepository:
                     s=self.latest_screening(rv['id'],cr['criterion_code'],conn=c); val=s['analyst_value'] if s else 'unknown'; row[cr['criterion_name_vi']]=val; tally += val=='yes'
                 row['Total ✓']=tally; out.append(row)
             return out
+    def screening_history_matrix(self,cid):
+        """Return one Table 1.1 row per review using the latest version of each criterion."""
+        with self._conn() as c:
+            reviews=[dict(r) for r in c.execute("SELECT * FROM research_reviews WHERE company_ref_id=? ORDER BY as_of_date DESC,id DESC",(cid,))]
+            criteria=[dict(r) for r in c.execute("SELECT * FROM screening_criteria ORDER BY display_order")]
+            all_rows=[dict(r) for r in c.execute("SELECT * FROM screening_assessments WHERE company_ref_id=? ORDER BY review_id,criterion_code,version_no,id",(cid,))]
+        latest={}
+        for s in all_rows:
+            latest[(s['review_id'],s['criterion_code'])]=s
+        out=[]
+        for rv in reviews:
+            row={'Review #':rv['id'],'As of':rv['as_of_date'],'Type':rv['review_type'],'Status':rv['status']}; tally=0
+            for cr in criteria:
+                s=latest.get((rv['id'],cr['criterion_code'])); val=s['analyst_value'] if s else 'unknown'
+                row[cr['criterion_name_vi']]=val; tally += val=='yes'
+            row['Total ✓']=tally; out.append(row)
+        return out
 
-    def save_inventory_snapshot(self,*,company_ref_id,as_of_date,review_id=None,tev=None,ebit=None,ebitda=None,normalized_earnings=None,total_debt=None,interest_expense=None,fcf_current=None,market_cap=None,dividend_per_share=None,market_price=None,fcf_estimate=None,target_price=None,mos=None,thesis_direction='unknown',note='',actor='analyst',data_origin='manual',source_as_of_date=None):
+    def save_inventory_snapshot(self,*,company_ref_id,as_of_date,review_id=None,tev=None,ebit=None,ebitda=None,normalized_earnings=None,total_debt=None,interest_expense=None,fcf_current=None,market_cap=None,dividend_per_share=None,market_price=None,fcf_estimate=None,target_price=None,ccc_days=None,mos=None,thesis_direction='unknown',note='',actor='analyst',data_origin='manual',source_as_of_date=None):
         if thesis_direction not in {'up','flat','down','unknown'} or data_origin not in {'manual','host_data_layer','mixed'}: raise ValidationError('Inventory metadata không hợp lệ.')
         asof=self._date(as_of_date); met=inventory_metrics(tev=tev,ebit=ebit,ebitda=ebitda,normalized_earnings=normalized_earnings,total_debt=total_debt,interest_expense=interest_expense,fcf_current=fcf_current,market_cap=market_cap,dividend_per_share=dividend_per_share,market_price=market_price,target_price=target_price)
         with self._conn() as c:
@@ -194,7 +268,7 @@ class SQLiteChecklistRepository:
                 x=c.execute("SELECT id FROM research_reviews WHERE company_ref_id=? ORDER BY as_of_date DESC,id DESC LIMIT 1",(company_ref_id,)).fetchone(); review_id=x['id'] if x else None
             q=self.quality_tally(review_id,conn=c) if review_id else 0; rm=self.review_metrics(review_id,conn=c) if review_id else {'answered':0,'research_completion':0.0,'critical_unknowns':0,'red_flags':0}
             v=c.execute("SELECT COALESCE(MAX(version_no),0) v FROM opportunity_inventory_snapshots WHERE company_ref_id=? AND as_of_date=?",(company_ref_id,asof)).fetchone()['v']+1
-            fields={'company_ref_id':company_ref_id,'as_of_date':asof,'version_no':v,'data_origin':data_origin,'source_as_of_date':source_as_of_date,'tev':tev,'ebit':ebit,'ebitda':ebitda,'normalized_earnings':normalized_earnings,'total_debt':total_debt,'interest_expense':interest_expense,'fcf_current':fcf_current,'market_cap':market_cap,'dividend_per_share':dividend_per_share,'market_price':market_price,'fcf_estimate':fcf_estimate,'target_price':target_price,**met,'quality_tally':q,'checklist_answered':rm['answered'],'research_completion':rm['research_completion'],'critical_unknowns':rm['critical_unknowns'],'red_flags':rm['red_flags'],'mos':mos,'thesis_direction':thesis_direction,'last_review_id':review_id,'note':str(note or '').strip()}
+            fields={'company_ref_id':company_ref_id,'as_of_date':asof,'version_no':v,'data_origin':data_origin,'source_as_of_date':source_as_of_date,'tev':tev,'ebit':ebit,'ebitda':ebitda,'normalized_earnings':normalized_earnings,'total_debt':total_debt,'interest_expense':interest_expense,'fcf_current':fcf_current,'market_cap':market_cap,'dividend_per_share':dividend_per_share,'market_price':market_price,'fcf_estimate':fcf_estimate,'target_price':target_price,'ccc_days':ccc_days,**met,'quality_tally':q,'checklist_answered':rm['answered'],'research_completion':rm['research_completion'],'critical_unknowns':rm['critical_unknowns'],'red_flags':rm['red_flags'],'mos':mos,'thesis_direction':thesis_direction,'last_review_id':review_id,'note':str(note or '').strip()}
             cur=c.execute(f"INSERT INTO opportunity_inventory_snapshots({','.join(fields)}) VALUES({','.join('?' for _ in fields)})",tuple(fields.values())); iid=cur.lastrowid
             self._audit(c,company_ref_id=company_ref_id,review_id=review_id,actor=actor,action='create_snapshot',entity_type='opportunity_inventory',entity_id=iid,after=self._d(c.execute("SELECT * FROM opportunity_inventory_snapshots WHERE id=?",(iid,)).fetchone())); return iid
     def inventory_history(self,cid):
@@ -208,14 +282,25 @@ class SQLiteChecklistRepository:
             return out
 
     def _snapshot_payload(self,c,rid):
+        from ..services.ai_research_assistant import snapshot_ai_for_review
+        from ..services.evidence_workspace import snapshot_evidence_for_review
+        from ..services.management_intelligence import snapshot_management_for_review
+        from ..services.monitoring_delta_review import snapshot_monitoring_for_review
+        from ..services.investment_decision_journal import snapshot_decision_journal_for_review
+        from ..services.peer_snapshots import snapshot_peer_payload_for_review
+        from ..services.topdown_sector_context import snapshot_topdown_for_review
+        from ..services.topdown_data_update import snapshot_phase9_for_review
+
         rv=self.get_review(rid,conn=c); co=self.get_company_ref(rv['company_ref_id'],conn=c); inv=c.execute("SELECT * FROM opportunity_inventory_snapshots WHERE company_ref_id=? AND as_of_date<=? ORDER BY as_of_date DESC,version_no DESC,id DESC LIMIT 1",(rv['company_ref_id'],rv['as_of_date'])).fetchone()
-        return {'snapshot_schema':'phase1b-review-v1','generated_at':datetime.now(timezone.utc).isoformat(timespec='seconds'),'company':co,'review':rv,'metrics':self.review_metrics(rid,conn=c),'quality_tally':self.quality_tally(rid,conn=c),'assessments':self.latest_assessments_for_review(rid,conn=c),'screening':self.latest_screening_for_review(rid,conn=c),'opportunity_inventory':dict(inv) if inv else None}
-    def finalize_review(self,rid,actor='analyst'):
+        return {'snapshot_schema':'phase1b-review-v9-evidence-peer-ai-management-monitoring-decision-topdown-latest-data','generated_at':datetime.now(timezone.utc).isoformat(timespec='seconds'),'company':co,'review':rv,'metrics':self.review_metrics(rid,conn=c),'quality_tally':self.quality_tally(rid,conn=c),'assessments':self.latest_assessments_for_review(rid,conn=c),'screening':self.latest_screening_for_review(rid,conn=c),'opportunity_inventory':dict(inv) if inv else None,'research_evidence':snapshot_evidence_for_review(self,rid,conn=c),'peer_comparison':snapshot_peer_payload_for_review(self,rid,conn=c),'ai_research':snapshot_ai_for_review(self,rid,conn=c),'management_intelligence':snapshot_management_for_review(self,rid,conn=c),'monitoring_delta_review':snapshot_monitoring_for_review(self,rid,conn=c),'investment_memo_decision_journal':snapshot_decision_journal_for_review(self,rid,conn=c),'fisher_topdown_sector_context':snapshot_topdown_for_review(self,rid,conn=c),'topdown_latest_data':snapshot_phase9_for_review(self,rid,conn=c)}
+    def finalize_review(self,rid,actor='analyst',finalize_reason=None):
+        if finalize_reason is not None and not str(finalize_reason).strip(): raise ValidationError('Lý do chốt review là bắt buộc.')
+        reason = str(finalize_reason).strip() if finalize_reason is not None else 'Legacy/imported finalize — reason not recorded'
         with self._conn() as c:
-            rv=self._editable(c,rid); c.execute("UPDATE research_reviews SET status='completed',completed_at=datetime('now') WHERE id=?",(rid,)); payload=self._snapshot_payload(c,rid)
+            rv=self._editable(c,rid); c.execute("UPDATE research_reviews SET status='completed',finalize_reason=?,completed_at=datetime('now') WHERE id=?",(reason,rid)); payload=self._snapshot_payload(c,rid)
             v=c.execute("SELECT COALESCE(MAX(snapshot_version),0) v FROM data_snapshots WHERE review_id=? AND snapshot_type='review'",(rid,)).fetchone()['v']+1
             cur=c.execute("INSERT INTO data_snapshots(company_ref_id,review_id,as_of_date,snapshot_type,snapshot_version,payload_json) VALUES(?,?,?,'review',?,?)",(rv['company_ref_id'],rid,rv['as_of_date'],v,json.dumps(payload,ensure_ascii=False,default=str))); sid=cur.lastrowid
-            self._audit(c,company_ref_id=rv['company_ref_id'],review_id=rid,actor=actor,action='finalize',entity_type='review',entity_id=rid,before=rv,after={'status':'completed','snapshot_id':sid}); return sid
+            self._audit(c,company_ref_id=rv['company_ref_id'],review_id=rid,actor=actor,action='finalize',entity_type='review',entity_id=rid,before=rv,after={'status':'completed','snapshot_id':sid,'finalize_reason':reason}); return sid
     def list_snapshots(self,cid):
         with self._conn() as c: return [dict(r) for r in c.execute("SELECT id,company_ref_id,review_id,as_of_date,snapshot_type,snapshot_version,created_at FROM data_snapshots WHERE company_ref_id=? ORDER BY as_of_date DESC,id DESC",(cid,))]
     def get_snapshot(self,sid):

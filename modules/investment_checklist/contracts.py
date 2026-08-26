@@ -28,6 +28,7 @@ class HostContext:
     company: CompanyContext
     analyst: AnalystContext = field(default_factory=AnalystContext)
     shared_db_path: Optional[Path] = None
+    database_url: Optional[str] = None
     selected_as_of_date: Optional[str] = None
 
 
@@ -47,7 +48,10 @@ class InventorySourceData:
     fcf_estimate: Optional[float] = None
     target_price: Optional[float] = None
     mos: Optional[float] = None
+    shares_outstanding_mil: Optional[float] = None
+    ccc_days: Optional[float] = None
     source_module: str = "host_data_layer"
+    source_notes: tuple[str, ...] = ()
 
 
 class TrecapitalDataProvider(Protocol):

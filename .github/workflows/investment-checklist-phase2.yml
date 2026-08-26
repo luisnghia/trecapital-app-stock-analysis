@@ -1,0 +1,96 @@
+name: Investment Checklist Phase 2 CI
+
+on:
+  push:
+    branches:
+      - feature/investment-checklist-phase2-quant-tools
+    paths:
+      - 'modules/investment_checklist/**'
+      - 'pages/05_Investment_Checklist.py'
+      - 'financial_sign_policy.py'
+      - 'module1_engine.py'
+      - 'module2_engine.py'
+      - 'VERSION.txt'
+      - 'requirements.txt'
+      - '.github/workflows/investment-checklist-phase2.yml'
+  pull_request:
+    paths:
+      - 'modules/investment_checklist/**'
+      - 'pages/05_Investment_Checklist.py'
+      - 'financial_sign_policy.py'
+      - 'module1_engine.py'
+      - 'module2_engine.py'
+      - 'VERSION.txt'
+      - 'requirements.txt'
+      - '.github/workflows/investment-checklist-phase2.yml'
+
+jobs:
+  test-phase2-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trecapital
+          POSTGRES_PASSWORD: trecapital_ci
+          POSTGRES_DB: trecapital_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U trecapital -d trecapital_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      TEST_DATABASE_URL: postgresql://trecapital:trecapital_ci@localhost:5432/trecapital_test
+      TREC_CHECKLIST_DATABASE_URL: postgresql://trecapital:trecapital_ci@localhost:5432/trecapital_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install app dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Compile Phase 2
+        run: |
+          python -m compileall -q financial_sign_policy.py module1_engine.py module2_engine.py modules/investment_checklist pages/05_Investment_Checklist.py
+      - name: Run full checklist regression + Phase 2 quantitative tests
+        run: |
+          python -m pytest -q modules/investment_checklist/tests
+      - name: Enforce Phase 2 source-of-truth guardrails
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          engine_raw = Path('modules/investment_checklist/quantitative_tools.py').read_text(encoding='utf-8')
+          engine = engine_raw.lower()
+          ui = Path('modules/investment_checklist/ui/quant_tools.py').read_text(encoding='utf-8')
+          shell = Path('modules/investment_checklist/ui/__init__.py').read_text(encoding='utf-8')
+          integrated_shell = Path('modules/investment_checklist/ui/integration_preview.py').read_text(encoding='utf-8')
+          evidence = Path('modules/investment_checklist/services/evidence_workspace.py').read_text(encoding='utf-8').lower()
+          industry = Path('modules/investment_checklist/industry_overlay.py').read_text(encoding='utf-8').lower()
+          peer = Path('modules/investment_checklist/services/peer_snapshots.py').read_text(encoding='utf-8').lower()
+          peer_ui = Path('modules/investment_checklist/ui/peer_snapshot.py').read_text(encoding='utf-8').lower()
+          sign_policy = Path('financial_sign_policy.py').read_text(encoding='utf-8').lower()
+          formulas = Path('modules/investment_checklist/phase2_formula_assumptions.py').read_text(encoding='utf-8')
+          forbidden = ['import httpx', 'import requests', 'urllib.request']
+          assert not any(x in engine for x in forbidden), 'Quant tools must not fetch a parallel financial source'
+          assert not any(x in evidence for x in forbidden), 'Evidence workspace records analyst sources; it must not fetch a parallel source'
+          assert not any(x in industry for x in forbidden), 'Industry Overlay must only consume Trecapital Data Layer'
+          assert not any(x in peer for x in forbidden), 'Peer Snapshot must not fetch peers or a parallel financial source'
+          assert not any(x in peer_ui for x in forbidden), 'Peer Snapshot UI must reuse the explicit Module 3 result'
+          assert '🧮 Analytical Tools' in shell, 'Analytical Tools section must be reachable'
+          assert '🔎 Research Evidence' in integrated_shell, 'Research Evidence Workspace must be reachable'
+          assert '🏭 Industry & Moat' in integrated_shell, 'Phase 3A Industry & Moat must be reachable'
+          assert 'save_assessment(' not in peer and 'save_assessment(' not in peer_ui, 'Peer Snapshot must not overwrite analyst assessments'
+          assert 'st.tabs(' not in ui, 'Phase 2 UI should execute only the selected tool'
+          assert 'không tính beneish lần thứ hai' in engine, 'Accounting quality must not duplicate Beneish'
+          assert 'ROIC Trecapital' in engine_raw and 'ROIC Shearn' in engine_raw, 'ROIC standard and Shearn variants must stay distinct'
+          assert 'roic_standard_pct' in engine, 'Phase 2 must consume canonical Trecapital ROIC field'
+          assert 'maintenance_capex_bil' in engine, 'Phase 2 must preserve canonical Trecapital maintenance capex when available'
+          assert 'Single Source of Truth' in formulas, 'Formula registry must document the SSOT policy'
+          assert 'strictly positive' in sign_policy and 'negative/negative' in sign_policy, 'Shared sign policy must reject misleading denominator states'
+          print('Phase 2 guardrails: PASS')
+          PY

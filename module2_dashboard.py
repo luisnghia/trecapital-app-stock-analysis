@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import warnings
 import html
 import json
 import re
 import base64
+
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/trecapital-matplotlib")
 
 import pandas as pd
 import streamlit as st
@@ -1086,23 +1089,52 @@ def _load_data(ticker: str, source: str) -> tuple[object, pd.DataFrame, pd.DataF
             _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label, ticker)
             return company, annual, quarterly, label, (overview_csv, year_csv, quarter_csv)
 
-        # 2) Không có cache thì tự gọi pipeline crawler Tổng quan doanh nghiệp.
-        overview, year, quarter, label = _export_module1_crawler_cached(ticker, "FireAnt + Vietstock", str(DATA_CACHE_DIR), str(RAW_DIR))
-        overview_csv, year_csv, quarter_csv = Path(overview), Path(year), Path(quarter)
-        company, annual, quarterly = _load_csv_bundle(overview_csv, year_csv, quarter_csv, ticker)
-        if _has_real_financial_data(annual):
-            _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label + " | Auto-sync từ Định giá chuyên sâu", ticker)
-            return company, annual, quarterly, label + " | Auto-sync từ Định giá chuyên sâu", (overview_csv, year_csv, quarter_csv)
+        # 2) Fast start: use the packaged normalized sample when it belongs to the requested ticker.
+        # It is explicitly labelled and keeps first paint independent from network/XLSM parsing.
+        try:
+            company, annual, quarterly = _load_csv_bundle(
+                DEFAULT_OVERVIEW_CSV, DEFAULT_YEAR_CSV, DEFAULT_QUARTER_CSV, ticker
+            )
+            if _safe_ticker(str(getattr(company, "ticker", ""))) == ticker and _has_real_financial_data(annual):
+                label = "Dữ liệu mẫu khởi động nhanh — bấm cập nhật để lấy dữ liệu live"
+                _set_active_module1_bundle(
+                    DEFAULT_OVERVIEW_CSV, DEFAULT_YEAR_CSV, DEFAULT_QUARTER_CSV, label, ticker
+                )
+                return company, annual, quarterly, label, (
+                    DEFAULT_OVERVIEW_CSV, DEFAULT_YEAR_CSV, DEFAULT_QUARTER_CSV
+                )
+        except Exception:
+            pass
 
-        # 3) Fallback cuối: dữ liệu tích hợp, chỉ dùng nếu mã có dữ liệu thật.
+        # 3) Fast fallback: open integrated data before any crawler. Switching pages must not wait
+        # for network; "Tìm kiếm/cập nhật tất cả" already selects FireAnt + Vietstock explicitly.
         if BUNDLED_XLSM.exists():
             overview, year, quarter, label2 = _export_bundled_financial_cached(str(BUNDLED_XLSM), ticker, str(DATA_CACHE_DIR))
             overview_csv, year_csv, quarter_csv = Path(overview), Path(year), Path(quarter)
             company, annual, quarterly = _load_csv_bundle(overview_csv, year_csv, quarter_csv, ticker)
             if _has_real_financial_data(annual):
-                _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label2 + " | fallback Financial", ticker)
-                return company, annual, quarterly, label2 + " | fallback Financial", (overview_csv, year_csv, quarter_csv)
-        return company, annual, quarterly, label, (Path(overview), Path(year), Path(quarter))
+                _set_active_module1_bundle(overview_csv, year_csv, quarter_csv, label2 + " | fast start Financial", ticker)
+                return company, annual, quarterly, label2 + " | fast start Financial", (overview_csv, year_csv, quarter_csv)
+
+        # Diagnostic opt-in only. Production navigation remains network-free until the user clicks
+        # update, which avoids a 15--30 second first paint after every app reboot/new session.
+        allow_implicit = os.getenv("TREC_MODULE2_IMPLICIT_NETWORK", "").strip().lower() in {"1", "true", "yes"}
+        if allow_implicit:
+            overview, year, quarter, label = _export_module1_crawler_cached(
+                ticker, "FireAnt + Vietstock", str(DATA_CACHE_DIR), str(RAW_DIR)
+            )
+            overview_csv, year_csv, quarter_csv = Path(overview), Path(year), Path(quarter)
+            company, annual, quarterly = _load_csv_bundle(overview_csv, year_csv, quarter_csv, ticker)
+            if _has_real_financial_data(annual):
+                _set_active_module1_bundle(
+                    overview_csv, year_csv, quarter_csv, label + " | Auto-sync từ Định giá chuyên sâu", ticker
+                )
+                return company, annual, quarterly, label + " | Auto-sync từ Định giá chuyên sâu", (
+                    overview_csv, year_csv, quarter_csv
+                )
+        raise ValueError(
+            f"Chưa có cache/BCTC tích hợp cho {ticker}. Bấm 'Tìm kiếm/cập nhật tất cả' để tải dữ liệu live."
+        )
 
     elif source in {"FireAnt", "Vietstock", "FireAnt + Vietstock"}:
         overview, year, quarter, label = _export_module1_crawler_cached(ticker, source, str(DATA_CACHE_DIR), str(RAW_DIR))
@@ -2985,8 +3017,12 @@ def _peer_snapshot(ticker: str, source_for_peer: str, assumptions: dict, target_
         valuation = build_module2_valuation_table(c, annual, assumptions)
         current_price = _parse_num(getattr(c, "current_price", None))
         value_range = build_valuation_range(valuation, current_price, float(target_mos_pct))
-        moat = build_porter_moat_scorecard(c, annual)
         cls = classify_company(c, annual)
+        is_financial = cls.company_type == "Financial / Bank / Insurance"
+        # Porter/cash-conversion formulas for industrial companies are economically invalid for
+        # banks, insurers and brokers.  Do not calculate them and do not allow their neutral/default
+        # score to influence the peer rank.
+        moat = None if is_financial else build_porter_moat_scorecard(c, annual)
         roe = _recent_median_local(annual, "roe_actual_pct", "roe_pct")
         roic = _recent_median_local(annual, "roic_standard_pct", "roic_pct")
         gross_margin = _recent_median_local(annual, "gross_margin_pct")
@@ -2999,21 +3035,39 @@ def _peer_snapshot(ticker: str, source_for_peer: str, assumptions: dict, target_
         pe = _parse_num(getattr(c, "pe", None))
         pb = _parse_num(getattr(c, "pb", None))
         mos = value_range.mos_to_weighted_pct
-        moat_score = float(moat.attrs.get("total_score", 0) or 0)
+        moat_score = None if moat is None else float(moat.attrs.get("total_score", 0) or 0)
+        moat_level = "Không chấm Porter công nghiệp" if moat is None else moat.attrs.get("level", "N/A")
 
-        quality_score = _mean_ignore_none([_score_high(roic, 15, 10, 5), _score_high(roe, 18, 12, 6), _score_high(gross_margin, 30, 18, 10)])
-        cash_score = _mean_ignore_none([_score_high(cfo_np, 1.0, 0.7, 0.3), _score_high(fcf_np, 0.8, 0.3, 0.0)])
         valuation_score = _mean_ignore_none([_score_high(mos, float(target_mos_pct), 0, -20), _score_low(pe, 8, 12, 20), _score_low(pb, 1.0, 1.8, 3.0)])
-        risk_penalty = 10 if net_debt_equity is not None and net_debt_equity > 1.5 else 0
-        total_score = max(0.0, min(100.0, 0.30 * quality_score + 0.25 * cash_score + 0.25 * moat_score + 0.20 * valuation_score - risk_penalty))
-        if total_score >= 80 and mos is not None and mos >= float(target_mos_pct):
-            conclusion = "Ưu tiên cao: chất lượng/định giá cùng thuận lợi, cần xác nhận thêm bằng BCTN và rủi ro ngành."
-        elif total_score >= 72 and (mos or -999) >= 0:
-            conclusion = "Theo dõi tốt: chất lượng tương đối cao nhưng cần kiểm tra MOS/chu kỳ trước khi giải ngân."
-        elif total_score >= 60:
-            conclusion = "Trung bình: chỉ nên xem là mã đối chiếu hoặc chờ giá/triển vọng rõ hơn."
+        if is_financial:
+            # Financial peer ranking is deliberately narrow until NIM/CASA/NPL/LLR/CAR/CIR and
+            # credit-cost fields are available from a structured source.  ROE/earnings growth and
+            # P/B/P/E/MOS are valid cross-checks; CFO/FCF/ROIC/margins/net debt and Porter are N/A.
+            roic = gross_margin = net_margin = cfo_np = fcf_np = net_debt_equity = revenue_cagr = None
+            quality_score = _mean_ignore_none([
+                _score_high(roe, 18, 12, 6),
+                _score_high(profit_cagr, 10, 5, 0),
+            ])
+            cash_score = None
+            total_score = max(0.0, min(100.0, 0.60 * quality_score + 0.40 * valuation_score))
+            conclusion = (
+                "Bộ lọc tài chính: xếp hạng tạm bằng ROE/tăng trưởng LNST và P/B/P/E/MOS; "
+                "không chấm CFO/FCF/ROIC/Porter công nghiệp. Cần xác nhận NIM, CASA, NPL, LLR, "
+                "CAR, CIR và credit cost trước kết luận."
+            )
         else:
-            conclusion = "Thận trọng: điểm tổng hợp yếu hoặc dữ liệu/rủi ro chưa ủng hộ."
+            quality_score = _mean_ignore_none([_score_high(roic, 15, 10, 5), _score_high(roe, 18, 12, 6), _score_high(gross_margin, 30, 18, 10)])
+            cash_score = _mean_ignore_none([_score_high(cfo_np, 1.0, 0.7, 0.3), _score_high(fcf_np, 0.8, 0.3, 0.0)])
+            risk_penalty = 10 if net_debt_equity is not None and net_debt_equity > 1.5 else 0
+            total_score = max(0.0, min(100.0, 0.30 * quality_score + 0.25 * cash_score + 0.25 * float(moat_score or 0) + 0.20 * valuation_score - risk_penalty))
+            if total_score >= 80 and mos is not None and mos >= float(target_mos_pct):
+                conclusion = "Ưu tiên cao: chất lượng/định giá cùng thuận lợi, cần xác nhận thêm bằng BCTN và rủi ro ngành."
+            elif total_score >= 72 and (mos or -999) >= 0:
+                conclusion = "Theo dõi tốt: chất lượng tương đối cao nhưng cần kiểm tra MOS/chu kỳ trước khi giải ngân."
+            elif total_score >= 60:
+                conclusion = "Trung bình: chỉ nên xem là mã đối chiếu hoặc chờ giá/triển vọng rõ hơn."
+            else:
+                conclusion = "Thận trọng: điểm tổng hợp yếu hoặc dữ liệu/rủi ro chưa ủng hộ."
         row = {
             "Mã": ticker,
             "Tên doanh nghiệp": getattr(c, "company_name", ""),
@@ -3037,7 +3091,7 @@ def _peer_snapshot(ticker: str, source_for_peer: str, assumptions: dict, target_
             "Nợ ròng/VCSH": net_debt_equity,
             "Vốn hóa (tỷ đồng)": _parse_num(getattr(c, "market_cap_bil", None)),
             "Moat score": moat_score,
-            "Moat level": moat.attrs.get("level", "N/A"),
+            "Moat level": moat_level,
             "Điểm chất lượng": quality_score,
             "Điểm dòng tiền": cash_score,
             "Điểm định giá": valuation_score,
@@ -3099,11 +3153,17 @@ def _peer_comparison_summary(df: pd.DataFrame, target_mos_pct: float) -> str:
     if ok.empty:
         return "Các mã đã chọn chưa có đủ dữ liệu để so sánh."
     top = ok.sort_values("Điểm tổng hợp", ascending=False).iloc[0]
-    moat_leaders = ok.sort_values("Moat score", ascending=False).head(3)["Mã"].astype(str).tolist() if "Moat score" in ok else []
+    moat_numeric = pd.to_numeric(ok.get("Moat score"), errors="coerce") if "Moat score" in ok else pd.Series(index=ok.index, dtype=float)
+    moat_ok = ok[moat_numeric.notna()].copy()
+    if not moat_ok.empty:
+        moat_ok["_moat_numeric"] = moat_numeric.loc[moat_ok.index]
+        moat_leaders = moat_ok.sort_values("_moat_numeric", ascending=False).head(3)["Mã"].astype(str).tolist()
+    else:
+        moat_leaders = []
     mos_candidates = ok[pd.to_numeric(ok.get("MOS hiện tại %"), errors="coerce").fillna(-999) >= float(target_mos_pct)]["Mã"].astype(str).tolist()
     text = (
         f"Mã đứng đầu theo điểm tổng hợp là **{top.get('Mã')}** với {top.get('Điểm tổng hợp', 0):,.1f}/100. "
-        f"Các mã có moat score nổi bật: {', '.join(moat_leaders) if moat_leaders else 'chưa đủ dữ liệu'}. "
+        f"Các mã có moat score nổi bật: {', '.join(moat_leaders) if moat_leaders else 'không chấm Porter công nghiệp cho nhóm này'}. "
         f"Các mã đạt MOS yêu cầu {float(target_mos_pct):.0f}%: {', '.join(mos_candidates) if mos_candidates else 'chưa có mã nào đạt'}. "
         "Cách đọc: bảng này chỉ là bộ lọc tương đối trong cùng ngành; quyết định cuối cùng vẫn phải kiểm tra BCTC gốc, lợi thế cạnh tranh, chu kỳ ngành và sự kiện bất thường."
     )
@@ -3111,6 +3171,16 @@ def _peer_comparison_summary(df: pd.DataFrame, target_mos_pct: float) -> str:
 
 
 def _build_peer_row_note(rowd: dict) -> str:
+    if str(rowd.get("Loại DN", "")) == "Financial / Bank / Insurance":
+        return "\n".join([
+            f"SO SÁNH CÙNG NGÀNH TÀI CHÍNH: {rowd.get('Mã', 'N/A')} - {rowd.get('Tên doanh nghiệp', '')}",
+            f"- Xếp hạng: {rowd.get('Xếp hạng', 'N/A')}; điểm tổng hợp: {_format_note_value(rowd.get('Điểm tổng hợp'))}/100.",
+            f"- Chất lượng: ROE {_format_note_value(rowd.get('ROE %'))}%; CAGR LNST 5Y {_format_note_value(rowd.get('CAGR LNST 5Y %'))}%.",
+            f"- Định giá: giá hiện tại {_format_note_value(rowd.get('Giá hiện tại'))}; giá trị weighted {_format_note_value(rowd.get('Giá trị weighted'))}; MOS {_format_note_value(rowd.get('MOS hiện tại %'))}%; P/E {_format_note_value(rowd.get('P/E'))}; P/B {_format_note_value(rowd.get('P/B'))}.",
+            "- CFO/LNST, FCF/LNST, ROIC, biên gộp, nợ ròng/VCSH và Porter công nghiệp: N/A.",
+            f"- Kết luận tự động: {rowd.get('Kết luận so sánh', 'N/A')}",
+            "Nguyên tắc: điểm tổng hợp tài chính = 60% ROE/tăng trưởng LNST + 40% P/B/P/E/MOS. Cần NIM, CASA, NPL, LLR, CAR, CIR và credit cost trước kết luận cuối.",
+        ])
     return "\n".join([
         f"SO SÁNH CÙNG NGÀNH: {rowd.get('Mã', 'N/A')} - {rowd.get('Tên doanh nghiệp', '')}",
         f"- Xếp hạng: {rowd.get('Xếp hạng', 'N/A')}; điểm tổng hợp: {_format_note_value(rowd.get('Điểm tổng hợp'))}/100.",
@@ -3523,7 +3593,7 @@ def render_dashboard() -> None:
             index=0,
         )
         source = _to_internal_source(source_display)
-        ticker = st.text_input("Mã cổ phiếu", value=st.session_state.get("module2_ticker", st.session_state.get("last_query_ticker", "DGC")), max_chars=12).upper()
+        ticker = st.text_input("Mã cổ phiếu", value=st.session_state.get("module2_ticker", st.session_state.get("last_query_ticker", "DCM")), max_chars=12).upper()
         mos_canonical = _prepare_mos_widget("module2_mos_widget")
         target_mos_pct = st.selectbox(
             "Mức MOS yêu cầu (%)",

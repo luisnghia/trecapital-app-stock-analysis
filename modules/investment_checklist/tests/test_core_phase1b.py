@@ -69,4 +69,5 @@ def test_table_11_tally_only_yes(tmp_path):
 def test_table_12_formula_snapshot(tmp_path):
     r=make_repo(tmp_path); cid=make_company(r); rid=r.create_review(cid,date(2026,6,30)); r.save_inventory_snapshot(company_ref_id=cid,as_of_date=date(2026,6,30),review_id=rid,tev=1200,ebit=100,ebitda=150,normalized_earnings=80,total_debt=300,interest_expense=20,fcf_current=60,market_cap=1000,dividend_per_share=1000,market_price=50000,target_price=70000,mos=0.2857)
     x=r.inventory_history(cid)[0]
-    assert x["tev_ebit"]==12 and x["tev_ebitda"]==8 and round(x["pretax_earnings_yield"],4)==0.0667 and x["ebit_interest"]==5
+    # Shearn Table 1.2: Pre-tax Earnings Yield is EBIT / TEV, inverse of TEV / EBIT.
+    assert x["tev_ebit"]==12 and x["tev_ebitda"]==8 and round(x["pretax_earnings_yield"],4)==0.0833 and x["ebit_interest"]==5

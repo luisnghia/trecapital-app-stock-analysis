@@ -1,0 +1,276 @@
+{
+  "_meta": {
+    "ten_file": "sector_drivers_fisher.json",
+    "muc_dich": "Ma trận độ nhạy của từng ngành với từng Portfolio Driver. Đây là trái tim của Bước 1 trong quy trình top-down.",
+    "nguon_goc": [
+      "Fisher Investments on Technology — Chapter 3 Technology Sector Drivers và Chapter 7 Table 7.4 Portfolio Drivers",
+      "Fisher Investments on Consumer Staples — Chapter 3 Consumer Staples Sector Drivers (Economic / Political / Sentiment)",
+      "Fisher Investments on Consumer Discretionary — Chapter 3 Consumer Discretionary Sector Drivers",
+      "Fisher Investments on Industrials — Industrials Sector Drivers (Real GDP, Construction Spending, Government Spending)",
+      "Fisher Investments on Materials — Materials Sector Drivers (Commodity Prices, Materials Consumption, Production Costs)",
+      "Fisher Investments on Energy — Energy Sector Drivers (Oil & Gas demand / supply drivers)",
+      "Fisher Investments on Utilities — Sector Drivers (Interest Rates, Monetary Policy, Inflation, Wholesale Electricity, Natural Gas)",
+      "Fisher Investments on Telecom — Sector Drivers (Interest Rates, Inflation, Innovation, Regulatory Changes, Risk Aversion, Value vs Growth)",
+      "Fisher Investments on Financials — Table 6.4 Portfolio Drivers",
+      "Fisher Investments on Health Care — Chapter 4 Health Care Sector Drivers (Defensive Nature, Innovation & Patent Expirations, Political/Regulatory)"
+    ],
+    "cach_doc_do_nhay": "Độ nhạy từ -3 đến +3. Số dương nghĩa là khi driver diễn biến THEO CHIỀU TĂNG thì ngành hưởng lợi. Số âm nghĩa là ngành chịu thiệt. Độ lớn thể hiện mức độ quan trọng của driver đó với ngành.",
+    "cach_cham_trien_vong": "Người dùng chấm triển vọng 12 tháng tới cho từng driver theo thang -2 đến +2.",
+    "canh_bao": "Fisher nhấn mạnh: các driver này không đầy đủ và không đúng cho mọi thời kỳ. Việc tự tìm ra driver mới đúng mới là nguồn alpha dài hạn."
+  },
+  "thang_trien_vong": {
+    "-2": "Rất tiêu cực / suy giảm mạnh",
+    "-1": "Tiêu cực / suy giảm",
+    "0": "Trung tính / đúng kỳ vọng",
+    "1": "Tích cực / cải thiện",
+    "2": "Rất tích cực / cải thiện mạnh"
+  },
+  "drivers": [
+    {
+      "id": "gdp_growth",
+      "nhom": "Kinh tế",
+      "ten_vi": "Tăng trưởng GDP thực so với kỳ vọng đồng thuận",
+      "dien_giai": "Fisher xem tăng trưởng kinh tế là driver gốc. Câu hỏi đúng không phải GDP tăng hay giảm, mà là GDP tăng NHANH HƠN hay CHẬM HƠN mức thị trường đang định giá sẵn."
+    },
+    {
+      "id": "interest_rates",
+      "nhom": "Kinh tế",
+      "ten_vi": "Mặt bằng lãi suất (chiều tăng)",
+      "dien_giai": "Lãi suất tăng làm tăng chi phí vốn. Ngành đòn bẩy cao và có dòng tiền dài hạn (Tiện ích, Viễn thông, Bất động sản) chịu thiệt nhiều nhất; Ngân hàng hưởng lợi khi biên lãi thuần giãn ra."
+    },
+    {
+      "id": "yield_curve",
+      "nhom": "Kinh tế",
+      "ten_vi": "Độ dốc đường cong lãi suất",
+      "dien_giai": "Đường cong dốc lên là mô hình lợi nhuận cốt lõi của ngân hàng: huy động ngắn hạn rẻ, cho vay dài hạn cao. Đường cong đảo ngược báo hiệu tín dụng co lại."
+    },
+    {
+      "id": "inflation",
+      "nhom": "Kinh tế",
+      "ten_vi": "Lạm phát (chiều tăng)",
+      "dien_giai": "Lạm phát làm tăng giá đầu vào. Ngành chuyển được giá sang người mua hưởng lợi; ngành bị khống chế giá (Tiện ích điều tiết) hoặc phải hấp thụ chi phí (Tiêu dùng thiết yếu) chịu thiệt. Fisher lưu ý Công nghệ mang tính giảm phát cấu trúc."
+    },
+    {
+      "id": "commodity_prices",
+      "nhom": "Kinh tế",
+      "ten_vi": "Giá hàng hóa cơ bản (dầu, kim loại, nông sản)",
+      "dien_giai": "Là biến doanh thu của Năng lượng và Nguyên vật liệu, đồng thời là biến chi phí của Tiêu dùng thiết yếu, Công nghiệp và Tiện ích. Fisher nhấn mạnh giá hàng hóa được xác lập tại biên."
+    },
+    {
+      "id": "capex_cycle",
+      "nhom": "Kinh tế",
+      "ten_vi": "Chu kỳ chi đầu tư tài sản cố định và chi tiêu IT doanh nghiệp",
+      "dien_giai": "Doanh nghiệp tăng chi IT và mua máy móc khi kinh tế mạnh. Fisher dùng tỷ lệ book-to-bill của thiết bị bán dẫn làm chỉ báo sớm cho Công nghệ."
+    },
+    {
+      "id": "consumer_spending",
+      "nhom": "Kinh tế",
+      "ten_vi": "Tiêu dùng cá nhân và thu nhập khả dụng",
+      "dien_giai": "Fisher chỉ rõ tiêu dùng không thiết yếu bám rất sát thu nhập khả dụng và tiền lương, trong khi tiêu dùng thiết yếu gần như đi ngang qua chu kỳ."
+    },
+    {
+      "id": "credit_growth",
+      "nhom": "Kinh tế",
+      "ten_vi": "Tăng trưởng tín dụng và thanh khoản hệ thống",
+      "dien_giai": "Tín dụng là nhiên liệu của Ngân hàng, Bất động sản và tiêu dùng trả góp. Fisher coi đây là driver kinh tế trung tâm của nhóm Tài chính."
+    },
+    {
+      "id": "currency",
+      "nhom": "Kinh tế",
+      "ten_vi": "Sức mạnh đồng nội tệ (VND lên giá)",
+      "dien_giai": "Nội tệ mạnh làm giảm sức cạnh tranh xuất khẩu và giảm giá trị quy đổi doanh thu ngoại tệ, nhưng làm rẻ hàng nhập khẩu và nguyên liệu nhập."
+    },
+    {
+      "id": "construction_infra",
+      "nhom": "Kinh tế",
+      "ten_vi": "Đầu tư xây dựng và giải ngân hạ tầng",
+      "dien_giai": "Fisher tách riêng chi tiêu xây dựng khỏi GDP vì đây là driver trực tiếp và sớm của Công nghiệp và Nguyên vật liệu."
+    },
+    {
+      "id": "employment",
+      "nhom": "Kinh tế",
+      "ten_vi": "Việc làm và tăng trưởng tiền lương",
+      "dien_giai": "Fisher cảnh báo việc làm là chỉ báo TRỄ của tăng trưởng kinh tế, nên không dùng để dự báo mà dùng để xác nhận."
+    },
+    {
+      "id": "taxation",
+      "nhom": "Chính trị",
+      "ten_vi": "Áp lực thuế (chiều tăng thuế)",
+      "dien_giai": "Tăng thuế thu nhập doanh nghiệp, thuế tiêu thụ đặc biệt hoặc thuế tài nguyên làm giảm lợi nhuận sau thuế theo từng ngành rất khác nhau."
+    },
+    {
+      "id": "regulation",
+      "nhom": "Chính trị",
+      "ten_vi": "Cường độ quản lý ngành (chiều siết chặt)",
+      "dien_giai": "Fisher nhấn mạnh đây là driver số một của Tài chính, Viễn thông, Tiện ích và Chăm sóc sức khỏe. Siết quản lý làm giảm ROE cho phép và tăng chi phí tuân thủ."
+    },
+    {
+      "id": "trade_policy",
+      "nhom": "Chính trị",
+      "ten_vi": "Chính sách thương mại và rào cản thuế quan (chiều mở cửa)",
+      "dien_giai": "Mở cửa thương mại có lợi cho ngành xuất khẩu và chuỗi cung ứng toàn cầu; dựng rào cản có thể bảo hộ ngắn hạn nhưng làm tăng chi phí đầu vào."
+    },
+    {
+      "id": "industrial_policy",
+      "nhom": "Chính trị",
+      "ten_vi": "Chính sách công nghiệp và ưu đãi đầu tư",
+      "dien_giai": "Fisher phân tích chính sách công nghiệp trong sách Công nghệ: ưu đãi thuế, trợ cấp R&D, khu công nghệ cao có thể định hình lợi thế cả một ngành."
+    },
+    {
+      "id": "energy_env_policy",
+      "nhom": "Chính trị",
+      "ten_vi": "Chính sách năng lượng và môi trường (chiều siết phát thải)",
+      "dien_giai": "Siết phát thải làm tăng chi phí tuân thủ của Năng lượng, Nguyên vật liệu và Tiện ích nhiệt điện, đồng thời tạo cầu cho năng lượng tái tạo."
+    },
+    {
+      "id": "property_rights_ip",
+      "nhom": "Chính trị",
+      "ten_vi": "Bảo hộ quyền tài sản và sở hữu trí tuệ",
+      "dien_giai": "Fisher xếp bảo hộ sở hữu trí tuệ là driver chính trị trọng yếu của Công nghệ và Dược phẩm vì toàn bộ giá trị nằm ở tài sản vô hình."
+    },
+    {
+      "id": "gov_spending",
+      "nhom": "Chính trị",
+      "ten_vi": "Chi tiêu ngân sách (quốc phòng, hạ tầng, y tế công)",
+      "dien_giai": "Fisher dành hẳn một phần trong sách Công nghiệp cho chi quốc phòng và hạ tầng vì đây là nguồn cầu ít phụ thuộc chu kỳ tư nhân."
+    },
+    {
+      "id": "price_control",
+      "nhom": "Chính trị",
+      "ten_vi": "Cơ chế giá điều tiết và kiểm soát giá bán (chiều siết)",
+      "dien_giai": "Với Tiện ích và Viễn thông, cơ quan quản lý quyết định giá bán và tỷ suất sinh lời cho phép. Đây là ràng buộc lớn nhất lên ROE của hai ngành này."
+    },
+    {
+      "id": "risk_aversion",
+      "nhom": "Tâm lý",
+      "ten_vi": "Mức ngại rủi ro của thị trường (chiều tăng)",
+      "dien_giai": "Khi thị trường sợ hãi, dòng tiền chạy về ngành phòng thủ có dòng tiền ổn định và cổ tức cao. Fisher dẫn chứng Tiện ích và Viễn thông vượt trội trong suy thoái."
+    },
+    {
+      "id": "value_vs_growth",
+      "nhom": "Tâm lý",
+      "ten_vi": "Chu kỳ phong cách: Value dẫn dắt (chiều Value mạnh lên)",
+      "dien_giai": "Fisher chỉ rõ Viễn thông và Tiện ích hành xử như cổ phiếu Value, còn Công nghệ và Chăm sóc sức khỏe hành xử như Growth. Xác định đúng pha của chu kỳ Value–Growth là một nguồn alpha."
+    },
+    {
+      "id": "relative_valuation",
+      "nhom": "Tâm lý",
+      "ten_vi": "Định giá tương đối của ngành (chiều rẻ đi so với lịch sử)",
+      "dien_giai": "Định giá rẻ hơn trung bình lịch sử là điểm cộng, nhưng Fisher cảnh báo rẻ không phải là chất xúc tác; phải có driver kinh tế hoặc chính trị đi kèm."
+    },
+    {
+      "id": "media_crowding",
+      "nhom": "Tâm lý",
+      "ten_vi": "Mức độ đám đông và độ phủ truyền thông (chiều quá nóng)",
+      "dien_giai": "Fisher khuyên: tránh cái quá phổ biến, tìm cái bị bỏ quên. Truyền thông phủ quá dày thường đồng nghĩa kỳ vọng đã nằm trong giá."
+    },
+    {
+      "id": "fund_flows",
+      "nhom": "Tâm lý",
+      "ten_vi": "Dòng tiền quỹ và nhà đầu tư nước ngoài vào ngành (chiều vào ròng)",
+      "dien_giai": "Dòng tiền vào hỗ trợ giá ngắn hạn. Cần đọc cùng chiều với mức độ đám đông để phân biệt giữa xu hướng mới hình thành và giai đoạn cuối của sóng."
+    },
+    {
+      "id": "consumer_confidence",
+      "nhom": "Tâm lý",
+      "ten_vi": "Niềm tin người tiêu dùng",
+      "dien_giai": "Ảnh hưởng trực tiếp đến quyết định mua sắm có thể trì hoãn. Với Tiêu dùng thiết yếu, tác động này yếu hơn nhiều."
+    },
+    {
+      "id": "analyst_forecast",
+      "nhom": "Tâm lý",
+      "ten_vi": "Mức lạc quan của dự báo chuyên viên (chiều quá lạc quan)",
+      "dien_giai": "Fisher xếp dự báo đồng thuận của giới chuyên nghiệp vào nhóm driver tâm lý và đọc ngược: đồng thuận càng lạc quan thì biên an toàn càng mỏng."
+    }
+  ],
+  "do_nhay_theo_nganh": {
+    "ENE": {
+      "gdp_growth": 2, "interest_rates": 0, "yield_curve": 0, "inflation": 2, "commodity_prices": 3,
+      "capex_cycle": 1, "consumer_spending": 0, "credit_growth": 0, "currency": -1, "construction_infra": 1, "employment": 0,
+      "taxation": -2, "regulation": -1, "trade_policy": 1, "industrial_policy": 0, "energy_env_policy": -2,
+      "property_rights_ip": 0, "gov_spending": 0, "price_control": -2,
+      "risk_aversion": 0, "value_vs_growth": 2, "relative_valuation": 1, "media_crowding": -1, "fund_flows": 1,
+      "consumer_confidence": 0, "analyst_forecast": -1
+    },
+    "MAT": {
+      "gdp_growth": 2, "interest_rates": -1, "yield_curve": 0, "inflation": 2, "commodity_prices": 3,
+      "capex_cycle": 2, "consumer_spending": 0, "credit_growth": 1, "currency": -1, "construction_infra": 3, "employment": 1,
+      "taxation": -1, "regulation": -1, "trade_policy": 2, "industrial_policy": 1, "energy_env_policy": -2,
+      "property_rights_ip": 0, "gov_spending": 1, "price_control": -1,
+      "risk_aversion": -1, "value_vs_growth": 2, "relative_valuation": 1, "media_crowding": -1, "fund_flows": 1,
+      "consumer_confidence": 0, "analyst_forecast": -1
+    },
+    "IND": {
+      "gdp_growth": 3, "interest_rates": -1, "yield_curve": 1, "inflation": 0, "commodity_prices": -1,
+      "capex_cycle": 3, "consumer_spending": 1, "credit_growth": 2, "currency": -1, "construction_infra": 3, "employment": 2,
+      "taxation": -1, "regulation": -1, "trade_policy": 2, "industrial_policy": 2, "energy_env_policy": -1,
+      "property_rights_ip": 0, "gov_spending": 2, "price_control": 0,
+      "risk_aversion": -2, "value_vs_growth": 1, "relative_valuation": 1, "media_crowding": -1, "fund_flows": 1,
+      "consumer_confidence": 1, "analyst_forecast": -1
+    },
+    "CDI": {
+      "gdp_growth": 2, "interest_rates": -2, "yield_curve": 0, "inflation": -2, "commodity_prices": -1,
+      "capex_cycle": 0, "consumer_spending": 3, "credit_growth": 2, "currency": 1, "construction_infra": 1, "employment": 3,
+      "taxation": -2, "regulation": -1, "trade_policy": 1, "industrial_policy": 0, "energy_env_policy": 0,
+      "property_rights_ip": 1, "gov_spending": 0, "price_control": -1,
+      "risk_aversion": -3, "value_vs_growth": 0, "relative_valuation": 1, "media_crowding": -1, "fund_flows": 1,
+      "consumer_confidence": 3, "analyst_forecast": -1
+    },
+    "CST": {
+      "gdp_growth": -1, "interest_rates": -1, "yield_curve": 0, "inflation": -2, "commodity_prices": -2,
+      "capex_cycle": 0, "consumer_spending": 1, "credit_growth": 0, "currency": 1, "construction_infra": 0, "employment": 1,
+      "taxation": -2, "regulation": -1, "trade_policy": 1, "industrial_policy": 0, "energy_env_policy": 0,
+      "property_rights_ip": 1, "gov_spending": 0, "price_control": -1,
+      "risk_aversion": 3, "value_vs_growth": 1, "relative_valuation": 1, "media_crowding": -1, "fund_flows": 1,
+      "consumer_confidence": 0, "analyst_forecast": -1
+    },
+    "HEA": {
+      "gdp_growth": -1, "interest_rates": -1, "yield_curve": 0, "inflation": -1, "commodity_prices": 0,
+      "capex_cycle": 0, "consumer_spending": 0, "credit_growth": 0, "currency": 0, "construction_infra": 0, "employment": 0,
+      "taxation": -1, "regulation": -3, "trade_policy": 1, "industrial_policy": 1, "energy_env_policy": 0,
+      "property_rights_ip": 3, "gov_spending": 2, "price_control": -3,
+      "risk_aversion": 3, "value_vs_growth": -1, "relative_valuation": 1, "media_crowding": -1, "fund_flows": 1,
+      "consumer_confidence": 0, "analyst_forecast": -1
+    },
+    "FIN": {
+      "gdp_growth": 2, "interest_rates": 2, "yield_curve": 3, "inflation": 1, "commodity_prices": 0,
+      "capex_cycle": 1, "consumer_spending": 1, "credit_growth": 3, "currency": 0, "construction_infra": 1, "employment": 2,
+      "taxation": -1, "regulation": -3, "trade_policy": 1, "industrial_policy": 1, "energy_env_policy": 0,
+      "property_rights_ip": 1, "gov_spending": 0, "price_control": -2,
+      "risk_aversion": -3, "value_vs_growth": 2, "relative_valuation": 1, "media_crowding": -1, "fund_flows": 2,
+      "consumer_confidence": 1, "analyst_forecast": -1
+    },
+    "ITE": {
+      "gdp_growth": 2, "interest_rates": -2, "yield_curve": 0, "inflation": -2, "commodity_prices": -1,
+      "capex_cycle": 3, "consumer_spending": 1, "credit_growth": 1, "currency": -2, "construction_infra": 0, "employment": 2,
+      "taxation": -1, "regulation": -1, "trade_policy": 2, "industrial_policy": 2, "energy_env_policy": 0,
+      "property_rights_ip": 3, "gov_spending": 1, "price_control": 0,
+      "risk_aversion": -2, "value_vs_growth": -2, "relative_valuation": 1, "media_crowding": -2, "fund_flows": 1,
+      "consumer_confidence": 1, "analyst_forecast": -2
+    },
+    "TEL": {
+      "gdp_growth": 1, "interest_rates": -3, "yield_curve": -1, "inflation": -2, "commodity_prices": 0,
+      "capex_cycle": -1, "consumer_spending": 1, "credit_growth": 0, "currency": 0, "construction_infra": 0, "employment": 1,
+      "taxation": -1, "regulation": -3, "trade_policy": 0, "industrial_policy": 1, "energy_env_policy": 0,
+      "property_rights_ip": 1, "gov_spending": 1, "price_control": -3,
+      "risk_aversion": 2, "value_vs_growth": 2, "relative_valuation": 1, "media_crowding": -1, "fund_flows": 1,
+      "consumer_confidence": 0, "analyst_forecast": -1
+    },
+    "UTI": {
+      "gdp_growth": -1, "interest_rates": -3, "yield_curve": -1, "inflation": -2, "commodity_prices": 1,
+      "capex_cycle": 0, "consumer_spending": 0, "credit_growth": 1, "currency": 1, "construction_infra": 1, "employment": 0,
+      "taxation": -1, "regulation": -2, "trade_policy": 0, "industrial_policy": 1, "energy_env_policy": -2,
+      "property_rights_ip": 0, "gov_spending": 1, "price_control": -3,
+      "risk_aversion": 3, "value_vs_growth": 2, "relative_valuation": 1, "media_crowding": -1, "fund_flows": 1,
+      "consumer_confidence": 0, "analyst_forecast": -1
+    },
+    "REA": {
+      "gdp_growth": 2, "interest_rates": -3, "yield_curve": -1, "inflation": 1, "commodity_prices": -1,
+      "capex_cycle": 1, "consumer_spending": 1, "credit_growth": 3, "currency": 0, "construction_infra": 2, "employment": 2,
+      "taxation": -2, "regulation": -2, "trade_policy": 0, "industrial_policy": 1, "energy_env_policy": 0,
+      "property_rights_ip": 2, "gov_spending": 1, "price_control": -1,
+      "risk_aversion": -2, "value_vs_growth": 1, "relative_valuation": 1, "media_crowding": -1, "fund_flows": 1,
+      "consumer_confidence": 1, "analyst_forecast": -1
+    }
+  }
+}
