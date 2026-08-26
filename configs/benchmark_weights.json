@@ -3,14 +3,33 @@
     "ten_file": "benchmark_weights.json",
     "muc_dich": "Tỷ trọng ngành của benchmark, dùng làm mốc trung lập (neutral weight) cho quyết định tăng/giảm tỷ trọng.",
     "nguyen_tac_quan_trong": "Fisher: việc xây dựng danh mục bắt đầu bằng đánh giá đặc điểm của benchmark đã chọn. Mọi quyết định tăng/giảm tỷ trọng đều phải đo so với benchmark, không phải đo so với 0%.",
-    "canh_bao_du_lieu": "CHỈ CÓ benchmark MSCI World 31/12/2008 là số liệu gốc trích từ Fisher Investments on Technology, Table 7.1. Các benchmark còn lại là GIÁ TRỊ KHỞI TẠO để người dùng tự cập nhật từ nguồn chính thống (HOSE, HNX, FiinTrade, MSCI, S&P). App LUÔN hiện cảnh báo và cho phép sửa trực tiếp trong giao diện."
+    "canh_bao_du_lieu": "MSCI Vietnam 31/07/2026 là benchmark hiện hành mặc định, lấy từ factsheet chính thức của MSCI và có kiểm tra độ mới. MSCI World 31/12/2008 chỉ là benchmark lịch sử từ sách Fisher. VN-Index vẫn là GIÁ TRỊ KHỞI TẠO cho đến khi có bảng tỷ trọng ngành chính thức, tái lập được."
   },
   "benchmarks": [
+    {
+      "id": "msci_vietnam_2026_07",
+      "ten": "MSCI Vietnam — 31/07/2026 (nguồn chính thức MSCI)",
+      "do_tin_cay": "Đã kiểm chứng từ MSCI Vietnam Index Factsheet ngày 31/07/2026. Tỷ trọng công bố được làm tròn nên tổng có thể lệch 0,01 điểm %.",
+      "can_nguoi_dung_cap_nhat": false,
+      "freshness_policy": "current_monthly",
+      "as_of_date": "2026-07-31",
+      "max_age_days": 45,
+      "source_name": "MSCI Vietnam Index Factsheet",
+      "source_url": "https://www.msci.com/www/index-factsheets/msci-vietnam-index/0384641276",
+      "rounding_note": "Tổng tỷ trọng công bố = 100,01% do làm tròn ở cấp ngành; app giữ nguyên số nguồn.",
+      "ty_trong": {
+        "REA": 45.53, "FIN": 23.74, "CST": 9.64, "MAT": 7.12, "IND": 6.52,
+        "ITE": 3.83, "ENE": 1.95, "UTI": 0.98, "CDI": 0.70, "TEL": 0.0, "HEA": 0.0
+      }
+    },
     {
       "id": "msci_world_2008",
       "ten": "MSCI World — 31/12/2008 (số liệu gốc từ sách Fisher)",
       "do_tin_cay": "Nguồn gốc — trích Fisher Investments on Technology, Table 7.1",
       "can_nguoi_dung_cap_nhat": false,
+      "freshness_policy": "historical_reference",
+      "as_of_date": "2008-12-31",
+      "source_name": "Fisher Investments on Technology, Table 7.1",
       "ty_trong": {
         "FIN": 19.7, "ITE": 11.7, "ENE": 11.5, "HEA": 10.7, "CST": 10.5,
         "IND": 10.3, "CDI": 9.3, "MAT": 6.8, "UTI": 5.0, "TEL": 4.7, "REA": 0.0

@@ -68,6 +68,10 @@ def snapshot_metadata_frame(
         ("Phiên bản phương pháp", snapshot.get("methodology_version") or payload.get("methodology_version")),
         ("Pha chu kỳ", (cycle_labels or {}).get(cycle_id, cycle_id or "—")),
         ("Benchmark", benchmark.get("name") or benchmark.get("id") or "—"),
+        ("Nguồn benchmark", benchmark.get("source_name") or "—"),
+        ("URL benchmark", benchmark.get("source_url") or "—"),
+        ("Ngày hiệu lực benchmark", benchmark.get("source_as_of_date") or "—"),
+        ("Trạng thái benchmark", "Cần cập nhật" if benchmark.get("requires_update") else "Đã kiểm chứng"),
         ("Thời điểm tính toán", payload.get("generated_at")),
         ("Schema payload", payload.get("schema")),
         ("Payload hash", snapshot.get("payload_hash")),
@@ -302,20 +306,48 @@ def build_snapshot_excel_bytes(
 
 
 def _pdf_font_paths() -> tuple[Path, Path]:
-    candidates = [
-        (
-            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
-            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-        ),
-        (
-            Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"),
-            Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"),
-        ),
-    ]
+    candidates: list[tuple[Path, Path]] = []
+    try:
+        from importlib.util import find_spec
+
+        matplotlib_spec = find_spec("matplotlib")
+        if matplotlib_spec is not None:
+            package_locations = list(matplotlib_spec.submodule_search_locations or [])
+            matplotlib_root = None
+            if package_locations:
+                matplotlib_root = Path(package_locations[0])
+            elif matplotlib_spec.origin:
+                matplotlib_root = Path(matplotlib_spec.origin).resolve().parent
+            if matplotlib_root is not None:
+                matplotlib_fonts = matplotlib_root / "mpl-data" / "fonts" / "ttf"
+                candidates.append(
+                    (
+                        matplotlib_fonts / "DejaVuSans.ttf",
+                        matplotlib_fonts / "DejaVuSans-Bold.ttf",
+                    )
+                )
+    except (ImportError, AttributeError, TypeError, ValueError):
+        pass
+
+    candidates.extend(
+        [
+            (
+                Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+                Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+            ),
+            (
+                Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"),
+                Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"),
+            ),
+        ]
+    )
     for regular, bold in candidates:
-        if regular.exists() and bold.exists():
+        if regular.is_file() and bold.is_file():
             return regular, bold
-    raise RuntimeError("Không tìm thấy font Unicode để xuất PDF tiếng Việt.")
+    raise RuntimeError(
+        "Không tìm thấy font Unicode để xuất PDF tiếng Việt. "
+        "Hãy cài dependency matplotlib hoặc bộ font DejaVu/Liberation Sans."
+    )
 
 
 def _pdf_text(value: Any) -> str:

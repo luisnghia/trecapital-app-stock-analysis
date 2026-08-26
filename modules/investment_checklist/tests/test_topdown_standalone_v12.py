@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from io import BytesIO
 from pathlib import Path
 import sqlite3
@@ -25,6 +25,31 @@ from module_topdown_snapshot_store import TopDownMacroSnapshotStore, compare_sna
 
 
 NOW = datetime(2026, 8, 24, 8, 0, tzinfo=timezone.utc)
+
+
+def test_default_benchmark_is_official_current_and_becomes_stale_deterministically():
+    inp = engine.default_input()
+    assert inp.benchmark_id == "msci_vietnam_2026_07"
+    assert sum(inp.benchmark_weights.values()) == pytest.approx(100.01)
+    meta = next(
+        item for item in engine.benchmark_config()["benchmarks"]
+        if item["id"] == inp.benchmark_id
+    )
+    assert meta["source_name"] == "MSCI Vietnam Index Factsheet"
+    assert meta["source_url"].startswith("https://www.msci.com/")
+    assert engine.benchmark_reliability(meta, today=date(2026, 8, 24))[0] is True
+    stale, stale_note = engine.benchmark_reliability(meta, today=date(2026, 9, 16))
+    assert stale is False
+    assert "đã cũ" in stale_note
+
+
+def test_pdf_export_uses_runtime_unicode_fonts_without_repository_binaries():
+    regular, bold = __import__("module_topdown_snapshot_export")._pdf_font_paths()
+    assert regular.name in {"DejaVuSans.ttf", "LiberationSans-Regular.ttf"}
+    assert bold.name in {"DejaVuSans-Bold.ttf", "LiberationSans-Bold.ttf"}
+    assert regular.is_file() and bold.is_file()
+    assert not Path("assets/fonts/DejaVuSans.ttf").exists()
+    assert not Path("assets/fonts/DejaVuSans-Bold.ttf").exists()
 
 
 def test_screening_derives_trecapital_metrics_without_manual_entry():

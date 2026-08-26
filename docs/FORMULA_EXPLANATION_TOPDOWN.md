@@ -275,9 +275,10 @@ Hàm: `_current_input()`, `_bridge_to_other_modules()`.
    ngành nào nhạy với driver nào và theo chiều nào; app quy đổi sang thang `[-3; +3]`. Đây là
    diễn giải của app, không phải con số do Fisher công bố.
 
-2. **Benchmark VN-Index trong app là giá trị khởi tạo chưa kiểm chứng.** Bắt buộc cập nhật từ
-   HOSE hoặc nhà cung cấp dữ liệu chính thống trước khi ra quyết định. App hiện cảnh báo đỏ
-   liên tục cho đến khi người dùng đổi sang benchmark đã kiểm chứng.
+2. **Benchmark mặc định phải có nguồn và ngày hiệu lực.** App mặc định dùng MSCI Vietnam
+   31/07/2026 từ factsheet chính thức của MSCI và cảnh báo khi quá 45 ngày. Lựa chọn VN-Index
+   khởi tạo vẫn chưa kiểm chứng; nếu chọn, bắt buộc cập nhật từ HOSE hoặc nhà cung cấp dữ liệu
+   chính thống trước khi ra quyết định.
 
 3. **Điểm số không phải tín hiệu mua bán.** Fisher nhấn mạnh: bộ driver không đầy đủ và không
    đúng cho mọi thời kỳ; việc tự tìm ra driver mới đúng mới là nguồn alpha dài hạn.

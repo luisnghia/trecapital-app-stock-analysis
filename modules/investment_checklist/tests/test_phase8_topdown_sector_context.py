@@ -52,16 +52,14 @@ def _seed(repo, suffix: str = "TOPDOWN"):
 def _payload(*, benchmark_id: str = "vnindex_khoi_tao", requires_update: bool = True):
     inp = topdown.default_input()
     inp.benchmark_id = benchmark_id
-    if benchmark_id == "msci_world_2008":
-        meta = next(item for item in topdown.benchmark_config()["benchmarks"] if item["id"] == benchmark_id)
-        inp.benchmark_weights = dict(meta["ty_trong"])
+    meta = next(item for item in topdown.benchmark_config()["benchmarks"] if item["id"] == benchmark_id)
+    inp.benchmark_weights = dict(meta["ty_trong"])
     inp.trien_vong_driver = {
         driver["id"]: float((index % 5) - 2)
         for index, driver in enumerate(topdown.drivers_config()["drivers"])
     }
     ranking_df = topdown.cham_diem_tat_ca_nganh(inp)
     weights_df = topdown.bang_ty_trong_de_xuat(ranking_df, inp)
-    meta = next(item for item in topdown.benchmark_config()["benchmarks"] if item["id"] == benchmark_id)
     ranking = [
         {
             "rank": int(row["Xếp hạng"]),

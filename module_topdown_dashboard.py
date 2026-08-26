@@ -774,6 +774,7 @@ def _governed_snapshot_payload(
         (b for b in E.benchmark_config().get("benchmarks", []) if b.get("id") == inp.benchmark_id),
         {},
     )
+    benchmark_ok, benchmark_note = E.benchmark_reliability(bm_meta)
     source_mapping_path = APP_ROOT / "docs" / "SOURCE_MAPPING_FISHER.md"
     source_mapping_hash = hashlib.sha256(source_mapping_path.read_bytes()).hexdigest()
     ranking = [
@@ -812,8 +813,13 @@ def _governed_snapshot_payload(
         "benchmark": {
             "id": inp.benchmark_id,
             "name": str(bm_meta.get("ten", inp.benchmark_id)),
-            "reliability_note": str(bm_meta.get("do_tin_cay", "")),
-            "requires_update": bool(bm_meta.get("can_nguoi_dung_cap_nhat", True)),
+            "reliability_note": benchmark_note,
+            "requires_update": not benchmark_ok,
+            "source_name": str(bm_meta.get("source_name", "")),
+            "source_url": str(bm_meta.get("source_url", "")),
+            "source_as_of_date": str(bm_meta.get("as_of_date", "")),
+            "freshness_policy": str(bm_meta.get("freshness_policy", "")),
+            "rounding_note": str(bm_meta.get("rounding_note", "")),
             "weights": {str(key): float(value) for key, value in inp.benchmark_weights.items()},
         },
         "parameters": {
@@ -911,8 +917,13 @@ def _render_sidebar() -> None:
             log_event("INFO", "ui", f"Đổi benchmark sang: {bm_labels.get(new_bm, new_bm)}")
 
         bm_meta = next((b for b in bms if b["id"] == st.session_state.get(SS_BM_ID)), {})
-        if bm_meta.get("can_nguoi_dung_cap_nhat", False):
-            st.warning("Benchmark này là giá trị khởi tạo, chưa kiểm chứng. Hãy cập nhật ở tab Tỷ trọng danh mục.", icon="⚠️")
+        benchmark_ok, benchmark_note = E.benchmark_reliability(bm_meta)
+        if not benchmark_ok:
+            st.warning(benchmark_note, icon="⚠️")
+        elif bm_meta.get("source_name"):
+            st.caption(
+                f"Đã kiểm chứng: {bm_meta.get('source_name')} · as-of {bm_meta.get('as_of_date', '—')}"
+            )
 
         # 3. Giới hạn độ lệch
         st.session_state[SS_LECH] = float(
@@ -1588,38 +1599,60 @@ def _tab_ty_trong(diem_df: pd.DataFrame, tt_df: pd.DataFrame) -> None:
     st.markdown("<div class='tre-section-title'>Tỷ trọng danh mục đề xuất so với benchmark</div>", unsafe_allow_html=True)
 
     bm_meta = next((b for b in E.benchmark_config().get("benchmarks", []) if b["id"] == inp.benchmark_id), {})
-    if bm_meta.get("can_nguoi_dung_cap_nhat", False):
+    benchmark_ok, benchmark_note = E.benchmark_reliability(bm_meta)
+    if not benchmark_ok:
         _render_important_red(
             "Cảnh báo chất lượng dữ liệu benchmark",
-            f"{bm_meta.get('do_tin_cay','')}\n\n"
+            f"{benchmark_note}\n\n"
             "Toàn bộ tỷ trọng đề xuất bên dưới được nhân từ tỷ trọng benchmark này. "
             "Nếu tỷ trọng benchmark sai thì kết quả cũng sai. Hãy cập nhật ngay bên dưới trước khi dùng.",
         )
 
-    with st.expander("✏️ Cập nhật tỷ trọng benchmark (bắt buộc trước khi ra quyết định)", expanded=False):
-        st.caption("Nhập tỷ trọng ngành theo % vốn hóa, lấy từ HOSE hoặc nhà cung cấp dữ liệu chính thống. Tổng phải bằng 100.0%.")
-        w = dict(st.session_state.get(SS_BM_W, {}))
-        cols = st.columns(3)
-        names = E.sector_name_map()
-        for i, code in enumerate(E.sector_codes()):
-            with cols[i % 3]:
-                w[code] = float(
-                    st.number_input(
-                        f"{names.get(code, code)} ({code})",
-                        min_value=0.0,
-                        max_value=100.0,
-                        value=float(w.get(code, 0.0)),
-                        step=0.1,
-                        format="%.1f",
-                        key=f"bmw_{code}",
+    if bm_meta.get("can_nguoi_dung_cap_nhat", False):
+        with st.expander("✏️ Cập nhật tỷ trọng benchmark (bắt buộc trước khi ra quyết định)", expanded=False):
+            st.caption("Nhập tỷ trọng ngành theo % vốn hóa, lấy từ HOSE hoặc nhà cung cấp dữ liệu chính thống. Tổng phải bằng 100.0%.")
+            w = dict(st.session_state.get(SS_BM_W, {}))
+            cols = st.columns(3)
+            names = E.sector_name_map()
+            for i, code in enumerate(E.sector_codes()):
+                with cols[i % 3]:
+                    w[code] = float(
+                        st.number_input(
+                            f"{names.get(code, code)} ({code})",
+                            min_value=0.0,
+                            max_value=100.0,
+                            value=float(w.get(code, 0.0)),
+                            step=0.1,
+                            format="%.1f",
+                            key=f"bmw_{code}",
+                        )
                     )
-                )
-        st.session_state[SS_BM_W] = w
-        tong = sum(w.values())
-        if abs(tong - 100.0) <= 0.5:
-            st.success(f"Tổng tỷ trọng benchmark = {E.fmt_pct(tong)}. Hợp lệ.")
-        else:
-            st.error(f"Tổng tỷ trọng benchmark = {E.fmt_pct(tong)}, chưa bằng 100.0%. Kết quả sẽ bị lệch.")
+            st.session_state[SS_BM_W] = w
+            tong = sum(w.values())
+            if abs(tong - 100.0) <= 0.5:
+                st.success(f"Tổng tỷ trọng benchmark = {E.fmt_pct(tong)}. Hợp lệ.")
+            else:
+                st.error(f"Tổng tỷ trọng benchmark = {E.fmt_pct(tong)}, chưa bằng 100.0%. Kết quả sẽ bị lệch.")
+    else:
+        source_url = str(bm_meta.get("source_url", ""))
+        source_name = str(bm_meta.get("source_name", "Nguồn benchmark"))
+        source_text = f"[{source_name}]({source_url})" if source_url else source_name
+        st.success(benchmark_note)
+        st.markdown(
+            f"**Nguồn:** {source_text} · **Ngày hiệu lực:** {bm_meta.get('as_of_date', '—')}  "
+            f"\n{bm_meta.get('rounding_note', '')}"
+        )
+        readonly_weights = pd.DataFrame(
+            [
+                {
+                    "Mã ngành": code,
+                    "Ngành": E.sector_name_map().get(code, code),
+                    "Tỷ trọng benchmark %": float(inp.benchmark_weights.get(code, 0.0)),
+                }
+                for code in E.sector_codes()
+            ]
+        )
+        render_bang_tinh(readonly_weights, height=min(430, 90 + 34 * len(readonly_weights)))
 
     if tt_df.empty:
         st.info("Chưa tính được tỷ trọng.")

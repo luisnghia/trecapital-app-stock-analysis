@@ -126,13 +126,16 @@ và thanh khoản theo quy mô HOSE) và người dùng chỉnh được toàn b
 
 | Benchmark | Độ tin cậy |
 |---|---|
+| MSCI Vietnam 31/07/2026 | **Nguồn chính thức hiện hành** — MSCI Vietnam Index Factsheet; app kiểm tra độ mới trong 45 ngày |
 | MSCI World 31/12/2008 | **Số liệu gốc** — trích *On Technology*, Table 7.1 |
 | VN-Index | **Giá trị khởi tạo, chưa kiểm chứng** — người dùng bắt buộc cập nhật |
 | Tự định nghĩa | Người dùng nhập toàn bộ |
 
-App hiện cảnh báo đỏ liên tục khi đang dùng benchmark chưa kiểm chứng, và hạng mục "Độ tin cậy
-của benchmark đang dùng" trong bảng tự kiểm tra luôn báo Cảnh báo cho đến khi người dùng chuyển
-sang benchmark đã kiểm chứng hoặc tự nhập số liệu từ nguồn chính thống.
+Benchmark mặc định là MSCI Vietnam 31/07/2026 với tỷ trọng GICS giữ nguyên theo factsheet chính
+thức của MSCI. Tổng số công bố bằng 100,01% do làm tròn ở cấp ngành; app giữ nguyên số nguồn và
+chấp nhận sai số tổng ±0,5 điểm %. App tự chuyển sang cảnh báo khi factsheet quá 45 ngày. VN-Index
+khởi tạo vẫn được giữ như lựa chọn thủ công và luôn cảnh báo cho đến khi người dùng tự nhập số liệu
+có nguồn chính thống.
 
 ### B.8. Điểm Portfolio Driver tự động và quyền ưu tiên analyst
 
@@ -171,7 +174,8 @@ doanh nghiệp và không tạo quyết định mua/bán.
    định tính "overweight / neutral / underweight" của Fisher thành con số vận hành được.
 5. **Giới hạn độ lệch 8.0 điểm phần trăm** — do app đề xuất như một cơ chế kiểm soát
    benchmark risk; Fisher nêu nguyên tắc nhưng không đưa con số cụ thể.
-6. **Tỷ trọng ngành VN-Index** — giá trị khởi tạo, phải thay bằng số liệu HOSE.
+6. **Tỷ trọng ngành VN-Index** — giá trị khởi tạo, phải thay bằng số liệu HOSE; benchmark mặc định
+   của app là MSCI Vietnam có factsheet chính thức và ngày hiệu lực rõ ràng.
 7. **Ngưỡng sàng lọc theo đơn vị tỷ đồng** — quy đổi cho thị trường Việt Nam.
 
 Tất cả bảy mục trên đều là **tham số người dùng chỉnh được trong giao diện**, không phải hằng

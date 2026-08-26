@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass, field
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
@@ -26,7 +27,7 @@ from tre_log import log_event, traced
 APP_ROOT = Path(__file__).resolve().parent
 CONFIG_DIR = APP_ROOT / "configs"
 
-APP_VERSION = "V1.4_SNAPSHOT_HISTORY_EXPORT"
+APP_VERSION = "V1.4.1_PDF_BENCHMARK_HOTFIX"
 APP_NAME = "Trecapital — Phân tích Top-Down theo ngành"
 
 NHOM_KT = "Kinh tế"
@@ -168,7 +169,7 @@ class TopDownInput:
 
     trien_vong_driver: dict[str, float] = field(default_factory=dict)
     pha_chu_ky: str = "mid"
-    benchmark_id: str = "vnindex_khoi_tao"
+    benchmark_id: str = "msci_vietnam_2026_07"
     benchmark_weights: dict[str, float] = field(default_factory=dict)
     lech_toi_da: float = 8.0
     trong_so: dict[str, float] = field(default_factory=dict)
@@ -177,7 +178,10 @@ class TopDownInput:
 def default_input() -> TopDownInput:
     cfg = scoring_config()
     bms = benchmark_config().get("benchmarks", [])
-    bm0 = next((b for b in bms if b["id"] == "vnindex_khoi_tao"), bms[0] if bms else {"id": "", "ty_trong": {}})
+    bm0 = next(
+        (b for b in bms if b["id"] == "msci_vietnam_2026_07"),
+        bms[0] if bms else {"id": "", "ty_trong": {}},
+    )
     ts = {k: float(v) for k, v in cfg.get("trong_so_diem_nganh", {}).items() if isinstance(v, (int, float))}
     return TopDownInput(
         trien_vong_driver={d["id"]: 0.0 for d in drivers_config().get("drivers", [])},
@@ -187,6 +191,32 @@ def default_input() -> TopDownInput:
         lech_toi_da=float(cfg.get("gioi_han_lech_benchmark", {}).get("lech_toi_da_diem_phan_tram", 8.0)),
         trong_so=ts,
     )
+
+
+def benchmark_reliability(meta: dict, *, today: date | None = None) -> tuple[bool, str]:
+    """Return whether a benchmark is sourced and fresh enough for live decisions."""
+    note = str(meta.get("do_tin_cay", "Không xác định"))
+    if not meta or bool(meta.get("can_nguoi_dung_cap_nhat", True)):
+        return False, note
+    if str(meta.get("freshness_policy", "")) == "historical_reference":
+        return True, note
+    as_of_raw = str(meta.get("as_of_date", "")).strip()
+    if not as_of_raw:
+        return True, note
+    try:
+        as_of = date.fromisoformat(as_of_raw)
+        max_age_days = int(meta.get("max_age_days", 45))
+    except (TypeError, ValueError):
+        return False, f"{note} Metadata ngày hiệu lực không hợp lệ."
+    age_days = ((today or date.today()) - as_of).days
+    if age_days < 0:
+        return False, f"{note} Ngày hiệu lực {as_of_raw} nằm trong tương lai."
+    if age_days > max_age_days:
+        return False, (
+            f"{note} Dữ liệu đã cũ {age_days} ngày, vượt giới hạn {max_age_days} ngày; "
+            "cần cập nhật factsheet mới."
+        )
+    return True, f"{note} Dữ liệu đang trong hạn ({age_days}/{max_age_days} ngày)."
 
 
 # ======================================================================================
@@ -925,10 +955,11 @@ def kiem_tra_dong_bo(inp: TopDownInput, diem_df: pd.DataFrame, tt_df: pd.DataFra
         )
 
     bm_meta = next((b for b in benchmark_config().get("benchmarks", []) if b["id"] == inp.benchmark_id), {})
+    benchmark_ok, benchmark_note = benchmark_reliability(bm_meta)
     add(
         "Độ tin cậy của benchmark đang dùng",
-        not bool(bm_meta.get("can_nguoi_dung_cap_nhat", True)),
-        bm_meta.get("do_tin_cay", "Không xác định"),
+        benchmark_ok,
+        benchmark_note,
         "Cao",
     )
 
