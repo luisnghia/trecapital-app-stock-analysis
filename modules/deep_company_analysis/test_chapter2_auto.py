@@ -139,3 +139,29 @@ def test_blank_q4_gets_quantitative_draft_but_q1_q2_remain_analyst_only():
     assert merged["q2"] == record["q2"]
     assert merged["q3"]["own_words"] == ""
     assert merged["q5"]["skill_vs_luck"] == ""
+
+def test_currency_evidence_rejects_eur_substring_noise_and_requires_fx_context():
+    from modules.deep_company_analysis.chapter2_auto import extract_currency_candidates
+
+    noisy = pd.DataFrame([{
+        "Nhóm thông tin": "Tin tham khảo | Q6",
+        "Tiêu đề": "Impossible de voir les messages Instagram",
+        "Nguồn/URL": "https://forums.example.com/instagram",
+        "Trích yếu": "Le forum reste accessible plusieurs heures pour les utilisateurs.",
+        "Điểm phù hợp": 8,
+    }])
+    assert extract_currency_candidates(noisy) == []
+
+
+def test_currency_evidence_accepts_explicit_currency_in_official_fx_context():
+    from modules.deep_company_analysis.chapter2_auto import extract_currency_candidates
+
+    official = pd.DataFrame([{
+        "Nhóm thông tin": "BCTN/PDF chính thức của doanh nghiệp | Q6",
+        "Tiêu đề": "Rủi ro ngoại tệ",
+        "Nguồn/URL": "https://example.com/annual-report.pdf",
+        "Trích yếu": "Doanh thu xuất khẩu được thanh toán bằng USD; doanh nghiệp theo dõi rủi ro tỷ giá.",
+        "Điểm phù hợp": 0,
+    }])
+    rows = extract_currency_candidates(official)
+    assert rows and rows[0]["Currency"] == "USD"

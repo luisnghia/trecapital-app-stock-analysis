@@ -415,6 +415,29 @@ def extract_foreign_market_candidates(q6_df: pd.DataFrame, max_rows: int = 12) -
     return out
 
 
+CURRENCY_CONTEXT_KEYWORDS: tuple[str, ...] = (
+    "ty gia", "ngoai te", "foreign currency", "exchange rate", "currency risk",
+    "hedg", "phong ngua", "xuat khau", "export", "nhap khau", "import",
+    "doanh thu", "revenue", "khoan phai thu", "receivable", "khoan phai tra",
+    "payable", "vay", "loan", "thanh toan", "payment", "tien gui", "cash",
+)
+
+CURRENCY_TRUSTED_SOURCE_TOKENS: tuple[str, ...] = (
+    "nguon doanh nghiep", "nguon cong bo", "bctn", "bctc", "bao cao thuong nien",
+    "bao cao tai chinh", "pdf/bctn", "ir", "official",
+)
+
+
+def _currency_row_is_eligible(row: Any, normalized_text: str) -> bool:
+    # Auto-evidence must have FX context and a reliable source family/high relevance.
+    if not any(keyword in normalized_text for keyword in CURRENCY_CONTEXT_KEYWORDS):
+        return False
+    group = _norm(row.get("Nhóm thông tin") if hasattr(row, "get") else "")
+    trusted_group = any(token in group for token in CURRENCY_TRUSTED_SOURCE_TOKENS)
+    score = _safe_float(row.get("Điểm phù hợp") if hasattr(row, "get") else None) or 0.0
+    return trusted_group or score >= 30.0
+
+
 def extract_currency_candidates(q6_df: pd.DataFrame) -> list[dict[str, str]]:
     if not isinstance(q6_df, pd.DataFrame) or q6_df.empty:
         return []
@@ -425,15 +448,17 @@ def extract_currency_candidates(q6_df: pd.DataFrame) -> list[dict[str, str]]:
         snippet = str(row.get("Trích yếu") or "").strip()
         url = str(row.get("Nguồn/URL") or "").strip()
         normalized = _norm(f"{title} {snippet}")
+        if not _currency_row_is_eligible(row, normalized):
+            continue
         for currency, aliases in CURRENCY_ALIASES.items():
-            if any(_norm(alias) in normalized for alias in aliases):
+            # Boundary-aware match prevents EUR from matching ordinary words such as heures.
+            if any(_alias_present(normalized, alias) for alias in aliases):
                 key = (currency, url or title)
                 if key in seen:
                     continue
                 seen.add(key)
                 out.append({"Currency": currency, "Evidence": (url + (" | " if url and title else "") + title)[:600]})
     return out
-
 
 def _company_attr(company: Any, *names: str) -> str:
     for name in names:
