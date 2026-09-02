@@ -254,11 +254,14 @@ class SourceFirstChapter2EvidenceAgent(base.Chapter2EvidenceAgent):
 
             interim = pd.DataFrame(rows)
             sections = base.classify_evidence(interim) if not interim.empty else {"Q6": pd.DataFrame()}
-            # Parse the official annual report only when Q6 is still weak. This avoids a large PDF
-            # download on every refresh while giving Chapter 2 a source-first fallback for geography/FX.
+            # Q6 quality cannot be measured by row-count alone: generic phrases such as "ngoài nước"
+            # may create several Q6 rows but still contain no actual geography or currency evidence.
+            # Parse the official annual report when either layer is still missing.
             q6 = sections.get("Q6", pd.DataFrame())
-            q6_quality = 0 if not isinstance(q6, pd.DataFrame) else len(q6)
-            if q6_quality < 2 and CHAPTER2_OFFICIAL_PDFS.get(safe):
+            foreign_candidates = base.extract_foreign_market_candidates(q6) if isinstance(q6, pd.DataFrame) else []
+            currency_candidates = base.extract_currency_candidates(q6) if isinstance(q6, pd.DataFrame) else []
+            needs_pdf = not foreign_candidates or not currency_candidates
+            if needs_pdf and CHAPTER2_OFFICIAL_PDFS.get(safe):
                 pdf_rows, pdf_audit = self._fetch_official_pdf_rows(safe, client)
                 rows.extend(pdf_rows)
                 audit["official_pdf"] = pdf_audit

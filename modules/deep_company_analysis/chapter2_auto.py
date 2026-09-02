@@ -52,7 +52,7 @@ Q6_KEYWORDS = (
 )
 
 COUNTRY_ALIASES: dict[str, tuple[str, ...]] = {
-    "Hoa Kỳ": ("hoa kỳ", "hoa ky", "mỹ", "my", "united states", "u.s.", "usa"),
+    "Hoa Kỳ": ("hoa kỳ", "hoa ky", "united states", "u.s.", "usa", "thị trường mỹ", "thi truong my", "tại mỹ", "tai my", "sang mỹ", "sang my"),
     "Trung Quốc": ("trung quốc", "trung quoc", "china", "chinese"),
     "Nhật Bản": ("nhật bản", "nhat ban", "japan", "japanese"),
     "Hàn Quốc": ("hàn quốc", "han quoc", "south korea", "korea"),
@@ -63,11 +63,11 @@ COUNTRY_ALIASES: dict[str, tuple[str, ...]] = {
     "Singapore": ("singapore",),
     "Philippines": ("philippines", "philippine"),
     "Campuchia": ("campuchia", "cambodia"),
-    "Lào": ("lào", "lao", "laos"),
+    "Lào": ("laos", "thị trường lào", "thi truong lao", "tại lào", "tai lao", "sang lào", "sang lao"),
     "Đài Loan": ("đài loan", "dai loan", "taiwan"),
-    "Úc": ("úc", "uc", "australia"),
+    "Úc": ("australia", "australian", "thị trường úc", "thi truong uc", "tại úc", "tai uc", "sang úc", "sang uc"),
     "New Zealand": ("new zealand",),
-    "Đức": ("đức", "duc", "germany", "german"),
+    "Đức": ("germany", "german", "thị trường đức", "thi truong duc", "tại đức", "tai duc", "sang đức", "sang duc", "ở đức", "o duc"),
     "Pháp": ("pháp", "phap", "france", "french"),
     "Anh": ("vương quốc anh", "vuong quoc anh", "united kingdom", "u.k.", "uk market"),
     "EU / Châu Âu": ("châu âu", "chau au", "europe", "european union", " eu "),
