@@ -43,7 +43,21 @@ jobs:
       - name: Run Chapter 1 offline tests
         run: |
           python -m pytest -q modules/deep_company_analysis/test_chapter1.py
-      - name: Build Windows offline source package
+      - name: Download Windows Python 3.11 offline wheels
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf offline_wheels
+          mkdir -p offline_wheels
+          python -m pip download \
+            --dest offline_wheels \
+            --platform win_amd64 \
+            --python-version 311 \
+            --implementation cp \
+            --abi cp311 \
+            --only-binary=:all: \
+            -r requirements.txt
+      - name: Build Windows offline package
         shell: bash
         run: |
           set -euo pipefail
