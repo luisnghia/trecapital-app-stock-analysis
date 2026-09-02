@@ -1,0 +1,134 @@
+name: Apply Chapter 2 Currency Evidence Quality Fix
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-checklist
+    paths:
+      - '.github/workflows/apply-chapter2-currency-quality.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix-currency-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-checklist
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Harden Chapter 2 currency evidence extraction
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('modules/deep_company_analysis/chapter2_auto.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''def extract_currency_candidates(q6_df: pd.DataFrame) -> list[dict[str, str]]:
+    if not isinstance(q6_df, pd.DataFrame) or q6_df.empty:
+        return []
+    out: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for _, row in q6_df.iterrows():
+        title = str(row.get("Tiêu đề") or "").strip()
+        snippet = str(row.get("Trích yếu") or "").strip()
+        url = str(row.get("Nguồn/URL") or "").strip()
+        normalized = _norm(f"{title} {snippet}")
+        for currency, aliases in CURRENCY_ALIASES.items():
+            if any(_norm(alias) in normalized for alias in aliases):
+                key = (currency, url or title)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append({"Currency": currency, "Evidence": (url + (" | " if url and title else "") + title)[:600]})
+    return out
+'''
+          new = '''CURRENCY_CONTEXT_KEYWORDS: tuple[str, ...] = (
+    "ty gia", "ngoai te", "foreign currency", "exchange rate", "currency risk",
+    "hedg", "phong ngua", "xuat khau", "export", "nhap khau", "import",
+    "doanh thu", "revenue", "khoan phai thu", "receivable", "khoan phai tra",
+    "payable", "vay", "loan", "thanh toan", "payment", "tien gui", "cash",
+)
+
+CURRENCY_TRUSTED_SOURCE_TOKENS: tuple[str, ...] = (
+    "nguon doanh nghiep", "nguon cong bo", "bctn", "bctc", "bao cao thuong nien",
+    "bao cao tai chinh", "pdf/bctn", "ir", "official",
+)
+
+
+def _currency_row_is_eligible(row: Any, normalized_text: str) -> bool:
+    """Currency auto-evidence must be both FX-relevant and source-reliable.
+
+    This deliberately prefers false negatives to false positives. Generic search-engine rows remain
+    visible as research candidates elsewhere, but do not auto-populate currency evidence unless the
+    row comes from an official/company disclosure family (or has a very high relevance score).
+    """
+    if not any(keyword in normalized_text for keyword in CURRENCY_CONTEXT_KEYWORDS):
+        return False
+    group = _norm(row.get("Nhóm thông tin") if hasattr(row, "get") else "")
+    trusted_group = any(token in group for token in CURRENCY_TRUSTED_SOURCE_TOKENS)
+    score = _safe_float(row.get("Điểm phù hợp") if hasattr(row, "get") else None) or 0.0
+    return trusted_group or score >= 30.0
+
+
+def extract_currency_candidates(q6_df: pd.DataFrame) -> list[dict[str, str]]:
+    if not isinstance(q6_df, pd.DataFrame) or q6_df.empty:
+        return []
+    out: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for _, row in q6_df.iterrows():
+        title = str(row.get("Tiêu đề") or "").strip()
+        snippet = str(row.get("Trích yếu") or "").strip()
+        url = str(row.get("Nguồn/URL") or "").strip()
+        normalized = _norm(f"{title} {snippet}")
+        if not _currency_row_is_eligible(row, normalized):
+            continue
+        for currency, aliases in CURRENCY_ALIASES.items():
+            # Boundary-aware match is essential for EUR: substring matching can mistake ordinary
+            # words in French/English search results for the EUR currency code.
+            if any(_alias_present(normalized, alias) for alias in aliases):
+                key = (currency, url or title)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append({"Currency": currency, "Evidence": (url + (" | " if url and title else "") + title)[:600]})
+    return out
+'''
+          if old not in text:
+              raise SystemExit('Currency extraction anchor not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          test = Path('modules/deep_company_analysis/test_chapter2_auto.py')
+          t = test.read_text(encoding='utf-8')
+          if 'test_currency_evidence_rejects_eur_substring_noise' not in t:
+              t += '''\n\ndef test_currency_evidence_rejects_eur_substring_noise_and_requires_fx_context():\n    from modules.deep_company_analysis.chapter2_auto import extract_currency_candidates\n\n    noisy = pd.DataFrame([{\n        "Nhóm thông tin": "Tin tham khảo | Q6",\n        "Tiêu đề": "Impossible de voir les messages Instagram",\n        "Nguồn/URL": "https://forums.example.com/instagram",\n        "Trích yếu": "Le forum reste accessible plusieurs heures pour les utilisateurs.",\n        "Điểm phù hợp": 8,\n    }])\n    assert extract_currency_candidates(noisy) == []\n\n\ndef test_currency_evidence_accepts_explicit_currency_in_official_fx_context():\n    from modules.deep_company_analysis.chapter2_auto import extract_currency_candidates\n\n    official = pd.DataFrame([{\n        "Nhóm thông tin": "BCTN/PDF chính thức của doanh nghiệp | Q6",\n        "Tiêu đề": "Rủi ro ngoại tệ",\n        "Nguồn/URL": "https://example.com/annual-report.pdf",\n        "Trích yếu": "Doanh thu xuất khẩu được thanh toán bằng USD; doanh nghiệp theo dõi rủi ro tỷ giá.",\n        "Điểm phù hợp": 0,\n    }])\n    rows = extract_currency_candidates(official)\n    assert rows and rows[0]["Currency"] == "USD"\n'''
+              test.write_text(t, encoding='utf-8')
+          PY
+      - name: Install and validate
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+          python -m compileall -q modules/deep_company_analysis/chapter2_auto.py
+          python -m pytest -q modules/deep_company_analysis/test_chapter2_auto.py
+          python -m pytest -q modules/deep_company_analysis
+      - name: Commit fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "luisnghia"
+          git config user.email "nghia1214@gmail.com"
+          git add modules/deep_company_analysis/chapter2_auto.py modules/deep_company_analysis/test_chapter2_auto.py
+          if git diff --cached --quiet; then
+            echo "No currency quality changes to commit."
+            exit 0
+          fi
+          git commit -m "fix(deep-analysis): reject noisy Chapter 2 currency evidence"
+          git fetch origin feature/deep-company-analysis-checklist
+          git rebase origin/feature/deep-company-analysis-checklist
+          git push origin HEAD:feature/deep-company-analysis-checklist
