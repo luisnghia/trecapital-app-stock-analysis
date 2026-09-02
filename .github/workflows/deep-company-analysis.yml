@@ -8,8 +8,10 @@ on:
       - 'modules/deep_company_analysis/**'
       - 'sample_data/deep_company_analysis/**'
       - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
+      - 'pages/08_Phan_tich_chuyen_sau_Chuong_2.py'
       - 'tre_sidebar_nav.py'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
+      - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md'
       - 'docs/DGC_CHAPTER1_TRIAL_AUTODATA_AUDIT.md'
       - 'CHAY_TRECAPITAL_OFFLINE.bat'
       - 'CAI_THU_VIEN_MOT_LAN.bat'
@@ -20,8 +22,10 @@ on:
       - 'modules/deep_company_analysis/**'
       - 'sample_data/deep_company_analysis/**'
       - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
+      - 'pages/08_Phan_tich_chuyen_sau_Chuong_2.py'
       - 'tre_sidebar_nav.py'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
+      - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md'
       - 'docs/DGC_CHAPTER1_TRIAL_AUTODATA_AUDIT.md'
       - 'CHAY_TRECAPITAL_OFFLINE.bat'
       - 'CAI_THU_VIEN_MOT_LAN.bat'
@@ -32,7 +36,7 @@ permissions:
   contents: read
 
 jobs:
-  chapter1-offline:
+  deep-analysis-offline:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,42 +50,53 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest
-      - name: Compile Chapter 1
+      - name: Compile deep-analysis Chapters 1-2
         run: |
-          python -m compileall -q modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py tre_sidebar_nav.py
-      - name: Run full Chapter 1 regression suite
+          python -m compileall -q modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py pages/08_Phan_tich_chuyen_sau_Chuong_2.py tre_sidebar_nav.py
+      - name: Run full deep-analysis regression suite
         run: |
           python -m pytest -q modules/deep_company_analysis
-      - name: Run final DGC end-to-end acceptance explicitly
+      - name: Run Chapter 1 final DGC acceptance explicitly
         run: |
           python -m pytest -q modules/deep_company_analysis/test_chapter1_final_acceptance.py
-      - name: Smoke-test Deep Company Analysis page startup
+      - name: Run Chapter 2 Phase 2A acceptance explicitly
+        run: |
+          python -m pytest -q modules/deep_company_analysis/test_chapter2.py
+      - name: Smoke-test Chapter 1 page startup
         shell: bash
         run: |
           set -euo pipefail
           python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
-            --server.headless true --server.port 8507 > /tmp/trecapital_dca.log 2>&1 &
+            --server.headless true --server.port 8507 > /tmp/trecapital_dca_ch1.log 2>&1 &
           PID=$!
           OK=0
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8507/_stcore/health >/dev/null 2>&1; then
-              OK=1
-              break
-            fi
+            if curl -fsS http://127.0.0.1:8507/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
             sleep 1
           done
-          if [ "$OK" -ne 1 ]; then
-            cat /tmp/trecapital_dca.log
-            kill "$PID" 2>/dev/null || true
-            exit 1
-          fi
+          if [ "$OK" -ne 1 ]; then cat /tmp/trecapital_dca_ch1.log; kill "$PID" 2>/dev/null || true; exit 1; fi
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
-      - name: Build final lightweight Windows offline package V7
+      - name: Smoke-test Chapter 2 page startup
         shell: bash
         run: |
           set -euo pipefail
-          PKG_NAME="Trecapital_Deep_Analysis_Offline_V7"
+          python -m streamlit run pages/08_Phan_tich_chuyen_sau_Chuong_2.py \
+            --server.headless true --server.port 8508 > /tmp/trecapital_dca_ch2.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8508/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then cat /tmp/trecapital_dca_ch2.log; kill "$PID" 2>/dev/null || true; exit 1; fi
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+      - name: Build lightweight Windows offline package V8
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V8"
           rm -rf dist
           mkdir -p "dist/${PKG_NAME}"
           rsync -a ./ "dist/${PKG_NAME}/" \
@@ -96,18 +111,19 @@ jobs:
           mkdir -p "dist/${PKG_NAME}/data_cache"
           test -f "dist/${PKG_NAME}/CHAY_TRECAPITAL_OFFLINE.bat"
           test -f "dist/${PKG_NAME}/pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py"
+          test -f "dist/${PKG_NAME}/pages/08_Phan_tich_chuyen_sau_Chuong_2.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter1.py"
-          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/monitoring.py"
-          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/structured_triggers.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2.py"
+          test -f "dist/${PKG_NAME}/docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md"
           test ! -d "dist/${PKG_NAME}/offline_wheels"
           (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
           sha256sum "dist/${PKG_NAME}.zip" > "dist/${PKG_NAME}.zip.sha256"
-      - name: Upload final Chapter 1 offline package
+      - name: Upload offline package V8
         uses: actions/upload-artifact@v4
         with:
-          name: Trecapital_Deep_Analysis_Offline_V7
+          name: Trecapital_Deep_Analysis_Offline_V8
           path: |
-            dist/Trecapital_Deep_Analysis_Offline_V7.zip
-            dist/Trecapital_Deep_Analysis_Offline_V7.zip.sha256
+            dist/Trecapital_Deep_Analysis_Offline_V8.zip
+            dist/Trecapital_Deep_Analysis_Offline_V8.zip.sha256
           if-no-files-found: error
           retention-days: 30
