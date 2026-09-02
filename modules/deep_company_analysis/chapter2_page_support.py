@@ -11,11 +11,11 @@ import module1_dashboard as m1
 from module1_engine import append_ttm_row
 from modules.deep_company_analysis.chapter2 import load_record, render_chapter2, save_record
 from modules.deep_company_analysis.chapter2_auto import (
-    Chapter2EvidenceAgent,
     build_chapter2_assistant_draft,
     load_cached_evidence,
     merge_assistant_draft,
 )
+from modules.deep_company_analysis.chapter2_evidence import SourceFirstChapter2EvidenceAgent
 
 
 def _safe_ticker(value: str) -> str:
@@ -142,7 +142,7 @@ def refresh_chapter2_sources(ticker: str) -> tuple[bool, str]:
         if paths:
             company = m1._load_overview_cached(str(paths[0]), safe)
             company_name = str(getattr(company, "company_name", "") or getattr(company, "name", "") or "")
-        evidence_result = Chapter2EvidenceAgent(m1.RAW_DIR).search(safe, company_name, max_results_per_query=5)
+        evidence_result = SourceFirstChapter2EvidenceAgent(m1.RAW_DIR).search(safe, company_name, max_results_per_query=5)
         _prepare_assistant_cached.clear()
         note = f"Evidence Chương 2: {len(evidence_result.table)} dòng/link ứng viên được rà soát."
         return ok or not evidence_result.table.empty, note

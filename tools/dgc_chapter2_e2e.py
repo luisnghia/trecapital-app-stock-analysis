@@ -24,10 +24,10 @@ import pandas as pd
 from adapters.vn_public_crawler import PublicFireAntCrawler
 from module1_engine import append_ttm_row
 from modules.deep_company_analysis.chapter2_auto import (
-    Chapter2EvidenceAgent,
     build_chapter2_assistant_draft,
     classify_evidence,
 )
+from modules.deep_company_analysis.chapter2_evidence import SourceFirstChapter2EvidenceAgent
 
 
 def _company_from_overview(df: pd.DataFrame):
@@ -90,7 +90,7 @@ def main() -> int:
 
         evidence_error = ""
         try:
-            evidence_result = Chapter2EvidenceAgent(raw_dir).search(ticker, company_name, max_results_per_query=6)
+            evidence_result = SourceFirstChapter2EvidenceAgent(raw_dir).search(ticker, company_name, max_results_per_query=6)
             evidence = evidence_result.table if isinstance(evidence_result.table, pd.DataFrame) else pd.DataFrame()
             evidence_note = str(evidence_result.note or "")
         except Exception as exc:
@@ -112,6 +112,7 @@ def main() -> int:
             "evidence_note": evidence_note,
             "evidence_error": evidence_error,
             "evidence_by_question": {key: int(len(value)) if isinstance(value, pd.DataFrame) else 0 for key, value in sections.items()},
+            "evidence_sample": evidence[[c for c in ("Nhóm thông tin", "Tiêu đề", "Nguồn/URL", "Trích yếu") if c in evidence.columns]].head(12).to_dict(orient="records") if not evidence.empty else [],
             "coverage": coverage,
             "q4_financial_metrics": q4_metrics,
             "q5_timeline_count": len(draft.get("q5", {}).get("evolution", []) or []),

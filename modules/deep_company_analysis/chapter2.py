@@ -45,6 +45,7 @@ MONEY_COLUMNS = [
 EVOLUTION_COLUMNS = ["Year", "Event", "Type", "Why it happened", "Impact", "Evidence"]
 FOREIGN_COLUMNS = [
     "Country / Region",
+    "Exposure type",
     "Entry year",
     "Revenue share %",
     "Operating profit",
@@ -391,6 +392,7 @@ def render_chapter2(default_ticker: str = "", company_name: str = "") -> None:
 
     q6 = record["q6"]
     st.markdown("### Q6. Doanh nghiệp hoạt động ở thị trường nước ngoài nào và rủi ro là gì?")
+    st.caption("Phân biệt rõ **thị trường xuất khẩu** với **hiện diện/hoạt động trực tiếp ở nước ngoài** (công ty con, nhà máy, văn phòng...). Không suy diễn export market thành foreign operation.")
     no_foreign = st.checkbox("Không có hoạt động nước ngoài trọng yếu / Q6 hiện N/A về mặt thực tế", value=bool(q6.get("no_material_foreign_operations")), key=f"ch2_noforeign_{ticker}")
     foreign_df = st.data_editor(_rows_to_df(q6.get("foreign_markets"), FOREIGN_COLUMNS), num_rows="dynamic", use_container_width=True, disabled=no_foreign, key=f"ch2_foreign_{ticker}")
     foreign_strategy_summary = st.text_area("Foreign-market commitment — thời gian hiện diện, localization/R&D, regional management, revenue→profit", value=q6.get("foreign_strategy_summary", ""), height=110, disabled=no_foreign, key=f"ch2_foreign_summary_{ticker}")

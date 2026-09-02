@@ -387,12 +387,20 @@ def extract_foreign_market_candidates(q6_df: pd.DataFrame, max_rows: int = 12) -
         geographies = _find_geographies(text)
         share = _explicit_revenue_share(text) if len(geographies) == 1 else ""
         entry_year = _entry_year(text) if len(geographies) == 1 else ""
+        normalized = _norm(text)
+        if any(token in normalized for token in ("xuat khau", "export")):
+            exposure_type = "Thị trường xuất khẩu"
+        elif any(token in normalized for token in ("cong ty con", "subsidiary", "nha may", "factory", "plant", "van phong", "office")):
+            exposure_type = "Hiện diện/hoạt động trực tiếp"
+        else:
+            exposure_type = "Thị trường nước ngoài — cần xác minh loại exposure"
         for geography in geographies:
             if geography in seen:
                 continue
             seen.add(geography)
             out.append({
                 "Country / Region": geography,
+                "Exposure type": exposure_type,
                 "Entry year": entry_year,
                 "Revenue share %": share,
                 "Operating profit": "",
