@@ -9,6 +9,7 @@ import streamlit as st
 import module1_dashboard as m1
 from module1_engine import append_ttm_row
 from modules.deep_company_analysis.chapter1 import render_chapter1
+from modules.deep_company_analysis.opportunity_signals import OpportunityEventEvidenceAgent, build_opportunity_signals
 from modules.deep_company_analysis.trecapital_auto import build_chapter1_auto_data
 from modules.investment_checklist.trecapital_bridge import CurrentRepoDataProvider
 from modules.investment_checklist.trecapital_debt_enricher import augment_debt_from_latest_fireant_raw
@@ -129,6 +130,7 @@ def _prepare_auto_data_cached(
     overview_sig: tuple[int, int],
     year_sig: tuple[int, int],
     quarter_sig: tuple[int, int],
+    quote_fresh: bool,
 ):
     del overview_sig, year_sig, quarter_sig
     safe = _safe_ticker(ticker)
@@ -139,6 +141,14 @@ def _prepare_auto_data_cached(
     annual = append_ttm_row(annual_raw, quarterly)
     provider = CurrentRepoDataProvider(company, annual, valuation_range=_valuation_range)
     auto_data = build_chapter1_auto_data(provider, annual)
+    current_price = auto_data.get("valuation", {}).get("current_price") if quote_fresh else None
+    auto_data["opportunity_signals"] = build_opportunity_signals(
+        provider,
+        annual,
+        m1.RAW_DIR,
+        safe,
+        current_price=current_price,
+    )
     if debt_note:
         auto_data.setdefault("source_notes", []).append(str(debt_note))
     company_name = str(getattr(company, "company_name", "") or getattr(company, "name", "") or "")
@@ -159,12 +169,13 @@ def _prepare_auto_data(ticker: str):
             _path_signature(overview),
             _path_signature(year),
             _path_signature(quarter),
+            bool(quote_fresh),
         )
         auto_data["source_label"] = source_label
         auto_data["quote_fresh"] = quote_fresh
         if not quote_fresh:
-            # Keep statement-only ratios (Debt/EBITDA, EBIT/Interest) and qualitative quantitative
-            # suggestions, but never present a stale cached quote as today's price/market valuation.
+            # Keep statement-only ratios and price-history signals, but never present a stale cached
+            # quote as today's price/current valuation percentile.
             valuation = auto_data.get("valuation", {})
             for key in (
                 "current_price",
@@ -176,12 +187,30 @@ def _prepare_auto_data(ticker: str):
                 "tev_ebitda",
             ):
                 valuation[key] = None
+            signals = auto_data.get("opportunity_signals", {})
+            signals["valuation_percentile"] = None
+            signals["valuation_metric"] = ""
+            signals["valuation_current"] = None
             auto_data.setdefault("source_notes", []).append(
-                "Quote cache quá 6 giờ hoặc là dữ liệu mẫu: các field phụ thuộc giá thị trường đã bị để trống. Bấm 'Cập nhật dữ liệu Trecapital' để lấy giá mới."
+                "Quote cache quá 6 giờ hoặc là dữ liệu mẫu: các field phụ thuộc giá thị trường và valuation percentile hiện tại đã bị để trống. Bấm 'Cập nhật dữ liệu & signals' để lấy giá mới."
             )
         return auto_data, company_name, ""
     except Exception as exc:
         return None, "", f"Không đọc được Trecapital canonical data: {exc}"
+
+
+def _refresh_event_evidence(ticker: str) -> str:
+    safe = _safe_ticker(ticker)
+    try:
+        paths, _, _ = _active_paths(safe)
+        company_name = ""
+        if paths:
+            company = m1._load_overview_cached(str(paths[0]), safe)
+            company_name = str(getattr(company, "company_name", "") or getattr(company, "name", "") or "")
+        result = OpportunityEventEvidenceAgent(m1.RAW_DIR).search(safe, company_name, max_results_per_query=4)
+        return f"Event evidence đã cập nhật; {len(result.table)} dòng evidence/link nguồn được rà soát."
+    except Exception as exc:
+        return f"Event evidence chưa cập nhật được: {exc}"
 
 
 def _refresh_trecapital(ticker: str) -> bool:
@@ -197,6 +226,7 @@ def _refresh_trecapital(ticker: str) -> bool:
         if ok:
             for key in ("active_ticker", "shared_ticker", "module1_ticker", "module2_ticker", "last_query_ticker"):
                 st.session_state[key] = safe
+            st.session_state["dca_event_refresh_note"] = _refresh_event_evidence(safe)
             _prepare_auto_data_cached.clear()
         return ok
     except Exception:
@@ -228,15 +258,21 @@ with st.container(border=True):
                 st.success(f"Đã nối dữ liệu Trecapital cho {default_ticker} | kỳ dữ liệu: {as_of} | {source_label}")
             else:
                 st.warning(f"Đã nối BCTC Trecapital cho {default_ticker}, nhưng quote không còn đủ mới | kỳ dữ liệu: {as_of} | {source_label}")
-            st.caption("Valuation Snapshot và 4 tiêu chí định lượng của Table 1.1 sẽ được prefill từ dữ liệu này nếu analyst chưa có bản lưu trước đó. Field phụ thuộc giá chỉ prefill khi quote đủ mới.")
+            st.caption(
+                "Valuation Snapshot, 4 tiêu chí định lượng Table 1.1 và Opportunity Signals được prefill từ pipeline chung. "
+                "52-week/divergence dùng price history FireAnt đã lưu; event chỉ là ứng viên cần analyst xác minh."
+            )
+            event_note = str(st.session_state.get("dca_event_refresh_note", "") or "")
+            if event_note:
+                st.caption(event_note)
         else:
             st.info(f"{default_ticker}: {auto_error}")
     with c2:
-        if st.button("🔄 Cập nhật dữ liệu Trecapital", use_container_width=True, key="dca_refresh_trecapital"):
+        if st.button("🔄 Cập nhật dữ liệu & signals", use_container_width=True, key="dca_refresh_trecapital"):
             with st.spinner(f"Đang cập nhật {default_ticker} qua pipeline chung của Trecapital..."):
                 ok = _refresh_trecapital(default_ticker)
             if ok:
-                st.success("Đã cập nhật dữ liệu.")
+                st.success("Đã cập nhật dữ liệu và Opportunity Signals.")
                 st.rerun()
             else:
                 st.warning("Chưa lấy được bộ dữ liệu chuẩn. App không trộn dữ liệu từ mã khác.")
