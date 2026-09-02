@@ -10,6 +10,7 @@ on:
       - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
       - 'pages/08_Phan_tich_chuyen_sau_Chuong_2.py'
       - 'tre_sidebar_nav.py'
+      - 'tools/dgc_chapter2_e2e.py'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md'
       - 'docs/CHAPTER2_PHASE2B_TRECAPITAL_EVIDENCE_BRIDGE.md'
@@ -25,6 +26,7 @@ on:
       - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
       - 'pages/08_Phan_tich_chuyen_sau_Chuong_2.py'
       - 'tre_sidebar_nav.py'
+      - 'tools/dgc_chapter2_e2e.py'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md'
       - 'docs/CHAPTER2_PHASE2B_TRECAPITAL_EVIDENCE_BRIDGE.md'
@@ -54,7 +56,7 @@ jobs:
           python -m pip install -r requirements.txt pytest
       - name: Compile deep-analysis Chapters 1-2
         run: |
-          python -m compileall -q modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py pages/08_Phan_tich_chuyen_sau_Chuong_2.py tre_sidebar_nav.py
+          python -m compileall -q modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py pages/08_Phan_tich_chuyen_sau_Chuong_2.py tre_sidebar_nav.py tools/dgc_chapter2_e2e.py
       - name: Run full deep-analysis regression suite
         run: |
           python -m pytest -q modules/deep_company_analysis
@@ -67,41 +69,44 @@ jobs:
       - name: Run Chapter 2 Phase 2B data/evidence bridge explicitly
         run: |
           python -m pytest -q modules/deep_company_analysis/test_chapter2_auto.py
-      - name: Smoke-test Chapter 1 page startup
+      - name: Run live DGC Chapter 2 end-to-end diagnostic
+        run: |
+          python tools/dgc_chapter2_e2e.py | tee dgc_chapter2_e2e.log
+      - name: Smoke-test unified Deep Analysis page startup
         shell: bash
         run: |
           set -euo pipefail
           python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
-            --server.headless true --server.port 8507 > /tmp/trecapital_dca_ch1.log 2>&1 &
+            --server.headless true --server.port 8507 > /tmp/trecapital_dca.log 2>&1 &
           PID=$!
           OK=0
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8507/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
             sleep 1
           done
-          if [ "$OK" -ne 1 ]; then cat /tmp/trecapital_dca_ch1.log; kill "$PID" 2>/dev/null || true; exit 1; fi
+          if [ "$OK" -ne 1 ]; then cat /tmp/trecapital_dca.log; kill "$PID" 2>/dev/null || true; exit 1; fi
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
-      - name: Smoke-test Chapter 2 page startup
+      - name: Smoke-test legacy Chapter 2 compatibility page
         shell: bash
         run: |
           set -euo pipefail
           python -m streamlit run pages/08_Phan_tich_chuyen_sau_Chuong_2.py \
-            --server.headless true --server.port 8508 > /tmp/trecapital_dca_ch2.log 2>&1 &
+            --server.headless true --server.port 8508 > /tmp/trecapital_dca_ch2_legacy.log 2>&1 &
           PID=$!
           OK=0
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8508/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
             sleep 1
           done
-          if [ "$OK" -ne 1 ]; then cat /tmp/trecapital_dca_ch2.log; kill "$PID" 2>/dev/null || true; exit 1; fi
+          if [ "$OK" -ne 1 ]; then cat /tmp/trecapital_dca_ch2_legacy.log; kill "$PID" 2>/dev/null || true; exit 1; fi
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
-      - name: Build lightweight Windows offline package V9
+      - name: Build lightweight Windows offline package V10
         shell: bash
         run: |
           set -euo pipefail
-          PKG_NAME="Trecapital_Deep_Analysis_Offline_V9"
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V10"
           rm -rf dist
           mkdir -p "dist/${PKG_NAME}"
           rsync -a ./ "dist/${PKG_NAME}/" \
@@ -120,18 +125,25 @@ jobs:
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter1.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_auto.py"
-          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_q6_bridge.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_page_support.py"
           test -f "dist/${PKG_NAME}/docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md"
           test -f "dist/${PKG_NAME}/docs/CHAPTER2_PHASE2B_TRECAPITAL_EVIDENCE_BRIDGE.md"
           test ! -d "dist/${PKG_NAME}/offline_wheels"
           (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
           sha256sum "dist/${PKG_NAME}.zip" > "dist/${PKG_NAME}.zip.sha256"
-      - name: Upload offline package V9
+      - name: Upload DGC E2E audit
         uses: actions/upload-artifact@v4
         with:
-          name: Trecapital_Deep_Analysis_Offline_V9
+          name: DGC_Chapter2_E2E_Audit
+          path: dgc_chapter2_e2e.log
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload offline package V10
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Offline_V10
           path: |
-            dist/Trecapital_Deep_Analysis_Offline_V9.zip
-            dist/Trecapital_Deep_Analysis_Offline_V9.zip.sha256
+            dist/Trecapital_Deep_Analysis_Offline_V10.zip
+            dist/Trecapital_Deep_Analysis_Offline_V10.zip.sha256
           if-no-files-found: error
           retention-days: 30
