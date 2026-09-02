@@ -234,3 +234,13 @@ Forbidden automatic behavior:
 - overall customer perspective cannot become `understood` unless core-customer understanding (Q7) and customer pain understanding (Q12) are both Answered;
 - unified Deep Analysis page remains the single primary workspace;
 - offline operation requires no external API.
+
+## Unified page integration
+
+Chapter 3 Phase 3A is rendered as the third tab of `pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py`:
+
+- `📗 Chương 1 — Cơ hội đầu tư`
+- `📘 Chương 2 — Hiểu doanh nghiệp`
+- `📙 Chương 3 — Góc nhìn khách hàng`
+
+The ticker is shared/fallback-compatible across the three tabs. Chapter 3 remains a single-page tab rather than a new sidebar page.
