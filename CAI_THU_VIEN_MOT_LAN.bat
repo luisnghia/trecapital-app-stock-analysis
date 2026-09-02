@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title Cai thu vien Trecapital offline
+title Cai thu vien Trecapital
 
 where python >nul 2>nul
 if errorlevel 1 (
@@ -10,24 +10,30 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if not exist "offline_wheels" (
-    echo [LOI] Khong tim thay thu muc offline_wheels trong goi tai ve.
-    if /I not "%~1"=="/silent" pause
-    exit /b 1
-)
-
-echo Dang cai thu vien HOAN TOAN OFFLINE tu thu muc offline_wheels...
-python -m pip install --no-index --find-links "%~dp0offline_wheels" -r requirements.txt
+python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3,11) else 1)" >nul 2>nul
 if errorlevel 1 (
-    echo [LOI] Cai thu vien offline that bai. Hay dam bao dang dung Python 3.11 64-bit.
+    echo [LOI] Can Python 3.11.
+    python --version
     if /I not "%~1"=="/silent" pause
     exit /b 1
 )
 
-echo Cai dat hoan tat.
-if /I not "%~1"=="/silent" (
-    echo Tu lan sau chi can double-click CHAY_TRECAPITAL_OFFLINE.bat.
-    pause
+if exist "offline_wheels" (
+    echo Dang cai thu vien OFFLINE tu thu muc offline_wheels...
+    python -m pip install --no-index --find-links "%~dp0offline_wheels" -r requirements.txt
+) else (
+    echo Goi Lite khong kem offline_wheels de giam dung luong.
+    echo Dang cai requirements tu PyPI. Buoc nay can Internet mot lan duy nhat.
+    python -m pip install -r requirements.txt
 )
+
+if errorlevel 1 (
+    echo [LOI] Cai thu vien that bai. Hay dam bao Python 3.11 64-bit va pip hoat dong.
+    if /I not "%~1"=="/silent" pause
+    exit /b 1
+)
+
+echo Cai dat hoan tat. Sau do app co the chay local bang CHAY_TRECAPITAL_OFFLINE.bat.
+if /I not "%~1"=="/silent" pause
 endlocal
 exit /b 0
