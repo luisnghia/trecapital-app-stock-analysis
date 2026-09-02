@@ -12,6 +12,7 @@ on:
       - 'tre_sidebar_nav.py'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md'
+      - 'docs/CHAPTER2_PHASE2B_TRECAPITAL_EVIDENCE_BRIDGE.md'
       - 'docs/DGC_CHAPTER1_TRIAL_AUTODATA_AUDIT.md'
       - 'CHAY_TRECAPITAL_OFFLINE.bat'
       - 'CAI_THU_VIEN_MOT_LAN.bat'
@@ -26,6 +27,7 @@ on:
       - 'tre_sidebar_nav.py'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md'
+      - 'docs/CHAPTER2_PHASE2B_TRECAPITAL_EVIDENCE_BRIDGE.md'
       - 'docs/DGC_CHAPTER1_TRIAL_AUTODATA_AUDIT.md'
       - 'CHAY_TRECAPITAL_OFFLINE.bat'
       - 'CAI_THU_VIEN_MOT_LAN.bat'
@@ -62,6 +64,9 @@ jobs:
       - name: Run Chapter 2 Phase 2A acceptance explicitly
         run: |
           python -m pytest -q modules/deep_company_analysis/test_chapter2.py
+      - name: Run Chapter 2 Phase 2B data/evidence bridge explicitly
+        run: |
+          python -m pytest -q modules/deep_company_analysis/test_chapter2_auto.py
       - name: Smoke-test Chapter 1 page startup
         shell: bash
         run: |
@@ -92,11 +97,11 @@ jobs:
           if [ "$OK" -ne 1 ]; then cat /tmp/trecapital_dca_ch2.log; kill "$PID" 2>/dev/null || true; exit 1; fi
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
-      - name: Build lightweight Windows offline package V8
+      - name: Build lightweight Windows offline package V9
         shell: bash
         run: |
           set -euo pipefail
-          PKG_NAME="Trecapital_Deep_Analysis_Offline_V8"
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V9"
           rm -rf dist
           mkdir -p "dist/${PKG_NAME}"
           rsync -a ./ "dist/${PKG_NAME}/" \
@@ -114,16 +119,19 @@ jobs:
           test -f "dist/${PKG_NAME}/pages/08_Phan_tich_chuyen_sau_Chuong_2.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter1.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_auto.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_q6_bridge.py"
           test -f "dist/${PKG_NAME}/docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md"
+          test -f "dist/${PKG_NAME}/docs/CHAPTER2_PHASE2B_TRECAPITAL_EVIDENCE_BRIDGE.md"
           test ! -d "dist/${PKG_NAME}/offline_wheels"
           (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
           sha256sum "dist/${PKG_NAME}.zip" > "dist/${PKG_NAME}.zip.sha256"
-      - name: Upload offline package V8
+      - name: Upload offline package V9
         uses: actions/upload-artifact@v4
         with:
-          name: Trecapital_Deep_Analysis_Offline_V8
+          name: Trecapital_Deep_Analysis_Offline_V9
           path: |
-            dist/Trecapital_Deep_Analysis_Offline_V8.zip
-            dist/Trecapital_Deep_Analysis_Offline_V8.zip.sha256
+            dist/Trecapital_Deep_Analysis_Offline_V9.zip
+            dist/Trecapital_Deep_Analysis_Offline_V9.zip.sha256
           if-no-files-found: error
           retention-days: 30
