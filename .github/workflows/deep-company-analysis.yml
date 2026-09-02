@@ -13,7 +13,9 @@ on:
       - 'tools/dgc_chapter2_e2e.py'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md'
+      - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER3.md'
       - 'docs/CHAPTER2_PHASE2B_TRECAPITAL_EVIDENCE_BRIDGE.md'
+      - 'docs/CHAPTER2_LOCKED_ACCEPTANCE_DGC.md'
       - 'docs/DGC_CHAPTER1_TRIAL_AUTODATA_AUDIT.md'
       - 'CHAY_TRECAPITAL_OFFLINE.bat'
       - 'CAI_THU_VIEN_MOT_LAN.bat'
@@ -29,7 +31,9 @@ on:
       - 'tools/dgc_chapter2_e2e.py'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md'
+      - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER3.md'
       - 'docs/CHAPTER2_PHASE2B_TRECAPITAL_EVIDENCE_BRIDGE.md'
+      - 'docs/CHAPTER2_LOCKED_ACCEPTANCE_DGC.md'
       - 'docs/DGC_CHAPTER1_TRIAL_AUTODATA_AUDIT.md'
       - 'CHAY_TRECAPITAL_OFFLINE.bat'
       - 'CAI_THU_VIEN_MOT_LAN.bat'
@@ -54,7 +58,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest
-      - name: Compile deep-analysis Chapters 1-2
+      - name: Compile deep-analysis Chapters 1-3
         run: |
           python -m compileall -q modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py pages/08_Phan_tich_chuyen_sau_Chuong_2.py tre_sidebar_nav.py tools/dgc_chapter2_e2e.py
       - name: Run full deep-analysis regression suite
@@ -72,6 +76,9 @@ jobs:
       - name: Run Chapter 2 source-first evidence tests explicitly
         run: |
           python -m pytest -q modules/deep_company_analysis/test_chapter2_evidence.py
+      - name: Run Chapter 3 Phase 3A acceptance explicitly
+        run: |
+          python -m pytest -q modules/deep_company_analysis/test_chapter3.py
       - name: Run live DGC Chapter 2 end-to-end diagnostic
         shell: bash
         run: |
@@ -107,11 +114,11 @@ jobs:
           if [ "$OK" -ne 1 ]; then cat /tmp/trecapital_dca_ch2_legacy.log; kill "$PID" 2>/dev/null || true; exit 1; fi
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
-      - name: Build lightweight Windows offline package V11
+      - name: Build lightweight Windows offline package V12
         shell: bash
         run: |
           set -euo pipefail
-          PKG_NAME="Trecapital_Deep_Analysis_Offline_V11"
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V12"
           rm -rf dist
           mkdir -p "dist/${PKG_NAME}"
           rsync -a ./ "dist/${PKG_NAME}/" \
@@ -129,10 +136,13 @@ jobs:
           test -f "dist/${PKG_NAME}/pages/08_Phan_tich_chuyen_sau_Chuong_2.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter1.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter3.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_auto.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_evidence.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_page_support.py"
           test -f "dist/${PKG_NAME}/docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md"
+          test -f "dist/${PKG_NAME}/docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER3.md"
+          test -f "dist/${PKG_NAME}/docs/CHAPTER2_LOCKED_ACCEPTANCE_DGC.md"
           test -f "dist/${PKG_NAME}/docs/CHAPTER2_PHASE2B_TRECAPITAL_EVIDENCE_BRIDGE.md"
           test ! -d "dist/${PKG_NAME}/offline_wheels"
           (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
@@ -144,12 +154,12 @@ jobs:
           path: dgc_chapter2_e2e.log
           if-no-files-found: error
           retention-days: 30
-      - name: Upload offline package V11
+      - name: Upload offline package V12
         uses: actions/upload-artifact@v4
         with:
-          name: Trecapital_Deep_Analysis_Offline_V11
+          name: Trecapital_Deep_Analysis_Offline_V12
           path: |
-            dist/Trecapital_Deep_Analysis_Offline_V11.zip
-            dist/Trecapital_Deep_Analysis_Offline_V11.zip.sha256
+            dist/Trecapital_Deep_Analysis_Offline_V12.zip
+            dist/Trecapital_Deep_Analysis_Offline_V12.zip.sha256
           if-no-files-found: error
           retention-days: 30
