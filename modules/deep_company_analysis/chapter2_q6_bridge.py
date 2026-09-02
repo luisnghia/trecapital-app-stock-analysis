@@ -7,6 +7,8 @@ import pandas as pd
 
 from modules.deep_company_analysis import chapter2_auto as base
 
+_BASE_BUILD = base.build_chapter2_assistant_draft
+
 
 def _alias_present(normalized_text: str, alias: str) -> bool:
     token = base._norm(alias)
@@ -101,7 +103,7 @@ def build_chapter2_assistant_draft(
     *,
     source_label: str = "Trecapital canonical data",
 ) -> dict[str, Any]:
-    draft = base.build_chapter2_assistant_draft(company, annual_df, evidence_df, source_label=source_label)
+    draft = _BASE_BUILD(company, annual_df, evidence_df, source_label=source_label)
     evidence_df = evidence_df if isinstance(evidence_df, pd.DataFrame) else pd.DataFrame()
     sections = base.classify_evidence(evidence_df)
     q6_df = sections.get("Q6", pd.DataFrame())
