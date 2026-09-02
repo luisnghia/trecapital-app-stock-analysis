@@ -1,0 +1,66 @@
+{
+  "ticker": "DGC",
+  "company_name": "CTCP Tập đoàn Hóa chất Đức Giang",
+  "idea_sources": [
+    "Cổ phiếu giảm mạnh / gần đáy 52 tuần",
+    "Kết quả kinh doanh tạm thời xấu",
+    "Bất định pháp lý / quản trị / ngành",
+    "Định giá thấp bất thường",
+    "Sự kiện đặc biệt"
+  ],
+  "market_mispricing": "Case thử nghiệm as-of 28/08/2026: giá DGC quanh 43.000 đồng/cp, thấp hơn khoảng 58% so với đỉnh 52 tuần 103.000 đồng/cp. Thị trường đang chiết khấu mạnh suy giảm lợi nhuận 2026, gián đoạn nguồn quặng apatit, rủi ro pháp lý/quản trị và ý kiến kiểm toán ngoại trừ năm 2025. Điểm cần kiểm chứng là các vấn đề này mang tính tạm thời hay làm suy giảm dài hạn lợi thế chi phí và khả năng sinh lời của DGC.",
+  "initial_thesis": "DGC vẫn có nền tảng từng tạo ROIC cao, bảng cân đối có lượng tiền lớn và lợi thế lịch sử từ chuỗi giá trị phốt pho, công nghệ và nguồn quặng tự chủ. Tuy nhiên 2026 cho thấy lợi thế này phụ thuộc đáng kể vào nguồn apatit nội địa; biên lợi nhuận và FCF giảm mạnh khi khai trường 25 gián đoạn. Chưa đủ cơ sở để coi mức định giá thấp hiện tại là bargain cho đến khi rủi ro pháp lý, nguồn quặng, chất lượng quản trị và tiến độ Nghi Sơn rõ hơn.",
+  "research_gaps": "Kết quả cuối cùng và phạm vi ảnh hưởng của các vụ việc pháp lý đối với công ty, giấy phép khai thác và ban lãnh đạo\nKhả năng khôi phục nguồn quặng apatit tự chủ hoặc duy trì nguồn nhập khẩu với chi phí chấp nhận được sau Q1/2027\nCustomer concentration và tỷ trọng doanh thu từ các khách hàng lớn chưa có dữ liệu đủ tin cậy\nChất lượng ban lãnh đạo sau biến động nhân sự năm 2026 và track record phân bổ vốn\nMaintenance capex tách khỏi growth capex, đặc biệt với dự án Nghi Sơn\nNormalized EBIT/FCF sau khi loại ảnh hưởng bất thường của thiếu quặng và chi phí đầu vào\nTarget Price/MOS theo engine Module 2 sau khi cập nhật đầy đủ BCTC bán niên 2026\nXác nhận việc xử lý ý kiến kiểm toán ngoại trừ hàng tồn kho tại các kỳ soát xét/kiểm toán tiếp theo",
+  "opportunity_signals": {
+    "drawdown_52w_pct": 58.3,
+    "valuation_percentile": 20.0,
+    "price_earnings_divergence": "Không",
+    "special_event": "Case point-in-time: rủi ro pháp lý/quản trị, gián đoạn khai trường 25, BCTC 2025 có ý kiến ngoại trừ; cổ phiếu từng vào diện quản lý đặc biệt của HOSE trong 2026. Valuation percentile 20% là ước tính thử nghiệm từ P/E hiện tại so với các mốc năm 2021-2025, chưa phải canonical Trecapital."
+  },
+  "valuation": {
+    "current_price": 43000.0,
+    "target_price": null,
+    "mos_pct": null,
+    "stock_price_vs_target_pct": null,
+    "fcf_yield_pct": 0.7,
+    "dividend_yield_pct": 7.0,
+    "tev_ebit": null,
+    "tev_ebitda": 2.4,
+    "debt_ebitda": 0.8,
+    "ebit_interest": null
+  },
+  "quality": {
+    "recurring_revenue": {"status": "X Không", "confidence": 2, "note": "Doanh thu chủ yếu từ bán hóa chất/phốt pho theo sản lượng và giá thị trường; chưa có bằng chứng về mô hình doanh thu hợp đồng lặp lại đủ mạnh theo tinh thần Shearn."},
+    "long_runway": {"status": "✓ Có", "confidence": 2, "note": "Còn dư địa từ hóa chất phốt pho, Nghi Sơn và các sản phẩm hóa chất mới; nhưng tiến độ dự án và nguồn nguyên liệu là rủi ro cần theo dõi."},
+    "proven_management": {"status": "— Chưa biết", "confidence": 1, "note": "Track record vận hành lịch sử tốt nhưng biến động nhân sự và các vụ việc pháp lý năm 2026 khiến chưa đủ cơ sở kết luận chất lượng quản trị hiện tại."},
+    "franchise_moat": {"status": "✓ Có", "confidence": 2, "note": "Lợi thế lịch sử từ công nghệ, quy mô, điện và tự chủ apatit; 2026 cho thấy moat nguyên liệu đang bị thử thách khi khai trường 25 gián đoạn."},
+    "strong_financials": {"status": "✓ Có", "confidence": 2, "note": "Nền tảng tài chính và khả năng sinh lời lịch sử mạnh, nhưng H1/2026 doanh thu/LNST giảm sâu và FCF TTM suy yếu; cần đánh giá normalized earnings."},
+    "high_roic": {"status": "✓ Có", "confidence": 3, "note": "ROIC lịch sử cao; dữ liệu cross-check TTM 2026 vẫn ở mức hai chữ số cao. Cần dùng ROIC canonical Trecapital khi bridge tự động."},
+    "limited_competition": {"status": "X Không", "confidence": 2, "note": "DGC có vị thế mạnh trong nước nhưng phốt pho/hóa chất vẫn cạnh tranh toàn cầu và chịu tham chiếu giá hàng hóa, đặc biệt từ Trung Quốc và các nhà sản xuất quốc tế."},
+    "low_capex": {"status": "X Không", "confidence": 3, "note": "Ngành hóa chất thâm dụng vốn; DGC đang triển khai dự án Nghi Sơn quy mô lớn và Capex TTM tăng, không phù hợp tiêu chí low-capex."},
+    "diversified_customers": {"status": "— Chưa biết", "confidence": 1, "note": "Có nhiều thị trường xuất khẩu nhưng chưa có dữ liệu customer concentration đủ chi tiết để kết luận tệp khách hàng thực sự phân tán."},
+    "strong_balance_sheet": {"status": "✓ Có", "confidence": 3, "note": "Tiền/đầu tư ngắn hạn lớn, net debt âm và Debt/EBITDA thấp; vẫn cần lưu ý ý kiến kiểm toán ngoại trừ liên quan hàng tồn kho 2025."}
+  },
+  "gate": "watch",
+  "gate_reason": "Định giá và bảng cân đối hấp dẫn nhưng chưa đủ rõ về tính bền vững của moat nguyên liệu, normalized earnings, rủi ro pháp lý/quản trị và khả năng vận hành Nghi Sơn. Giữ Watch để chờ thêm bằng chứng thay vì chuyển Continue chỉ vì giá đã giảm mạnh.",
+  "next_review": "Sau BCTC Q3/2026 hoặc khi có cập nhật đáng kể về pháp lý, nguồn quặng apatit và chạy thử Nghi Sơn Q4/2026",
+  "triggers": [
+    "Review khi có kết luận/cập nhật pháp lý ảnh hưởng giấy phép khai thác hoặc ban lãnh đạo",
+    "Review khi DGC khôi phục nguồn quặng tự chủ hoặc công bố hợp đồng apatit dài hạn sau Q1/2027",
+    "Review khi Nghi Sơn bắt đầu chạy thử/vận hành thương mại",
+    "Review sau BCTC Q3/2026 để kiểm tra gross margin, CFO và FCF",
+    "Review khi Module 2 có Target Price/MOS cập nhật từ BCTC bán niên 2026"
+  ],
+  "trial_meta": {
+    "as_of": "2026-08-28",
+    "prepared_on": "2026-09-02",
+    "purpose": "Workflow validation only; not live investment advice",
+    "sources": [
+      "Trecapital current source architecture (FireAnt/Vietstock/Simplize + Module 1/2 bridge)",
+      "DGC official disclosures and 2025 annual report",
+      "Simplize DGC snapshot",
+      "StockBiz 52-week price snapshot",
+      "Vietcap/MBS/SHS public research cross-check"
+    ]
+  }
+}
