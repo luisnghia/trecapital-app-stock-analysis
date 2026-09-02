@@ -12,8 +12,8 @@ Trang này không thay thế page **Investment Checklist** hiện tại. Page m�
 - **Người dùng = Investment Analyst.**
 - AI có thể thu thập, tính toán, tìm evidence/counter-evidence, phát hiện trigger và đề xuất.
 - AI không được tự ghi đè đánh giá analyst, không tự đổi Research Gate và không tự đưa ra quyết định mua/bán.
-- Trecapital Data Layer sẽ là **Single Source of Truth** khi kết nối dữ liệu tự động ở các phase sau.
-- Bản Chapter 1 đầu tiên phải chạy **offline hoàn toàn**, dùng SQLite local; không phụ thuộc API hay Internet.
+- Trecapital Data Layer là **Single Source of Truth** cho dữ liệu tài chính/định giá khi bridge tự động.
+- Bản Chapter 1 phải chạy **offline hoàn toàn** với SQLite local; không phụ thuộc API hay Internet để nhập, lưu và đọc lại hồ sơ.
 
 ## 3. Căn cứ Chương 1 của sách
 
@@ -42,50 +42,29 @@ Table 1.2 là **Inventory of Ideas**, dùng để theo dõi các cơ hội hiệ
 
 ### A. Idea Origin — Nguồn hình thành ý tưởng
 
-Lưu:
-
-- nguồn hình thành ý tưởng;
-- tại sao doanh nghiệp xuất hiện trên radar;
-- tại sao thị trường có thể đang định giá sai;
-- initial thesis.
-
-Các nguồn gợi ý trong app:
-
-- thị trường giảm mạnh;
-- ngành bị bán mạnh;
-- cổ phiếu giảm mạnh/gần đáy 52 tuần;
-- forced selling / bị loại khỏi chỉ số;
-- spin-off / tái cấu trúc;
-- sự kiện đặc biệt;
-- kết quả kinh doanh tạm thời xấu;
-- bất định pháp lý/quản trị/ngành;
-- định giá thấp bất thường;
-- screen định lượng;
-- ý tưởng từ nhà đầu tư khác;
-- doanh nghiệp chất lượng muốn theo dõi dài hạn;
-- khác.
+Lưu nguồn hình thành ý tưởng, lý do doanh nghiệp xuất hiện trên radar, tại sao thị trường có thể đang định giá sai và initial thesis.
 
 ### B. Opportunity Signals
 
-Phase đầu cho phép analyst nhập offline:
-
+Theo dõi:
 - Drawdown từ đỉnh 52 tuần;
 - historical valuation percentile;
-- price/earnings or price/cash-flow divergence;
+- price/earnings hoặc price/cash-flow divergence;
 - event / forced selling.
 
-Phase sau bridge tự động từ Trecapital Data Layer. Opportunity Signal **không phải Buy Signal**.
+Opportunity Signal **không phải Buy Signal**.
 
 ### C. Quality Filter — Table 1.1
 
 Mỗi tiêu chí có:
 
 - Analyst Assessment: `✓ Có | X Không | — Chưa biết | N/A`;
-- Confidence: 1–5;
+- Confidence: **Thấp | Trung bình | Cao**;
 - Evidence / Note.
 
-App tổng hợp:
+Confidence là lớp quản trị chất lượng nhận định do app bổ sung, **không phải tiêu chí gốc của Shearn và không cộng vào Quality Score**. Dữ liệu legacy 4–5 được quy về mức **Cao**.
 
+App tổng hợp:
 - Quality Filter = số tiêu chí `✓` / 10;
 - Unknown = số tiêu chí `—` / 10.
 
@@ -93,14 +72,11 @@ App tổng hợp:
 
 ### D. Research Gaps
 
-Lưu các nội dung chưa biết / Critical Unknowns, mỗi dòng một mục.
-
-Mục tiêu: tạo queue nghiên cứu để các chương tiếp theo lần lượt đóng các khoảng trống thông tin.
+Lưu các nội dung chưa biết / Critical Unknowns, mỗi dòng một mục. Các chương tiếp theo sẽ lần lượt đóng các khoảng trống thông tin này.
 
 ### E. Valuation Snapshot — bridge sang Table 1.2
 
-Phase đầu hỗ trợ nhập offline:
-
+Các trường:
 - Current Price;
 - Target Price;
 - FCF Yield;
@@ -110,68 +86,34 @@ Phase đầu hỗ trợ nhập offline:
 - Debt/EBITDA;
 - EBIT/Interest.
 
-App tự tính:
+App tự tính MOS so với Target và Stock Price / Target.
 
-- MOS so với Target;
-- Stock Price / Target.
-
-Phase sau số liệu sẽ lấy từ Module 1/Module 2 canonical data, không tạo engine dữ liệu song song.
+Trecapital hiện đã có bridge canonical để lấy/tính phần lớn các trường này từ Module 1/Module 2. Chapter 1 sẽ nối vào bridge đó thay vì tạo data engine riêng.
 
 ### F. Research Gate
 
 Bốn trạng thái:
-
 - 🟢 **Continue** — tiếp tục nghiên cứu chuyên sâu;
-- 🟡 **Watch** — theo dõi, chờ dữ liệu/điều kiện;
+- 🟡 **Watch** — theo dõi, chờ thêm dữ liệu hoặc điều kiện;
 - 🟠 **Pause** — tạm dừng nghiên cứu;
 - 🔴 **Reject** — loại khỏi pipeline nghiên cứu hiện tại.
 
 Quy tắc:
-
-- `Reason for Gate` là bắt buộc;
+- `Reason for Gate` bắt buộc;
 - Gate do analyst quyết định;
 - app không tự đổi Gate;
 - khi Gate thay đổi phải lưu lịch sử append-only;
-- Reject không xóa hồ sơ, có thể reopen sau này.
+- Reject không xóa hồ sơ và có thể reopen.
 
 ### G. Opportunity Inventory / Table 1.2
 
-Khi analyst bấm **Lưu đánh giá Chương 1**, doanh nghiệp tự động được đưa vào Inventory và phân nhóm theo Gate:
-
-1. Continue
-2. Watch
-3. Pause
-4. Reject
+Khi analyst bấm **Lưu đánh giá Chương 1**, doanh nghiệp tự động được đưa vào Inventory và phân nhóm theo Gate: Continue / Watch / Pause / Reject.
 
 Một ticker chỉ có **một current opportunity record**, nhưng có nhiều snapshot/history.
 
-Inventory hiện các trường chính:
-
-- Gate;
-- ticker;
-- tên doanh nghiệp;
-- Quality Filter;
-- Unknown;
-- current price;
-- target price;
-- MOS;
-- FCF Yield;
-- Gate reason;
-- Next Review;
-- Last Updated.
-
 ## 5. Monitoring / Review Queue
 
-Mỗi doanh nghiệp có thể lưu các trigger, ví dụ:
-
-- Review khi MOS > 25%;
-- Review khi giá < 80.000;
-- Review sau BCTC Q3/2026;
-- Review khi Debt/EBITDA < 2x.
-
-Phase hiện tại chỉ lưu trigger offline.
-
-Phase sau app có thể tự phát hiện trigger dựa trên dữ liệu mới và đưa doanh nghiệp vào Review Queue, nhưng **không tự đổi Research Gate**.
+Mỗi doanh nghiệp có thể lưu trigger như MOS, giá, BCTC mới, Debt/EBITDA hoặc sự kiện định tính. App về sau có thể tự phát hiện trigger nhưng **không tự đổi Research Gate**.
 
 ## 6. Persistence offline
 
@@ -180,16 +122,32 @@ Database local:
 `data_cache/deep_company_analysis_chapter1.db`
 
 Các bảng:
+- `chapter1_current`
+- `chapter1_quality_current`
+- `chapter1_gate_history`
+- `chapter1_snapshots`
+- `chapter1_monitoring_triggers`
 
-- `chapter1_current` — current record của mỗi ticker;
-- `chapter1_quality_current` — Table 1.1 current assessment;
-- `chapter1_gate_history` — lịch sử Gate append-only;
-- `chapter1_snapshots` — snapshot mỗi lần lưu;
-- `chapter1_monitoring_triggers` — trigger theo dõi.
+## 7. Case thử nghiệm DGC
 
-Không cần PostgreSQL/Supabase/API để chạy Chapter 1 offline.
+Fixture:
 
-## 7. File triển khai hiện tại
+`sample_data/deep_company_analysis/DGC_chapter1_trial.json`
+
+Đây là case point-in-time as-of **28/08/2026** dùng để kiểm thử workflow, không phải dữ liệu live. Khi nhập mã `DGC`, page có nút nạp case vào SQLite local.
+
+Kết quả thử nghiệm hiện tại:
+- Quality Filter: **5/10**;
+- Unknown: **2/10**;
+- Research Gate: **🟡 Watch**;
+- Current Price: 43.000 đ/cp trong fixture;
+- Target/MOS để trống cho đến khi nối Module 2 canonical valuation.
+
+Chi tiết mapping dữ liệu tự động nằm tại:
+
+`docs/DGC_CHAPTER1_TRIAL_AUTODATA_AUDIT.md`
+
+## 8. File triển khai
 
 Branch:
 
@@ -199,43 +157,24 @@ Page:
 
 `pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py`
 
-Logic Chương 1:
+Logic:
 
 `modules/deep_company_analysis/chapter1.py`
 
-Context:
+Tests:
 
-`docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md`
+`modules/deep_company_analysis/test_chapter1.py`
 
-## 8. Cách chạy offline
+## 9. Đóng gói offline
 
-Tại thư mục repo:
-
-```powershell
-git checkout feature/deep-company-analysis-checklist
-pip install -r requirements.txt
-streamlit run app.py
-```
-
-Sau đó mở menu **Phân tích chuyên sâu doanh nghiệp**.
-
-Chapter 1 có thể nhập/lưu/mở lại hoàn toàn offline. File SQLite được tạo tự động khi mở page lần đầu.
-
-## 9. Phase tiếp theo dự kiến
-
-Sau khi Chapter 1 offline ổn định:
-
-1. Bridge Opportunity Signals từ Trecapital canonical data.
-2. Bridge valuation fields từ Module 1 / Module 2.
-3. Thêm monitoring engine phát hiện trigger.
-4. Thêm AI Research Assistant cho evidence nhưng vẫn giữ analyst approval.
-5. Bắt đầu Chapter 2: Understanding the Business — The Basics.
+Người dùng đã có sẵn Python 3.11. Từ V2 package **không đóng kèm Python/wheelhouse** để giảm dung lượng. Gói chỉ chứa source, cấu hình, dữ liệu mẫu và file `.bat` chạy app.
 
 ## 10. Acceptance criteria Chương 1
 
-- Page mở được offline, không cần API.
+- Page mở được offline.
 - Một ticker lưu được đầy đủ A→F.
-- Table 1.1 lưu được 10 tiêu chí + confidence + note.
+- Table 1.1 lưu 10 tiêu chí + Confidence 3 mức + note.
+- Confidence không tham gia Quality Score.
 - Lưu Gate bắt buộc Reason for Gate.
 - Opportunity Inventory tự phân nhóm theo Gate.
 - Đổi Gate tạo history, không mất record cũ.
