@@ -70,7 +70,9 @@ jobs:
         run: |
           python -m pytest -q modules/deep_company_analysis/test_chapter2_auto.py
       - name: Run live DGC Chapter 2 end-to-end diagnostic
+        shell: bash
         run: |
+          set -euo pipefail
           python tools/dgc_chapter2_e2e.py | tee dgc_chapter2_e2e.log
       - name: Smoke-test unified Deep Analysis page startup
         shell: bash
