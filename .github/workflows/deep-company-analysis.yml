@@ -9,6 +9,9 @@ on:
       - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
       - 'tre_sidebar_nav.py'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
+      - 'CHAY_TRECAPITAL_OFFLINE.bat'
+      - 'CAI_THU_VIEN_MOT_LAN.bat'
+      - 'HUONG_DAN_CHAY_OFFLINE.txt'
       - '.github/workflows/deep-company-analysis.yml'
   pull_request:
     paths:
@@ -16,6 +19,9 @@ on:
       - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
       - 'tre_sidebar_nav.py'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
+      - 'CHAY_TRECAPITAL_OFFLINE.bat'
+      - 'CAI_THU_VIEN_MOT_LAN.bat'
+      - 'HUONG_DAN_CHAY_OFFLINE.txt'
       - '.github/workflows/deep-company-analysis.yml'
 
 jobs:
@@ -37,3 +43,29 @@ jobs:
       - name: Run Chapter 1 offline tests
         run: |
           python -m pytest -q modules/deep_company_analysis/test_chapter1.py
+      - name: Build Windows offline source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V1"
+          mkdir -p "dist/${PKG_NAME}"
+          rsync -a ./ "dist/${PKG_NAME}/" \
+            --exclude '.git' \
+            --exclude 'dist' \
+            --exclude '.streamlit/secrets.toml' \
+            --exclude '.env' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude '*.log'
+          mkdir -p "dist/${PKG_NAME}/data_cache"
+          (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
+          sha256sum "dist/${PKG_NAME}.zip" > "dist/${PKG_NAME}.zip.sha256"
+      - name: Upload downloadable offline package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Offline_V1
+          path: |
+            dist/Trecapital_Deep_Analysis_Offline_V1.zip
+            dist/Trecapital_Deep_Analysis_Offline_V1.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
