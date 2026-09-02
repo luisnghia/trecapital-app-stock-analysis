@@ -278,10 +278,20 @@ def build_chapter1_auto_data(provider: Any, annual_df: pd.DataFrame) -> dict[str
         "debt_ebitda": _safe_float(metrics.get("debt_ebitda")),
         "ebit_interest": _safe_float(metrics.get("ebit_interest")),
     }
+    roics = _recent_roic_values(annual_df, 5)
+    monitoring_metrics = {
+        "current_price": valuation.get("current_price"),
+        "mos_pct": valuation.get("mos_pct"),
+        "roic_pct": roics[0] if roics else None,
+        "debt_ebitda": valuation.get("debt_ebitda"),
+        "ebit_interest": valuation.get("ebit_interest"),
+        "fcf_yield_pct": valuation.get("fcf_yield_pct"),
+    }
     return {
         "as_of": str(getattr(source, "as_of_date", "") or ""),
         "source_module": str(getattr(source, "source_module", "") or ""),
         "source_notes": list(getattr(source, "source_notes", ()) or ()),
         "valuation": valuation,
         "quality_suggestions": build_quantitative_suggestions(source, annual_df),
+        "monitoring_metrics": monitoring_metrics,
     }

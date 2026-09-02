@@ -8,7 +8,8 @@ import streamlit as st
 
 import module1_dashboard as m1
 from module1_engine import append_ttm_row
-from modules.deep_company_analysis.chapter1 import render_chapter1
+from modules.deep_company_analysis.chapter1 import load_inventory, load_record, render_chapter1
+from modules.deep_company_analysis.monitoring import evaluate_and_persist
 from modules.deep_company_analysis.opportunity_signals import OpportunityEventEvidenceAgent, build_opportunity_signals
 from modules.deep_company_analysis.trecapital_auto import build_chapter1_auto_data
 from modules.investment_checklist.trecapital_bridge import CurrentRepoDataProvider
@@ -213,6 +214,34 @@ def _refresh_event_evidence(ticker: str) -> str:
         return f"Event evidence chưa cập nhật được: {exc}"
 
 
+def _scan_review_queue_from_cache() -> tuple[int, int]:
+    """Evaluate saved triggers for every inventory ticker that already has a local Trecapital bundle.
+
+    This scan is deliberately cache-only: it does not fan out network calls across the watchlist.
+    The normal per-ticker refresh remains the place where market/financial data is downloaded.
+    """
+    inventory = load_inventory()
+    if inventory is None or inventory.empty or "Mã" not in inventory.columns:
+        return 0, 0
+    checked = 0
+    skipped = 0
+    for ticker_value in inventory["Mã"].astype(str).tolist():
+        safe = _safe_ticker(ticker_value)
+        if not safe:
+            continue
+        data, _, _ = _prepare_auto_data(safe)
+        record = load_record(safe)
+        if not data or not record.get("triggers"):
+            skipped += 1
+            continue
+        try:
+            evaluate_and_persist(safe, record, data)
+            checked += 1
+        except Exception:
+            skipped += 1
+    return checked, skipped
+
+
 def _refresh_trecapital(ticker: str) -> bool:
     safe = _safe_ticker(ticker)
     if len(safe) < 3:
@@ -276,6 +305,12 @@ with st.container(border=True):
                 st.rerun()
             else:
                 st.warning("Chưa lấy được bộ dữ liệu chuẩn. App không trộn dữ liệu từ mã khác.")
+
+if st.button("🔎 Quét Review Queue từ dữ liệu cache", use_container_width=True, key="dca_scan_review_queue"):
+    with st.spinner("Đang kiểm tra trigger của Opportunity Inventory bằng dữ liệu local đã có..."):
+        checked, skipped = _scan_review_queue_from_cache()
+    st.success(f"Đã kiểm tra {checked} mã; bỏ qua {skipped} mã chưa có cache hoặc chưa đặt trigger.")
+    st.rerun()
 
 render_chapter1(
     default_ticker=default_ticker,

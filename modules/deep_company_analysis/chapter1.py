@@ -10,6 +10,8 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+from modules.deep_company_analysis.monitoring import evaluate_and_persist, render_monitoring_panel
+
 APP_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = APP_ROOT / "data_cache" / "deep_company_analysis_chapter1.db"
 
@@ -720,7 +722,17 @@ def render_chapter1(default_ticker: str = "", auto_data: dict[str, Any] | None =
         placeholder="Ví dụ: Review khi MOS > 25%\nReview sau BCTC Q3/2026",
         key=f"dca_triggers_{ticker}",
     )
-    st.warning("App có thể phát hiện trigger ở giai đoạn sau nhưng không được tự đổi Research Gate. Gate là quyết định của analyst.", icon="⚠️")
+    st.warning(
+        "Monitoring Engine tự kiểm tra các trigger đã lưu khi dữ liệu Trecapital được cập nhật, nhưng không bao giờ tự đổi Research Gate. Gate vẫn là quyết định của analyst.",
+        icon="⚠️",
+    )
+
+    evaluation_results: list[dict[str, Any]] = []
+    if is_saved and auto_data and record.get("triggers"):
+        try:
+            evaluation_results = evaluate_and_persist(ticker, record, auto_data)
+        except Exception as exc:
+            st.caption(f"Monitoring Engine chưa đánh giá được trigger: {exc}")
 
     if st.button("💾 Lưu đánh giá Chương 1", type="primary", use_container_width=True, key=f"dca_save_{ticker}"):
         if not ticker:
@@ -766,6 +778,7 @@ def render_chapter1(default_ticker: str = "", auto_data: dict[str, Any] | None =
 
     st.divider()
     _render_inventory()
+    render_monitoring_panel(ticker, evaluation_results)
 
     history = load_gate_history(ticker)
     st.subheader(f"Gate History — {ticker}")
