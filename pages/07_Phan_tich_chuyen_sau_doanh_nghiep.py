@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -18,6 +19,7 @@ from ui_oaktree_theme import inject_oaktree_theme
 
 APP_DIR = Path(__file__).resolve().parents[1]
 ASSUMPTIONS_PATH = APP_DIR / "configs" / "valuation_assumptions.json"
+FRESH_QUOTE_HOURS = 6.0
 
 
 st.set_page_config(
@@ -64,6 +66,14 @@ def _path_signature(path) -> tuple[int, int]:
         return 0, 0
 
 
+def _bundle_age_hours(paths) -> float:
+    try:
+        updated_at = max(Path(str(path)).stat().st_mtime for path in paths)
+        return max(0.0, (time.time() - updated_at) / 3600.0)
+    except Exception:
+        return 999999.0
+
+
 def _active_paths(ticker: str):
     safe = _safe_ticker(ticker)
     active = _safe_ticker(str(st.session_state.get("active_ticker", "")))
@@ -73,10 +83,14 @@ def _active_paths(ticker: str):
         st.session_state.get("active_quarter_csv"),
     )
     if active == safe and all(p and Path(str(p)).exists() for p in paths):
-        return tuple(Path(str(p)) for p in paths), str(st.session_state.get("active_source_label", "Trecapital active data"))
+        resolved = tuple(Path(str(p)) for p in paths)
+        label = str(st.session_state.get("active_source_label", "Trecapital active data"))
+        stale_marker = any(marker in label.lower() for marker in ("quote đã cũ", "dữ liệu mẫu", "dữ liệu tích hợp", "statement"))
+        quote_fresh = (not stale_marker) and _bundle_age_hours(resolved) <= FRESH_QUOTE_HOURS
+        return resolved, label, quote_fresh
 
-    # Reuse the newest complete process cache for the requested ticker. This keeps page navigation
-    # offline/network-free when Module 1 has already downloaded the company earlier in this app run.
+    # Reuse the newest complete process cache for the requested ticker. Statements remain useful
+    # offline, but quote-dependent valuation fields are disabled once the cache is older than 6h.
     candidates = []
     try:
         roots = [path / safe for path in m1.DATA_CACHE_DIR.iterdir() if path.is_dir()]
@@ -91,15 +105,19 @@ def _active_paths(ticker: str):
             candidates.append((max(path.stat().st_mtime for path in candidate), candidate))
     if candidates:
         updated_at, candidate = max(candidates, key=lambda x: x[0])
+        age_hours = max(0.0, (time.time() - updated_at) / 3600.0)
+        quote_fresh = age_hours <= FRESH_QUOTE_HOURS
         label = f"Trecapital cache | {pd.Timestamp.fromtimestamp(updated_at):%Y-%m-%d %H:%M:%S}"
-        return candidate, label
+        if not quote_fresh:
+            label += " | quote đã cũ"
+        return candidate, label, quote_fresh
 
     # Only DCM may use the packaged normalized sample. Never relabel the DCM sample as another ticker.
     if safe == "DCM":
         sample = (m1.DEFAULT_OVERVIEW_CSV, m1.DEFAULT_YEAR_CSV, m1.DEFAULT_QUARTER_CSV)
         if all(Path(path).exists() for path in sample):
-            return tuple(Path(path) for path in sample), "Dữ liệu mẫu DCM tích hợp"
-    return None, ""
+            return tuple(Path(path) for path in sample), "Dữ liệu mẫu DCM tích hợp | quote không dùng", False
+    return None, "", False
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -128,7 +146,7 @@ def _prepare_auto_data_cached(
 
 
 def _prepare_auto_data(ticker: str):
-    paths, source_label = _active_paths(ticker)
+    paths, source_label, quote_fresh = _active_paths(ticker)
     if not paths:
         return None, "", "Chưa có bộ dữ liệu Trecapital cho mã này trên máy."
     overview, year, quarter = paths
@@ -143,6 +161,24 @@ def _prepare_auto_data(ticker: str):
             _path_signature(quarter),
         )
         auto_data["source_label"] = source_label
+        auto_data["quote_fresh"] = quote_fresh
+        if not quote_fresh:
+            # Keep statement-only ratios (Debt/EBITDA, EBIT/Interest) and qualitative quantitative
+            # suggestions, but never present a stale cached quote as today's price/market valuation.
+            valuation = auto_data.get("valuation", {})
+            for key in (
+                "current_price",
+                "mos_pct",
+                "stock_price_vs_target_pct",
+                "fcf_yield_pct",
+                "dividend_yield_pct",
+                "tev_ebit",
+                "tev_ebitda",
+            ):
+                valuation[key] = None
+            auto_data.setdefault("source_notes", []).append(
+                "Quote cache quá 6 giờ hoặc là dữ liệu mẫu: các field phụ thuộc giá thị trường đã bị để trống. Bấm 'Cập nhật dữ liệu Trecapital' để lấy giá mới."
+            )
         return auto_data, company_name, ""
     except Exception as exc:
         return None, "", f"Không đọc được Trecapital canonical data: {exc}"
@@ -188,8 +224,11 @@ with st.container(border=True):
         if auto_data:
             as_of = auto_data.get("as_of") or "—"
             source_label = auto_data.get("source_label") or auto_data.get("source_module") or "Trecapital"
-            st.success(f"Đã nối dữ liệu Trecapital cho {default_ticker} | kỳ dữ liệu: {as_of} | {source_label}")
-            st.caption("Valuation Snapshot và 4 tiêu chí định lượng của Table 1.1 sẽ được prefill từ dữ liệu này nếu analyst chưa có bản lưu trước đó.")
+            if auto_data.get("quote_fresh"):
+                st.success(f"Đã nối dữ liệu Trecapital cho {default_ticker} | kỳ dữ liệu: {as_of} | {source_label}")
+            else:
+                st.warning(f"Đã nối BCTC Trecapital cho {default_ticker}, nhưng quote không còn đủ mới | kỳ dữ liệu: {as_of} | {source_label}")
+            st.caption("Valuation Snapshot và 4 tiêu chí định lượng của Table 1.1 sẽ được prefill từ dữ liệu này nếu analyst chưa có bản lưu trước đó. Field phụ thuộc giá chỉ prefill khi quote đủ mới.")
         else:
             st.info(f"{default_ticker}: {auto_error}")
     with c2:
