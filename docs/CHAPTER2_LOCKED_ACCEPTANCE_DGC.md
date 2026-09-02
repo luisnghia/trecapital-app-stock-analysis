@@ -59,12 +59,26 @@ An earlier diagnostic appeared to reach 83.3%, but it falsely interpreted the wo
 
 The final implementation rejects that false positive. If the collected sources do not provide sufficiently specific country-level operating/export exposure or currency evidence, Chapter 2 leaves those fields **Unknown** rather than fabricating a market, revenue share, FX exposure or hedging conclusion.
 
-For DGC, the final run therefore correctly returns:
+For DGC, the accepted behavior is therefore:
 
-- `q6_foreign_markets = []`;
-- `q6_currency_evidence = []`.
+- `q6_foreign_markets = []` unless a source names a genuine foreign market/exposure;
+- `q6_currency_evidence = []` unless a source explicitly contains a currency code/name in an FX/export/import/payment context and passes the evidence-quality gate.
 
 This is an intentional guardrail and is consistent with the project principle that unanswered questions are research gaps, not permission to infer data.
+
+## Post-lock currency evidence hardening
+
+During the first Chapter 3 / Offline V12 regression run, the live DGC diagnostic exposed a second false-positive class: a generic Bing result in French contained a text fragment that substring-matched `EUR`, even though the page was unrelated to DGC or foreign-exchange exposure.
+
+The currency extractor was therefore hardened in commit `3f163cd8a443f42111b0b26aa8ccc56bcfefa976`:
+
+- currency aliases now use **boundary-aware matching** rather than raw substring matching;
+- a currency candidate must also contain an explicit **FX/import/export/payment/financial context**;
+- auto-populated currency evidence must come from a trusted company/official disclosure family or meet a high evidence-relevance threshold;
+- generic low-quality search results remain research candidates but cannot automatically become currency evidence;
+- regression tests explicitly reject the French `heures`/`EUR` substring-noise case and accept an official USD/FX disclosure case.
+
+Local helper validation after this patch: **7 Chapter 2 auto tests passed; 44 full deep-analysis tests passed**. The main CI is rerun after this documentation commit so the live DGC diagnostic, unified-page smoke test and Offline V12 package are validated against the hardened extractor.
 
 ## Analyst-controlled fields remain locked
 
