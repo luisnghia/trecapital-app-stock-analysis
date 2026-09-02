@@ -104,6 +104,8 @@ Assistant tìm candidate country/region từ evidence và chỉ điền các tr�
 
 Không tự phân bổ geographic revenue nếu công ty không disclosure.
 
+**Guardrail địa lý:** tên quốc gia/khu vực được match theo ranh giới từ, không dùng substring thô. Điều này tránh false positive kiểu alias `Ấn Độ / an do` bị ghép nhầm qua hai từ liền nhau trong câu `Thái Lan doanh thu...`. Nếu một evidence cùng lúc nhắc nhiều thị trường, app không gán bừa `Entry year` hay `Revenue share %` cho từng nước.
+
 Currency evidence hiện chỉ nhận diện đồng tiền được đề cập trong source (USD/EUR/CNY/JPY/KRW/VND) và hiển thị evidence candidate. App **không tự suy diễn** net FX exposure, hedge effectiveness hoặc natural hedge.
 
 ## Analyst-controlled Apply Draft
@@ -127,6 +129,7 @@ Sau khi apply, analyst phải review/chỉnh sửa và bấm `Lưu Chương 2` �
 
 - `modules/deep_company_analysis/chapter2.py` — analyst workspace / SQLite persistence.
 - `modules/deep_company_analysis/chapter2_auto.py` — canonical financial context + evidence classification/extraction + non-overwrite merge.
+- `modules/deep_company_analysis/chapter2_q6_bridge.py` — Q6 geography matching/entry-year/revenue-share guardrails.
 - `pages/08_Phan_tich_chuyen_sau_Chuong_2.py` — data/evidence refresh + Research Assistant panel + Chapter 2 workspace.
 - `modules/deep_company_analysis/test_chapter2_auto.py` — regression/guardrail tests Phase 2B.
 
@@ -138,6 +141,7 @@ Sau khi apply, analyst phải review/chỉnh sửa và bấm `Lưu Chương 2` �
 - Evidence có source URL/title.
 - Timeline chỉ tạo candidate có năm từ evidence.
 - Geographic revenue share không được bịa/suy phân bổ.
+- Country aliases không được false-positive do substring xuyên ranh giới từ.
 - Apply Draft không ghi đè analyst content.
 - `own_words`, `skill_vs_luck`, Q1 và Q2 không được auto-fill.
 - Full Chapter 1 regression vẫn pass.
