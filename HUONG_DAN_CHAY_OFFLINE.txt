@@ -1,0 +1,24 @@
+TREC CAPITAL - PHAN TICH CHUYEN SAU DOANH NGHIEP
+=================================================
+
+CACH CHAY NHANH
+1. Giai nen file ZIP ra mot thu muc rieng.
+2. Double-click: CHAY_TRECAPITAL_OFFLINE.bat
+3. Trinh duyet se mo Trecapital.
+4. Chon menu: Phan tich chuyen sau doanh nghiep.
+
+MAY DA TUNG CHAY TREC CAPITAL
+- Thuong khong can cai lai gi.
+- Chi can double-click CHAY_TRECAPITAL_OFFLINE.bat.
+
+NEU BAO THIEU THU VIEN
+- Khi co Internet, double-click CAI_THU_VIEN_MOT_LAN.bat.
+- Sau khi cai xong, cac lan sau co the chay offline bang CHAY_TRECAPITAL_OFFLINE.bat.
+
+DU LIEU CHUONG 1
+- Luu local bang SQLite tai data_cache/deep_company_analysis_chapter1.db.
+- Khong can OpenAI API, Supabase hay Internet de nhap/lưu/mo lai Chapter 1.
+
+LUU Y
+- Khong xoa thu muc data_cache neu muon giu lich su phan tich da nhap.
+- Research Gate do analyst quyet dinh; app khong tu dong doi Gate.
