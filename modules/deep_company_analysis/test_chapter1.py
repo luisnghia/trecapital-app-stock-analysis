@@ -7,7 +7,7 @@ def _payload(ticker: str, gate: str, reason: str):
     quality = {
         code: {
             "status": "✓ Có" if idx < 6 else "— Chưa biết",
-            "confidence": 4,
+            "confidence": 3,
             "note": f"note-{idx}",
         }
         for idx, (code, _, _) in enumerate(ch1.QUALITY_CRITERIA)
@@ -83,3 +83,34 @@ def test_gate_change_is_append_only(tmp_path, monkeypatch):
             "SELECT COUNT(*) FROM chapter1_snapshots WHERE ticker = ?", ("MWG",)
         ).fetchone()[0]
     assert snapshot_count == 2
+
+
+def test_confidence_is_simplified_to_three_levels(tmp_path, monkeypatch):
+    monkeypatch.setattr(ch1, "DB_PATH", tmp_path / "chapter1.db")
+    ch1.init_db()
+
+    payload = _payload("DGC", "watch", "Test confidence")
+    payload["quality"]["recurring_revenue"]["confidence"] = 5  # legacy value
+    ch1.save_record(payload)
+    loaded = ch1.load_record("DGC")
+
+    assert loaded["quality"]["recurring_revenue"]["confidence"] == 3
+    assert ch1._confidence_label(1) == "Thấp"
+    assert ch1._confidence_label(2) == "Trung bình"
+    assert ch1._confidence_label(3) == "Cao"
+
+
+def test_dgc_trial_fixture_roundtrip(tmp_path, monkeypatch):
+    monkeypatch.setattr(ch1, "DB_PATH", tmp_path / "chapter1.db")
+    fixture = ch1.load_dgc_trial_payload()
+    ch1.save_record(fixture)
+    loaded = ch1.load_record("DGC")
+
+    assert loaded["gate"] == "watch"
+    score, unknown = ch1._quality_score(loaded["quality"])
+    assert score == 5
+    assert unknown == 2
+    assert loaded["quality"]["high_roic"]["confidence"] == 3
+    inventory = ch1.load_inventory()
+    assert inventory.iloc[0]["Mã"] == "DGC"
+    assert inventory.iloc[0]["gate_key"] == "watch"
