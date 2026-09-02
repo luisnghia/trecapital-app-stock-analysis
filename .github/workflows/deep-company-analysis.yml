@@ -64,9 +64,34 @@ jobs:
       - name: Compile Chapter 1
         run: |
           python -m compileall -q modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py tre_sidebar_nav.py
-      - name: Run Chapter 1 offline, auto-data, signals, monitoring and structured-trigger tests
+      - name: Run full Chapter 1 regression suite
         run: |
           python -m pytest -q modules/deep_company_analysis
+      - name: Run final DGC end-to-end acceptance explicitly
+        run: |
+          python -m pytest -q modules/deep_company_analysis/test_chapter1_final_acceptance.py
+      - name: Smoke-test Deep Company Analysis page startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
+            --server.headless true --server.port 8507 > /tmp/trecapital_dca.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8507/_stcore/health >/dev/null 2>&1; then
+              OK=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then
+            cat /tmp/trecapital_dca.log
+            kill "$PID" 2>/dev/null || true
+            exit 1
+          fi
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
       - name: Commit generated V6 source on branch
         if: github.event_name == 'push'
         shell: bash
@@ -82,11 +107,11 @@ jobs:
             git commit -m "feat(deep-analysis): integrate structured trigger builder [skip ci]"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
-      - name: Build lightweight Windows offline package
+      - name: Build final lightweight Windows offline package V7
         shell: bash
         run: |
           set -euo pipefail
-          PKG_NAME="Trecapital_Deep_Analysis_Offline_V6"
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V7"
           rm -rf dist
           mkdir -p "dist/${PKG_NAME}"
           rsync -a ./ "dist/${PKG_NAME}/" \
@@ -99,14 +124,20 @@ jobs:
             --exclude '*.pyc' \
             --exclude '*.log'
           mkdir -p "dist/${PKG_NAME}/data_cache"
+          test -f "dist/${PKG_NAME}/CHAY_TRECAPITAL_OFFLINE.bat"
+          test -f "dist/${PKG_NAME}/pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter1.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/monitoring.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/structured_triggers.py"
+          test ! -d "dist/${PKG_NAME}/offline_wheels"
           (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
           sha256sum "dist/${PKG_NAME}.zip" > "dist/${PKG_NAME}.zip.sha256"
-      - name: Upload downloadable offline package
+      - name: Upload final Chapter 1 offline package
         uses: actions/upload-artifact@v4
         with:
-          name: Trecapital_Deep_Analysis_Offline_V6
+          name: Trecapital_Deep_Analysis_Offline_V7
           path: |
-            dist/Trecapital_Deep_Analysis_Offline_V6.zip
-            dist/Trecapital_Deep_Analysis_Offline_V6.zip.sha256
+            dist/Trecapital_Deep_Analysis_Offline_V7.zip
+            dist/Trecapital_Deep_Analysis_Offline_V7.zip.sha256
           if-no-files-found: error
           retention-days: 30
