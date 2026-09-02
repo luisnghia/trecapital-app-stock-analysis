@@ -147,7 +147,7 @@ This keeps the final Chapter 3 evidence bundle reloadable for offline review. Se
 
 ## UI
 
-Chapter 3 remains the third tab of the single **Phân tích chuyên sâu doanh nghiệp** page.
+Chapter 3 remains the third tab of the single **Phân tích chuyên sâu doanh nghiệp** page and is now rendered through `render_chapter3_tab()` so the Research Assistant panel and analyst workspace share the same tab/ticker context.
 
 Research Assistant panel adds:
 
@@ -162,6 +162,20 @@ Applying the draft:
 - fills blank evidence/research fields only;
 - never overwrites saved analyst text;
 - never auto-classifies Q8/Q9/Q13/Q14 analyst judgement fields.
+
+The integration commit is `09d8602e188b737b60214e7153ed21c61fb241a9` on `feature/deep-company-analysis-checklist`.
+
+## CI / offline package
+
+The main Deep Company Analysis CI now explicitly runs:
+
+- Chapter 3 Phase 3A tests;
+- Chapter 3 Phase 3B evidence/guardrail tests;
+- live DGC Chapter 2 diagnostic;
+- live DGC Chapter 3 diagnostic;
+- unified-page smoke test.
+
+The corresponding Windows package target is **Trecapital_Deep_Analysis_Offline_V13** and includes Chapter 3 assistant/support code plus the Phase 3B context document.
 
 ## Phase 3B acceptance criteria
 
