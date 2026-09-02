@@ -26,6 +26,7 @@ class TriggerRule:
     operator: str = ""
     threshold: Optional[float] = None
     label: str = ""
+    target_period: str = ""
 
 
 METRIC_SPECS = (
@@ -45,6 +46,7 @@ PRIORITY_BY_METRIC = {
     "ebit_interest": "Cao",
     "event_new": "Cao",
     "statement_new": "Trung bình",
+    "statement_period": "Trung bình",
     "current_price": "Trung bình",
     "mos_pct": "Trung bình",
     "fcf_yield_pct": "Trung bình",
@@ -96,12 +98,51 @@ def _parse_number(token: str, metric: str) -> Optional[float]:
         return None
 
 
+def _specific_statement_period(normalized: str) -> str:
+    patterns = (
+        r"(?:bctc|bao cao tai chinh).*?q([1-4])\s*[/\-]\s*(20\d{2})",
+        r"(?:bctc|bao cao tai chinh).*?(20\d{2})\s*[/\-]\s*q([1-4])",
+        r"(?:sau|co).*?q([1-4])\s*[/\-]\s*(20\d{2})",
+    )
+    for index, pattern in enumerate(patterns):
+        match = re.search(pattern, normalized)
+        if not match:
+            continue
+        if index == 1:
+            year, quarter = int(match.group(1)), int(match.group(2))
+        else:
+            quarter, year = int(match.group(1)), int(match.group(2))
+        return f"{year:04d}-Q{quarter}"
+    return ""
+
+
+def _period_rank(value: Any) -> Optional[int]:
+    normalized = _norm(value)
+    if not normalized:
+        return None
+    qy = re.search(r"q([1-4])\s*[/\-]?\s*(20\d{2})", normalized)
+    if qy:
+        quarter, year = int(qy.group(1)), int(qy.group(2))
+        return year * 4 + quarter
+    yq = re.search(r"(20\d{2})\s*[/\-]?\s*q([1-4])", normalized)
+    if yq:
+        year, quarter = int(yq.group(1)), int(yq.group(2))
+        return year * 4 + quarter
+    year_only = re.fullmatch(r"(20\d{2})", normalized)
+    if year_only:
+        return int(year_only.group(1)) * 4 + 4
+    return None
+
+
 def parse_trigger(text: str) -> TriggerRule:
     original = str(text or "").strip()
     normalized = _norm(original)
     if not normalized:
         return TriggerRule("unsupported", label=original)
 
+    target_period = _specific_statement_period(normalized)
+    if target_period:
+        return TriggerRule("statement_period", metric="statement_period", label=f"BCTC {target_period}", target_period=target_period)
     if re.search(r"\bbctc\s*moi\b|bao cao tai chinh moi|co bctc moi|sau bctc", normalized):
         return TriggerRule("statement_new", label="BCTC mới")
     if re.search(r"event moi|su kien moi|cbtt moi|cong bo thong tin moi|tin phap ly moi|tin quan tri moi", normalized):
@@ -244,6 +285,7 @@ def evaluate_trigger(ticker: str, trigger_text: str, auto_data: dict[str, Any], 
         "evidence": "Trigger chưa thuộc cú pháp tự động hỗ trợ; vẫn được giữ để analyst theo dõi thủ công.",
         "data_as_of": data_as_of,
         "baseline": _baseline(previous_state),
+        "target_period": rule.target_period,
     }
 
     if rule.kind == "numeric":
@@ -258,6 +300,28 @@ def evaluate_trigger(ticker: str, trigger_text: str, auto_data: dict[str, Any], 
             status="triggered" if hit else "armed",
             observed_value=f"{value:,.1f}{suffix}" if rule.metric != "current_price" else f"{value:,.0f}",
             evidence=f"{rule.label} hiện tại {value:,.1f}{suffix} {'đã' if hit else 'chưa'} thỏa {rule.operator} {float(rule.threshold):,.1f}{suffix}.",
+        )
+        return result
+
+    if rule.kind == "statement_period":
+        current_rank = _period_rank(data_as_of)
+        target_rank = _period_rank(rule.target_period)
+        if current_rank is None:
+            result.update(status="missing_data", evidence=f"Chưa đọc được kỳ BCTC canonical hiện tại để so với {rule.target_period}.")
+            return result
+        if target_rank is None:
+            result.update(status="unsupported", evidence=f"Không đọc được kỳ BCTC mục tiêu: {rule.target_period}.")
+            return result
+        hit = current_rank >= target_rank
+        result.update(
+            triggered=hit,
+            status="triggered" if hit else "armed",
+            observed_value=data_as_of,
+            evidence=(
+                f"Kỳ canonical hiện tại {data_as_of} đã đạt/vượt mốc {rule.target_period}."
+                if hit
+                else f"Kỳ canonical hiện tại {data_as_of} chưa đạt mốc {rule.target_period}."
+            ),
         )
         return result
 

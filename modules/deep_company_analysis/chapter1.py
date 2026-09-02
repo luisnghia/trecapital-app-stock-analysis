@@ -11,6 +11,7 @@ import pandas as pd
 import streamlit as st
 
 from modules.deep_company_analysis.monitoring import evaluate_and_persist, render_monitoring_panel
+from modules.deep_company_analysis.structured_triggers import render_structured_trigger_builder
 
 APP_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = APP_ROOT / "data_cache" / "deep_company_analysis_chapter1.db"
@@ -715,13 +716,7 @@ def render_chapter1(default_ticker: str = "", auto_data: dict[str, Any] | None =
         placeholder="Ví dụ: Sau BCTC Q3/2026 hoặc khi giá < 80.000",
         key=f"dca_next_review_{ticker}",
     )
-    trigger_text = st.text_area(
-        "Monitoring triggers — mỗi dòng một trigger",
-        value="\n".join(record.get("triggers", [])),
-        height=100,
-        placeholder="Ví dụ: Review khi MOS > 25%\nReview sau BCTC Q3/2026",
-        key=f"dca_triggers_{ticker}",
-    )
+    configured_triggers = render_structured_trigger_builder(ticker, list(record.get("triggers", [])))
     st.warning(
         "Monitoring Engine tự kiểm tra các trigger đã lưu khi dữ liệu Trecapital được cập nhật, nhưng không bao giờ tự đổi Research Gate. Gate vẫn là quyết định của analyst.",
         icon="⚠️",
@@ -770,7 +765,7 @@ def render_chapter1(default_ticker: str = "", auto_data: dict[str, Any] | None =
                 "gate": gate,
                 "gate_reason": gate_reason,
                 "next_review": next_review,
-                "triggers": [line.strip() for line in trigger_text.splitlines() if line.strip()],
+                "triggers": configured_triggers,
             }
             save_record(payload)
             st.success(f"Đã lưu {ticker}. Opportunity Inventory được cập nhật tự động vào nhóm {GATES[gate][0]}.")
