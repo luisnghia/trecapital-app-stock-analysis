@@ -139,14 +139,16 @@ def _metric_values(auto_data: dict[str, Any]) -> dict[str, Optional[float]]:
     valuation = auto_data.get("valuation", {}) if isinstance(auto_data, dict) else {}
     signals = auto_data.get("opportunity_signals", {}) if isinstance(auto_data, dict) else {}
     monitoring = auto_data.get("monitoring_metrics", {}) if isinstance(auto_data, dict) else {}
+    quote_fresh = auto_data.get("quote_fresh") is not False
     return {
-        "current_price": _safe_float(monitoring.get("current_price", valuation.get("current_price"))),
-        "mos_pct": _safe_float(monitoring.get("mos_pct", valuation.get("mos_pct"))),
+        # Never fire market-price triggers from a stale quote cache. Statement ratios can still be checked.
+        "current_price": _safe_float(monitoring.get("current_price", valuation.get("current_price"))) if quote_fresh else None,
+        "mos_pct": _safe_float(monitoring.get("mos_pct", valuation.get("mos_pct"))) if quote_fresh else None,
         "roic_pct": _safe_float(monitoring.get("roic_pct")),
         "debt_ebitda": _safe_float(monitoring.get("debt_ebitda", valuation.get("debt_ebitda"))),
         "ebit_interest": _safe_float(monitoring.get("ebit_interest", valuation.get("ebit_interest"))),
-        "fcf_yield_pct": _safe_float(monitoring.get("fcf_yield_pct", valuation.get("fcf_yield_pct"))),
-        "valuation_percentile": _safe_float(monitoring.get("valuation_percentile", signals.get("valuation_percentile"))),
+        "fcf_yield_pct": _safe_float(monitoring.get("fcf_yield_pct", valuation.get("fcf_yield_pct"))) if quote_fresh else None,
+        "valuation_percentile": _safe_float(monitoring.get("valuation_percentile", signals.get("valuation_percentile"))) if quote_fresh else None,
         "drawdown_52w_pct": _safe_float(monitoring.get("drawdown_52w_pct", signals.get("drawdown_52w_pct"))),
     }
 
