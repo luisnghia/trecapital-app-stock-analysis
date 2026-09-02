@@ -6,9 +6,12 @@ on:
       - feature/deep-company-analysis-checklist
     paths:
       - 'modules/deep_company_analysis/**'
+      - 'sample_data/deep_company_analysis/**'
       - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
       - 'tre_sidebar_nav.py'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
+      - 'docs/DGC_CHAPTER1_TRIAL_AUTODATA_AUDIT.md'
+      - 'scripts/apply_deep_analysis_chapter1_v2_patch.py'
       - 'CHAY_TRECAPITAL_OFFLINE.bat'
       - 'CAI_THU_VIEN_MOT_LAN.bat'
       - 'HUONG_DAN_CHAY_OFFLINE.txt'
@@ -16,23 +19,34 @@ on:
   pull_request:
     paths:
       - 'modules/deep_company_analysis/**'
+      - 'sample_data/deep_company_analysis/**'
       - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
       - 'tre_sidebar_nav.py'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
+      - 'docs/DGC_CHAPTER1_TRIAL_AUTODATA_AUDIT.md'
+      - 'scripts/apply_deep_analysis_chapter1_v2_patch.py'
       - 'CHAY_TRECAPITAL_OFFLINE.bat'
       - 'CAI_THU_VIEN_MOT_LAN.bat'
       - 'HUONG_DAN_CHAY_OFFLINE.txt'
       - '.github/workflows/deep-company-analysis.yml'
+
+permissions:
+  contents: write
 
 jobs:
   chapter1-offline:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
+      - name: Apply Chapter 1 V2 source patch
+        run: |
+          python scripts/apply_deep_analysis_chapter1_v2_patch.py
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -43,29 +57,31 @@ jobs:
       - name: Run Chapter 1 offline tests
         run: |
           python -m pytest -q modules/deep_company_analysis/test_chapter1.py
-      - name: Download Windows Python 3.11 offline wheels
+      - name: Commit generated V2 source on branch
+        if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf offline_wheels
-          mkdir -p offline_wheels
-          python -m pip download \
-            --dest offline_wheels \
-            --platform win_amd64 \
-            --python-version 311 \
-            --implementation cp \
-            --abi cp311 \
-            --only-binary=:all: \
-            -r requirements.txt
-      - name: Build Windows offline package
+          if git diff --quiet -- modules/deep_company_analysis/chapter1.py; then
+            echo "Chapter 1 source already at V2."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add modules/deep_company_analysis/chapter1.py
+            git commit -m "feat(deep-analysis): simplify confidence and add DGC trial loader [skip ci]"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+      - name: Build lightweight Windows offline package
         shell: bash
         run: |
           set -euo pipefail
-          PKG_NAME="Trecapital_Deep_Analysis_Offline_V1"
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V2"
+          rm -rf dist
           mkdir -p "dist/${PKG_NAME}"
           rsync -a ./ "dist/${PKG_NAME}/" \
             --exclude '.git' \
             --exclude 'dist' \
+            --exclude 'offline_wheels' \
             --exclude '.streamlit/secrets.toml' \
             --exclude '.env' \
             --exclude '__pycache__' \
@@ -77,9 +93,9 @@ jobs:
       - name: Upload downloadable offline package
         uses: actions/upload-artifact@v4
         with:
-          name: Trecapital_Deep_Analysis_Offline_V1
+          name: Trecapital_Deep_Analysis_Offline_V2
           path: |
-            dist/Trecapital_Deep_Analysis_Offline_V1.zip
-            dist/Trecapital_Deep_Analysis_Offline_V1.zip.sha256
+            dist/Trecapital_Deep_Analysis_Offline_V2.zip
+            dist/Trecapital_Deep_Analysis_Offline_V2.zip.sha256
           if-no-files-found: error
           retention-days: 30
