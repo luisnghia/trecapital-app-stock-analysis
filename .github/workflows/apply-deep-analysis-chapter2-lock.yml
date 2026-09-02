@@ -1,0 +1,45 @@
+name: Apply Deep Analysis Chapter 2 Lock Patch
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-checklist
+    paths:
+      - 'tools/apply_deep_analysis_chapter2_lock_patch.py'
+      - '.github/workflows/apply-deep-analysis-chapter2-lock.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-checklist
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Apply idempotent source patch
+        run: python tools/apply_deep_analysis_chapter2_lock_patch.py
+      - name: Validate syntax
+        run: python -m compileall -q modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py pages/08_Phan_tich_chuyen_sau_Chuong_2.py tre_sidebar_nav.py
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Run deep-analysis regression suite
+        run: python -m pytest -q modules/deep_company_analysis
+      - name: Commit patched sources
+        run: |
+          if git diff --quiet; then
+            echo "No source changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add modules/deep_company_analysis/chapter2.py modules/deep_company_analysis/chapter2_auto.py modules/deep_company_analysis/__init__.py pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py pages/08_Phan_tich_chuyen_sau_Chuong_2.py tre_sidebar_nav.py
+          git commit -m "feat(deep-analysis): unify Chapters 1-2 tabs and harden Chapter 2 UX"
+          git push origin HEAD:feature/deep-company-analysis-checklist
