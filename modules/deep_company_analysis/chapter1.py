@@ -27,6 +27,8 @@ QUALITY_CRITERIA = [
 ]
 
 STATUS_OPTIONS = ["— Chưa biết", "✓ Có", "X Không", "N/A"]
+CONFIDENCE_LEVELS = {1: "Thấp", 2: "Trung bình", 3: "Cao"}
+DGC_TRIAL_PATH = APP_ROOT / "sample_data" / "deep_company_analysis" / "DGC_chapter1_trial.json"
 GATES = {
     "continue": ("🟢 Continue", "Tiếp tục nghiên cứu chuyên sâu"),
     "watch": ("🟡 Watch", "Theo dõi, chờ thêm dữ liệu hoặc điều kiện"),
@@ -56,6 +58,37 @@ def _now() -> str:
 
 def _safe_ticker(value: str) -> str:
     return "".join(ch for ch in str(value).upper().strip() if ch.isalnum() or ch in {".", "-"})[:20]
+
+
+def _normalize_confidence(value: Any) -> int:
+    """Chuẩn hóa Confidence về 3 mức: 1 Thấp, 2 Trung bình, 3 Cao.
+
+    Bản cũ từng dùng thang 1–5; giá trị 4–5 được quy về mức Cao để không làm
+    hỏng dữ liệu SQLite đã lưu trước đó. Confidence không tham gia Quality Score.
+    """
+    try:
+        raw = int(value)
+    except Exception:
+        raw = 1
+    if raw <= 1:
+        return 1
+    if raw == 2:
+        return 2
+    return 3
+
+
+def _confidence_label(value: Any) -> str:
+    return CONFIDENCE_LEVELS[_normalize_confidence(value)]
+
+
+def load_dgc_trial_payload() -> dict[str, Any]:
+    """Nạp case DGC point-in-time dùng để kiểm thử workflow Chương 1 offline."""
+    if not DGC_TRIAL_PATH.exists():
+        raise FileNotFoundError(f"Không tìm thấy case DGC thử nghiệm: {DGC_TRIAL_PATH}")
+    payload = json.loads(DGC_TRIAL_PATH.read_text(encoding="utf-8"))
+    if _safe_ticker(payload.get("ticker", "")) != "DGC":
+        raise ValueError("Case thử nghiệm không phải DGC")
+    return payload
 
 
 def _connect() -> sqlite3.Connection:
@@ -174,7 +207,7 @@ def load_record(ticker: str) -> dict[str, Any]:
             if qrow["criterion_code"] in record["quality"]:
                 record["quality"][qrow["criterion_code"]] = {
                     "status": qrow["analyst_status"],
-                    "confidence": int(qrow["confidence"]),
+                    "confidence": _normalize_confidence(qrow["confidence"]),
                     "note": qrow["note"],
                 }
         record["triggers"] = [
@@ -256,7 +289,7 @@ def save_record(payload: dict[str, Any]) -> None:
                     ticker,
                     code,
                     str(item.get("status", "— Chưa biết")),
-                    int(item.get("confidence", 1)),
+                    _normalize_confidence(item.get("confidence", 1)),
                     str(item.get("note", "")),
                     now,
                 ),
@@ -418,6 +451,16 @@ def render_chapter1(default_ticker: str = "") -> None:
     with top2:
         company_name = st.text_input("Tên doanh nghiệp", value=record.get("company_name", ""), key=f"dca_company_{ticker}")
 
+    if ticker == "DGC":
+        st.caption("Có sẵn case DGC thử nghiệm point-in-time để kiểm tra workflow Chương 1; đây không phải dữ liệu live.")
+        if st.button("🧪 Nạp case thử nghiệm DGC (as-of 28/08/2026)", key="dca_load_dgc_trial"):
+            try:
+                save_record(load_dgc_trial_payload())
+                st.success("Đã nạp case DGC thử nghiệm vào SQLite local.")
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Không nạp được case DGC: {exc}")
+
     st.markdown("### A. Tại sao doanh nghiệp này xuất hiện trên radar?")
     idea_sources = st.multiselect(
         "Nguồn hình thành ý tưởng",
@@ -457,7 +500,7 @@ def render_chapter1(default_ticker: str = "") -> None:
         special_event = st.text_input("Sự kiện/forced selling", value=str(sig.get("special_event", "")), key=f"dca_event_{ticker}")
 
     st.markdown("### C. Quality Filter — Table 1.1")
-    st.caption("AI Suggested chưa bật ở bản offline này. Analyst Assessment là kết luận chính thức.")
+    st.caption("AI Suggested chưa bật ở bản offline này. Analyst Assessment là kết luận chính thức. Confidence chỉ còn 3 mức: Thấp / Trung bình / Cao và không cộng vào Quality Score.")
     quality: dict[str, dict[str, Any]] = {}
     header = st.columns([2.2, 1.1, 1, 3])
     header[0].markdown("**Tiêu chí**")
@@ -479,10 +522,12 @@ def render_chapter1(default_ticker: str = "") -> None:
                 key=f"dca_q_status_{ticker}_{code}",
             )
         with cols[2]:
+            current_confidence = _normalize_confidence(item.get("confidence", 1))
             confidence = st.selectbox(
                 f"Confidence {book_label}",
-                [1, 2, 3, 4, 5],
-                index=max(0, min(4, int(item.get("confidence", 1)) - 1)),
+                list(CONFIDENCE_LEVELS),
+                index=list(CONFIDENCE_LEVELS).index(current_confidence),
+                format_func=lambda level: CONFIDENCE_LEVELS[level],
                 label_visibility="collapsed",
                 key=f"dca_q_conf_{ticker}_{code}",
             )
