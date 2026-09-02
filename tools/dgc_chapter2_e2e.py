@@ -3,14 +3,21 @@ from __future__ import annotations
 """Live diagnostic for DGC / Shearn Chapter 2.
 
 This script intentionally uses the same Trecapital public financial crawler and Chapter 2 evidence
-agent used by the app.  It prints a compact audit instead of changing analyst records. Network
+agent used by the app. It prints a compact audit instead of changing analyst records. Network
 failures are reported as gaps rather than replaced with invented data.
 """
 
 from pathlib import Path
 from types import SimpleNamespace
 import json
+import sys
 import tempfile
+
+# Running `python tools/dgc_chapter2_e2e.py` makes Python put tools/ rather than repo root on
+# sys.path. Add repo root explicitly so this diagnostic executes exactly as the CI command does.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import pandas as pd
 
@@ -121,9 +128,6 @@ def main() -> int:
         print("DGC_CHAPTER2_E2E_JSON_START")
         print(json.dumps(audit, ensure_ascii=False, indent=2, default=str))
         print("DGC_CHAPTER2_E2E_JSON_END")
-
-        # Diagnostic must not turn a temporary third-party outage into a red CI for the whole app.
-        # Structural regressions remain covered by unit/acceptance tests.
         return 0
 
 
