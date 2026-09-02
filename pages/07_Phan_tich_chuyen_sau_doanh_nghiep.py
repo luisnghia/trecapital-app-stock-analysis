@@ -265,6 +265,32 @@ def _refresh_trecapital(ticker: str) -> bool:
 st.title("Phân tích chuyên sâu doanh nghiệp")
 st.caption("Khung phân tích chi tiết doanh nghiệp theo The Investment Checklist — triển khai từng chương, bắt đầu từ Chương 1.")
 
+with st.expander("📘 Hướng dẫn sử dụng Chương 1 — Hình thành & Sàng lọc Cơ hội đầu tư", expanded=True):
+    st.markdown(
+        """
+**Mục tiêu của Chương 1:** biến một ý tưởng cổ phiếu thành một hồ sơ nghiên cứu có cấu trúc, sàng lọc nhanh chất lượng, ghi nhận định giá ban đầu và đưa doanh nghiệp vào đúng **Research Gate** để tiếp tục theo dõi.
+
+**Quy trình sử dụng khuyến nghị:**
+
+1. **Nhập mã cổ phiếu → bấm `🔄 Cập nhật dữ liệu & signals`.** Trecapital lấy dữ liệu canonical hiện có để prefill phần định lượng. Nếu quote đã cũ, các chỉ tiêu phụ thuộc giá sẽ được để trống thay vì dùng số cũ.
+2. **A. Idea Origin:** ghi vì sao doanh nghiệp xuất hiện trên radar, tại sao thị trường có thể đang định giá sai và luận điểm ban đầu.
+3. **B. Opportunity Signals:** xem drawdown 52 tuần, valuation percentile, price/fundamental divergence và event candidate. Đây chỉ là **research signal, không phải Buy Signal**.
+4. **C. Quality Filter — Table 1.1:** đánh giá 10 tiêu chí `✓ Có / X Không / — Chưa biết / N/A`. `Data Suggested` chỉ hỗ trợ analyst; **Analyst Assessment mới là kết luận chính**. Confidence chỉ có **Thấp / Trung bình / Cao** và không cộng vào Quality Score.
+5. **D–E. Research Gaps & Valuation Snapshot:** ghi các điểm chưa biết cần nghiên cứu thêm; kiểm tra Target Price, MOS, FCF Yield, TEV/EBIT, Debt/EBITDA... trước khi lưu snapshot.
+6. **F. Research Gate:** chọn `🟢 Continue / 🟡 Watch / 🟠 Pause / 🔴 Reject` và bắt buộc ghi **Reason for Gate**. App **không tự đổi Gate**.
+7. **Monitoring Trigger:** đặt điều kiện cần xem lại như `MOS > 25%`, `ROIC < 15%`, `Debt/EBITDA > 2x`, `có BCTC mới`, `BCTC Q3/2026` hoặc `event/CBTT mới`. Nên dùng **Structured Trigger Builder** thay vì gõ câu tự do khi có thể.
+
+**Cách hiểu Monitoring / Review Queue:**  
+`Opportunity Inventory` = danh sách cơ hội đang theo dõi → `Monitoring Trigger` = điều kiện anh muốn app kiểm tra → `Review Queue` = các điều kiện đã xảy ra và cần analyst mở hồ sơ xem lại → `Research Gate` = quyết định của analyst sau khi review.
+
+Khi một trigger chuyển từ **chưa thỏa → thỏa**, app tạo một item trong **Review Queue** và tránh tạo cảnh báo trùng khi điều kiện vẫn tiếp tục thỏa. Sau khi đã xem xét, chọn item và bấm **`✅ Đã review item này`**; thao tác này chỉ đóng cảnh báo, **không thay đổi Research Gate**.
+
+**Lưu ý về chiều của trigger:** ví dụ `MOS > 25%` phù hợp khi đang chờ cổ phiếu trở nên hấp dẫn hơn về định giá; `MOS < 25%` phù hợp khi muốn cảnh báo biên an toàn đã thu hẹp. Dấu `>` hay `<` phải phản ánh đúng mục đích theo dõi của analyst.
+
+**Nguyên tắc cốt lõi:** **AI/Data = Research Assistant; người dùng = Investment Analyst.** Chương 1 không tự đưa ra BUY/HOLD/SELL.
+        """
+    )
+
 default_ticker = _safe_ticker(
     str(
         st.session_state.get("dca_ch1_ticker")
