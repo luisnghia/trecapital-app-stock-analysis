@@ -11,9 +11,6 @@ on:
       - 'tre_sidebar_nav.py'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
       - 'docs/DGC_CHAPTER1_TRIAL_AUTODATA_AUDIT.md'
-      - 'scripts/apply_deep_analysis_chapter1_v4_patch.py'
-      - 'scripts/apply_deep_analysis_chapter1_v5_monitoring_patch.py'
-      - 'scripts/apply_deep_analysis_chapter1_v6_trigger_builder_patch.py'
       - 'CHAY_TRECAPITAL_OFFLINE.bat'
       - 'CAI_THU_VIEN_MOT_LAN.bat'
       - 'HUONG_DAN_CHAY_OFFLINE.txt'
@@ -26,16 +23,13 @@ on:
       - 'tre_sidebar_nav.py'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
       - 'docs/DGC_CHAPTER1_TRIAL_AUTODATA_AUDIT.md'
-      - 'scripts/apply_deep_analysis_chapter1_v4_patch.py'
-      - 'scripts/apply_deep_analysis_chapter1_v5_monitoring_patch.py'
-      - 'scripts/apply_deep_analysis_chapter1_v6_trigger_builder_patch.py'
       - 'CHAY_TRECAPITAL_OFFLINE.bat'
       - 'CAI_THU_VIEN_MOT_LAN.bat'
       - 'HUONG_DAN_CHAY_OFFLINE.txt'
       - '.github/workflows/deep-company-analysis.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   chapter1-offline:
@@ -48,15 +42,6 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-      - name: Apply Chapter 1 V4 Opportunity Signals patch
-        run: |
-          python scripts/apply_deep_analysis_chapter1_v4_patch.py
-      - name: Apply Chapter 1 V5 Monitoring patch
-        run: |
-          python scripts/apply_deep_analysis_chapter1_v5_monitoring_patch.py
-      - name: Apply Chapter 1 V6 Structured Trigger patch
-        run: |
-          python scripts/apply_deep_analysis_chapter1_v6_trigger_builder_patch.py
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -92,21 +77,6 @@ jobs:
           fi
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
-      - name: Commit generated V6 source on branch
-        if: github.event_name == 'push'
-        shell: bash
-        run: |
-          set -euo pipefail
-          TRACKED=(modules/deep_company_analysis/chapter1.py modules/deep_company_analysis/trecapital_auto.py modules/deep_company_analysis/monitoring.py pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py)
-          if git diff --quiet -- "${TRACKED[@]}"; then
-            echo "Chapter 1 source already at V6."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add "${TRACKED[@]}"
-            git commit -m "feat(deep-analysis): integrate structured trigger builder [skip ci]"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
       - name: Build final lightweight Windows offline package V7
         shell: bash
         run: |
