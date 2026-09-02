@@ -69,6 +69,9 @@ jobs:
       - name: Run Chapter 2 Phase 2B data/evidence bridge explicitly
         run: |
           python -m pytest -q modules/deep_company_analysis/test_chapter2_auto.py
+      - name: Run Chapter 2 source-first evidence tests explicitly
+        run: |
+          python -m pytest -q modules/deep_company_analysis/test_chapter2_evidence.py
       - name: Run live DGC Chapter 2 end-to-end diagnostic
         shell: bash
         run: |
@@ -104,11 +107,11 @@ jobs:
           if [ "$OK" -ne 1 ]; then cat /tmp/trecapital_dca_ch2_legacy.log; kill "$PID" 2>/dev/null || true; exit 1; fi
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
-      - name: Build lightweight Windows offline package V10
+      - name: Build lightweight Windows offline package V11
         shell: bash
         run: |
           set -euo pipefail
-          PKG_NAME="Trecapital_Deep_Analysis_Offline_V10"
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V11"
           rm -rf dist
           mkdir -p "dist/${PKG_NAME}"
           rsync -a ./ "dist/${PKG_NAME}/" \
@@ -127,6 +130,7 @@ jobs:
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter1.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_auto.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_evidence.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_page_support.py"
           test -f "dist/${PKG_NAME}/docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md"
           test -f "dist/${PKG_NAME}/docs/CHAPTER2_PHASE2B_TRECAPITAL_EVIDENCE_BRIDGE.md"
@@ -140,12 +144,12 @@ jobs:
           path: dgc_chapter2_e2e.log
           if-no-files-found: error
           retention-days: 30
-      - name: Upload offline package V10
+      - name: Upload offline package V11
         uses: actions/upload-artifact@v4
         with:
-          name: Trecapital_Deep_Analysis_Offline_V10
+          name: Trecapital_Deep_Analysis_Offline_V11
           path: |
-            dist/Trecapital_Deep_Analysis_Offline_V10.zip
-            dist/Trecapital_Deep_Analysis_Offline_V10.zip.sha256
+            dist/Trecapital_Deep_Analysis_Offline_V11.zip
+            dist/Trecapital_Deep_Analysis_Offline_V11.zip.sha256
           if-no-files-found: error
           retention-days: 30
