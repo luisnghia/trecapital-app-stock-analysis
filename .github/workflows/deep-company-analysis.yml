@@ -1,0 +1,39 @@
+name: Deep Company Analysis CI
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-checklist
+    paths:
+      - 'modules/deep_company_analysis/**'
+      - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
+      - 'tre_sidebar_nav.py'
+      - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
+      - '.github/workflows/deep-company-analysis.yml'
+  pull_request:
+    paths:
+      - 'modules/deep_company_analysis/**'
+      - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
+      - 'tre_sidebar_nav.py'
+      - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER1.md'
+      - '.github/workflows/deep-company-analysis.yml'
+
+jobs:
+  chapter1-offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Compile Chapter 1
+        run: |
+          python -m compileall -q modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py tre_sidebar_nav.py
+      - name: Run Chapter 1 offline tests
+        run: |
+          python -m pytest -q modules/deep_company_analysis/test_chapter1.py
