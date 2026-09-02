@@ -97,6 +97,19 @@ def test_timeline_and_foreign_market_candidates_are_evidence_grounded():
     assert "example.com/thailand" in thailand["Evidence"]
 
 
+def test_company_name_duc_giang_is_not_misclassified_as_germany():
+    evidence = pd.DataFrame([
+        {
+            "Nhóm thông tin": "Nguồn doanh nghiệp/IR | Q6",
+            "Tiêu đề": "DGC — Giới thiệu doanh nghiệp",
+            "Nguồn/URL": "https://ducgiangchem.vn/gioi-thieu/",
+            "Trích yếu": "Tập đoàn Hóa chất Đức Giang đáp ứng yêu cầu khách hàng trong và ngoài nước.",
+        }
+    ])
+    foreign = extract_foreign_market_candidates(evidence)
+    assert not any(row["Country / Region"] == "Đức" for row in foreign)
+
+
 def test_assistant_draft_and_merge_never_overwrite_analyst_or_fill_shearn_judgement_fields():
     draft = build_chapter2_assistant_draft(DummyCompany(), _annual(), _evidence(), source_label="test canonical")
     assert draft["q4"]["money_summary"]
