@@ -355,7 +355,7 @@ def render_chapter2(default_ticker: str = "", company_name: str = "") -> None:
     circle_status = c3.selectbox("Circle of Competence", CIRCLE_STATUS, index=CIRCLE_STATUS.index(q1.get("circle_status", "Cần thêm thời gian")), key=f"ch2_circle_{ticker}")
     interest_reason = st.text_area("Vì sao tôi muốn/không muốn tiếp tục học doanh nghiệp này?", value=q1.get("interest_reason", ""), height=90, key=f"ch2_interest_reason_{ticker}")
     unknowns = st.text_area("Learning gaps — điều tôi chưa hiểu", value=q1.get("unknowns", ""), height=90, key=f"ch2_unknowns_{ticker}")
-    bias_check = st.text_area("Bias check — tôi có đang yêu thích sản phẩm/ngành hoặc dựa quá nhiều vào người khác không?", value=q1.get("bias_check", ""), height=80, key=f"ch2_bias_{ticker}")
+    bias_check = st.text_area("Bias check — Tôi có đang thích sản phẩm quá mức? Tôi có thành kiến với ngành? Tôi có đang dựa vào người khác vì bản thân chưa hiểu? Tôi có đang ép mình nghiên cứu một ngành tôi thực sự không quan tâm?", value=q1.get("bias_check", ""), height=110, key=f"ch2_bias_{ticker}")
 
     q2 = record["q2"]
     st.markdown("### Q2. Nếu sắp trở thành CEO, tôi cần hiểu gì về doanh nghiệp này?")

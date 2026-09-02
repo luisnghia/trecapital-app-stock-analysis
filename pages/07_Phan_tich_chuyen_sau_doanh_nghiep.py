@@ -12,6 +12,7 @@ from modules.deep_company_analysis.chapter1 import load_inventory, load_record, 
 from modules.deep_company_analysis.monitoring import evaluate_and_persist
 from modules.deep_company_analysis.opportunity_signals import OpportunityEventEvidenceAgent, build_opportunity_signals
 from modules.deep_company_analysis.trecapital_auto import build_chapter1_auto_data
+from modules.deep_company_analysis.chapter2_page_support import render_chapter2_tab
 from modules.investment_checklist.trecapital_bridge import CurrentRepoDataProvider
 from modules.investment_checklist.trecapital_debt_enricher import augment_debt_from_latest_fireant_raw
 from tre_full_width import apply_full_width
@@ -263,11 +264,53 @@ def _refresh_trecapital(ticker: str) -> bool:
 
 
 st.title("Phân tích chuyên sâu doanh nghiệp")
-st.caption("Khung phân tích chi tiết doanh nghiệp theo The Investment Checklist — triển khai từng chương, bắt đầu từ Chương 1.")
+st.caption("Khung phân tích doanh nghiệp theo The Investment Checklist — mỗi chương là một tab trong cùng workspace, dùng chung dữ liệu Trecapital.")
 
-with st.expander("📘 Hướng dẫn sử dụng Chương 1 — Hình thành & Sàng lọc Cơ hội đầu tư", expanded=True):
-    st.markdown(
-        """
+st.markdown(
+    """
+    <style>
+    div[data-testid="stTabs"] {margin-top: 12px !important;}
+    div[data-testid="stTabs"] div[role="tablist"] {
+        display:flex !important; flex-wrap:wrap !important; gap:14px !important;
+        background:rgba(234,247,241,.96) !important; padding:14px 16px !important;
+        border-radius:26px !important; border:2px solid rgba(11,127,117,.30) !important;
+        box-shadow:0 10px 26px rgba(11,127,117,.12) !important;
+    }
+    div[data-testid="stTabs"] button[role="tab"] {
+        min-height:58px !important; height:58px !important; border-radius:999px !important;
+        padding:0 28px !important; border:2.5px solid rgba(11,127,117,.40) !important;
+        background:#FFFFFF !important; color:#0B5F58 !important; font-size:1.04rem !important;
+        font-weight:900 !important; box-shadow:0 6px 16px rgba(11,127,117,.10) !important;
+    }
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+        background:linear-gradient(135deg,#0B7F75,#128C7E) !important; color:#FFFFFF !important;
+        border-color:#F5B21B !important; box-shadow:0 10px 24px rgba(11,127,117,.28) !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+default_ticker = _safe_ticker(
+    str(
+        st.session_state.get("dca_ch1_ticker")
+        or st.session_state.get("dca_ch2_ticker")
+        or st.session_state.get("active_ticker")
+        or st.session_state.get("shared_ticker")
+        or st.session_state.get("module2_ticker")
+        or "DGC"
+    )
+) or "DGC"
+
+chapter1_tab, chapter2_tab = st.tabs([
+    "📗 Chương 1 — Cơ hội đầu tư",
+    "📘 Chương 2 — Hiểu doanh nghiệp",
+])
+
+with chapter1_tab:
+    with st.expander("📘 Hướng dẫn sử dụng Chương 1 — Hình thành & Sàng lọc Cơ hội đầu tư", expanded=True):
+        st.markdown(
+            """
 **Mục tiêu của Chương 1:** biến một ý tưởng cổ phiếu thành một hồ sơ nghiên cứu có cấu trúc, sàng lọc nhanh chất lượng, ghi nhận định giá ban đầu và đưa doanh nghiệp vào đúng **Research Gate** để tiếp tục theo dõi.
 
 **Quy trình sử dụng khuyến nghị:**
@@ -285,62 +328,54 @@ with st.expander("📘 Hướng dẫn sử dụng Chương 1 — Hình thành & 
 
 Khi một trigger chuyển từ **chưa thỏa → thỏa**, app tạo một item trong **Review Queue** và tránh tạo cảnh báo trùng khi điều kiện vẫn tiếp tục thỏa. Sau khi đã xem xét, chọn item và bấm **`✅ Đã review item này`**; thao tác này chỉ đóng cảnh báo, **không thay đổi Research Gate**.
 
-**Lưu ý về chiều của trigger:** ví dụ `MOS > 25%` phù hợp khi đang chờ cổ phiếu trở nên hấp dẫn hơn về định giá; `MOS < 25%` phù hợp khi muốn cảnh báo biên an toàn đã thu hẹp. Dấu `>` hay `<` phải phản ánh đúng mục đích theo dõi của analyst.
-
 **Nguyên tắc cốt lõi:** **AI/Data = Research Assistant; người dùng = Investment Analyst.** Chương 1 không tự đưa ra BUY/HOLD/SELL.
-        """
-    )
+            """
+        )
 
-default_ticker = _safe_ticker(
-    str(
-        st.session_state.get("dca_ch1_ticker")
-        or st.session_state.get("active_ticker")
-        or st.session_state.get("shared_ticker")
-        or st.session_state.get("module2_ticker")
-        or "DCM"
-    )
-) or "DCM"
-
-auto_data, auto_company_name, auto_error = _prepare_auto_data(default_ticker)
-
-with st.container(border=True):
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        if auto_data:
-            as_of = auto_data.get("as_of") or "—"
-            source_label = auto_data.get("source_label") or auto_data.get("source_module") or "Trecapital"
-            if auto_data.get("quote_fresh"):
-                st.success(f"Đã nối dữ liệu Trecapital cho {default_ticker} | kỳ dữ liệu: {as_of} | {source_label}")
+    auto_data, auto_company_name, auto_error = _prepare_auto_data(default_ticker)
+    with st.container(border=True):
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            if auto_data:
+                as_of = auto_data.get("as_of") or "—"
+                source_label = auto_data.get("source_label") or auto_data.get("source_module") or "Trecapital"
+                if auto_data.get("quote_fresh"):
+                    st.success(f"Đã nối dữ liệu Trecapital cho {default_ticker} | kỳ dữ liệu: {as_of} | {source_label}")
+                else:
+                    st.warning(f"Đã nối BCTC Trecapital cho {default_ticker}, nhưng quote không còn đủ mới | kỳ dữ liệu: {as_of} | {source_label}")
+                st.caption("Valuation Snapshot, 4 tiêu chí định lượng Table 1.1 và Opportunity Signals được prefill từ pipeline chung; event candidate luôn cần analyst xác minh.")
+                event_note = str(st.session_state.get("dca_event_refresh_note", "") or "")
+                if event_note:
+                    st.caption(event_note)
             else:
-                st.warning(f"Đã nối BCTC Trecapital cho {default_ticker}, nhưng quote không còn đủ mới | kỳ dữ liệu: {as_of} | {source_label}")
-            st.caption(
-                "Valuation Snapshot, 4 tiêu chí định lượng Table 1.1 và Opportunity Signals được prefill từ pipeline chung. "
-                "52-week/divergence dùng price history FireAnt đã lưu; event chỉ là ứng viên cần analyst xác minh."
-            )
-            event_note = str(st.session_state.get("dca_event_refresh_note", "") or "")
-            if event_note:
-                st.caption(event_note)
-        else:
-            st.info(f"{default_ticker}: {auto_error}")
-    with c2:
-        if st.button("🔄 Cập nhật dữ liệu & signals", use_container_width=True, key="dca_refresh_trecapital"):
-            with st.spinner(f"Đang cập nhật {default_ticker} qua pipeline chung của Trecapital..."):
-                ok = _refresh_trecapital(default_ticker)
-            if ok:
-                st.success("Đã cập nhật dữ liệu và Opportunity Signals.")
-                st.rerun()
-            else:
-                st.warning("Chưa lấy được bộ dữ liệu chuẩn. App không trộn dữ liệu từ mã khác.")
+                st.info(f"{default_ticker}: {auto_error}")
+        with c2:
+            if st.button("🔄 Cập nhật dữ liệu & signals", use_container_width=True, key="dca_refresh_trecapital"):
+                with st.spinner(f"Đang cập nhật {default_ticker} qua pipeline chung của Trecapital..."):
+                    ok = _refresh_trecapital(default_ticker)
+                if ok:
+                    st.success("Đã cập nhật dữ liệu và Opportunity Signals.")
+                    st.rerun()
+                else:
+                    st.warning("Chưa lấy được bộ dữ liệu chuẩn. App không trộn dữ liệu từ mã khác.")
 
-if st.button("🔎 Quét Review Queue từ dữ liệu cache", use_container_width=True, key="dca_scan_review_queue"):
-    with st.spinner("Đang kiểm tra trigger của Opportunity Inventory bằng dữ liệu local đã có..."):
-        checked, skipped = _scan_review_queue_from_cache()
-    st.success(f"Đã kiểm tra {checked} mã; bỏ qua {skipped} mã chưa có cache hoặc chưa đặt trigger.")
-    st.rerun()
+    if st.button("🔎 Quét Review Queue từ dữ liệu cache", use_container_width=True, key="dca_scan_review_queue"):
+        with st.spinner("Đang kiểm tra trigger của Opportunity Inventory bằng dữ liệu local đã có..."):
+            checked, skipped = _scan_review_queue_from_cache()
+        st.success(f"Đã kiểm tra {checked} mã; bỏ qua {skipped} mã chưa có cache hoặc chưa đặt trigger.")
+        st.rerun()
 
-render_chapter1(
-    default_ticker=default_ticker,
-    auto_data=auto_data,
-    auto_company_name=auto_company_name,
-)
+    render_chapter1(default_ticker=default_ticker, auto_data=auto_data, auto_company_name=auto_company_name)
+
+with chapter2_tab:
+    chapter2_ticker = _safe_ticker(
+        str(
+            st.session_state.get("dca_ch2_ticker")
+            or st.session_state.get("dca_ch1_ticker")
+            or st.session_state.get("active_ticker")
+            or default_ticker
+        )
+    ) or default_ticker
+    render_chapter2_tab(chapter2_ticker)
+
 apply_full_width()

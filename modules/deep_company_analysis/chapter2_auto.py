@@ -324,11 +324,19 @@ def extract_timeline_candidates(q5_df: pd.DataFrame, max_rows: int = 12) -> list
     return out
 
 
+def _alias_present(normalized_text: str, alias: str) -> bool:
+    token = _norm(alias)
+    if not token:
+        return False
+    pattern = r"(?<![a-z0-9])" + re.escape(token) + r"(?![a-z0-9])"
+    return re.search(pattern, normalized_text) is not None
+
+
 def _find_geographies(text: str) -> list[str]:
-    normalized = f" {_norm(text)} "
+    normalized = _norm(text)
     found: list[str] = []
     for canonical, aliases in COUNTRY_ALIASES.items():
-        if any(f" {_norm(alias)} " in normalized or _norm(alias) in normalized for alias in aliases):
+        if any(_alias_present(normalized, alias) for alias in aliases):
             found.append(canonical)
     return found
 
@@ -355,8 +363,15 @@ def _explicit_revenue_share(text: str) -> str:
 
 def _entry_year(text: str) -> str:
     normalized = _norm(text)
-    match = re.search(r"(?:tu nam|since|bat dau tu|gia nhap|tham gia).*?((?:19|20)\d{2})", normalized)
-    return match.group(1) if match else ""
+    patterns = (
+        r"(?:bat dau tu(?: nam)?|tu nam|since|gia nhap|tham gia)[^0-9]{0,50}((?:19|20)\d{2})",
+        r"((?:19|20)\d{2})[^.]{0,35}(?:bat dau|gia nhap|tham gia|entered|since)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, normalized)
+        if match:
+            return match.group(1)
+    return ""
 
 
 def extract_foreign_market_candidates(q6_df: pd.DataFrame, max_rows: int = 12) -> list[dict[str, Any]]:
