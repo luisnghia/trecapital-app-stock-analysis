@@ -8,6 +8,7 @@ from modules.deep_company_analysis import monitoring
 def _auto(**overrides):
     data = {
         "as_of": "2026-Q2",
+        "quote_fresh": True,
         "valuation": {
             "current_price": 79_000.0,
             "mos_pct": 26.0,
@@ -78,6 +79,19 @@ def test_numeric_trigger_creates_one_queue_item_per_transition(tmp_path, monkeyp
     monitoring.evaluate_and_persist("DGC", record, _auto())
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM chapter1_review_queue").fetchone()[0] == 6
+
+
+def test_stale_quote_never_fires_price_or_mos_trigger(tmp_path, monkeypatch):
+    _setup_db(tmp_path, monkeypatch)
+    data = _auto(quote_fresh=False)
+    data["monitoring_metrics"].update({"current_price": 50_000.0, "mos_pct": 40.0, "fcf_yield_pct": 10.0})
+    record = {"triggers": ["giá < 80.000", "MOS > 25%", "FCF Yield > 8%", "ROIC < 15%"]}
+    results = monitoring.evaluate_and_persist("DGC", record, data)
+    by_text = {row["trigger_text"]: row for row in results}
+    assert by_text["giá < 80.000"]["status"] == "missing_data"
+    assert by_text["MOS > 25%"]["status"] == "missing_data"
+    assert by_text["FCF Yield > 8%"]["status"] == "missing_data"
+    assert by_text["ROIC < 15%"]["triggered"] is True
 
 
 def test_statement_trigger_arms_then_detects_new_period(tmp_path, monkeypatch):
