@@ -1,29 +1,29 @@
 TREC CAPITAL - PHAN TICH CHUYEN SAU DOANH NGHIEP
 =================================================
 
-GOI NAY DUOC DONG GOI DE CHAY OFFLINE TREN WINDOWS 64-BIT CO PYTHON 3.11.
-Khong can Git, khong can clone repo, khong can Internet de cai thu vien Python.
+GOI LITE NAY DUOC DONG GOI DE CHAY LOCAL/OFFLINE TREN WINDOWS 64-BIT CO PYTHON 3.11.
+Khong can Git, khong can clone repo. Theo yeu cau, goi Lite KHONG kem Python va KHONG kem offline_wheels de giam dung luong.
 
 CACH CHAY NHANH
-1. Tai file Trecapital_Deep_Analysis_Offline_V1.zip.
-2. Giai nen ra mot thu muc rieng.
-3. Double-click: CHAY_TRECAPITAL_OFFLINE.bat
-4. Neu may chua co thu vien, launcher se tu cai tu thu muc offline_wheels kem theo.
-5. Trinh duyet se mo Trecapital.
+1. Giai nen file ZIP ra mot thu muc rieng.
+2. Double-click: CHAY_TRECAPITAL_OFFLINE.bat
+3. Neu Python 3.11 va cac thu vien Trecapital da co tren may, app mo ngay va co the nhap/luu/doc lai Chapter 1 offline.
+4. Neu thieu thu vien, launcher se goi CAI_THU_VIEN_MOT_LAN.bat. Goi Lite khi do can Internet mot lan de pip install requirements.
+5. Sau khi thu vien da cai, cac lan sau chi can double-click CHAY_TRECAPITAL_OFFLINE.bat.
 6. Chon menu: Phan tich chuyen sau doanh nghiep.
 
-YEU CAU DUY NHAT
+YEU CAU
 - Windows 64-bit.
 - Python 3.11 64-bit da cai va lenh python co trong PATH.
-
-NEU MUON CAI THU VIEN THU CONG
-- Double-click CAI_THU_VIEN_MOT_LAN.bat.
-- Script chi dung offline_wheels trong goi, khong truy cap Internet.
+- Thu vien trong requirements.txt da cai. May da dung cac ban Trecapital truoc thuong da co san.
 
 DU LIEU CHUONG 1
 - Luu local bang SQLite tai data_cache/deep_company_analysis_chapter1.db.
-- Khong can OpenAI API, Supabase hay Internet de nhap, luu va mo lai Chapter 1.
+- Khong can OpenAI API, Supabase hay Internet de nhap, luu, mo lai, xem Opportunity Inventory va Review Queue.
+- Nut "Cap nhat du lieu & signals" can Internet vi chu dong lay du lieu thi truong/BCTC moi tu pipeline Trecapital.
+- Nut "Quet Review Queue tu du lieu cache" co the chay bang du lieu da luu local.
 
 LUU Y
 - Khong xoa thu muc data_cache neu muon giu lich su phan tich da nhap.
 - Research Gate do analyst quyet dinh; app khong tu dong doi Gate.
+- Event/CBTT tu WebEvidence chi la ung vien can analyst xac minh.
