@@ -13,7 +13,7 @@ Trang này không thay thế page **Investment Checklist** hiện tại. Page m�
 - AI có thể thu thập, tính toán, tìm evidence/counter-evidence, phát hiện trigger và đề xuất.
 - AI không được tự ghi đè đánh giá analyst, không tự đổi Research Gate và không tự đưa ra quyết định mua/bán.
 - Trecapital Data Layer là **Single Source of Truth** cho dữ liệu tài chính/định giá khi bridge tự động.
-- Bản Chapter 1 phải chạy **offline hoàn toàn** với SQLite local; không phụ thuộc API hay Internet để nhập, lưu và đọc lại hồ sơ.
+- Chapter 1 chạy local với SQLite; việc nhập/lưu/mở lại hồ sơ, Inventory và Review Queue không phụ thuộc API/Cloud DB.
 
 ## 3. Căn cứ Chương 1 của sách
 
@@ -38,7 +38,7 @@ Table 1.1 dùng 10 tiêu chí lọc chất lượng:
 
 Table 1.2 là **Inventory of Ideas**, dùng để theo dõi các cơ hội hiện tại và tiềm năng; các trường gốc gồm TEV/EBIT, TEV/EBITDA, TEV/Normalized Earnings, Pre-Tax Earnings Yield, Debt/EBITDA, EBIT/Interest Expense, FCF Yield, Dividend Yield, Market Price, Free Cash-Flow Estimate, Target Price và Stock Price vs. Target.
 
-## 4. Kiến trúc Chương 1 đã thống nhất
+## 4. Kiến trúc Chương 1 đã triển khai
 
 ### A. Idea Origin — Nguồn hình thành ý tưởng
 
@@ -46,18 +46,17 @@ Lưu nguồn hình thành ý tưởng, lý do doanh nghiệp xuất hiện trên
 
 ### B. Opportunity Signals
 
-Theo dõi:
+Theo dõi/tự động hóa:
 - Drawdown từ đỉnh 52 tuần;
 - historical valuation percentile;
 - price/earnings hoặc price/cash-flow divergence;
-- event / forced selling.
+- event / forced selling candidate.
 
-Opportunity Signal **không phải Buy Signal**.
+Opportunity Signal **không phải Buy Signal**. Event từ WebEvidence chỉ là candidate cần analyst xác minh.
 
 ### C. Quality Filter — Table 1.1
 
 Mỗi tiêu chí có:
-
 - Analyst Assessment: `✓ Có | X Không | — Chưa biết | N/A`;
 - Confidence: **Thấp | Trung bình | Cao**;
 - Evidence / Note.
@@ -69,6 +68,8 @@ App tổng hợp:
 - Unknown = số tiêu chí `—` / 10.
 
 **Quality score chỉ là research filter, không phải tín hiệu mua/bán.**
+
+Bốn tiêu chí định lượng hiện có Data Suggested từ Trecapital canonical data: Strong Financials, High ROIC, Low Capital Expenditures, Strong Balance Sheet. Analyst Assessment đã lưu không bị auto-data ghi đè.
 
 ### D. Research Gaps
 
@@ -86,9 +87,7 @@ Các trường:
 - Debt/EBITDA;
 - EBIT/Interest.
 
-App tự tính MOS so với Target và Stock Price / Target.
-
-Trecapital hiện đã có bridge canonical để lấy/tính phần lớn các trường này từ Module 1/Module 2. Chapter 1 sẽ nối vào bridge đó thay vì tạo data engine riêng.
+App tự tính MOS so với Target và Stock Price / Target. Trecapital dùng canonical bridge từ Module 1/Module 2, không tạo data engine riêng cho Chapter 1. Quote stale guard vô hiệu các field/trigger phụ thuộc giá khi quote quá cũ.
 
 ### F. Research Gate
 
@@ -113,7 +112,21 @@ Một ticker chỉ có **một current opportunity record**, nhưng có nhiều 
 
 ## 5. Monitoring / Review Queue
 
-Mỗi doanh nghiệp có thể lưu trigger như MOS, giá, BCTC mới, Debt/EBITDA hoặc sự kiện định tính. App về sau có thể tự phát hiện trigger nhưng **không tự đổi Research Gate**.
+Structured Trigger Builder hỗ trợ:
+- Giá;
+- MOS;
+- ROIC;
+- Debt/EBITDA;
+- EBIT/Interest;
+- FCF Yield;
+- Valuation Percentile;
+- 52W Drawdown;
+- BCTC mới;
+- BCTC kỳ cụ thể, ví dụ Q3/2026;
+- Event/CBTT candidate mới;
+- trigger thủ công nâng cao để giữ backward compatibility.
+
+Engine chỉ tạo Review Queue khi trigger chuyển từ chưa thỏa sang thỏa; không spam trùng. Resolve item không thay đổi Gate. BCTC/event dùng baseline. Trigger giá/MOS/FCF Yield/valuation percentile không chạy từ quote stale.
 
 ## 6. Persistence offline
 
@@ -121,12 +134,14 @@ Database local:
 
 `data_cache/deep_company_analysis_chapter1.db`
 
-Các bảng:
+Các bảng chính:
 - `chapter1_current`
 - `chapter1_quality_current`
 - `chapter1_gate_history`
 - `chapter1_snapshots`
 - `chapter1_monitoring_triggers`
+- `chapter1_trigger_state`
+- `chapter1_review_queue`
 
 ## 7. Case thử nghiệm DGC
 
@@ -134,14 +149,11 @@ Fixture:
 
 `sample_data/deep_company_analysis/DGC_chapter1_trial.json`
 
-Đây là case point-in-time as-of **28/08/2026** dùng để kiểm thử workflow, không phải dữ liệu live. Khi nhập mã `DGC`, page có nút nạp case vào SQLite local.
-
-Kết quả thử nghiệm hiện tại:
+Đây là case point-in-time as-of **28/08/2026** dùng để kiểm thử workflow, không phải dữ liệu live. Kết quả thử nghiệm nền:
 - Quality Filter: **5/10**;
 - Unknown: **2/10**;
 - Research Gate: **🟡 Watch**;
-- Current Price: 43.000 đ/cp trong fixture;
-- Target/MOS để trống cho đến khi nối Module 2 canonical valuation.
+- Current Price fixture: 43.000 đ/cp.
 
 Chi tiết mapping dữ liệu tự động nằm tại:
 
@@ -161,25 +173,63 @@ Logic:
 
 `modules/deep_company_analysis/chapter1.py`
 
-Tests:
+Monitoring:
 
-`modules/deep_company_analysis/test_chapter1.py`
+`modules/deep_company_analysis/monitoring.py`
 
-## 9. Đóng gói offline
+Structured Trigger Builder:
 
-Người dùng đã có sẵn Python 3.11. Từ V2 package **không đóng kèm Python/wheelhouse** để giảm dung lượng. Gói chỉ chứa source, cấu hình, dữ liệu mẫu và file `.bat` chạy app.
+`modules/deep_company_analysis/structured_triggers.py`
+
+Final acceptance test:
+
+`modules/deep_company_analysis/test_chapter1_final_acceptance.py`
+
+## 9. Đóng gói local/offline Lite
+
+Người dùng đã có sẵn Python 3.11. Package Lite **không đóng kèm Python và không đóng kèm offline_wheels** để giảm dung lượng.
+
+- Nếu máy đã có Python 3.11 + requirements Trecapital: tải ZIP → giải nén → double-click `CHAY_TRECAPITAL_OFFLINE.bat`.
+- Nếu chỉ có Python 3.11 nhưng thiếu thư viện: `CAI_THU_VIEN_MOT_LAN.bat` sẽ cài từ PyPI và cần Internet **một lần**; sau đó app chạy local.
+- Việc nhập/lưu/đọc hồ sơ Chapter 1 không cần Internet. Nút cập nhật dữ liệu thị trường/BCTC mới đương nhiên cần kết nối nguồn dữ liệu.
 
 ## 10. Acceptance criteria Chương 1
 
-- Page mở được offline.
+- Page mở được local.
 - Một ticker lưu được đầy đủ A→F.
 - Table 1.1 lưu 10 tiêu chí + Confidence 3 mức + note.
 - Confidence không tham gia Quality Score.
 - Lưu Gate bắt buộc Reason for Gate.
 - Opportunity Inventory tự phân nhóm theo Gate.
-- Đổi Gate tạo history, không mất record cũ.
-- Snapshot được tạo mỗi lần lưu.
+- Một ticker chỉ có một current record.
+- Đổi Gate tạo append-only history; snapshot không mất.
 - Reject không xóa dữ liệu.
-- Monitoring trigger được lưu và đọc lại.
+- Structured trigger được lưu và round-trip.
+- BCTC kỳ cụ thể hoạt động.
+- Review Queue chống cảnh báo trùng.
+- Resolve Review Queue không tự đổi Gate.
+- Quote stale không kích hoạt trigger phụ thuộc market price.
+- Legacy manual trigger được giữ nguyên, không mất dữ liệu.
 - Không có logic tự động đổi Research Gate.
 - Không có tín hiệu BUY/HOLD/SELL trong Chapter 1.
+
+## 11. Final Acceptance Test — 02/09/2026
+
+Final acceptance được chạy trực tiếp trên branch hiện tại bằng Python 3.11 và case DGC:
+
+- Compile Chapter 1: PASS.
+- Full regression suite: **27/27 PASS**.
+- DGC end-to-end acceptance riêng: **3/3 PASS**.
+- Streamlit headless startup/health check cho page `07_Phan_tich_chuyen_sau_doanh_nghiep.py`: PASS.
+- Lightweight package integrity check: PASS; bắt buộc có page, Chapter 1 engine, Monitoring Engine, Structured Trigger Builder và launcher; xác nhận không kèm `offline_wheels`.
+
+DGC end-to-end đã xác minh flow:
+
+`DGC fixture → SQLite save/load → Quality 5/10 → Unknown 2 → Watch → Opportunity Inventory → structured triggers → MOS trigger → BCTC Q3/2026 trigger → event-new trigger → Review Queue → resolve → Gate vẫn Watch → analyst đổi Gate → Continue → history/snapshots append-only → current inventory vẫn chỉ 1 DGC`.
+
+Hai lỗi cấu hình được phát hiện và sửa trong vòng final test:
+
+1. **CI cũ vẫn re-apply migration patch V4/V5/V6 lên source đã ở V6**, có thể làm hỏng pipeline. Đã bỏ hoàn toàn legacy patch-reapply khỏi CI; CI giờ test chính source hiện hành.
+2. **Launcher/Hướng dẫn Lite còn ghi sai rằng package có `offline_wheels`**, trong khi V2+ đã cố ý loại wheelhouse. Đã sửa launcher, installer và hướng dẫn để phản ánh đúng: package Lite không kèm Python/wheels; nếu thiếu dependency thì cần Internet một lần để cài requirements.
+
+Kết luận: **Chapter 1 đạt acceptance để khóa tính năng và chuyển sang thiết kế Chapter 2.**
