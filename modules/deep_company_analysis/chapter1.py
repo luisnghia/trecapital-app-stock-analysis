@@ -170,6 +170,7 @@ def load_record(ticker: str) -> dict[str, Any]:
     ticker = _safe_ticker(ticker)
     record: dict[str, Any] = {
         "ticker": ticker,
+        "_exists": False,
         "company_name": "",
         "idea_sources": [],
         "market_mispricing": "",
@@ -189,6 +190,7 @@ def load_record(ticker: str) -> dict[str, Any]:
     with _connect() as conn:
         row = conn.execute("SELECT * FROM chapter1_current WHERE ticker = ?", (ticker,)).fetchone()
         if row:
+            record["_exists"] = True
             record.update(
                 {
                     "company_name": row["company_name"],
@@ -432,8 +434,11 @@ def _render_inventory() -> None:
             st.markdown(_html_table(subset), unsafe_allow_html=True)
 
 
-def render_chapter1(default_ticker: str = "") -> None:
+def render_chapter1(default_ticker: str = "", auto_data: dict[str, Any] | None = None, auto_company_name: str = "") -> None:
     init_db()
+    auto_data = auto_data or {}
+    auto_valuation = auto_data.get("valuation", {}) if isinstance(auto_data, dict) else {}
+    auto_quality = auto_data.get("quality_suggestions", {}) if isinstance(auto_data, dict) else {}
     st.markdown("## Chương 1 — Hình thành & Sàng lọc Cơ hội đầu tư")
     st.caption(
         "Nguồn sách: Chapter 1 — How to Generate Investment Ideas. Phần Research Gate và monitoring là lớp triển khai của Trecapital để quản lý pipeline nghiên cứu."
@@ -448,8 +453,10 @@ def render_chapter1(default_ticker: str = "") -> None:
     with top1:
         ticker = _safe_ticker(st.text_input("Mã cổ phiếu", value=_safe_ticker(default_ticker) or "DCM", key="dca_ch1_ticker"))
     record = load_record(ticker)
+    is_saved = bool(record.get("_exists"))
     with top2:
-        company_name = st.text_input("Tên doanh nghiệp", value=record.get("company_name", ""), key=f"dca_company_{ticker}")
+        company_default = record.get("company_name", "") or (auto_company_name if not is_saved else "")
+        company_name = st.text_input("Tên doanh nghiệp", value=company_default, key=f"dca_company_{ticker}")
 
     if ticker == "DGC":
         st.caption("Có sẵn case DGC thử nghiệm point-in-time để kiểm tra workflow Chương 1; đây không phải dữ liệu live.")
@@ -500,20 +507,35 @@ def render_chapter1(default_ticker: str = "") -> None:
         special_event = st.text_input("Sự kiện/forced selling", value=str(sig.get("special_event", "")), key=f"dca_event_{ticker}")
 
     st.markdown("### C. Quality Filter — Table 1.1")
-    st.caption("AI Suggested chưa bật ở bản offline này. Analyst Assessment là kết luận chính thức. Confidence chỉ còn 3 mức: Thấp / Trung bình / Cao và không cộng vào Quality Score.")
+    st.caption(
+        "Data Suggested dùng dữ liệu canonical Trecapital cho 4 tiêu chí định lượng. "
+        "Nếu ticker chưa từng được lưu, app prefill đề xuất để analyst kiểm tra; bản đã lưu không bao giờ bị ghi đè. "
+        "Confidence chỉ có Thấp / Trung bình / Cao và không cộng vào Quality Score."
+    )
     quality: dict[str, dict[str, Any]] = {}
-    header = st.columns([2.2, 1.1, 1, 3])
+    header = st.columns([2.0, 1.25, 1.05, 1.0, 2.8])
     header[0].markdown("**Tiêu chí**")
-    header[1].markdown("**Analyst**")
-    header[2].markdown("**Confidence**")
-    header[3].markdown("**Evidence / Note**")
+    header[1].markdown("**Data Suggested**")
+    header[2].markdown("**Analyst**")
+    header[3].markdown("**Confidence**")
+    header[4].markdown("**Evidence / Note**")
     for code, book_label, vi_label in QUALITY_CRITERIA:
         item = record["quality"].get(code, {"status": "— Chưa biết", "confidence": 1, "note": ""})
-        cols = st.columns([2.2, 1.1, 1, 3])
+        suggested = auto_quality.get(code, {}) if isinstance(auto_quality, dict) else {}
+        cols = st.columns([2.0, 1.25, 1.05, 1.0, 2.8])
         with cols[0]:
             st.markdown(f"**{book_label}**  \n{vi_label}")
         with cols[1]:
+            if suggested:
+                suggested_status = str(suggested.get("status", "— Chưa biết"))
+                st.markdown(f"**{suggested_status}**")
+                st.caption(f"Nguồn: Trecapital | {_confidence_label(suggested.get('confidence', 1))}")
+            else:
+                st.markdown("—")
+        with cols[2]:
             current_status = item.get("status", "— Chưa biết")
+            if not is_saved and suggested and current_status == "— Chưa biết":
+                current_status = str(suggested.get("status", current_status))
             status = st.selectbox(
                 f"Trạng thái {book_label}",
                 STATUS_OPTIONS,
@@ -521,8 +543,10 @@ def render_chapter1(default_ticker: str = "") -> None:
                 label_visibility="collapsed",
                 key=f"dca_q_status_{ticker}_{code}",
             )
-        with cols[2]:
+        with cols[3]:
             current_confidence = _normalize_confidence(item.get("confidence", 1))
+            if not is_saved and suggested:
+                current_confidence = _normalize_confidence(suggested.get("confidence", current_confidence))
             confidence = st.selectbox(
                 f"Confidence {book_label}",
                 list(CONFIDENCE_LEVELS),
@@ -531,10 +555,15 @@ def render_chapter1(default_ticker: str = "") -> None:
                 label_visibility="collapsed",
                 key=f"dca_q_conf_{ticker}_{code}",
             )
-        with cols[3]:
+        with cols[4]:
+            note_default = str(item.get("note", ""))
+            if not is_saved and not note_default and suggested:
+                note_default = str(suggested.get("evidence", ""))
             note = st.text_input(
-                f"Note {book_label}", value=str(item.get("note", "")), label_visibility="collapsed", key=f"dca_q_note_{ticker}_{code}"
+                f"Note {book_label}", value=note_default, label_visibility="collapsed", key=f"dca_q_note_{ticker}_{code}"
             )
+            if suggested and suggested.get("rule"):
+                st.caption(str(suggested.get("rule")))
         quality[code] = {"status": status, "confidence": confidence, "note": note}
     quality_score, unknown_count = _quality_score(quality)
     m1, m2, m3 = st.columns(3)
@@ -553,24 +582,45 @@ def render_chapter1(default_ticker: str = "") -> None:
 
     st.markdown("### E. Valuation Snapshot — Table 1.2 bridge")
     valuation = record.get("valuation", {})
+
+    def _auto_value(key: str, fallback: float = 0.0) -> float:
+        if key in valuation and valuation.get(key) is not None:
+            return float(valuation.get(key))
+        value = auto_valuation.get(key) if isinstance(auto_valuation, dict) else None
+        return fallback if value is None else float(value)
+
+    if auto_valuation:
+        st.caption(
+            f"Prefill từ Trecapital canonical data | kỳ {auto_data.get('as_of') or '—'} | "
+            f"nguồn {auto_data.get('source_module') or 'Trecapital'}. Analyst có thể chỉnh trước khi lưu snapshot."
+        )
+    else:
+        st.caption("Chưa có canonical data cho ticker này; các ô vẫn cho phép analyst nhập thủ công.")
+
     r1 = st.columns(4)
     with r1[0]:
-        current_price = st.number_input("Giá hiện tại", min_value=0.0, value=float(valuation.get("current_price") or 0.0), step=100.0, key=f"dca_price_{ticker}")
+        current_price = st.number_input("Giá hiện tại", min_value=0.0, value=_auto_value("current_price"), step=100.0, key=f"dca_price_{ticker}")
     with r1[1]:
-        target_price = st.number_input("Target Price", min_value=0.0, value=float(valuation.get("target_price") or 0.0), step=100.0, key=f"dca_target_{ticker}")
+        target_price = st.number_input("Target Price", min_value=0.0, value=_auto_value("target_price"), step=100.0, key=f"dca_target_{ticker}")
     with r1[2]:
-        fcf_yield_pct = st.number_input("FCF Yield (%)", value=float(valuation.get("fcf_yield_pct") or 0.0), step=0.1, format="%.1f", key=f"dca_fcfy_{ticker}")
+        fcf_yield_pct = st.number_input("FCF Yield (%)", value=_auto_value("fcf_yield_pct"), step=0.1, format="%.1f", key=f"dca_fcfy_{ticker}")
     with r1[3]:
-        dividend_yield_pct = st.number_input("Dividend Yield (%)", value=float(valuation.get("dividend_yield_pct") or 0.0), step=0.1, format="%.1f", key=f"dca_divy_{ticker}")
+        dividend_yield_pct = st.number_input("Dividend Yield (%)", value=_auto_value("dividend_yield_pct"), step=0.1, format="%.1f", key=f"dca_divy_{ticker}")
     r2 = st.columns(4)
     with r2[0]:
-        tev_ebit = st.number_input("TEV / EBIT (x)", value=float(valuation.get("tev_ebit") or 0.0), step=0.1, format="%.1f", key=f"dca_te_{ticker}")
+        tev_ebit = st.number_input("TEV / EBIT (x)", value=_auto_value("tev_ebit"), step=0.1, format="%.1f", key=f"dca_te_{ticker}")
     with r2[1]:
-        tev_ebitda = st.number_input("TEV / EBITDA (x)", value=float(valuation.get("tev_ebitda") or 0.0), step=0.1, format="%.1f", key=f"dca_tebitda_{ticker}")
+        tev_ebitda = st.number_input("TEV / EBITDA (x)", value=_auto_value("tev_ebitda"), step=0.1, format="%.1f", key=f"dca_tebitda_{ticker}")
     with r2[2]:
-        debt_ebitda = st.number_input("Debt / EBITDA (x)", value=float(valuation.get("debt_ebitda") or 0.0), step=0.1, format="%.1f", key=f"dca_debt_{ticker}")
+        debt_ebitda = st.number_input("Debt / EBITDA (x)", value=_auto_value("debt_ebitda"), step=0.1, format="%.1f", key=f"dca_debt_{ticker}")
     with r2[3]:
-        ebit_interest = st.number_input("EBIT / Interest (x)", value=float(valuation.get("ebit_interest") or 0.0), step=0.1, format="%.1f", key=f"dca_interest_{ticker}")
+        ebit_interest = st.number_input("EBIT / Interest (x)", value=_auto_value("ebit_interest"), step=0.1, format="%.1f", key=f"dca_interest_{ticker}")
+
+    source_notes = auto_data.get("source_notes", []) if isinstance(auto_data, dict) else []
+    if source_notes:
+        with st.expander("Nguồn & reconciliation notes từ Trecapital", expanded=False):
+            for source_note in source_notes:
+                st.markdown(f"- {source_note}")
     mos_pct = ((target_price - current_price) / target_price * 100.0) if target_price > 0 else None
     price_vs_target_pct = (current_price / target_price * 100.0) if target_price > 0 else None
     x1, x2 = st.columns(2)
