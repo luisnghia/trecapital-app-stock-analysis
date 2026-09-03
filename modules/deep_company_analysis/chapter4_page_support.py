@@ -24,6 +24,7 @@ from modules.deep_company_analysis.chapter4_peer_auto import (
     discover_same_industry_peers,
     peer_refresh_plan,
     refresh_peer_canonical_bundle,
+    refresh_peer_canonical_universe,
 )
 from modules.deep_company_analysis.chapter4_evidence import (
     Chapter4EvidenceAgent,
@@ -305,14 +306,11 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str]:
                 st.caption("Đang dùng peer set đã lưu trước đó làm fallback; không sinh peer suy đoán.")
 
         if st.button("🔄 Tự động lấy cùng ngành + BCTC và cập nhật Q17/Q19", use_container_width=True, key=f"ch4q_auto_industry_{safe}"):
-            progress = st.progress(0.0, text="Đang cập nhật canonical BCTC cho peer cùng ngành...")
-            notes: list[str] = []
-            ok_count = 0
-            for idx, peer in enumerate(peers):
-                ok, _paths, note = refresh_peer_canonical_bundle(peer)
-                notes.append(note)
-                ok_count += int(ok)
-                progress.progress((idx + 1) / max(len(peers), 1), text=f"{peer}: {'OK' if ok else 'thiếu dữ liệu'}")
+            progress = st.progress(0.02, text=f"Đang cập nhật canonical BCTC cho {len(peers)} mã cùng ngành (tối đa 3 luồng)...")
+            refresh_results = refresh_peer_canonical_universe(peers, max_workers=3)
+            notes = [note for _peer, _ok, _paths, note in refresh_results]
+            ok_count = sum(1 for _peer, ok, _paths, _note in refresh_results if ok)
+            progress.progress(0.92, text="Đang dựng ROIC/CCC/margins và đồng bộ bảng Q17/Q19...")
             _snapshot_cached.clear()
             snapshots_after = []
             for peer in peers:

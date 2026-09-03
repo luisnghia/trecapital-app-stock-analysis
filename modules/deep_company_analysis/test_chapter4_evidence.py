@@ -18,6 +18,7 @@ def _raw(focus: str, title: str, snippet: str, group: str = "Nguồn doanh nghi�
         "Trích yếu": snippet,
         "Nhóm thông tin": group,
         "Truy vấn": "query",
+        "Trạng thái": "Tìm thấy",
     }])
 
 
@@ -87,3 +88,9 @@ def test_candidate_coverage_counts_each_question():
 def test_phase4c_guardrails_locked():
     flags = guardrails()
     assert all(value is False for value in flags.values())
+
+
+def test_direct_source_navigation_link_is_not_promoted_to_evidence():
+    df = _raw("Q15_Q16", "DGC - trang IR", "Nguồn ưu tiên để kiểm tra lợi thế cạnh tranh.")
+    df.loc[:, "Trạng thái"] = "Link nguồn ưu tiên"
+    assert _candidate_rows(df).empty

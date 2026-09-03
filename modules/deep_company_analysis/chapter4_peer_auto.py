@@ -7,6 +7,7 @@ already used by Trecapital.  It does not invent peers and it does not classify i
 """
 
 from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable
 
@@ -15,7 +16,7 @@ import pandas as pd
 from adapters.vn_public_crawler import PublicSimplizeCrawler
 
 
-DEFAULT_MAX_PEERS = 25
+DEFAULT_MAX_PEERS = 60
 
 
 def _safe_ticker(value: Any) -> str:
@@ -139,6 +140,35 @@ def refresh_peer_canonical_bundle(
         return True, paths, note
     except Exception as exc:
         return False, None, f"{safe}: cập nhật canonical data lỗi: {exc}"
+
+
+def refresh_peer_canonical_universe(
+    tickers: list[str],
+    max_workers: int = 3,
+) -> list[tuple[str, bool, tuple[Path, Path, Path] | None, str]]:
+    """Refresh a real peer universe concurrently through the canonical pipeline.
+
+    Concurrency is deliberately small to reduce total waiting time without hammering public sources.
+    Results keep input order.  A failed peer stays failed/Unknown; there is no substitute data.
+    """
+    ordered: list[str] = []
+    for item in tickers:
+        safe = _safe_ticker(item)
+        if safe and safe not in ordered:
+            ordered.append(safe)
+    if not ordered:
+        return []
+    workers = max(1, min(int(max_workers or 1), 4, len(ordered)))
+    indexed: dict[str, tuple[bool, tuple[Path, Path, Path] | None, str]] = {}
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="ch4-peer") as pool:
+        futures = {pool.submit(refresh_peer_canonical_bundle, ticker): ticker for ticker in ordered}
+        for future in as_completed(futures):
+            ticker = futures[future]
+            try:
+                indexed[ticker] = future.result()
+            except Exception as exc:
+                indexed[ticker] = (False, None, f"{ticker}: cập nhật canonical data lỗi: {exc}")
+    return [(ticker, *indexed.get(ticker, (False, None, f"{ticker}: không có kết quả."))) for ticker in ordered]
 
 
 def peer_refresh_plan(discovery: IndustryPeerDiscovery, target_first: bool = True) -> list[str]:

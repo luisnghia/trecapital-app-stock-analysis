@@ -39,8 +39,8 @@ class _FocusedChapter4Agent(WebEvidenceAgent):
         industry = self.industry_name or "ngành"
         if self.focus == "Q15_Q16":
             return [
-                f'"{ticker}" "{name}" lợi thế cạnh tranh thương hiệu bằng sáng chế giấy phép switching cost quy mô nguồn nguyên liệu',
-                f'"{ticker}" "{name}" tăng giá giá bán sản lượng khách hàng retention churn pricing power',
+                f'"{ticker}" "{name}" lợi thế cạnh tranh thương hiệu bằng sáng chế giấy phép switching cost quy mô nguồn nguyên liệu suy yếu rủi ro thay thế erosion',
+                f'"{ticker}" "{name}" tăng giá giá bán sản lượng khách hàng retention churn mất khách pricing power pass-through',
             ]
         if self.focus == "Q17_Q18":
             return [
@@ -123,6 +123,10 @@ def _candidate_rows(raw_df: pd.DataFrame) -> pd.DataFrame:
     out: list[dict[str, Any]] = []
     for _, row in raw_df.iterrows():
         data = row.to_dict()
+        # Direct-source placeholder links from WebEvidenceAgent are useful navigation, but they are
+        # not evidence.  Only actual search findings may enter the Chapter 4 Evidence Matrix.
+        if str(data.get("Trạng thái") or "").strip() != "Tìm thấy":
+            continue
         text = _norm(f"{data.get('Tiêu đề','')} {data.get('Trích yếu','')} {data.get('Truy vấn','')}")
         focus = str(data.get("_Focus") or "")
         base = {
