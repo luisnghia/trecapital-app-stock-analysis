@@ -16,6 +16,8 @@ on:
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER3.md'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER4.md'
+      - 'docs/CHAPTER4_PHASE4B_QUANTITATIVE_BRIDGE.md'
+      - 'docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER4_FORMULAS.md'
       - 'docs/CHAPTER2_PHASE2B_TRECAPITAL_EVIDENCE_BRIDGE.md'
       - 'docs/CHAPTER2_LOCKED_ACCEPTANCE_DGC.md'
       - 'docs/CHAPTER3_PHASE3B_CUSTOMER_EVIDENCE_BRIDGE.md'
@@ -38,6 +40,8 @@ on:
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER2.md'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER3.md'
       - 'docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER4.md'
+      - 'docs/CHAPTER4_PHASE4B_QUANTITATIVE_BRIDGE.md'
+      - 'docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER4_FORMULAS.md'
       - 'docs/CHAPTER2_PHASE2B_TRECAPITAL_EVIDENCE_BRIDGE.md'
       - 'docs/CHAPTER2_LOCKED_ACCEPTANCE_DGC.md'
       - 'docs/CHAPTER3_PHASE3B_CUSTOMER_EVIDENCE_BRIDGE.md'
@@ -98,6 +102,11 @@ jobs:
         run: |
           python -m pytest -q modules/deep_company_analysis/test_chapter4.py
           test -f docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER4.md
+      - name: Run Chapter 4 Phase 4B quantitative bridge acceptance explicitly
+        run: |
+          python -m pytest -q modules/deep_company_analysis/test_chapter4_quant.py
+          test -f docs/CHAPTER4_PHASE4B_QUANTITATIVE_BRIDGE.md
+          test -f docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER4_FORMULAS.md
       - name: Run live DGC Chapter 2 end-to-end diagnostic
         shell: bash
         run: |
@@ -138,11 +147,11 @@ jobs:
           if [ "$OK" -ne 1 ]; then cat /tmp/trecapital_dca_ch2_legacy.log; kill "$PID" 2>/dev/null || true; exit 1; fi
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
-      - name: Build lightweight Windows offline package V16
+      - name: Build lightweight Windows offline package V17
         shell: bash
         run: |
           set -euo pipefail
-          PKG_NAME="Trecapital_Deep_Analysis_Offline_V16"
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V17"
           rm -rf dist
           mkdir -p "dist/${PKG_NAME}"
           rsync -a ./ "dist/${PKG_NAME}/" \
@@ -162,15 +171,20 @@ jobs:
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter3.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter4.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter4_quant.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter4_page_support.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/test_chapter4.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/test_chapter4_quant.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_auto.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_evidence.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_page_support.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter3_auto.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter3_page_support.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/test_chapter3_phase3d.py"
-          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/test_chapter4.py"
           test -f "dist/${PKG_NAME}/docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER3.md"
           test -f "dist/${PKG_NAME}/docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER4.md"
+          test -f "dist/${PKG_NAME}/docs/CHAPTER4_PHASE4B_QUANTITATIVE_BRIDGE.md"
+          test -f "dist/${PKG_NAME}/docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER4_FORMULAS.md"
           test -f "dist/${PKG_NAME}/docs/CHAPTER2_LOCKED_ACCEPTANCE_DGC.md"
           test -f "dist/${PKG_NAME}/docs/CHAPTER3_PHASE3B_CUSTOMER_EVIDENCE_BRIDGE.md"
           test -f "dist/${PKG_NAME}/docs/CHAPTER3_LOCKED_ACCEPTANCE_DGC.md"
@@ -191,12 +205,12 @@ jobs:
           path: dgc_chapter3_e2e.log
           if-no-files-found: error
           retention-days: 30
-      - name: Upload offline package V16
+      - name: Upload offline package V17
         uses: actions/upload-artifact@v4
         with:
-          name: Trecapital_Deep_Analysis_Offline_V16
+          name: Trecapital_Deep_Analysis_Offline_V17
           path: |
-            dist/Trecapital_Deep_Analysis_Offline_V16.zip
-            dist/Trecapital_Deep_Analysis_Offline_V16.zip.sha256
+            dist/Trecapital_Deep_Analysis_Offline_V17.zip
+            dist/Trecapital_Deep_Analysis_Offline_V17.zip.sha256
           if-no-files-found: error
           retention-days: 30
