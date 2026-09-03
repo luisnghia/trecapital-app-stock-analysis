@@ -31,6 +31,25 @@ def _coverage(draft: dict) -> dict:
     return {"eligible_fields": {}, "filled": 0, "total": 8, "coverage_pct": 0.0}
 
 
+def _concentration_candidates_are_explicit(candidates) -> bool:
+    """A Q8 candidate is valid only when it carries an explicit customer-share value.
+
+    The deeper unit tests separately prove that export/geographic share and named receivables without
+    a customer revenue percentage do not become concentration candidates. This runtime guard makes
+    the E2E acceptance field meaningful instead of merely reporting a constant True.
+    """
+    if not candidates:
+        return True
+    if not isinstance(candidates, list):
+        return False
+    for row in candidates:
+        if not isinstance(row, dict):
+            return False
+        if not str(row.get("Revenue share %") or "").strip():
+            return False
+    return True
+
+
 def main() -> int:
     ticker = "DGC"
     with tempfile.TemporaryDirectory(prefix="trecapital_dgc_ch3_") as tmp:
@@ -68,6 +87,8 @@ def main() -> int:
         )
 
         quality_coverage = evidence_quality_coverage(evidence)
+        concentration_candidates = draft.get("q8", {}).get("concentration_table", []) or []
+        no_fabricated_concentration = _concentration_candidates_are_explicit(concentration_candidates)
         guardrails = {
             "q7_revenue_or_profit_relevance_autofill": relevance_autofill,
             "q8_concentration_status_autofill": merged.get("q8", {}).get("concentration_status") != "Unknown",
@@ -79,6 +100,11 @@ def main() -> int:
             "evidence_matrix_autofill": bool(merged.get("evidence_matrix")),
         }
         critical_guardrails_pass = not any(bool(value) for value in guardrails.values())
+        implementation_lock_candidate = (
+            critical_guardrails_pass
+            and no_fabricated_concentration
+            and not bool(evidence_error)
+        )
 
         audit = {
             "ticker": ticker,
@@ -92,13 +118,13 @@ def main() -> int:
             "quality_coverage": quality_coverage,
             "research_gap_suggestions": draft.get("research_gap_suggestions", []) or [],
             "retention_metrics": draft.get("q10", {}).get("retention_metrics", {}) or {},
-            "concentration_candidates": draft.get("q8", {}).get("concentration_table", []) or [],
+            "concentration_candidates": concentration_candidates,
             "guardrails": guardrails,
             "phase3d_acceptance": {
                 "critical_guardrails_pass": critical_guardrails_pass,
-                "no_fabricated_concentration": not bool(draft.get("q8", {}).get("concentration_table")) or bool(draft.get("q8", {}).get("concentration_table")),
+                "no_fabricated_concentration": no_fabricated_concentration,
                 "unknown_is_valid_for_missing_customer_side_evidence": True,
-                "implementation_lock_candidate": critical_guardrails_pass and not bool(evidence_error),
+                "implementation_lock_candidate": implementation_lock_candidate,
             },
             "evidence_sample": evidence[[c for c in ("Nhóm thông tin", "Tiêu đề", "Nguồn/URL", "Trích yếu") if c in evidence.columns]].head(12).to_dict(orient="records") if not evidence.empty else [],
         }
@@ -106,7 +132,7 @@ def main() -> int:
         print("DGC_CHAPTER3_E2E_JSON_START")
         print(json.dumps(audit, ensure_ascii=False, indent=2, default=str))
         print("DGC_CHAPTER3_E2E_JSON_END")
-        return 0
+        return 0 if implementation_lock_candidate else 2
 
 
 if __name__ == "__main__":
