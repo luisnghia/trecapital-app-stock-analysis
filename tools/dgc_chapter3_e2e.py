@@ -72,6 +72,12 @@ def main() -> int:
         draft = build_chapter3_assistant_draft(evidence, source_label="DGC live E2E / Chapter 3 customer evidence")
         sections = classify_evidence(evidence)
         merged = merge_assistant_draft(empty_payload(ticker, company_name), draft)
+        core_rows = merged.get("q7", {}).get("core_customers", []) or []
+        relevance_autofill = any(
+            str(row.get("Revenue Relevance") or "").strip() or str(row.get("Profit Relevance") or "").strip()
+            for row in core_rows
+            if isinstance(row, dict)
+        )
 
         audit = {
             "ticker": ticker,
@@ -85,11 +91,14 @@ def main() -> int:
             "retention_metrics": draft.get("q10", {}).get("retention_metrics", {}) or {},
             "concentration_candidates": draft.get("q8", {}).get("concentration_table", []) or [],
             "guardrails": {
+                "q7_revenue_or_profit_relevance_autofill": relevance_autofill,
                 "q8_concentration_status_autofill": merged.get("q8", {}).get("concentration_status") != "Unknown",
                 "q9_sales_ease_autofill": merged.get("q9", {}).get("sales_ease_status") != "Unknown",
                 "q13_dependency_class_autofill": merged.get("q13", {}).get("dependency_class") != "Unknown",
                 "q14_impact_level_autofill": merged.get("q14", {}).get("impact_level") != "Unknown",
                 "q14_conclusion_autofill": bool(str(merged.get("q14", {}).get("disappearance_conclusion") or "").strip()),
+                "customer_interview_autofill": bool(merged.get("customer_interviews")),
+                "evidence_matrix_autofill": bool(merged.get("evidence_matrix")),
             },
             "evidence_sample": evidence[[c for c in ("Nhóm thông tin", "Tiêu đề", "Nguồn/URL", "Trích yếu") if c in evidence.columns]].head(12).to_dict(orient="records") if not evidence.empty else [],
         }
