@@ -80,10 +80,10 @@ jobs:
       - name: Run Chapter 2 source-first evidence tests explicitly
         run: |
           python -m pytest -q modules/deep_company_analysis/test_chapter2_evidence.py
-      - name: Run Chapter 3 Phase 3A acceptance explicitly
+      - name: Run Chapter 3 approved core + human-intelligence acceptance explicitly
         run: |
           python -m pytest -q modules/deep_company_analysis/test_chapter3.py
-      - name: Run Chapter 3 Phase 3B customer-evidence tests explicitly
+      - name: Run Chapter 3 customer-evidence guardrails explicitly
         run: |
           python -m pytest -q modules/deep_company_analysis/test_chapter3_auto.py
       - name: Run live DGC Chapter 2 end-to-end diagnostic
@@ -126,11 +126,11 @@ jobs:
           if [ "$OK" -ne 1 ]; then cat /tmp/trecapital_dca_ch2_legacy.log; kill "$PID" 2>/dev/null || true; exit 1; fi
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
-      - name: Build lightweight Windows offline package V13
+      - name: Build lightweight Windows offline package V14
         shell: bash
         run: |
           set -euo pipefail
-          PKG_NAME="Trecapital_Deep_Analysis_Offline_V13"
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V14"
           rm -rf dist
           mkdir -p "dist/${PKG_NAME}"
           rsync -a ./ "dist/${PKG_NAME}/" \
@@ -174,12 +174,12 @@ jobs:
           path: dgc_chapter3_e2e.log
           if-no-files-found: error
           retention-days: 30
-      - name: Upload offline package V13
+      - name: Upload offline package V14
         uses: actions/upload-artifact@v4
         with:
-          name: Trecapital_Deep_Analysis_Offline_V13
+          name: Trecapital_Deep_Analysis_Offline_V14
           path: |
-            dist/Trecapital_Deep_Analysis_Offline_V13.zip
-            dist/Trecapital_Deep_Analysis_Offline_V13.zip.sha256
+            dist/Trecapital_Deep_Analysis_Offline_V14.zip
+            dist/Trecapital_Deep_Analysis_Offline_V14.zip.sha256
           if-no-files-found: error
           retention-days: 30
