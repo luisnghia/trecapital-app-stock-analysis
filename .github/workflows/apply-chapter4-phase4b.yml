@@ -1,0 +1,120 @@
+name: Apply Chapter 4 Phase 4B
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-checklist
+    paths:
+      - 'scripts/apply_chapter4_phase4b_patch.py'
+      - '.github/workflows/apply-chapter4-phase4b.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-phase4b:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-checklist
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Apply Phase 4B integration patch
+        run: python scripts/apply_chapter4_phase4b_patch.py
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: Compile Chapters 1-4 plus Phase 4B
+        run: |
+          python -m compileall -q modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py tre_sidebar_nav.py
+
+      - name: Run Phase 4B quantitative acceptance
+        run: python -m pytest -q modules/deep_company_analysis/test_chapter4_quant.py
+
+      - name: Run Chapter 4 core acceptance
+        run: python -m pytest -q modules/deep_company_analysis/test_chapter4.py
+
+      - name: Run full Deep Analysis regression
+        run: python -m pytest -q modules/deep_company_analysis
+
+      - name: Smoke-test unified Deep Analysis page with Phase 4B
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
+            --server.headless true --server.port 8510 > /tmp/trecapital_dca_ch4b.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8510/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then
+            cat /tmp/trecapital_dca_ch4b.log
+            kill "$PID" 2>/dev/null || true
+            exit 1
+          fi
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+
+      - name: Commit generated Phase 4B integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
+                  modules/deep_company_analysis/chapter4.py
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit."
+          else
+            git commit -m "feat(ch4): integrate Phase 4B quantitative bridge"
+            git push origin HEAD:feature/deep-company-analysis-checklist
+          fi
+
+      - name: Build lightweight Windows offline package V17
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V17"
+          rm -rf dist
+          mkdir -p "dist/${PKG_NAME}"
+          rsync -a ./ "dist/${PKG_NAME}/" \
+            --exclude '.git' \
+            --exclude 'dist' \
+            --exclude 'offline_wheels' \
+            --exclude '.streamlit/secrets.toml' \
+            --exclude '.env' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude '*.log'
+          mkdir -p "dist/${PKG_NAME}/data_cache"
+          test -f "dist/${PKG_NAME}/CHAY_TRECAPITAL_OFFLINE.bat"
+          test -f "dist/${PKG_NAME}/pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter4.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter4_quant.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter4_page_support.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/test_chapter4_quant.py"
+          test -f "dist/${PKG_NAME}/docs/CHAPTER4_PHASE4B_QUANTITATIVE_BRIDGE.md"
+          test -f "dist/${PKG_NAME}/docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER4_FORMULAS.md"
+          test ! -d "dist/${PKG_NAME}/offline_wheels"
+          (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
+          sha256sum "dist/${PKG_NAME}.zip" > "dist/${PKG_NAME}.zip.sha256"
+
+      - name: Upload offline package V17
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Offline_V17
+          path: |
+            dist/Trecapital_Deep_Analysis_Offline_V17.zip
+            dist/Trecapital_Deep_Analysis_Offline_V17.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
