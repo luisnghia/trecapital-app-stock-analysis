@@ -19,6 +19,17 @@ from modules.deep_company_analysis.chapter4_quant import (
     pricing_context,
     supply_chain_context,
 )
+from modules.deep_company_analysis.chapter4_peer_auto import (
+    DEFAULT_MAX_PEERS,
+    discover_same_industry_peers,
+    peer_refresh_plan,
+    refresh_peer_canonical_bundle,
+)
+from modules.deep_company_analysis.chapter4_evidence import (
+    Chapter4EvidenceAgent,
+    candidate_coverage,
+    merge_candidates_into_evidence_matrix,
+)
 
 
 def _safe_ticker(value: str) -> str:
@@ -85,6 +96,79 @@ def _parse_peer_tickers(value: Any, target: str) -> list[str]:
         if len(out) >= 12:
             break
     return out
+
+
+@st.cache_data(ttl=60 * 60 * 12, show_spinner=False)
+def _industry_discovery_cached(ticker: str, raw_dir: str, max_peers: int = DEFAULT_MAX_PEERS):
+    discovery = discover_same_industry_peers(ticker, raw_dir, max_peers=max_peers)
+    return {
+        "target": discovery.target,
+        "industry_group": discovery.industry_group,
+        "peers": discovery.peers,
+        "tickers": discovery.tickers,
+        "note": discovery.note,
+        "raw_path": discovery.raw_path,
+        "truncated": discovery.truncated,
+    }
+
+
+def _auto_peer_discovery(ticker: str):
+    safe = _safe_ticker(ticker)
+    try:
+        return _industry_discovery_cached(safe, str(m1.RAW_DIR), DEFAULT_MAX_PEERS)
+    except Exception as exc:
+        return {"target": safe, "industry_group": "", "peers": pd.DataFrame(), "tickers": [safe], "note": f"Không lấy được danh sách cùng ngành: {exc}", "raw_path": "", "truncated": False}
+
+
+def _phase4c_existing_rows(record: dict[str, Any]) -> pd.DataFrame:
+    rows = record.get("evidence_matrix") if isinstance(record, dict) else []
+    if not isinstance(rows, list) or not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows)
+    if "Data Origin" not in df.columns:
+        return pd.DataFrame()
+    return df[df["Data Origin"].astype(str).str.contains("Chapter 4 Research Assistant Evidence Bridge", na=False)].copy()
+
+
+def render_phase4c_evidence_bridge(ticker: str, company_name: str, industry_group: str) -> None:
+    safe = _safe_ticker(ticker)
+    record = load_record(safe, company_name)
+    existing = _phase4c_existing_rows(record)
+    with st.container(border=True):
+        st.markdown("### 🔎 Phase 4C — Research Assistant Evidence Bridge")
+        st.caption(
+            "Research Assistant tìm supporting evidence + counter-evidence cho Q15–Q20 và tự đưa vào Evidence Matrix dưới trạng thái Candidate. "
+            "Nó không được đổi Assessment, Trend, Confidence, Conclusion hay Research Gate."
+        )
+        if not existing.empty and "Question" in existing.columns:
+            counts = existing["Question"].value_counts().to_dict()
+            cols = st.columns(6)
+            for idx, q in enumerate(("Q15", "Q16", "Q17", "Q18", "Q19", "Q20")):
+                cols[idx].metric(q, int(counts.get(q, 0)))
+            st.caption(f"Đang lưu {len(existing)} evidence candidate(s) Phase 4C trong Evidence Matrix.")
+        else:
+            st.info("Chưa có evidence candidate Phase 4C được lưu cho mã này.")
+
+        if st.button("🌐 Cập nhật Evidence Q15–Q20", use_container_width=True, key=f"ch4c_refresh_evidence_{safe}"):
+            with st.spinner(f"Research Assistant đang tìm supporting/counter-evidence cho {safe}..."):
+                result = Chapter4EvidenceAgent(m1.RAW_DIR).search(safe, company_name, industry_group, max_results_per_query=4)
+                latest = load_record(safe, company_name)
+                latest = merge_candidates_into_evidence_matrix(latest, result.candidates)
+                save_record(latest, create_snapshot=False)
+                st.session_state[f"ch4c_candidates_{safe}"] = result.candidates
+                st.session_state[f"ch4c_note_{safe}"] = result.note
+            st.success(result.note)
+
+        candidates = st.session_state.get(f"ch4c_candidates_{safe}")
+        if isinstance(candidates, pd.DataFrame) and not candidates.empty:
+            coverage = candidate_coverage(candidates)
+            st.caption("Candidate coverage mới nhất: " + " | ".join(f"{q}: {coverage[q]}" for q in coverage))
+            show_cols = [c for c in ["Question", "Subtopic", "Direction", "Evidence Quality", "Explicitness", "Title", "URL", "Snippet"] if c in candidates.columns]
+            st.dataframe(candidates[show_cols].head(80), use_container_width=True, hide_index=True, height=360)
+            st.warning("Direction và Explicitness đều là Research Assistant candidate. Analyst phải mở nguồn và xác minh trước khi dùng làm kết luận.")
+        elif not existing.empty:
+            show_cols = [c for c in ["Question", "Claim", "Direction", "Evidence Type", "Source Title", "Source URL / File", "Evidence Text", "Status"] if c in existing.columns]
+            st.dataframe(existing[show_cols].tail(60), use_container_width=True, hide_index=True, height=320)
 
 
 def _fmt(value: Any, suffix: str = "") -> str:
@@ -179,7 +263,11 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str]:
     company_name = str((target_snapshot or {}).get("company_name") or "")
     record = load_record(safe, company_name)
     stored = record.get("quantitative_peer_tickers", [])
-    stored_text = ", ".join(stored) if isinstance(stored, list) else str(stored or "")
+    discovery = _auto_peer_discovery(safe)
+    industry_group = str(discovery.get("industry_group") or record.get("quantitative_industry_group") or "")
+    discovered_tickers = [_safe_ticker(x) for x in discovery.get("tickers", []) if _safe_ticker(x)]
+    fallback_tickers = _parse_peer_tickers(stored, safe)
+    peers = discovered_tickers if len(discovered_tickers) > 1 else fallback_tickers
 
     with st.container(border=True):
         st.markdown("### 📊 Phase 4B — Quantitative Bridge từ Trecapital canonical data")
@@ -205,20 +293,45 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str]:
                 if ok:
                     st.rerun()
 
-        peer_text = st.text_input(
-            "Peer tickers dùng cho Q17/Q19",
-            value=stored_text,
-            key=f"ch4q_peer_text_{safe}",
-            help="Nhập ticker, cách nhau bằng dấu phẩy. Target luôn được thêm tự động. Chỉ dùng peer có canonical cache; app không tự đoán peer theo tên ngành.",
-        )
-        peers = _parse_peer_tickers(peer_text, safe)
-        p1, p2 = st.columns(2)
-        if p1.button("💾 Lưu peer set", use_container_width=True, key=f"ch4q_save_peers_{safe}"):
-            record["quantitative_peer_tickers"] = [p for p in peers if p != safe]
-            save_record(record)
-            st.success("Đã lưu peer set. Đây là research configuration, không phải analyst conclusion.")
+        peer_list_df = discovery.get("peers")
+        if isinstance(peer_list_df, pd.DataFrame) and not peer_list_df.empty:
+            st.success(f"Tự nhận diện ngành: {industry_group or 'chưa rõ'} | {len(peers)} mã trong peer universe dùng cho Q17/Q19.")
+            list_cols = [c for c in ["ticker", "company_name", "exchange", "market_cap_bil", "peer_group"] if c in peer_list_df.columns]
+            st.dataframe(peer_list_df[list_cols], use_container_width=True, hide_index=True, height=min(360, 70 + 27 * len(peer_list_df)))
+            st.caption(str(discovery.get("note") or ""))
+        else:
+            st.warning(str(discovery.get("note") or "Chưa tự nhận diện được peer cùng ngành."))
+            if len(peers) > 1:
+                st.caption("Đang dùng peer set đã lưu trước đó làm fallback; không sinh peer suy đoán.")
+
+        if st.button("🔄 Tự động lấy cùng ngành + BCTC và cập nhật Q17/Q19", use_container_width=True, key=f"ch4q_auto_industry_{safe}"):
+            progress = st.progress(0.0, text="Đang cập nhật canonical BCTC cho peer cùng ngành...")
+            notes: list[str] = []
+            ok_count = 0
+            for idx, peer in enumerate(peers):
+                ok, _paths, note = refresh_peer_canonical_bundle(peer)
+                notes.append(note)
+                ok_count += int(ok)
+                progress.progress((idx + 1) / max(len(peers), 1), text=f"{peer}: {'OK' if ok else 'thiếu dữ liệu'}")
+            _snapshot_cached.clear()
+            snapshots_after = []
+            for peer in peers:
+                snap, _ = load_quant_snapshot(peer)
+                if snap:
+                    snapshots_after.append(snap)
+            peer_df_after = build_peer_table(snapshots_after)
+            latest_record = load_record(safe, company_name)
+            latest_record["quantitative_peer_tickers"] = [p for p in peers if p != safe]
+            latest_record["quantitative_industry_group"] = industry_group
+            latest_record["quantitative_peer_source"] = "Simplize same-industry universe + Trecapital canonical statements"
+            latest_record = _merge_q17_peer_rows(latest_record, peer_df_after)
+            save_record(latest_record, create_snapshot=False)
+            progress.empty()
+            st.success(f"Đã tự cập nhật {ok_count}/{len(peers)} mã; {len(peer_df_after)} mã có dữ liệu định lượng đã được đưa thẳng vào bảng Q17. Analyst Comment/kết luận được giữ nguyên.")
+            if notes:
+                with st.expander("Chi tiết cập nhật peer", expanded=False):
+                    st.write("\n".join(f"- {x}" for x in notes))
             st.rerun()
-        p2.caption("Peer không có cache sẽ được giữ trong peer set nhưng không đưa số liệu giả vào bảng.")
 
         snapshots: list[dict[str, Any]] = []
         missing: list[str] = []
@@ -271,13 +384,7 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str]:
                     d5.metric("ROIC dương", _fmt(dist.get("positive_roic_pct"), "%"))
                 if len(peer_df) < 3:
                     st.warning("Peer set còn nhỏ; chưa nên xem đây là đại diện cho economics toàn ngành.")
-                if st.button("🧩 Đưa canonical peer snapshot vào bảng Q17", use_container_width=True, key=f"ch4q_apply_q17_{safe}"):
-                    latest_record = load_record(safe, company_name)
-                    latest_record["quantitative_peer_tickers"] = [p for p in peers if p != safe]
-                    latest_record = _merge_q17_peer_rows(latest_record, peer_df)
-                    save_record(latest_record)
-                    st.success("Đã cập nhật các cột định lượng Q17 từ canonical snapshot; Comment/analyst conclusion được giữ nguyên.")
-                    st.rerun()
+                st.caption("Bảng editable Q17 được đồng bộ tự động khi bấm nút 'Tự động lấy cùng ngành + BCTC'; không còn bước nhập peer/copy canonical thủ công.")
             st.caption("Peer distribution là Data Suggested. 'Good / Mixed / Bad Industry' chỉ Analyst được chọn.")
 
         with st.expander("Q19 — Table 4.2 quantitative peer benchmark", expanded=False):
@@ -316,9 +423,10 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str]:
                     })
                 st.dataframe(pd.DataFrame(prov_rows), use_container_width=True, hide_index=True)
 
-    return safe, company_name
+    return safe, company_name, industry_group
 
 
 def render_chapter4_tab(default_ticker: str) -> None:
-    safe, company_name = render_quantitative_bridge(default_ticker)
+    safe, company_name, industry_group = render_quantitative_bridge(default_ticker)
+    render_phase4c_evidence_bridge(safe, company_name, industry_group)
     render_chapter4(default_ticker=safe, company_name=company_name)

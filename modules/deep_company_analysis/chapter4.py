@@ -442,7 +442,7 @@ def _replace_child_rows(conn: sqlite3.Connection, ticker: str, table: str, rows:
         )
 
 
-def save_record(payload: dict[str, Any]) -> str:
+def save_record(payload: dict[str, Any], create_snapshot: bool = True) -> str:
     init_db()
     ticker = _safe_ticker(payload.get("ticker", ""))
     if not ticker:
@@ -471,10 +471,11 @@ def save_record(payload: dict[str, Any]) -> str:
         )
         for payload_key, table in CHILD_TABLES.items():
             _replace_child_rows(conn, ticker, table, payload.get(payload_key, []), now)
-        conn.execute(
-            "INSERT INTO chapter4_snapshots (ticker, payload_json, understanding_status, created_at) VALUES (?, ?, ?, ?)",
-            (ticker, serialized, status, now),
-        )
+        if create_snapshot:
+            conn.execute(
+                "INSERT INTO chapter4_snapshots (ticker, payload_json, understanding_status, created_at) VALUES (?, ?, ?, ?)",
+                (ticker, serialized, status, now),
+            )
     return status
 
 
