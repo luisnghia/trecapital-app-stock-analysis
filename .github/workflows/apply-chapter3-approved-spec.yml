@@ -47,8 +47,7 @@ jobs:
           git add modules/deep_company_analysis/chapter3.py \
                   modules/deep_company_analysis/chapter3_page_support.py \
                   modules/deep_company_analysis/test_chapter3.py \
-                  docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER3.md \
-                  .github/workflows/deep-company-analysis.yml
+                  docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER3.md
           if git diff --cached --quiet; then
             echo "No generated changes to commit."
           else
