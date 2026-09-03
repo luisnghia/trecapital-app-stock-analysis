@@ -25,7 +25,11 @@ jobs:
           cache: 'pip'
 
       - name: Apply approved Phase 4A integration patch
-        run: python scripts/apply_chapter4_phase4a_patch.py
+        run: |
+          python scripts/apply_chapter4_phase4a_patch.py
+          # GitHub App tokens cannot push workflow-file mutations. The normal CI
+          # workflow is updated separately through the authenticated connector.
+          git restore .github/workflows/deep-company-analysis.yml
 
       - name: Install dependencies
         run: |
@@ -71,8 +75,7 @@ jobs:
           git add pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
                   modules/deep_company_analysis/chapter4.py \
                   modules/deep_company_analysis/test_chapter4.py \
-                  docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER4.md \
-                  .github/workflows/deep-company-analysis.yml
+                  docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER4.md
           if git diff --cached --quiet; then
             echo "No generated changes to commit."
           else
