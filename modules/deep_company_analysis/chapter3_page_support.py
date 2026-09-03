@@ -9,7 +9,7 @@ import streamlit as st
 
 import module1_dashboard as m1
 from modules.deep_company_analysis.chapter2_page_support import _active_paths, _path_signature
-from modules.deep_company_analysis.chapter3 import load_record, render_chapter3, save_record
+from modules.deep_company_analysis.chapter3 import conflicting_evidence_count, load_record, render_chapter3, save_record
 from modules.deep_company_analysis.chapter3_auto import (
     Chapter3EvidenceAgent,
     build_chapter3_assistant_draft,
@@ -83,11 +83,21 @@ def refresh_chapter3_sources(ticker: str) -> tuple[bool, str]:
         return False, f"Cập nhật customer evidence chưa thành công: {exc}"
 
 
+def _evidence_layer(row: dict) -> str:
+    group = str(row.get("Nhóm thông tin") or "").lower()
+    url = str(row.get("Nguồn/URL") or "").lower()
+    official_tokens = ("nguồn doanh nghiệp", "bctn", "bctc", "pdf chính thức", "official", "investor relations")
+    if any(token in group for token in official_tokens) or "ducgiangchem.vn" in url:
+        return "A — Company Disclosure"
+    return "B — Independent / Customer-side"
+
+
 def _evidence_table(rows) -> pd.DataFrame:
     if not isinstance(rows, list) or not rows:
-        return pd.DataFrame(columns=["Nhóm thông tin", "Tiêu đề", "Nguồn/URL", "Trích yếu"])
+        return pd.DataFrame(columns=["Layer", "Nhóm thông tin", "Tiêu đề", "Nguồn/URL", "Trích yếu"])
     df = pd.DataFrame(rows)
-    cols = [c for c in ("Nhóm thông tin", "Tiêu đề", "Nguồn/URL", "Trích yếu", "Điểm phù hợp") if c in df.columns]
+    df.insert(0, "Layer", [_evidence_layer(row) for row in rows])
+    cols = [c for c in ("Layer", "Nhóm thông tin", "Tiêu đề", "Nguồn/URL", "Trích yếu", "Điểm phù hợp") if c in df.columns]
     return df[cols].head(12) if cols else pd.DataFrame()
 
 
@@ -136,9 +146,26 @@ def render_assistant_panel(ticker: str, draft: dict | None, company_name: str, e
         if not draft:
             return
 
+        all_evidence_rows = []
         counts = []
         for question in ("q7", "q8", "q9", "q10", "q11", "q12", "q13", "q14"):
-            counts.append(len(draft.get(question, {}).get("evidence", []) or []))
+            rows = draft.get(question, {}).get("evidence", []) or []
+            counts.append(len(rows))
+            all_evidence_rows.extend(row for row in rows if isinstance(row, dict))
+        unique_rows = {}
+        for row in all_evidence_rows:
+            key = (str(row.get("Nguồn/URL") or ""), str(row.get("Tiêu đề") or ""), str(row.get("Trích yếu") or ""))
+            unique_rows[key] = row
+        layer_a = sum(1 for row in unique_rows.values() if _evidence_layer(row).startswith("A"))
+        layer_b = sum(1 for row in unique_rows.values() if _evidence_layer(row).startswith("B"))
+        saved_record = load_record(ticker, company_name)
+        layer_c = len(saved_record.get("customer_interviews", []) or [])
+        conflicts = conflicting_evidence_count(saved_record)
+        ecols = st.columns(4)
+        ecols[0].metric("A — Company Disclosure", layer_a)
+        ecols[1].metric("B — Independent/Customer-side", layer_b)
+        ecols[2].metric("C — Analyst Fieldwork", layer_c)
+        ecols[3].metric("Conflicting", conflicts)
         cols = st.columns(8)
         for idx, question in enumerate(("Q7", "Q8", "Q9", "Q10", "Q11", "Q12", "Q13", "Q14")):
             cols[idx].metric(question, counts[idx])

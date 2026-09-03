@@ -26,12 +26,15 @@ CUSTOMER_PERSPECTIVE_LABELS = {
 CORE_CUSTOMER_COLUMNS = [
     "Customer Segment",
     "Customer type",
+    "Buyer / Decision maker",
     "Who pays?",
     "Who uses?",
+    "Why they buy",
     "Main need / job-to-be-done",
     "Purchase criteria",
     "Price sensitivity",
-    "Revenue / profit relevance",
+    "Revenue Relevance",
+    "Profit Relevance",
     "Evidence",
 ]
 CONCENTRATION_COLUMNS = [
@@ -50,6 +53,48 @@ PAIN_COLUMNS = [
     "Solution / Value delivered",
     "Alternative workaround",
     "Evidence",
+]
+
+DEPENDENCY_TABLE_COLUMNS = [
+    "Customer Segment",
+    "Product / Service",
+    "Dependency Class",
+    "Can defer?",
+    "How long?",
+    "Alternatives / Substitutes",
+    "Consequence if stopped",
+    "Evidence",
+]
+
+DISAPPEARANCE_COLUMNS = [
+    "Customer Segment",
+    "Immediate Alternative",
+    "Time to Replace",
+    "Switching Cost",
+    "Operational Disruption",
+    "Customer Evidence",
+]
+
+CUSTOMER_INTERVIEW_COLUMNS = [
+    "Date",
+    "Company / Person",
+    "Role",
+    "Customer Segment",
+    "Q Covered",
+    "Key Insight",
+    "Confidence",
+    "Evidence / Note",
+]
+
+EVIDENCE_MATRIX_COLUMNS = [
+    "Claim",
+    "Q",
+    "Layer",
+    "Source",
+    "Source date",
+    "Evidence text",
+    "Status",
+    "Analyst note",
 ]
 
 
@@ -113,6 +158,9 @@ def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
             "sales_cycle": "",
             "trial_demo": "",
             "pressure_tactics": "",
+            "discount_dependency": "",
+            "inbound_demand": "",
+            "repeat_purchase_friction": "",
             "sales_friction_summary": "",
             "evidence": "",
         },
@@ -125,6 +173,9 @@ def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
             "loyalty_proxy": "",
             "retention_investments": "",
             "renewal_incentives": "",
+            "customer_success_service": "",
+            "cross_sell_existing": "",
+            "customer_selection_quality": "",
             "retention_trend": "",
             "retention_summary": "",
             "evidence": "",
@@ -132,6 +183,8 @@ def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
         "q11": {
             "feedback_mechanisms": "",
             "satisfaction_metrics": "",
+            "service_quality": "",
+            "fair_treatment": "",
             "management_proximity": "",
             "field_immersion": "",
             "customer_metrics_used": "",
@@ -144,6 +197,7 @@ def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
             "pain_summary": "",
         },
         "q13": {
+            "dependency_table": [],
             "dependency_class": "Unknown",
             "dependency_reason": "",
             "deferral_period": "",
@@ -152,6 +206,7 @@ def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
             "evidence": "",
         },
         "q14": {
+            "disappearance_table": [],
             "impact_level": "Unknown",
             "immediate_substitute": "",
             "switching_time": "",
@@ -160,6 +215,11 @@ def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
             "disappearance_conclusion": "",
             "evidence": "",
         },
+        "customer_interviews": [],
+        "evidence_matrix": [],
+        "customer_strengths": "",
+        "customer_risks": "",
+        "most_important_evidence": "",
         "research_gaps": "",
         "analyst_summary": "",
     }
@@ -231,6 +291,8 @@ def question_statuses(payload: dict[str, Any]) -> dict[str, str]:
             "satisfaction_metrics",
             "management_proximity",
             "field_immersion",
+            "service_quality",
+            "fair_treatment",
             "customer_metrics_used",
             "independent_indicators",
             "evidence",
@@ -253,6 +315,9 @@ def question_statuses(payload: dict[str, Any]) -> dict[str, str]:
                 _has_text(q9.get("sales_cycle")),
                 _has_text(q9.get("trial_demo")),
                 _has_text(q9.get("pressure_tactics")),
+                _has_text(q9.get("discount_dependency")),
+                _has_text(q9.get("inbound_demand")),
+                _has_text(q9.get("repeat_purchase_friction")),
                 _has_text(q9.get("evidence")),
             ],
         ),
@@ -264,6 +329,9 @@ def question_statuses(payload: dict[str, Any]) -> dict[str, str]:
                 _has_text(q10.get("loyalty_proxy")),
                 _has_text(q10.get("retention_investments")),
                 _has_text(q10.get("renewal_incentives")),
+                _has_text(q10.get("customer_success_service")),
+                _has_text(q10.get("cross_sell_existing")),
+                _has_text(q10.get("customer_selection_quality")),
                 _has_text(q10.get("evidence")),
             ],
         ),
@@ -276,6 +344,7 @@ def question_statuses(payload: dict[str, Any]) -> dict[str, str]:
         "Q13": status(
             [str(q13.get("dependency_class") or "Unknown") != "Unknown", _has_text(q13.get("dependency_reason"))],
             [
+                _nonempty_table(q13.get("dependency_table")),
                 _has_text(q13.get("deferral_period")),
                 _has_text(q13.get("consequence_if_stopped")),
                 _has_text(q13.get("substitutes")),
@@ -285,6 +354,7 @@ def question_statuses(payload: dict[str, Any]) -> dict[str, str]:
         "Q14": status(
             [str(q14.get("impact_level") or "Unknown") != "Unknown", _has_text(q14.get("disappearance_conclusion"))],
             [
+                _nonempty_table(q14.get("disappearance_table")),
                 _has_text(q14.get("immediate_substitute")),
                 _has_text(q14.get("switching_time")),
                 _has_text(q14.get("switching_cost")),
@@ -362,6 +432,14 @@ def _rows_to_df(rows: Any, columns: list[str]) -> pd.DataFrame:
     if not isinstance(rows, list) or not rows:
         return pd.DataFrame(columns=columns)
     df = pd.DataFrame(rows)
+    # Backward compatibility with the unapproved prototype that used one combined relevance field.
+    if columns == CORE_CUSTOMER_COLUMNS and "Revenue / profit relevance" in df.columns:
+        if "Revenue Relevance" not in df.columns:
+            df["Revenue Relevance"] = df["Revenue / profit relevance"].map(
+                lambda value: f"Legacy combined field: {value}" if str(value or "").strip() else ""
+            )
+        if "Profit Relevance" not in df.columns:
+            df["Profit Relevance"] = ""
     for column in columns:
         if column not in df.columns:
             df[column] = ""
@@ -379,15 +457,55 @@ def _df_to_rows(df: pd.DataFrame) -> list[dict[str, Any]]:
     return rows
 
 
+def evidence_layer_counts(payload: dict[str, Any]) -> dict[str, int]:
+    counts = {
+        "A — Company Disclosure": 0,
+        "B — Independent / Customer-side": 0,
+        "C — Analyst Fieldwork": 0,
+    }
+    matrix = payload.get("evidence_matrix", []) if isinstance(payload, dict) else []
+    if isinstance(matrix, list):
+        for row in matrix:
+            if not isinstance(row, dict):
+                continue
+            layer = str(row.get("Layer") or "").strip()
+            for key in counts:
+                if layer.lower().startswith(key[0].lower()) or layer == key:
+                    counts[key] += 1
+                    break
+    interviews = payload.get("customer_interviews", []) if isinstance(payload, dict) else []
+    if isinstance(interviews, list):
+        counts["C — Analyst Fieldwork"] += sum(
+            1 for row in interviews if isinstance(row, dict) and any(_has_text(v) for v in row.values())
+        )
+    return counts
+
+
+def conflicting_evidence_count(payload: dict[str, Any]) -> int:
+    matrix = payload.get("evidence_matrix", []) if isinstance(payload, dict) else []
+    if not isinstance(matrix, list):
+        return 0
+    return sum(
+        1
+        for row in matrix
+        if isinstance(row, dict)
+        and any(token in str(row.get("Status") or "").lower() for token in ("conflict", "mâu thuẫn", "mau thuan"))
+    )
+
+
 def _render_intro() -> None:
     with st.expander("📙 Hướng dẫn Chương 3 — Hiểu doanh nghiệp từ góc nhìn khách hàng", expanded=True):
         st.markdown(
             """
-**Mục đích:** chuyển góc nhìn từ sản phẩm/doanh nghiệp sang **khách hàng thực sự**. Chương này không hỏi analyst có thích sản phẩm hay không; nó buộc analyst xác định ai là khách hàng cốt lõi, mức tập trung, độ khó bán hàng, khả năng giữ chân, mức độ định hướng khách hàng, vấn đề doanh nghiệp giải quyết và mức độ khách hàng phụ thuộc vào sản phẩm/dịch vụ.
+**Mục đích:** chuyển góc nhìn từ sản phẩm/doanh nghiệp sang **khách hàng thực sự**. Câu hỏi trung tâm không phải “Tôi có thích sản phẩm này không?” mà là **“Khách hàng thực sự có cần/muốn sản phẩm này không, tại sao họ mua và vì sao họ tiếp tục mua?”**
 
 **8 câu hỏi của Chương 3:** Q7 khách hàng cốt lõi; Q8 tập trung/đa dạng khách hàng; Q9 dễ hay khó thuyết phục mua; Q10 retention; Q11 dấu hiệu customer-oriented; Q12 customer pain; Q13 mức độ phụ thuộc; Q14 điều gì xảy ra nếu doanh nghiệp biến mất ngày mai.
 
-**Guardrail:** Không suy diễn customer concentration, retention/churn, NPS, revenue share hay switching cost khi nguồn không công bố. `Unknown` là kết quả hợp lệ và phải được chuyển thành Research Gap.
+**Ba lớp evidence:** A — Company Disclosure (BCTN/BCTC/IR); B — Independent / Customer-side; C — Analyst Fieldwork / Customer Interview. Nếu evidence mâu thuẫn, giữ cả hai phía và đánh dấu `Conflicting` để analyst xử lý.
+
+**Q7 có hai field kinh tế bổ sung:** `Revenue Relevance` = tỷ trọng/đóng góp doanh thu của nhóm khách hàng nếu có evidence; `Profit Relevance` = đóng góp lợi nhuận/biên lợi nhuận nếu có disclosure. Hai field này **không bắt buộc** và không được suy diễn từ segment/geography.
+
+**Guardrail:** Không suy diễn customer concentration, retention/churn, NPS, revenue share, profit contribution hay switching cost khi nguồn không công bố. `Unknown` là kết quả hợp lệ và phải được chuyển thành Research Gap. AI/Data = Research Assistant; người dùng = Investment Analyst.
             """
         )
 
@@ -412,9 +530,21 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
     st.caption("Trạng thái chỉ phản ánh mức độ analyst đã hiểu customer economics; không phải điểm chất lượng và không phải tín hiệu mua/bán.")
     _status_summary(record)
 
+    layer_counts = evidence_layer_counts(record)
+    conflict_count = conflicting_evidence_count(record)
+    st.markdown("### Customer Evidence Dashboard — analyst-verified")
+    ed1, ed2, ed3, ed4 = st.columns(4)
+    ed1.metric("A — Company Disclosure", layer_counts["A — Company Disclosure"])
+    ed2.metric("B — Independent / Customer-side", layer_counts["B — Independent / Customer-side"])
+    ed3.metric("C — Analyst Fieldwork", layer_counts["C — Analyst Fieldwork"])
+    ed4.metric("Conflicting Evidence", conflict_count)
+    st.caption("Dashboard này đếm Evidence Matrix + Customer Interview đã lưu. Research Assistant candidates được hiển thị riêng ở panel phía trên và chỉ trở thành analyst-verified khi anh đưa vào hồ sơ/evidence matrix.")
+    if conflict_count:
+        st.warning("⚠ Có evidence mâu thuẫn. Không tự chọn một phía; mở nguồn và ghi Analyst note trước khi kết luận.")
+
     q7 = record["q7"]
     st.markdown("### Q7. Khách hàng cốt lõi của doanh nghiệp là ai?")
-    st.caption("Tách rõ người trả tiền, người sử dụng và nhóm khách hàng tạo economics quan trọng. Không đồng nhất 'người dùng' với 'người mua' nếu mô hình có trung gian.")
+    st.caption("Tách rõ buyer, người trả tiền và người sử dụng. Revenue Relevance và Profit Relevance chỉ nhập khi có disclosure/evidence; không bắt buộc và không suy diễn từ segment/geography.")
     core_customer_df = st.data_editor(
         _rows_to_df(q7.get("core_customers"), CORE_CUSTOMER_COLUMNS),
         num_rows="dynamic",
@@ -476,6 +606,10 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
     sales_cycle = c92.text_area("Sales cycle / decision process", value=q9.get("sales_cycle", ""), height=90, key=f"ch3_q9_cycle_{ticker}")
     trial_demo = st.text_area("Demo / trial / education / qualification cần thiết trước khi mua", value=q9.get("trial_demo", ""), height=80, key=f"ch3_q9_trial_{ticker}")
     pressure_tactics = st.text_area("High-pressure selling / promotion dependency — có bằng chứng hay không?", value=q9.get("pressure_tactics", ""), height=80, key=f"ch3_q9_pressure_{ticker}")
+    c93, c94 = st.columns(2)
+    discount_dependency = c93.text_area("Discount dependency — có phải giảm giá mạnh mới bán được?", value=q9.get("discount_dependency", ""), height=80, key=f"ch3_q9_discount_{ticker}")
+    inbound_demand = c94.text_area("Customer pull — khách hàng chủ động tìm đến hay sales phải tạo nhu cầu?", value=q9.get("inbound_demand", ""), height=80, key=f"ch3_q9_inbound_{ticker}")
+    repeat_purchase_friction = st.text_area("Repeat purchase — bán lại cho khách hàng cũ dễ hơn/khó hơn bán mới như thế nào?", value=q9.get("repeat_purchase_friction", ""), height=80, key=f"ch3_q9_repeat_{ticker}")
     sales_friction_summary = st.text_area("Kết luận Q9 — sản phẩm bán nhờ merit/need hay phụ thuộc mạnh vào sales effort?", value=q9.get("sales_friction_summary", ""), height=100, key=f"ch3_q9_summary_{ticker}")
     q9_evidence = st.text_area("Evidence Q9", value=q9.get("evidence", ""), height=80, key=f"ch3_q9_evidence_{ticker}")
 
@@ -496,6 +630,9 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
     loyalty_proxy = st.text_area("Loyalty / repeat-customer proxy — ghi rõ đây là proxy", value=q10.get("loyalty_proxy", ""), height=80, key=f"ch3_q10_proxy_{ticker}")
     retention_investments = st.text_area("Doanh nghiệp đầu tư gì để giữ khách hàng?", value=q10.get("retention_investments", ""), height=80, key=f"ch3_q10_invest_{ticker}")
     renewal_incentives = st.text_area("Sales / channel incentives có khuyến khích renewal/retention không?", value=q10.get("renewal_incentives", ""), height=80, key=f"ch3_q10_incentive_{ticker}")
+    customer_success_service = st.text_area("Customer success / service — doanh nghiệp hỗ trợ khách hàng cũ như thế nào?", value=q10.get("customer_success_service", ""), height=80, key=f"ch3_q10_success_{ticker}")
+    cross_sell_existing = st.text_area("Cross-sell / upsell trong khách hàng hiện hữu — có evidence hay không?", value=q10.get("cross_sell_existing", ""), height=80, key=f"ch3_q10_crosssell_{ticker}")
+    customer_selection_quality = st.text_area("Doanh nghiệp có chủ động chọn nhóm khách hàng dễ giữ chân/profitable hơn không?", value=q10.get("customer_selection_quality", ""), height=80, key=f"ch3_q10_selection_{ticker}")
     retention_trend = st.text_area("Retention trend — tăng/giảm/không đủ dữ liệu", value=q10.get("retention_trend", ""), height=80, key=f"ch3_q10_trend_{ticker}")
     retention_summary = st.text_area("Kết luận Q10 — mức độ bền của quan hệ khách hàng và độ chắc chắn của evidence", value=q10.get("retention_summary", ""), height=100, key=f"ch3_q10_summary_{ticker}")
     q10_evidence = st.text_area("Evidence Q10", value=q10.get("evidence", ""), height=80, key=f"ch3_q10_evidence_{ticker}")
@@ -506,6 +643,8 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
     feedback_mechanisms = c111.text_area("Feedback mechanisms — complaint, survey, customer panel, support data...", value=q11.get("feedback_mechanisms", ""), height=90, key=f"ch3_q11_feedback_{ticker}")
     satisfaction_metrics = c112.text_area("Customer satisfaction metrics — NPS/CSAT/independent studies nếu có", value=q11.get("satisfaction_metrics", ""), height=90, key=f"ch3_q11_metrics_{ticker}")
     management_proximity = st.text_area("Management proximity — lãnh đạo duy trì tiếp xúc với khách hàng như thế nào?", value=q11.get("management_proximity", ""), height=90, key=f"ch3_q11_management_{ticker}")
+    service_quality = st.text_area("Service Quality — năng lực support/phục vụ, knowledgeable staff, response quality...", value=q11.get("service_quality", ""), height=80, key=f"ch3_q11_service_{ticker}")
+    fair_treatment = st.text_area("Fair Treatment — pricing/refund/fee/policy có đối xử công bằng, không lợi dụng khách hàng?", value=q11.get("fair_treatment", ""), height=80, key=f"ch3_q11_fair_{ticker}")
     field_immersion = st.text_area("Field immersion / customer research — quan sát người dùng, đi thị trường, store/field visit...", value=q11.get("field_immersion", ""), height=90, key=f"ch3_q11_field_{ticker}")
     customer_metrics_used = st.text_area("Customer metrics được dùng để điều hành", value=q11.get("customer_metrics_used", ""), height=80, key=f"ch3_q11_usedmetrics_{ticker}")
     independent_indicators = st.text_area("Independent indicators — rating/review/study/customer evidence", value=q11.get("independent_indicators", ""), height=80, key=f"ch3_q11_independent_{ticker}")
@@ -524,7 +663,13 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
 
     q13 = record["q13"]
     st.markdown("### Q13. Khách hàng phụ thuộc vào sản phẩm/dịch vụ ở mức độ nào?")
-    st.caption("Dùng đúng continuum của Shearn: Need to have → Need to have, but not immediately → Nice to have, but not critical. Không mặc định discretionary = business xấu.")
+    st.caption("Dùng đúng continuum của Shearn: Need to have → Need to have, but not immediately → Nice to have, but not critical. Đánh giá theo customer/product trước, rồi mới viết kết luận tổng hợp. Không mặc định discretionary = business xấu.")
+    dependency_df = st.data_editor(
+        _rows_to_df(q13.get("dependency_table"), DEPENDENCY_TABLE_COLUMNS),
+        num_rows="dynamic",
+        use_container_width=True,
+        key=f"ch3_q13_table_{ticker}",
+    )
     dependency_class = st.selectbox(
         "Customer dependency",
         DEPENDENCY_CLASS,
@@ -539,6 +684,12 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
 
     q14 = record["q14"]
     st.markdown("### Q14. Nếu doanh nghiệp biến mất ngày mai, khách hàng sẽ bị ảnh hưởng thế nào?")
+    disappearance_df = st.data_editor(
+        _rows_to_df(q14.get("disappearance_table"), DISAPPEARANCE_COLUMNS),
+        num_rows="dynamic",
+        use_container_width=True,
+        key=f"ch3_q14_table_{ticker}",
+    )
     impact_level = st.selectbox(
         "Customer disruption",
         IMPACT_LEVEL,
@@ -552,6 +703,44 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
     operational_disruption = st.text_area("Operational disruption nếu mất nhà cung cấp/doanh nghiệp này", value=q14.get("operational_disruption", ""), height=90, key=f"ch3_q14_disruption_{ticker}")
     disappearance_conclusion = st.text_area("Kết luận Q14 — mức độ replaceability/dependency từ góc nhìn khách hàng", value=q14.get("disappearance_conclusion", ""), height=100, key=f"ch3_q14_conclusion_{ticker}")
     q14_evidence = st.text_area("Evidence Q14", value=q14.get("evidence", ""), height=80, key=f"ch3_q14_evidence_{ticker}")
+
+    st.markdown("### 🎤 Customer / Channel Interview Log")
+    st.caption("Shearn khuyến nghị nói chuyện với khách hàng thật. Log này là Layer C — Analyst Fieldwork và không được AI tự tạo.")
+    interview_df = st.data_editor(
+        _rows_to_df(record.get("customer_interviews"), CUSTOMER_INTERVIEW_COLUMNS),
+        num_rows="dynamic",
+        use_container_width=True,
+        key=f"ch3_interviews_{ticker}",
+    )
+    with st.expander("Gợi ý câu hỏi phỏng vấn khách hàng/kênh", expanded=False):
+        st.markdown("""
+- Tại sao anh/chị chọn sản phẩm/dịch vụ này?
+- Có lựa chọn thay thế nào và vì sao chưa chuyển?
+- Điều gì khiến anh/chị đổi supplier/nhà cung cấp?
+- Nếu giá tăng thì hành vi mua sẽ thay đổi thế nào?
+- Nếu doanh nghiệp này biến mất ngày mai, anh/chị sẽ làm gì?
+        """)
+
+    st.markdown("### 🧾 Evidence Matrix — Claim → Source → Verification")
+    st.caption("Layer A = Company Disclosure; Layer B = Independent/Customer-side; Layer C = Analyst Fieldwork. Status nên dùng Verified / Unverified / Conflicting. Giữ evidence mâu thuẫn thay vì tự chọn một phía.")
+    evidence_matrix_df = st.data_editor(
+        _rows_to_df(record.get("evidence_matrix"), EVIDENCE_MATRIX_COLUMNS),
+        num_rows="dynamic",
+        use_container_width=True,
+        key=f"ch3_evidence_matrix_{ticker}",
+    )
+    live_conflicts = sum(
+        1
+        for row in _df_to_rows(evidence_matrix_df)
+        if any(token in str(row.get("Status") or "").lower() for token in ("conflict", "mâu thuẫn", "mau thuan"))
+    )
+    if live_conflicts:
+        st.warning(f"⚠ Có {live_conflicts} evidence item đang Conflicting. Cần mở nguồn và ghi Analyst note trước khi dùng cho kết luận.")
+
+    st.markdown("### Customer Perspective Summary")
+    customer_strengths = st.text_area("Customer Strengths", value=record.get("customer_strengths", ""), height=90, key=f"ch3_strengths_{ticker}")
+    customer_risks = st.text_area("Customer Risks", value=record.get("customer_risks", ""), height=90, key=f"ch3_risks_{ticker}")
+    most_important_evidence = st.text_area("Most Important Customer Evidence — 3–5 evidence quan trọng nhất", value=record.get("most_important_evidence", ""), height=100, key=f"ch3_keyevidence_{ticker}")
 
     research_gaps = st.text_area(
         "Research Gaps Chương 3 — mỗi dòng một điều chưa biết cần tìm thêm",
@@ -586,6 +775,9 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
             "sales_cycle": sales_cycle,
             "trial_demo": trial_demo,
             "pressure_tactics": pressure_tactics,
+            "discount_dependency": discount_dependency,
+            "inbound_demand": inbound_demand,
+            "repeat_purchase_friction": repeat_purchase_friction,
             "sales_friction_summary": sales_friction_summary,
             "evidence": q9_evidence,
         },
@@ -598,6 +790,9 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
             "loyalty_proxy": loyalty_proxy,
             "retention_investments": retention_investments,
             "renewal_incentives": renewal_incentives,
+            "customer_success_service": customer_success_service,
+            "cross_sell_existing": cross_sell_existing,
+            "customer_selection_quality": customer_selection_quality,
             "retention_trend": retention_trend,
             "retention_summary": retention_summary,
             "evidence": q10_evidence,
@@ -605,6 +800,8 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
         "q11": {
             "feedback_mechanisms": feedback_mechanisms,
             "satisfaction_metrics": satisfaction_metrics,
+            "service_quality": service_quality,
+            "fair_treatment": fair_treatment,
             "management_proximity": management_proximity,
             "field_immersion": field_immersion,
             "customer_metrics_used": customer_metrics_used,
@@ -617,6 +814,7 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
             "pain_summary": pain_summary,
         },
         "q13": {
+            "dependency_table": _df_to_rows(dependency_df),
             "dependency_class": dependency_class,
             "dependency_reason": dependency_reason,
             "deferral_period": deferral_period,
@@ -625,6 +823,7 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
             "evidence": q13_evidence,
         },
         "q14": {
+            "disappearance_table": _df_to_rows(disappearance_df),
             "impact_level": impact_level,
             "immediate_substitute": immediate_substitute,
             "switching_time": switching_time,
@@ -633,6 +832,11 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
             "disappearance_conclusion": disappearance_conclusion,
             "evidence": q14_evidence,
         },
+        "customer_interviews": _df_to_rows(interview_df),
+        "evidence_matrix": _df_to_rows(evidence_matrix_df),
+        "customer_strengths": customer_strengths,
+        "customer_risks": customer_risks,
+        "most_important_evidence": most_important_evidence,
         "research_gaps": research_gaps,
         "analyst_summary": analyst_summary,
     }

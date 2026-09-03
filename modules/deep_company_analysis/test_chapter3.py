@@ -20,7 +20,11 @@ def _complete_payload():
             "Customer type": "B2B",
             "Who pays?": "Nhà sản xuất công nghiệp",
             "Who uses?": "Nhà máy / bộ phận sản xuất",
+            "Buyer / Decision maker": "Bộ phận procurement / kỹ thuật",
+            "Why they buy": "Cần nguyên liệu đạt specification",
             "Main need / job-to-be-done": "Nguyên liệu đầu vào hóa chất",
+            "Revenue Relevance": "35% doanh thu nếu disclosure hỗ trợ",
+            "Profit Relevance": "Chưa công bố",
             "Evidence": "IR/BCTN",
         }],
         "core_customer_summary": "Khách hàng cốt lõi là doanh nghiệp công nghiệp mua hóa chất làm đầu vào sản xuất.",
@@ -141,3 +145,67 @@ def test_customer_perspective_understood_requires_q7_and_q12(tmp_path, monkeypat
     payload["q12"]["pain_summary"] = ""
     assert ch3.question_statuses(payload)["Q12"] == "Partial"
     assert ch3.customer_perspective_status(payload) == "partial"
+
+
+
+def test_q7_revenue_and_profit_relevance_roundtrip_are_separate_fields(tmp_path, monkeypatch):
+    _bind_db(tmp_path, monkeypatch)
+    payload = _complete_payload()
+    row = payload["q7"]["core_customers"][0]
+    row["Revenue Relevance"] = "35% doanh thu — source disclosed"
+    row["Profit Relevance"] = "Unknown — không có disclosure"
+    ch3.save_record(payload)
+    loaded = ch3.load_record("DGC")
+    saved = loaded["q7"]["core_customers"][0]
+    assert saved["Revenue Relevance"] == "35% doanh thu — source disclosed"
+    assert saved["Profit Relevance"] == "Unknown — không có disclosure"
+
+
+def test_customer_interview_evidence_matrix_and_conflict_roundtrip(tmp_path, monkeypatch):
+    _bind_db(tmp_path, monkeypatch)
+    payload = _complete_payload()
+    payload["customer_interviews"] = [{
+        "Date": "2026-09-03",
+        "Company / Person": "Khách hàng A",
+        "Role": "Procurement",
+        "Customer Segment": "Industrial",
+        "Q Covered": "Q13/Q14",
+        "Key Insight": "Có alternative nhưng cần qualification.",
+        "Confidence": "Medium",
+        "Evidence / Note": "Analyst interview",
+    }]
+    payload["evidence_matrix"] = [
+        {"Claim": "Switching nhanh", "Q": "Q14", "Layer": "B — Independent / Customer-side", "Status": "Conflicting"},
+        {"Claim": "Switching cần qualification", "Q": "Q14", "Layer": "A — Company Disclosure", "Status": "Verified"},
+    ]
+    payload["q13"]["dependency_table"] = [{
+        "Customer Segment": "Industrial",
+        "Product / Service": "Input chemical",
+        "Dependency Class": "Need to have, but not immediately",
+        "Evidence": "Interview + disclosure",
+    }]
+    payload["q14"]["disappearance_table"] = [{
+        "Customer Segment": "Industrial",
+        "Immediate Alternative": "Qualified supplier khác",
+        "Time to Replace": "Cần xác minh",
+        "Customer Evidence": "Interview",
+    }]
+    ch3.save_record(payload)
+    loaded = ch3.load_record("DGC")
+    assert len(loaded["customer_interviews"]) == 1
+    assert len(loaded["q13"]["dependency_table"]) == 1
+    assert len(loaded["q14"]["disappearance_table"]) == 1
+    counts = ch3.evidence_layer_counts(loaded)
+    assert counts["A — Company Disclosure"] == 1
+    assert counts["B — Independent / Customer-side"] == 1
+    assert counts["C — Analyst Fieldwork"] == 1
+    assert ch3.conflicting_evidence_count(loaded) == 1
+
+
+def test_legacy_combined_relevance_is_not_silently_split_into_profit():
+    df = ch3._rows_to_df(
+        [{"Customer Segment": "Legacy", "Revenue / profit relevance": "Old combined note"}],
+        ch3.CORE_CUSTOMER_COLUMNS,
+    )
+    assert "Legacy combined field" in str(df.iloc[0]["Revenue Relevance"])
+    assert df.iloc[0]["Profit Relevance"] == ""
