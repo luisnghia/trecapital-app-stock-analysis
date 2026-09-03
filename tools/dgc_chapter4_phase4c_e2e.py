@@ -7,6 +7,11 @@ explicitly instead of being replaced with synthetic peers or fabricated financia
 """
 
 from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from modules.deep_company_analysis.chapter4_peer_auto import (
     DEFAULT_MAX_PEERS,
@@ -27,7 +32,7 @@ def main() -> None:
     print(f"Peer rows discovered: {len(discovery.peers)}")
     print(f"Peer tickers: {', '.join(discovery.tickers[:60])}")
     print(f"Discovery note: {discovery.note}")
-    print(f"Synthetic fallback: NO")
+    print("Synthetic fallback: NO")
 
     # Keep the live financial diagnostic bounded. The production UI may refresh the full discovered
     # universe; CI proves the same canonical pipeline on a small representative subset.
