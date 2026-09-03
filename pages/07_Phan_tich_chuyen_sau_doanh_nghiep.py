@@ -14,6 +14,7 @@ from modules.deep_company_analysis.opportunity_signals import OpportunityEventEv
 from modules.deep_company_analysis.trecapital_auto import build_chapter1_auto_data
 from modules.deep_company_analysis.chapter2_page_support import render_chapter2_tab
 from modules.deep_company_analysis.chapter3_page_support import render_chapter3_tab
+from modules.deep_company_analysis.chapter4 import render_chapter4
 from modules.investment_checklist.trecapital_bridge import CurrentRepoDataProvider
 from modules.investment_checklist.trecapital_debt_enricher import augment_debt_from_latest_fireant_raw
 from tre_full_width import apply_full_width
@@ -297,6 +298,7 @@ default_ticker = _safe_ticker(
         st.session_state.get("dca_ch1_ticker")
         or st.session_state.get("dca_ch2_ticker")
         or st.session_state.get("dca_ch3_ticker")
+        or st.session_state.get("dca_ch4_ticker")
         or st.session_state.get("active_ticker")
         or st.session_state.get("shared_ticker")
         or st.session_state.get("module2_ticker")
@@ -304,10 +306,11 @@ default_ticker = _safe_ticker(
     )
 ) or "DGC"
 
-chapter1_tab, chapter2_tab, chapter3_tab = st.tabs([
+chapter1_tab, chapter2_tab, chapter3_tab, chapter4_tab = st.tabs([
     "📗 Chương 1 — Cơ hội đầu tư",
     "📘 Chương 2 — Hiểu doanh nghiệp",
     "📙 Chương 3 — Góc nhìn khách hàng",
+    "📕 Chương 4 — Lợi thế & ngành",
 ])
 
 with chapter1_tab:
@@ -392,5 +395,18 @@ with chapter3_tab:
         )
     ) or default_ticker
     render_chapter3_tab(chapter3_ticker)
+
+with chapter4_tab:
+    chapter4_ticker = _safe_ticker(
+        str(
+            st.session_state.get("dca_ch4_ticker")
+            or st.session_state.get("dca_ch3_ticker")
+            or st.session_state.get("dca_ch2_ticker")
+            or st.session_state.get("dca_ch1_ticker")
+            or st.session_state.get("active_ticker")
+            or default_ticker
+        )
+    ) or default_ticker
+    render_chapter4(default_ticker=chapter4_ticker)
 
 apply_full_width()

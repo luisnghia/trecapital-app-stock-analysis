@@ -866,17 +866,25 @@ def render_chapter4(default_ticker: str = "DGC", company_name: str = "") -> None
     status = understanding_status(record)
     st.info(f"Research Understanding: **{STATUS_LABELS[status]}** — đây là mức độ hoàn tất nghiên cứu, không phải investment rating.")
 
-    with st.expander("Q15 — Sustainable Competitive Advantage", expanded=True):
+    q15_tab, q16_tab, q17_tab, q18_tab, q19_tab, q20_tab = st.tabs([
+        "Q15 — Lợi thế cạnh tranh",
+        "Q16 — Pricing Power",
+        "Q17 — Chất lượng ngành",
+        "Q18 — Tiến hóa ngành",
+        "Q19 — Cạnh tranh",
+        "Q20 — Nhà cung cấp",
+    ])
+    with q15_tab:
         _render_q15(record, ticker)
-    with st.expander("Q16 — Pricing Power", expanded=False):
+    with q16_tab:
         _render_q16(record, ticker)
-    with st.expander("Q17 — Good or Bad Industry", expanded=False):
+    with q17_tab:
         _render_q17(record, ticker)
-    with st.expander("Q18 — Industry Evolution", expanded=False):
+    with q18_tab:
         _render_q18(record, ticker)
-    with st.expander("Q19 — Competitive Landscape", expanded=False):
+    with q19_tab:
         _render_q19(record, ticker)
-    with st.expander("Q20 — Supplier Relationships", expanded=False):
+    with q20_tab:
         _render_q20(record, ticker)
 
     _render_synthesis(record, ticker)
