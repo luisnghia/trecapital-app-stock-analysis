@@ -13,22 +13,25 @@ The manual `Peer tickers` input and the separate `Đưa canonical peer snapshot 
 The app now:
 1. resolves the target ticker to its real Simplize same-industry page using the same `PublicSimplizeCrawler` already used by Trecapital's company-comparison page;
 2. reads the actual listed tickers; no synthetic peer fallback is allowed;
-3. orders the target first and peers by available market cap; the automatic financial crawl is bounded at 25 tickers per run to prevent an unbounded network fan-out;
-4. on `Tự động lấy cùng ngành + BCTC và cập nhật Q17/Q19`, refreshes each peer through Module 1's existing `FireAnt + Vietstock` source and normalization/cache pipeline using low-level fetch/export functions, so the active ticker is not changed and `st.rerun` is not triggered for every peer;
-5. rebuilds canonical Chapter 4 snapshots and writes the quantitative rows directly into `q17_industry_peers` while preserving analyst `Comment` fields;
-6. uses the same peer table for Q19 Table 4.2 quantitative benchmark.
+3. orders the target first and peers by available market cap; the automatic universe accepts up to 60 actual same-industry tickers per run, enough for the current DGC/Hóa chất universe returned by the source, while still bounding network fan-out;
+4. refreshes the discovered peer universe with a deliberately small maximum of 3 concurrent workers to reduce waiting time without hammering public data sources;
+5. on `Tự động lấy cùng ngành + BCTC và cập nhật Q17/Q19`, refreshes each peer through Module 1's existing `FireAnt + Vietstock` source and normalization/cache pipeline using low-level fetch/export functions, so the active ticker is not changed and `st.rerun` is not triggered for every peer;
+6. rebuilds canonical Chapter 4 snapshots and writes the quantitative rows directly into `q17_industry_peers` while preserving analyst `Comment` fields;
+7. uses the same peer table for Q19 Table 4.2 quantitative benchmark.
 
-If peer discovery fails, the app may use the previously saved peer set only. It must not invent peers.
+If peer discovery fails, the app may use the previously saved peer set only. It must not invent peers. If a discovered peer cannot obtain canonical statements, that peer remains missing/Unknown rather than being replaced with another data source or fabricated values.
 
 ## Phase 4C evidence architecture
 
 Research Assistant searches four focused evidence groups:
-- Q15/Q16 — competitive-advantage sources and actual pricing/customer-response evidence;
+- Q15/Q16 — competitive-advantage sources, erosion/threat evidence, and actual pricing/customer-response evidence;
 - Q17/Q18 — industry economics and >10-year/evolution/regime-change evidence;
 - Q19 — competitors, substitutes, low-cost foreign competition, price wars and competitor failures;
 - Q20 — suppliers, raw materials, supplier concentration, supply-chain disruption, commodity exposure and hedging.
 
-The agent reuses `WebEvidenceAgent`, official/company IR links and Trecapital's existing web-evidence cache. Search results are mapped to Chapter 4 evidence candidates.
+The agent reuses `WebEvidenceAgent`, official/company IR navigation sources and Trecapital's existing web-evidence cache. Search results are mapped to Chapter 4 evidence candidates.
+
+Direct-source navigation placeholders such as `Link nguồn ưu tiên` are **not evidence** and cannot enter the Evidence Matrix. Only actual search findings marked `Tìm thấy` may become evidence candidates.
 
 ### Q15 source mapping
 
@@ -62,9 +65,15 @@ Phase 4C is allowed to append rows automatically to the Chapter 4 Evidence Matri
 - `Direction = Supporting/Contradicting/Neutral — Candidate`
 - source title, URL, snippet, source quality and data origin
 
-It does not overwrite analyst-created evidence rows.
+It does not overwrite analyst-created evidence rows or analyst assessments.
 
-System evidence refresh uses `save_record(..., create_snapshot=False)` so analyst version history is not polluted by automated data/evidence refreshes. Analyst saves still create normal snapshots.
+System peer/evidence refresh uses `save_record(..., create_snapshot=False)` so analyst version history is not polluted by automated data/evidence refreshes. Analyst saves still create normal snapshots.
+
+## DGC live diagnostic — 03/09/2026
+
+The Phase 4C live CI diagnostic resolved DGC to `Hóa chất` and returned 31 same-industry listed tickers from the live source in that run. The diagnostic refreshed a representative canonical sample `DGC, VAF, NFC`; all 3/3 returned canonical bundles with 12 annual periods and 22 quarterly periods. No synthetic fallback was used.
+
+The same CI run returned zero qualified web evidence candidates for Q15–Q20. This is intentionally reported as zero rather than promoting source-navigation placeholders or fabricating evidence. It proves the no-fabrication guardrail; it does **not** mean the company has no relevant evidence. In the app, Research Assistant evidence coverage depends on reachable web/search sources and previously cached Trecapital evidence.
 
 ## Locked guardrails
 
@@ -91,6 +100,7 @@ Required tests:
 - Q15 brand/cost evidence remains candidate, not moat conclusion;
 - Q16 explicit pricing requires price + customer/volume evidence;
 - supplier risk remains evidence, not supplier rating;
+- direct source-navigation placeholders are not promoted to evidence;
 - evidence merge preserves saved analyst assessments/conclusions;
 - Chapter 1–4 full regression passes;
 - unified Streamlit deep-analysis page starts successfully.
