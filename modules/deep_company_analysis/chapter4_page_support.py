@@ -29,7 +29,9 @@ from modules.deep_company_analysis.chapter4_peer_auto import (
 from modules.deep_company_analysis.chapter4_evidence import (
     Chapter4EvidenceAgent,
     candidate_coverage,
+    evidence_quality_summary,
     merge_candidates_into_evidence_matrix,
+    research_gaps,
 )
 
 
@@ -136,9 +138,10 @@ def render_phase4c_evidence_bridge(ticker: str, company_name: str, industry_grou
     record = load_record(safe, company_name)
     existing = _phase4c_existing_rows(record)
     with st.container(border=True):
-        st.markdown("### 🔎 Phase 4C — Research Assistant Evidence Bridge")
+        st.markdown("### 🔎 Phase 4C.1 — Research Assistant Evidence Quality Bridge")
         st.caption(
-            "Research Assistant tìm supporting evidence + counter-evidence cho Q15–Q20 và tự đưa vào Evidence Matrix dưới trạng thái Candidate. "
+            "Research Assistant ưu tiên nguồn gốc: IR/BCTN/BCTC chính thức → independent sources → search snippets; "
+            "sau đó tìm supporting + counter-evidence cho Q15–Q20 và đưa vào Evidence Matrix dưới trạng thái Candidate. "
             "Nó không được đổi Assessment, Trend, Confidence, Conclusion hay Research Gate."
         )
         if not existing.empty and "Question" in existing.columns:
@@ -150,7 +153,7 @@ def render_phase4c_evidence_bridge(ticker: str, company_name: str, industry_grou
         else:
             st.info("Chưa có evidence candidate Phase 4C được lưu cho mã này.")
 
-        if st.button("🌐 Cập nhật Evidence Q15–Q20", use_container_width=True, key=f"ch4c_refresh_evidence_{safe}"):
+        if st.button("🌐 Cập nhật Evidence chất lượng Q15–Q20", use_container_width=True, key=f"ch4c_refresh_evidence_{safe}"):
             with st.spinner(f"Research Assistant đang tìm supporting/counter-evidence cho {safe}..."):
                 result = Chapter4EvidenceAgent(m1.RAW_DIR).search(safe, company_name, industry_group, max_results_per_query=4)
                 latest = load_record(safe, company_name)
@@ -164,9 +167,23 @@ def render_phase4c_evidence_bridge(ticker: str, company_name: str, industry_grou
         if isinstance(candidates, pd.DataFrame) and not candidates.empty:
             coverage = candidate_coverage(candidates)
             st.caption("Candidate coverage mới nhất: " + " | ".join(f"{q}: {coverage[q]}" for q in coverage))
-            show_cols = [c for c in ["Question", "Subtopic", "Direction", "Evidence Quality", "Explicitness", "Title", "URL", "Snippet"] if c in candidates.columns]
-            st.dataframe(candidates[show_cols].head(80), use_container_width=True, hide_index=True, height=360)
-            st.warning("Direction và Explicitness đều là Research Assistant candidate. Analyst phải mở nguồn và xác minh trước khi dùng làm kết luận.")
+
+            quality = evidence_quality_summary(candidates)
+            if not quality.empty:
+                st.markdown("**Evidence Quality / Coverage Audit**")
+                st.dataframe(quality, use_container_width=True, hide_index=True, height=250)
+
+            gaps = research_gaps(candidates)
+            if gaps:
+                with st.expander(f"⚠ Research gaps còn mở ({len(gaps)})", expanded=True):
+                    for gap in gaps:
+                        st.write(f"- {gap}")
+            else:
+                st.success("Không còn coverage gap định lượng theo Phase 4C.1; analyst vẫn phải xác minh từng candidate trước khi kết luận.")
+
+            show_cols = [c for c in ["Question", "Subtopic", "Direction", "Evidence Quality", "Source Method", "Explicitness", "Title", "URL", "Snippet"] if c in candidates.columns]
+            st.dataframe(candidates[show_cols].head(100), use_container_width=True, hide_index=True, height=420)
+            st.warning("Nguồn A/B, Direction và Explicitness đều chỉ là Research Assistant classification. Analyst phải mở nguồn gốc và xác minh trước khi dùng làm kết luận.")
         elif not existing.empty:
             show_cols = [c for c in ["Question", "Claim", "Direction", "Evidence Type", "Source Title", "Source URL / File", "Evidence Text", "Status"] if c in existing.columns]
             st.dataframe(existing[show_cols].tail(60), use_container_width=True, hide_index=True, height=320)
