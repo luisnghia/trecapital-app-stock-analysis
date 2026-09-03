@@ -1,0 +1,132 @@
+name: Chapter 4 Phase 4C.1 Evidence Quality V19
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-checklist
+    paths:
+      - 'modules/deep_company_analysis/chapter4_evidence.py'
+      - 'modules/deep_company_analysis/chapter4_page_support.py'
+      - 'modules/deep_company_analysis/test_chapter4_evidence.py'
+      - 'tools/dgc_chapter4_phase4c_e2e.py'
+      - 'scripts/apply_chapter4_phase4c1_ui_patch.py'
+      - 'docs/CHAPTER4_PHASE4C1_EVIDENCE_QUALITY.md'
+      - '.github/workflows/chapter4-phase4c1-v19.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  phase4c1-v19:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-checklist
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Apply Phase 4C.1 UI integration
+        run: python scripts/apply_chapter4_phase4c1_ui_patch.py
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: Compile Chapters 1-4 plus Phase 4C.1
+        run: |
+          python -m compileall -q modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py tools/dgc_chapter4_phase4c_e2e.py
+
+      - name: Run Phase 4C.1 evidence-quality acceptance
+        run: |
+          python -m pytest -q modules/deep_company_analysis/test_chapter4_evidence.py
+          python -m pytest -q modules/deep_company_analysis/test_chapter4_peer_auto.py
+          python -m pytest -q modules/deep_company_analysis/test_chapter4_quant.py
+          python -m pytest -q modules/deep_company_analysis/test_chapter4.py
+
+      - name: Run full Deep Analysis regression
+        run: python -m pytest -q modules/deep_company_analysis
+
+      - name: Run live DGC Phase 4C.1 diagnostic
+        shell: bash
+        run: |
+          set -o pipefail
+          python tools/dgc_chapter4_phase4c_e2e.py | tee dgc_chapter4_phase4c1_e2e.log
+
+      - name: Smoke-test unified Deep Analysis page
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8513 > /tmp/ch4c1_v19.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8513/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then cat /tmp/ch4c1_v19.log; kill "$PID" 2>/dev/null || true; exit 1; fi
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+
+      - name: Commit integrated Phase 4C.1 UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add modules/deep_company_analysis/chapter4_page_support.py
+          if ! git diff --cached --quiet; then
+            git commit -m "feat(ch4): integrate Phase 4C.1 evidence quality UI"
+            git push origin HEAD:feature/deep-company-analysis-checklist
+          fi
+
+      - name: Build lightweight Windows offline package V19
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V19"
+          rm -rf dist
+          mkdir -p "dist/${PKG_NAME}"
+          rsync -a ./ "dist/${PKG_NAME}/" \
+            --exclude '.git' \
+            --exclude 'dist' \
+            --exclude 'offline_wheels' \
+            --exclude '.streamlit/secrets.toml' \
+            --exclude '.env' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude '*.log'
+          mkdir -p "dist/${PKG_NAME}/data_cache"
+          test -f "dist/${PKG_NAME}/CHAY_TRECAPITAL_OFFLINE.bat"
+          test -f "dist/${PKG_NAME}/pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter4_evidence.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter4_page_support.py"
+          test -f "dist/${PKG_NAME}/docs/CHAPTER4_PHASE4C1_EVIDENCE_QUALITY.md"
+          test -f "dist/${PKG_NAME}/tools/dgc_chapter4_phase4c_e2e.py"
+          (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
+          sha256sum "dist/${PKG_NAME}.zip" > "dist/${PKG_NAME}.zip.sha256"
+
+      - name: Upload DGC Phase 4C.1 audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: DGC_Chapter4_Phase4C1_Evidence_Quality_Audit
+          path: dgc_chapter4_phase4c1_e2e.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload offline package V19
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Offline_V19_FINAL
+          path: |
+            dist/Trecapital_Deep_Analysis_Offline_V19.zip
+            dist/Trecapital_Deep_Analysis_Offline_V19.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
