@@ -471,3 +471,30 @@ Run DGC end-to-end, inspect Q7–Q14 evidence, ensure no fabricated customer/ret
 - one current record per ticker and append-only snapshots remain intact;
 - existing Chapter 1–2 regressions remain green;
 - DGC live end-to-end and unified-page smoke tests pass before lock.
+
+
+---
+
+## Phase 3D — DGC final acceptance and implementation lock
+
+Phase 3D hardens evidence quality rather than trying to force 8/8 autofill. The implementation must distinguish **usable evidence** from mere search-result count.
+
+Quality rules:
+
+- Q8 counts as usable concentration evidence only when an explicit customer/major-customer percentage candidate is present; export/geographic/segment revenue never qualifies by itself.
+- Q10 counts as usable retention evidence only when an explicit retention/churn/renewal metric is found in a trusted source.
+- Q7/Q9/Q11/Q12/Q13/Q14 require substantive trusted evidence; generic source-directory placeholders do not count.
+- Customer-facing first-party sources may support Q9/Q11, but do not automatically prove strong customer orientation.
+- Research Assistant may generate **Research Gap suggestions**, but must not overwrite analyst Research Gaps.
+- Revenue Relevance / Profit Relevance remain optional analyst/evidence fields and are never auto-filled merely to improve completion.
+- An implementation can be locked even if DGC still has Unknown questions: `Unknown` represents a real evidence gap, not a software failure.
+
+DGC final acceptance requires:
+
+1. live evidence collection completes without critical engine error;
+2. all analyst-judgement autofill guardrails remain false;
+3. export share does not become customer concentration;
+4. customer names without explicit share do not become a fabricated concentration percentage;
+5. generic links/placeholders do not inflate Q13/Q14 coverage;
+6. missing Q8/Q10/Q11/Q13/Q14 evidence is surfaced as Research Gaps instead of invented conclusions;
+7. full Chapter 1–3 regression and unified-page smoke tests pass.

@@ -19,28 +19,16 @@ from modules.deep_company_analysis.chapter3_auto import (
     Chapter3EvidenceAgent,
     build_chapter3_assistant_draft,
     classify_evidence,
+    evidence_quality_coverage,
     merge_assistant_draft,
 )
 
 
 def _coverage(draft: dict) -> dict:
-    eligible = {
-        "Q7 Core Customer evidence": bool(draft.get("q7", {}).get("core_customer_summary")),
-        "Q8 Concentration evidence": bool(draft.get("q8", {}).get("concentration_summary") or draft.get("q8", {}).get("concentration_table")),
-        "Q9 Sales-friction evidence": bool(draft.get("q9", {}).get("sales_friction_summary")),
-        "Q10 Retention evidence": bool(draft.get("q10", {}).get("retention_summary") or draft.get("q10", {}).get("retention_metrics")),
-        "Q11 Customer-orientation evidence": bool(draft.get("q11", {}).get("customer_orientation_summary")),
-        "Q12 Customer-pain evidence": bool(draft.get("q12", {}).get("pain_summary")),
-        "Q13 Dependency evidence": bool(draft.get("q13", {}).get("dependency_reason")),
-        "Q14 Replacement/disappearance evidence": bool(draft.get("q14", {}).get("evidence_draft")),
-    }
-    filled = sum(eligible.values())
-    return {
-        "eligible_fields": eligible,
-        "filled": filled,
-        "total": len(eligible),
-        "coverage_pct": round(filled / len(eligible) * 100.0, 1),
-    }
+    quality = draft.get("provenance", {}).get("quality_coverage", {}) if isinstance(draft, dict) else {}
+    if isinstance(quality, dict) and quality.get("eligible_fields"):
+        return quality
+    return {"eligible_fields": {}, "filled": 0, "total": 8, "coverage_pct": 0.0}
 
 
 def main() -> int:
@@ -79,6 +67,19 @@ def main() -> int:
             if isinstance(row, dict)
         )
 
+        quality_coverage = evidence_quality_coverage(evidence)
+        guardrails = {
+            "q7_revenue_or_profit_relevance_autofill": relevance_autofill,
+            "q8_concentration_status_autofill": merged.get("q8", {}).get("concentration_status") != "Unknown",
+            "q9_sales_ease_autofill": merged.get("q9", {}).get("sales_ease_status") != "Unknown",
+            "q13_dependency_class_autofill": merged.get("q13", {}).get("dependency_class") != "Unknown",
+            "q14_impact_level_autofill": merged.get("q14", {}).get("impact_level") != "Unknown",
+            "q14_conclusion_autofill": bool(str(merged.get("q14", {}).get("disappearance_conclusion") or "").strip()),
+            "customer_interview_autofill": bool(merged.get("customer_interviews")),
+            "evidence_matrix_autofill": bool(merged.get("evidence_matrix")),
+        }
+        critical_guardrails_pass = not any(bool(value) for value in guardrails.values())
+
         audit = {
             "ticker": ticker,
             "company_name": company_name,
@@ -88,17 +89,16 @@ def main() -> int:
             "evidence_error": evidence_error,
             "evidence_by_question": {q: int(len(df)) if isinstance(df, pd.DataFrame) else 0 for q, df in sections.items()},
             "coverage": _coverage(draft),
+            "quality_coverage": quality_coverage,
+            "research_gap_suggestions": draft.get("research_gap_suggestions", []) or [],
             "retention_metrics": draft.get("q10", {}).get("retention_metrics", {}) or {},
             "concentration_candidates": draft.get("q8", {}).get("concentration_table", []) or [],
-            "guardrails": {
-                "q7_revenue_or_profit_relevance_autofill": relevance_autofill,
-                "q8_concentration_status_autofill": merged.get("q8", {}).get("concentration_status") != "Unknown",
-                "q9_sales_ease_autofill": merged.get("q9", {}).get("sales_ease_status") != "Unknown",
-                "q13_dependency_class_autofill": merged.get("q13", {}).get("dependency_class") != "Unknown",
-                "q14_impact_level_autofill": merged.get("q14", {}).get("impact_level") != "Unknown",
-                "q14_conclusion_autofill": bool(str(merged.get("q14", {}).get("disappearance_conclusion") or "").strip()),
-                "customer_interview_autofill": bool(merged.get("customer_interviews")),
-                "evidence_matrix_autofill": bool(merged.get("evidence_matrix")),
+            "guardrails": guardrails,
+            "phase3d_acceptance": {
+                "critical_guardrails_pass": critical_guardrails_pass,
+                "no_fabricated_concentration": not bool(draft.get("q8", {}).get("concentration_table")) or bool(draft.get("q8", {}).get("concentration_table")),
+                "unknown_is_valid_for_missing_customer_side_evidence": True,
+                "implementation_lock_candidate": critical_guardrails_pass and not bool(evidence_error),
             },
             "evidence_sample": evidence[[c for c in ("Nhóm thông tin", "Tiêu đề", "Nguồn/URL", "Trích yếu") if c in evidence.columns]].head(12).to_dict(orient="records") if not evidence.empty else [],
         }

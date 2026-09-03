@@ -102,17 +102,21 @@ def _evidence_table(rows) -> pd.DataFrame:
 
 
 def _coverage(draft: dict) -> tuple[int, int, dict[str, bool]]:
+    quality = draft.get("provenance", {}).get("quality_coverage", {}) if isinstance(draft, dict) else {}
+    eligible = quality.get("eligible_fields") if isinstance(quality, dict) else None
+    if isinstance(eligible, dict) and eligible:
+        return sum(bool(v) for v in eligible.values()), len(eligible), eligible
     eligible = {
         "Q7 Core Customer evidence": bool(draft.get("q7", {}).get("core_customer_summary")),
-        "Q8 Concentration evidence": bool(draft.get("q8", {}).get("concentration_summary") or draft.get("q8", {}).get("concentration_table")),
+        "Q8 Concentration evidence": bool(draft.get("q8", {}).get("concentration_table")),
         "Q9 Sales-friction evidence": bool(draft.get("q9", {}).get("sales_friction_summary")),
-        "Q10 Retention evidence": bool(draft.get("q10", {}).get("retention_summary") or draft.get("q10", {}).get("retention_metrics")),
+        "Q10 Retention evidence": bool(draft.get("q10", {}).get("retention_metrics")),
         "Q11 Customer-orientation evidence": bool(draft.get("q11", {}).get("customer_orientation_summary")),
         "Q12 Customer-pain evidence": bool(draft.get("q12", {}).get("pain_summary")),
         "Q13 Dependency evidence": bool(draft.get("q13", {}).get("dependency_reason")),
         "Q14 Replacement/disappearance evidence": bool(draft.get("q14", {}).get("evidence_draft")),
     }
-    return sum(eligible.values()), len(eligible), eligible
+    return sum(bool(v) for v in eligible.values()), len(eligible), eligible
 
 
 def render_assistant_panel(ticker: str, draft: dict | None, company_name: str, error: str) -> None:
@@ -172,6 +176,13 @@ def render_assistant_panel(ticker: str, draft: dict | None, company_name: str, e
 
         retention = draft.get("q10", {}).get("retention_metrics", {}) or {}
         concentration = draft.get("q8", {}).get("concentration_table", []) or []
+        gaps = draft.get("research_gap_suggestions", []) or []
+        if gaps:
+            with st.expander("🧭 Research Gaps do Research Assistant phát hiện", expanded=False):
+                st.caption("Đây là danh sách việc cần nghiên cứu thêm; app không tự ghi đè Research Gaps của analyst.")
+                for gap in gaps:
+                    st.markdown(f"- {gap}")
+
         if retention or concentration:
             info_cols = st.columns(2)
             if retention:
