@@ -14,7 +14,7 @@ from modules.deep_company_analysis.opportunity_signals import OpportunityEventEv
 from modules.deep_company_analysis.trecapital_auto import build_chapter1_auto_data
 from modules.deep_company_analysis.chapter2_page_support import render_chapter2_tab
 from modules.deep_company_analysis.chapter3_page_support import render_chapter3_tab
-from modules.deep_company_analysis.chapter4 import render_chapter4
+from modules.deep_company_analysis.chapter4_page_support import render_chapter4_tab
 from modules.investment_checklist.trecapital_bridge import CurrentRepoDataProvider
 from modules.investment_checklist.trecapital_debt_enricher import augment_debt_from_latest_fireant_raw
 from tre_full_width import apply_full_width
@@ -407,6 +407,6 @@ with chapter4_tab:
             or default_ticker
         )
     ) or default_ticker
-    render_chapter4(default_ticker=chapter4_ticker)
+    render_chapter4_tab(chapter4_ticker)
 
 apply_full_width()

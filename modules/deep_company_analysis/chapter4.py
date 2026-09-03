@@ -542,7 +542,7 @@ def _render_intro() -> None:
 
 **Nguyên tắc:** Chương 4 không tạo *Moat Score* hay *Chapter Score*. Mỗi câu Q15–Q20 được phân rã theo logic của Michael Shearn; Trecapital chỉ quản lý evidence, counter-evidence, trend, history và các analytical records. **Current Assessment, Trend, Confidence và Conclusion là quyết định của Analyst.**
 
-**Phase 4A:** đây là Source-Locked Core. Chưa có Research Assistant tự kết luận. Phase 4B/4C sau này mới nối canonical data và evidence nhưng không được ghi đè analyst work.
+**Phase 4B:** Source-Locked Core vẫn là nơi Analyst kết luận; phía trên workspace có Quantitative Bridge đọc canonical Trecapital data cho margins/ROIC/CCC/peer context. Phase 4C mới bổ sung research-evidence candidates. Không lớp nào được ghi đè analyst work.
 """
         )
 
