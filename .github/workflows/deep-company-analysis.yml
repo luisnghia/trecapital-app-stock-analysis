@@ -18,6 +18,7 @@ on:
       - 'docs/CHAPTER2_PHASE2B_TRECAPITAL_EVIDENCE_BRIDGE.md'
       - 'docs/CHAPTER2_LOCKED_ACCEPTANCE_DGC.md'
       - 'docs/CHAPTER3_PHASE3B_CUSTOMER_EVIDENCE_BRIDGE.md'
+      - 'docs/CHAPTER3_LOCKED_ACCEPTANCE_DGC.md'
       - 'docs/DGC_CHAPTER1_TRIAL_AUTODATA_AUDIT.md'
       - 'CHAY_TRECAPITAL_OFFLINE.bat'
       - 'CAI_THU_VIEN_MOT_LAN.bat'
@@ -38,6 +39,7 @@ on:
       - 'docs/CHAPTER2_PHASE2B_TRECAPITAL_EVIDENCE_BRIDGE.md'
       - 'docs/CHAPTER2_LOCKED_ACCEPTANCE_DGC.md'
       - 'docs/CHAPTER3_PHASE3B_CUSTOMER_EVIDENCE_BRIDGE.md'
+      - 'docs/CHAPTER3_LOCKED_ACCEPTANCE_DGC.md'
       - 'docs/DGC_CHAPTER1_TRIAL_AUTODATA_AUDIT.md'
       - 'CHAY_TRECAPITAL_OFFLINE.bat'
       - 'CAI_THU_VIEN_MOT_LAN.bat'
@@ -86,12 +88,16 @@ jobs:
       - name: Run Chapter 3 customer-evidence guardrails explicitly
         run: |
           python -m pytest -q modules/deep_company_analysis/test_chapter3_auto.py
+      - name: Run Chapter 3 Phase 3D lock acceptance explicitly
+        run: |
+          python -m pytest -q modules/deep_company_analysis/test_chapter3_phase3d.py
+          test -f docs/CHAPTER3_LOCKED_ACCEPTANCE_DGC.md
       - name: Run live DGC Chapter 2 end-to-end diagnostic
         shell: bash
         run: |
           set -euo pipefail
           python tools/dgc_chapter2_e2e.py | tee dgc_chapter2_e2e.log
-      - name: Run live DGC Chapter 3 end-to-end diagnostic
+      - name: Run live DGC Chapter 3 end-to-end lock diagnostic
         shell: bash
         run: |
           set -euo pipefail
@@ -126,11 +132,11 @@ jobs:
           if [ "$OK" -ne 1 ]; then cat /tmp/trecapital_dca_ch2_legacy.log; kill "$PID" 2>/dev/null || true; exit 1; fi
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
-      - name: Build lightweight Windows offline package V14
+      - name: Build lightweight Windows offline package V15
         shell: bash
         run: |
           set -euo pipefail
-          PKG_NAME="Trecapital_Deep_Analysis_Offline_V14"
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V15"
           rm -rf dist
           mkdir -p "dist/${PKG_NAME}"
           rsync -a ./ "dist/${PKG_NAME}/" \
@@ -154,9 +160,11 @@ jobs:
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter2_page_support.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter3_auto.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter3_page_support.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/test_chapter3_phase3d.py"
           test -f "dist/${PKG_NAME}/docs/CONTEXT_DEEP_COMPANY_ANALYSIS_CHAPTER3.md"
           test -f "dist/${PKG_NAME}/docs/CHAPTER2_LOCKED_ACCEPTANCE_DGC.md"
           test -f "dist/${PKG_NAME}/docs/CHAPTER3_PHASE3B_CUSTOMER_EVIDENCE_BRIDGE.md"
+          test -f "dist/${PKG_NAME}/docs/CHAPTER3_LOCKED_ACCEPTANCE_DGC.md"
           test ! -d "dist/${PKG_NAME}/offline_wheels"
           (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
           sha256sum "dist/${PKG_NAME}.zip" > "dist/${PKG_NAME}.zip.sha256"
@@ -167,19 +175,19 @@ jobs:
           path: dgc_chapter2_e2e.log
           if-no-files-found: error
           retention-days: 30
-      - name: Upload DGC Chapter 3 E2E audit
+      - name: Upload DGC Chapter 3 E2E lock audit
         uses: actions/upload-artifact@v4
         with:
-          name: DGC_Chapter3_E2E_Audit
+          name: DGC_Chapter3_E2E_Lock_Audit
           path: dgc_chapter3_e2e.log
           if-no-files-found: error
           retention-days: 30
-      - name: Upload offline package V14
+      - name: Upload offline package V15
         uses: actions/upload-artifact@v4
         with:
-          name: Trecapital_Deep_Analysis_Offline_V14
+          name: Trecapital_Deep_Analysis_Offline_V15
           path: |
-            dist/Trecapital_Deep_Analysis_Offline_V14.zip
-            dist/Trecapital_Deep_Analysis_Offline_V14.zip.sha256
+            dist/Trecapital_Deep_Analysis_Offline_V15.zip
+            dist/Trecapital_Deep_Analysis_Offline_V15.zip.sha256
           if-no-files-found: error
           retention-days: 30
