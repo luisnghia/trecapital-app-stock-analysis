@@ -310,12 +310,21 @@ def build_lock_audit(
     provenance_ok = bool(prov["Passed"].all()) if not prov.empty else True
     c_rows = retained.get("Evidence Quality", pd.Series(dtype=str)).fillna("").astype(str).str.startswith("C —").sum() if not retained.empty else 0
     noise_ok = not any(_obvious_noise(f"{row.get('Title','')} {row.get('Snippet','')}") for _, row in retained.iterrows()) if not retained.empty else True
-    q16_has_corroboration = isinstance(result.pricing_corroboration, pd.DataFrame) and not result.pricing_corroboration.empty
+    corroboration = result.pricing_corroboration if isinstance(result.pricing_corroboration, pd.DataFrame) else pd.DataFrame()
+    if not corroboration.empty and "Corroboration status" in corroboration.columns:
+        q16_confirmed_corroboration = bool(
+            corroboration["Corroboration status"].fillna("").astype(str).str.startswith("Period-level corroboration candidate").any()
+        )
+    else:
+        q16_confirmed_corroboration = False
     covered_ab = int(coverage["Candidates"].fillna(0).astype(int).gt(0).sum()) if not coverage.empty else 0
     gaps = [
         f"Q19 — {row['Q19 logic']}: chưa có evidence A/B đủ điều kiện; giữ Research Gap."
         for _, row in coverage.iterrows() if int(row.get("Candidates") or 0) == 0
     ]
+    if not q16_confirmed_corroboration:
+        gaps.insert(0, "Q16 — chưa có period-level multi-source corroboration đủ điều kiện; giữ Research Gap và không kết luận Pricing Power.")
+    q16_gap_visible = bool(q16_confirmed_corroboration or any(gap.startswith("Q16") for gap in gaps))
     # Missing failure evidence is acceptable for module lock only when it stays explicit; fabrication would fail.
     failure_gap_visible = bool(len(failures) > 0 or any("Why Competitors Failed" in gap for gap in gaps))
 
@@ -326,7 +335,7 @@ def build_lock_audit(
         ("Research Assistant guardrails all disabled", guardrails_ok, f"flags={len(guardrails)}"),
         ("Retained evidence provenance complete", provenance_ok, f"rows={len(retained)}"),
         ("Obvious search noise quarantined", noise_ok, f"quarantined={len(quarantined)}; retained_C={int(c_rows)}"),
-        ("Q16 has multi-source corroboration candidate", q16_has_corroboration, f"rows={len(result.pricing_corroboration)}"),
+        ("Q16 corroboration is confirmed or explicit Research Gap", q16_gap_visible, f"confirmed={q16_confirmed_corroboration}; rows={len(corroboration)}"),
         ("Q19 substantial A/B coverage", covered_ab >= 6, f"covered={covered_ab}/8"),
         ("Competitor-failure gap is evidence-based or explicitly visible", failure_gap_visible, f"legitimate_failure_rows={len(failures)}"),
     ]
