@@ -116,7 +116,7 @@ def test_merge_preserves_all_analyst_conclusions_and_manual_rows():
 
 def test_conflicting_evidence_is_preserved_side_by_side():
     candidates = candidate_rows(_raw([
-        _row("Q23", "Rủi ro gián đoạn nguồn cung giảm và tình hình ổn định.", url="https://example.com/support"),
+        _row("Q23", "Nhà cung cấp ổn định và nguồn cung được cải thiện.", url="https://example.com/support"),
         _row("Q23", "Rủi ro gián đoạn nguồn cung tăng mạnh gây áp lực sản xuất.", url="https://example.com/counter"),
     ]))
     assert len(candidates) == 2
