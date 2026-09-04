@@ -1,0 +1,127 @@
+name: Chapter 5 Phase 5A Source-Locked Core V23
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-checklist
+    paths:
+      - 'modules/deep_company_analysis/chapter5.py'
+      - 'modules/deep_company_analysis/test_chapter5.py'
+      - 'tools/dgc_chapter5_phase5a_e2e.py'
+      - 'scripts/apply_chapter5_phase5a_ui_patch.py'
+      - 'docs/CHAPTER5_APPROVED_PHASE5A.md'
+      - '.github/workflows/chapter5-phase5a-v23.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  phase5a-v23:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-checklist
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Apply Chapter 5 UI integration
+        run: python scripts/apply_chapter5_phase5a_ui_patch.py
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: Compile Chapters 1-5
+        run: |
+          python -m compileall -q modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py tools/dgc_chapter5_phase5a_e2e.py
+
+      - name: Run Chapter 5 Phase 5A acceptance tests
+        run: python -m pytest -q modules/deep_company_analysis/test_chapter5.py
+
+      - name: Run full Deep Analysis regression
+        run: python -m pytest -q modules/deep_company_analysis
+
+      - name: Run DGC Chapter 5 Phase 5A diagnostic
+        shell: bash
+        run: |
+          set -o pipefail
+          python tools/dgc_chapter5_phase5a_e2e.py | tee dgc_chapter5_phase5a_e2e.log
+
+      - name: Smoke-test unified Deep Analysis page
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8518 > /tmp/ch5_v23.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8518/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then cat /tmp/ch5_v23.log; kill "$PID" 2>/dev/null || true; exit 1; fi
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+
+      - name: Commit integrated Chapter 5 tab
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+          if ! git diff --cached --quiet; then
+            git commit -m "feat(ch5): integrate approved Phase 5A tab"
+            git push origin HEAD:feature/deep-company-analysis-checklist
+          fi
+
+      - name: Build Windows offline package V23
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V23_CHAPTER5_PHASE5A"
+          rm -rf dist
+          mkdir -p "dist/${PKG_NAME}"
+          rsync -a ./ "dist/${PKG_NAME}/" \
+            --exclude '.git' \
+            --exclude 'dist' \
+            --exclude 'offline_wheels' \
+            --exclude '.streamlit/secrets.toml' \
+            --exclude '.env' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude '*.log'
+          mkdir -p "dist/${PKG_NAME}/data_cache"
+          test -f "dist/${PKG_NAME}/CHAY_TRECAPITAL_OFFLINE.bat"
+          test -f "dist/${PKG_NAME}/pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter5.py"
+          test -f "dist/${PKG_NAME}/docs/CHAPTER5_APPROVED_PHASE5A.md"
+          (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
+          sha256sum "dist/${PKG_NAME}.zip" > "dist/${PKG_NAME}.zip.sha256"
+
+      - name: Upload DGC Phase 5A audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: DGC_Chapter5_Phase5A_Audit
+          path: dgc_chapter5_phase5a_e2e.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload offline package V23
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Offline_V23_CHAPTER5_PHASE5A
+          path: |
+            dist/Trecapital_Deep_Analysis_Offline_V23_CHAPTER5_PHASE5A.zip
+            dist/Trecapital_Deep_Analysis_Offline_V23_CHAPTER5_PHASE5A.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
