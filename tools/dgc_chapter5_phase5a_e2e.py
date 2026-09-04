@@ -6,6 +6,13 @@ Phase 5A intentionally does not fetch or infer canonical financial conclusions. 
 validates source-locked structure, Shearn Q23 defaults, no-Confidence policy and analyst guardrails.
 """
 
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from modules.deep_company_analysis.chapter5 import (
     QUESTION_KEYS,
     SHEARN_Q23_RISKS,
