@@ -8,6 +8,7 @@ on:
       - 'modules/deep_company_analysis/test_chapter5_phase5d.py'
       - 'tools/dgc_chapter5_phase5d_lock.py'
       - 'scripts/apply_ch5_phase5d_patch.py'
+      - 'scripts/apply_ch5_phase5d_source_hotfix.py'
       - 'docs/CHAPTER5_PHASE5D_LOCK.md'
       - '.github/workflows/chapter5-phase5d-lock-v26.yml'
   workflow_dispatch:
@@ -18,7 +19,7 @@ permissions:
 jobs:
   chapter5-phase5d-lock:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - name: Checkout feature branch
         uses: actions/checkout@v4
@@ -31,6 +32,9 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
+
+      - name: Apply Phase 5D source-resilience hotfix
+        run: python scripts/apply_ch5_phase5d_source_hotfix.py
 
       - name: Apply Phase 5D UI lock integration
         run: python scripts/apply_ch5_phase5d_patch.py
@@ -88,13 +92,15 @@ jobs:
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
 
-      - name: Commit tested Phase 5D UI integration
+      - name: Commit tested Phase 5D integration
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add modules/deep_company_analysis/chapter5_page_support.py
+          git add \
+            modules/deep_company_analysis/chapter5_page_support.py \
+            modules/deep_company_analysis/chapter5_evidence.py
           if ! git diff --cached --quiet; then
             git commit -m "feat(deep-analysis): lock Chapter 5 Phase 5D"
             git push origin HEAD:feature/deep-company-analysis-checklist
@@ -107,10 +113,11 @@ jobs:
           cat > CHAPTER5_PHASE5D_LOCK_MANIFEST.txt <<EOF
           Trecapital Deep Company Analysis — Chapter 5 Phase 5D
           Branch: feature/deep-company-analysis-checklist
-          Tested head before UI commit: $GITHUB_SHA
+          Tested head before integration commit: $GITHUB_SHA
           Implementation Lock: PASS
           Meaning: methodology/architecture/guardrails locked; NOT investment quality, Research Gate, BUY/HOLD/SELL, or analyst completion.
           Acceptance: Phase5D tests + Chapter5 regression + full Deep Analysis regression + DGC live canonical/evidence E2E + Streamlit smoke.
+          DGC source policy: first-party source fallbacks allowed; synthetic evidence and parallel financial data forbidden.
           EOF
 
       - name: Build Windows offline package V26
@@ -134,6 +141,7 @@ jobs:
           test -f "dist/${PKG_NAME}/CHAY_TRECAPITAL_OFFLINE.bat"
           test -f "dist/${PKG_NAME}/pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py"
           test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter5_lock.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter5_evidence.py"
           test -f "dist/${PKG_NAME}/docs/CHAPTER5_PHASE5D_LOCK.md"
           test -f "dist/${PKG_NAME}/CHAPTER5_PHASE5D_LOCK_MANIFEST.txt"
           (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
