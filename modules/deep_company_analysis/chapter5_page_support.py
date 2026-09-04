@@ -11,8 +11,15 @@ import streamlit as st
 import module1_dashboard as m1
 from module1_engine import append_ttm_row
 from modules.deep_company_analysis.chapter2_page_support import _active_paths, _path_signature
-from modules.deep_company_analysis.chapter5 import load_record, render_chapter5
+from modules.deep_company_analysis.chapter5 import load_record, render_chapter5, save_record
 from modules.deep_company_analysis.chapter5_quant import build_chapter5_quant_context
+from modules.deep_company_analysis.chapter5_evidence import (
+    Chapter5EvidenceAgent,
+    evidence_quality_summary,
+    guardrails as phase5c_guardrails,
+    merge_candidates_into_record,
+    research_gaps,
+)
 
 
 def _safe_ticker(value: Any) -> str:
@@ -236,6 +243,119 @@ def render_phase5b_quantitative_bridge(ticker: str) -> tuple[str, str]:
     return safe, company_name
 
 
+
+def render_phase5c_research_assistant(ticker: str, company_name: str = "") -> None:
+    """Research evidence only; never mutates analyst conclusions automatically."""
+    safe = _safe_ticker(ticker) or "DGC"
+    session_key = f"ch5c_result_{safe}"
+    gaps_key = f"ch5c_gaps_{safe}"
+    note_key = f"ch5c_note_{safe}"
+    audit_key = f"ch5c_audit_{safe}"
+
+    with st.container(border=True):
+        st.markdown("### 🔎 Phase 5C — Research Assistant Q21–Q26")
+        st.caption(
+            "Assistant tìm Candidate Evidence + Counter-Evidence và Research Gaps. "
+            "Không tự sửa Q21–Q26, không tự chọn KPI critical, không chấm Frequency/Severity, "
+            "không kết luận Strong/Weak Balance Sheet, High-quality ROIC hay Compounder."
+        )
+        st.info(
+            "Ưu tiên: nguồn doanh nghiệp/IR & công bố chính thức → nguồn tài chính độc lập → nguồn bối cảnh. "
+            "Search result/link điều hướng không được coi là bằng chứng."
+        )
+
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            run = st.button(
+                "🔎 Nghiên cứu tự động Q21–Q26",
+                use_container_width=True,
+                key=f"ch5c_run_{safe}",
+                type="primary",
+            )
+        with c2:
+            if st.button("🧹 Xóa kết quả tạm", use_container_width=True, key=f"ch5c_clear_{safe}"):
+                for key in (session_key, gaps_key, note_key, audit_key):
+                    st.session_state.pop(key, None)
+                st.rerun()
+
+        if run:
+            record = load_record(safe, company_name)
+            quant_ctx, _ = load_chapter5_quant(safe, record)
+            raw_dir = Path(__file__).resolve().parents[2] / "data_cache" / "deep_company_analysis_evidence"
+            with st.spinner(f"Đang nghiên cứu source-first cho {safe} — Q21 đến Q26..."):
+                result = Chapter5EvidenceAgent(raw_dir).search(safe, company_name, max_results_per_query=4)
+                gaps = research_gaps(result.candidates, quant_ctx)
+            st.session_state[session_key] = result.candidates
+            st.session_state[gaps_key] = gaps
+            st.session_state[note_key] = result.note
+            st.session_state[audit_key] = result.source_audit
+
+        candidates = st.session_state.get(session_key)
+        gaps = st.session_state.get(gaps_key, [])
+        note = str(st.session_state.get(note_key, ""))
+        if isinstance(candidates, pd.DataFrame):
+            if note:
+                st.success(note)
+            summary = evidence_quality_summary(candidates)
+            st.markdown("**Evidence Coverage — Research completeness, không phải investment-quality score**")
+            st.dataframe(summary, use_container_width=True, hide_index=True, height=250)
+
+            if not candidates.empty:
+                display_cols = [
+                    "Question", "Subtopic", "Direction", "Evidence Quality", "Explicitness",
+                    "Title", "URL", "Snippet", "Source Method",
+                ]
+                st.markdown("**Candidate Evidence / Counter-Evidence**")
+                st.dataframe(
+                    candidates[[c for c in display_cols if c in candidates.columns]],
+                    use_container_width=True,
+                    hide_index=True,
+                    height=430,
+                )
+                st.caption(
+                    "Direction chỉ là hướng candidate để chống confirmation bias; analyst phải mở nguồn gốc và xác minh. "
+                    "Không có Candidate nào tự chuyển thành Verified."
+                )
+            else:
+                st.warning("Chưa lấy được Candidate Evidence usable. App không bịa evidence để lấp chỗ trống.")
+
+            if gaps:
+                st.markdown("**Research Gaps được gợi ý**")
+                st.dataframe(pd.DataFrame(gaps), use_container_width=True, hide_index=True, height=min(360, 80 + 45 * len(gaps)))
+
+            if st.button(
+                "➕ Lưu Candidate Evidence + Research Gaps vào Chương 5",
+                use_container_width=True,
+                key=f"ch5c_save_{safe}",
+                disabled=candidates.empty and not gaps,
+            ):
+                current = load_record(safe, company_name)
+                before_analyst = {
+                    q: dict(current.get(q, {})) for q in ("q21", "q22", "q23", "q24", "q25", "q26")
+                }
+                merged = merge_candidates_into_record(current, candidates, gaps)
+                # Hard runtime assertion: research refresh must not alter analyst judgement objects.
+                after_analyst = {
+                    q: dict(merged.get(q, {})) for q in ("q21", "q22", "q23", "q24", "q25", "q26")
+                }
+                if after_analyst != before_analyst:
+                    raise RuntimeError("Phase 5C guardrail breach: analyst Q21–Q26 fields changed")
+                save_record(merged, create_snapshot=False)
+                st.success(
+                    "Đã lưu dưới trạng thái Candidate — Analyst verify. Không tạo analyst snapshot mới và không thay kết luận Q21–Q26."
+                )
+
+            with st.expander("🛡️ Phase 5C guardrails & source audit", expanded=False):
+                st.write(phase5c_guardrails())
+                st.write(st.session_state.get(audit_key, {}))
+                st.caption(
+                    "Missing evidence = Research Gap, không phải Low Risk. Media attention không phải Severity. "
+                    "Canonical financial data vẫn thuộc Trecapital Data Layer / Phase 5B."
+                )
+        else:
+            st.caption("Bấm Nghiên cứu tự động để tạo evidence candidates. Không chạy ngầm và không tự thay analyst judgement.")
+
 def render_chapter5_tab(default_ticker: str) -> None:
     safe, company_name = render_phase5b_quantitative_bridge(default_ticker)
+    render_phase5c_research_assistant(safe, company_name)
     render_chapter5(default_ticker=safe, company_name=company_name)
