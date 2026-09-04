@@ -323,33 +323,32 @@ def _risk_key(row: dict[str, Any]) -> str:
 
 
 def ensure_shearn_risks(rows: Any) -> list[dict[str, Any]]:
-    """Keep all Shearn defaults and preserve analyst-added risks.
+    """Normalize only the Q23 risk rows that currently exist.
 
-    Analyst-added rows with blank Origin are normalized to Analyst-defined.  Shearn rows cannot be
-    silently relabelled as Analyst-defined.
+    Shearn's 17 risks are seeded only when a brand-new Chapter-5 record is created via
+    ``empty_payload``.  After that, the analyst owns the register: deleting one or all
+    default rows is persistent and this function must never silently re-create them.
+
+    Rows whose risk name still matches a Shearn default retain the canonical bilingual
+    label and ``Origin = Shearn``.  Any other row is treated as ``Analyst-defined``.
     """
     incoming = [dict(x) for x in rows] if isinstance(rows, list) else []
-    incoming_by_key = {_risk_key(row): row for row in incoming if _risk_key(row)}
+    defaults = {_risk_key(row): row for row in _default_risk_rows()}
     result: list[dict[str, Any]] = []
-
-    for default in _default_risk_rows():
-        key = _risk_key(default)
-        merged = {**default, **incoming_by_key.pop(key, {})}
-        merged["Risk"] = default["Risk"]
-        merged["Risk (VI)"] = default["Risk (VI)"]
-        merged["Origin"] = "Shearn"
-        result.append(merged)
 
     for row in incoming:
         key = _risk_key(row)
-        if not key or key not in incoming_by_key:
+        if not key:
             continue
         normalized = {col: row.get(col, "") for col in RISK_COLUMNS}
-        normalized["Origin"] = str(normalized.get("Origin") or "Analyst-defined")
-        if normalized["Origin"] == "Shearn":
+        default = defaults.get(key)
+        if default is not None:
+            normalized["Risk"] = default["Risk"]
+            normalized["Risk (VI)"] = default["Risk (VI)"]
+            normalized["Origin"] = "Shearn"
+        else:
             normalized["Origin"] = "Analyst-defined"
         result.append(normalized)
-        incoming_by_key.pop(key, None)
     return result
 
 
@@ -395,6 +394,10 @@ def load_record(ticker: str, company_name: str = "") -> dict[str, Any]:
     record = _merge_dict(base, payload)
     record["ticker"] = ticker
     record["company_name"] = company_name or record.get("company_name", "")
+    # Defaults belong only to a new record.  For an existing record, a missing/empty Q23
+    # list means the analyst has no saved default rows and must not be silently repopulated.
+    if "q23_risks" not in payload:
+        record["q23_risks"] = []
     record["q23_risks"] = ensure_shearn_risks(record.get("q23_risks"))
     return _strip_confidence_fields(record)
 
@@ -601,8 +604,8 @@ def render_chapter5(default_ticker: str = "DGC", company_name: str = "") -> None
     with st.expander("Q23 — What are the key risks the business faces?", expanded=True):
         q23_status, q23_trend = _question_header(record, "Q23", "Những rủi ro trọng yếu mà doanh nghiệp đối mặt là gì?", prefix)
         st.warning("Shearn: đánh giá risk theo Frequency + Severity và historical evidence. Mức độ báo chí nhắc đến không phải thước đo rủi ro. Không có dữ liệu không đồng nghĩa Low Risk.")
-        st.markdown("**17 rủi ro mặc định dưới đây là các operational-risk examples Shearn nêu trực tiếp trong Chương 5. Người phân tích có thể thêm dòng mới; dòng mới sẽ được lưu là `Analyst-defined`.**")
-        risk_df = _editor("Risk Underwriter Register — Shearn defaults + Analyst-defined risks", record.get("q23_risks", []), RISK_COLUMNS, f"{prefix}_q23_risks", 520)
+        st.markdown("**Khi tạo mới bản ghi Chương 5, app nạp sẵn 17 operational-risk examples Shearn nêu trong sách. Sau đó người phân tích toàn quyền xóa các dòng không phù hợp hoặc thêm rủi ro mới. Rủi ro đã xóa sẽ không tự xuất hiện lại khi lưu/mở lại; dòng mới được lưu là `Analyst-defined`.**")
+        risk_df = _editor("Risk Underwriter Register — Shearn defaults chỉ seed khi tạo mới + Analyst-defined risks", record.get("q23_risks", []), RISK_COLUMNS, f"{prefix}_q23_risks", 520)
         q23_material = st.text_input("Rủi ro trọng yếu nhất", value=str(record.get("q23", {}).get("most_material_risk", "")), key=f"{prefix}_q23_material")
         q23_unknown = st.text_input("Rủi ro lớn nhất còn chưa hiểu", value=str(record.get("q23", {}).get("largest_unknown_risk", "")), key=f"{prefix}_q23_unknown")
         q23_downside = st.text_area("Downside scenario / valuation linkage", value=str(record.get("q23", {}).get("downside_scenario_link", "")), key=f"{prefix}_q23_downside")
