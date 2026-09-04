@@ -1,0 +1,160 @@
+name: Chapter 5 Phase 5D End-to-End Lock V26
+
+on:
+  push:
+    branches: [feature/deep-company-analysis-checklist]
+    paths:
+      - 'modules/deep_company_analysis/chapter5_lock.py'
+      - 'modules/deep_company_analysis/test_chapter5_phase5d.py'
+      - 'tools/dgc_chapter5_phase5d_lock.py'
+      - 'scripts/apply_ch5_phase5d_patch.py'
+      - 'docs/CHAPTER5_PHASE5D_LOCK.md'
+      - '.github/workflows/chapter5-phase5d-lock-v26.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  chapter5-phase5d-lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-checklist
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Apply Phase 5D UI lock integration
+        run: python scripts/apply_ch5_phase5d_patch.py
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: Compile Chapter 5 lock stack
+        run: |
+          python -m compileall -q \
+            modules/deep_company_analysis/chapter5.py \
+            modules/deep_company_analysis/chapter5_quant.py \
+            modules/deep_company_analysis/chapter5_evidence.py \
+            modules/deep_company_analysis/chapter5_lock.py \
+            modules/deep_company_analysis/chapter5_page_support.py \
+            pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
+            tools/dgc_chapter5_phase5d_lock.py
+
+      - name: Run Phase 5D acceptance tests
+        run: python -m pytest -q modules/deep_company_analysis/test_chapter5_phase5d.py
+
+      - name: Run Chapter 5 full regression
+        run: |
+          python -m pytest -q \
+            modules/deep_company_analysis/test_chapter5.py \
+            modules/deep_company_analysis/test_chapter5_q23_deletable_defaults.py \
+            modules/deep_company_analysis/test_chapter5_q23_ui.py \
+            modules/deep_company_analysis/test_chapter5_phase5b.py \
+            modules/deep_company_analysis/test_chapter5_phase5c.py \
+            modules/deep_company_analysis/test_chapter5_phase5d.py
+
+      - name: Run full Deep Analysis regression
+        run: python -m pytest -q modules/deep_company_analysis
+
+      - name: Run DGC canonical + source-first Phase 5D lock
+        shell: bash
+        run: |
+          set -o pipefail
+          python tools/dgc_chapter5_phase5d_lock.py | tee dgc_chapter5_phase5d_lock.log
+
+      - name: Smoke-test unified Deep Analysis page
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8527 > /tmp/ch5_v26.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 35); do
+            if curl -fsS http://127.0.0.1:8527/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then cat /tmp/ch5_v26.log; kill "$PID" 2>/dev/null || true; exit 1; fi
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+
+      - name: Commit tested Phase 5D UI integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add modules/deep_company_analysis/chapter5_page_support.py
+          if ! git diff --cached --quiet; then
+            git commit -m "feat(deep-analysis): lock Chapter 5 Phase 5D"
+            git push origin HEAD:feature/deep-company-analysis-checklist
+          fi
+
+      - name: Write Chapter 5 lock manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > CHAPTER5_PHASE5D_LOCK_MANIFEST.txt <<EOF
+          Trecapital Deep Company Analysis — Chapter 5 Phase 5D
+          Branch: feature/deep-company-analysis-checklist
+          Tested head before UI commit: $GITHUB_SHA
+          Implementation Lock: PASS
+          Meaning: methodology/architecture/guardrails locked; NOT investment quality, Research Gate, BUY/HOLD/SELL, or analyst completion.
+          Acceptance: Phase5D tests + Chapter5 regression + full Deep Analysis regression + DGC live canonical/evidence E2E + Streamlit smoke.
+          EOF
+
+      - name: Build Windows offline package V26
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V26_CHAPTER5_PHASE5D_LOCKED"
+          rm -rf dist
+          mkdir -p "dist/${PKG_NAME}"
+          rsync -a ./ "dist/${PKG_NAME}/" \
+            --exclude '.git' \
+            --exclude 'dist' \
+            --exclude 'offline_wheels' \
+            --exclude '.streamlit/secrets.toml' \
+            --exclude '.env' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude '*.log' \
+            --exclude 'data_cache/deep_company_analysis_phase5d_ci'
+          mkdir -p "dist/${PKG_NAME}/data_cache"
+          test -f "dist/${PKG_NAME}/CHAY_TRECAPITAL_OFFLINE.bat"
+          test -f "dist/${PKG_NAME}/pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter5_lock.py"
+          test -f "dist/${PKG_NAME}/docs/CHAPTER5_PHASE5D_LOCK.md"
+          test -f "dist/${PKG_NAME}/CHAPTER5_PHASE5D_LOCK_MANIFEST.txt"
+          (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
+          sha256sum "dist/${PKG_NAME}.zip" > "dist/${PKG_NAME}.zip.sha256"
+
+      - name: Upload DGC Phase 5D lock audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: DGC_Chapter5_Phase5D_Lock_Audit_V26
+          path: |
+            dgc_chapter5_phase5d_lock.log
+            CHAPTER5_PHASE5D_LOCK_MANIFEST.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Chapter 5 locked offline package V26
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Offline_V26_CHAPTER5_PHASE5D_LOCKED
+          path: |
+            dist/Trecapital_Deep_Analysis_Offline_V26_CHAPTER5_PHASE5D_LOCKED.zip
+            dist/Trecapital_Deep_Analysis_Offline_V26_CHAPTER5_PHASE5D_LOCKED.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
