@@ -33,6 +33,10 @@ from modules.deep_company_analysis.chapter4_evidence import (
     _norm,
     _source_quality,
 )
+from modules.deep_company_analysis.chapter4_c2_registered_sources import (
+    fetch_registered_pricing_raw,
+    fetch_registered_q19_raw,
+)
 
 
 PRICE_TERMS = (
@@ -255,9 +259,18 @@ class PricingPowerEvidenceEngine:
                     raw_frames.append(pd.DataFrame(extracted))
                 official_audit.append({"url": url, "status": status, "rows": len(extracted)})
 
+        registered_df, registered_audit = fetch_registered_pricing_raw(self.raw_dir, safe)
+        if not registered_df.empty:
+            raw_frames.append(registered_df)
+
         raw = pd.concat(raw_frames, ignore_index=True) if raw_frames else pd.DataFrame()
         candidates = _pricing_candidate_rows(raw)
-        return candidates, {"queries": queries, "search": search_audit, "official": official_audit}
+        return candidates, {
+            "queries": queries,
+            "search": search_audit,
+            "official": official_audit,
+            "registered": registered_audit,
+        }
 
 
 def build_competitor_universe(peer_df: pd.DataFrame, target: str, max_peers: int = 12) -> pd.DataFrame:
@@ -371,8 +384,12 @@ class CompetitorIntelligenceEngine:
         raw, audit = _search_rows(
             self.raw_dir, queries, max_results_per_query=3, source_method="Q19 competitor targeted search snippet"
         )
+        registered_df, registered_audit = fetch_registered_q19_raw(self.raw_dir, safe)
+        if not registered_df.empty:
+            raw = pd.concat([raw, registered_df], ignore_index=True, sort=False) if not raw.empty else registered_df
+            raw = raw.drop_duplicates(subset=["Nguồn/URL", "Trích yếu"], keep="first").reset_index(drop=True)
         candidates = _q19_candidate_rows(raw)
-        return universe, candidates, {"queries": queries, "search": audit}
+        return universe, candidates, {"queries": queries, "search": audit, "registered": registered_audit}
 
 
 class Phase4C2Engine:
