@@ -28,9 +28,9 @@ def test_first_discovery_selects_candidates_but_does_not_refresh_anything():
 def test_saved_curated_list_does_not_silently_expand_when_new_peer_discovered():
     df = build_peer_selection_table(_discovered(), "DGC", saved_peer_tickers=["DCM"])
     use = dict(zip(df["Ticker"], df["Use?"]))
-    assert use["DGC"] is True
-    assert use["DCM"] is True
-    assert use["CSV"] is False
+    assert bool(use["DGC"]) is True
+    assert bool(use["DCM"]) is True
+    assert bool(use["CSV"]) is False
 
 
 def test_analyst_can_remove_and_add_peers_before_confirming():
