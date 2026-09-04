@@ -26,6 +26,12 @@ from modules.deep_company_analysis.chapter4_peer_auto import (
     refresh_peer_canonical_bundle,
     refresh_peer_canonical_universe,
 )
+from modules.deep_company_analysis.chapter4_peer_selection import (
+    PEER_SELECTION_COLUMNS,
+    build_peer_selection_table,
+    normalize_ticker_list,
+    selected_peer_tickers,
+)
 from modules.deep_company_analysis.chapter4_evidence import (
     Chapter4EvidenceAgent,
     candidate_coverage,
@@ -528,8 +534,12 @@ def _styled_numeric(df: pd.DataFrame):
     return styler
 
 
-def _merge_q17_peer_rows(record: dict[str, Any], peer_df: pd.DataFrame) -> dict[str, Any]:
-    """Refresh only canonical numeric columns, preserving analyst comments/unmatched rows."""
+def _merge_q17_peer_rows(record: dict[str, Any], peer_df: pd.DataFrame, preserve_unmatched: bool = True) -> dict[str, Any]:
+    """Refresh canonical numeric columns while preserving comments for retained peers.
+
+    ``preserve_unmatched=False`` is used after analyst-curated peer confirmation so removed peers
+    do not silently come back into Q17.
+    """
     existing = record.get("q17_industry_peers") if isinstance(record, dict) else []
     existing = existing if isinstance(existing, list) else []
     existing_by_company = {
@@ -557,12 +567,13 @@ def _merge_q17_peer_rows(record: dict[str, Any], peer_df: pd.DataFrame) -> dict[
             })
             generated.append(row)
     generated_tickers = {_safe_ticker(str(row.get("Company") or "")) for row in generated}
-    for row in existing:
-        if not isinstance(row, dict):
-            continue
-        key = _safe_ticker(str(row.get("Company") or ""))
-        if not key or key not in generated_tickers:
-            generated.append(row)
+    if preserve_unmatched:
+        for row in existing:
+            if not isinstance(row, dict):
+                continue
+            key = _safe_ticker(str(row.get("Company") or ""))
+            if not key or key not in generated_tickers:
+                generated.append(row)
     record["q17_industry_peers"] = generated
     return record
 
@@ -585,23 +596,29 @@ def _refresh_target_data(ticker: str) -> tuple[bool, str]:
         return False, f"Cập nhật canonical data chưa thành công: {exc}"
 
 
-def render_quantitative_bridge(ticker: str) -> tuple[str, str]:
+def render_quantitative_bridge(ticker: str) -> tuple[str, str, str]:
     safe = _safe_ticker(ticker) or "DGC"
     target_snapshot, target_error = load_quant_snapshot(safe)
     company_name = str((target_snapshot or {}).get("company_name") or "")
     record = load_record(safe, company_name)
-    stored = record.get("quantitative_peer_tickers", [])
-    discovery = _auto_peer_discovery(safe)
-    industry_group = str(discovery.get("industry_group") or record.get("quantitative_industry_group") or "")
-    discovered_tickers = [_safe_ticker(x) for x in discovery.get("tickers", []) if _safe_ticker(x)]
-    fallback_tickers = _parse_peer_tickers(stored, safe)
-    peers = discovered_tickers if len(discovered_tickers) > 1 else fallback_tickers
+
+    stored_peers = record.get("quantitative_peer_tickers", [])
+    if not isinstance(stored_peers, list):
+        stored_peers = []
+    confirmed_peers = normalize_ticker_list(stored_peers, safe, max_peers=DEFAULT_MAX_PEERS)
+    industry_group = str(record.get("quantitative_industry_group") or "")
+
+    discovery_key = f"ch4q_discovery_{safe}"
+    selection_key = f"ch4q_selection_seed_{safe}"
+    version_key = f"ch4q_selection_version_{safe}"
+    discovery = st.session_state.get(discovery_key)
 
     with st.container(border=True):
         st.markdown("### 📊 Phase 4B — Quantitative Bridge từ Trecapital canonical data")
         st.caption(
-            "Data Suggested chỉ cung cấp lịch sử margins/ROIC/CCC/inventory turnover và peer distribution. "
-            "Không tự kết luận moat, Pricing Power, Good/Bad Industry, Competition hay Supplier Quality."
+            "Q17/Q19 dùng quy trình 2 bước: (1) tải danh sách cùng ngành để Analyst lọc/thêm/bớt; "
+            "(2) chỉ khi bấm Xác nhận & cập nhật thì app mới tải BCTC canonical cho danh sách đã chọn. "
+            "Không tự kết luận Good/Bad Industry, Competition hay Ideal Company."
         )
         c1, c2 = st.columns([3, 1])
         with c1:
@@ -621,42 +638,126 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str]:
                 if ok:
                     st.rerun()
 
-        peer_list_df = discovery.get("peers")
-        if isinstance(peer_list_df, pd.DataFrame) and not peer_list_df.empty:
-            st.success(f"Tự nhận diện ngành: {industry_group or 'chưa rõ'} | {len(peers)} mã trong peer universe dùng cho Q17/Q19.")
-            list_cols = [c for c in ["ticker", "company_name", "exchange", "market_cap_bil", "peer_group"] if c in peer_list_df.columns]
-            st.dataframe(peer_list_df[list_cols], use_container_width=True, hide_index=True, height=min(360, 70 + 27 * len(peer_list_df)))
-            st.caption(str(discovery.get("note") or ""))
-        else:
-            st.warning(str(discovery.get("note") or "Chưa tự nhận diện được peer cùng ngành."))
-            if len(peers) > 1:
-                st.caption("Đang dùng peer set đã lưu trước đó làm fallback; không sinh peer suy đoán.")
+        st.markdown("#### Bước 1 — Tải và lọc danh sách doanh nghiệp cùng ngành")
+        l1, l2 = st.columns([2, 3])
+        with l1:
+            load_clicked = st.button(
+                "1️⃣ Tải / tải lại danh sách cùng ngành",
+                use_container_width=True,
+                key=f"ch4q_load_industry_{safe}",
+            )
+        with l2:
+            if confirmed_peers:
+                st.info(
+                    f"Peer set đã xác nhận đang dùng: {len(confirmed_peers) - 1} peer + {safe} target. "
+                    "Danh sách này không tự mở rộng khi nguồn discovery xuất hiện mã mới."
+                )
+            else:
+                st.caption("Chưa có peer set đã xác nhận; Q17 chỉ dùng target cho đến khi Analyst xác nhận.")
 
-        if st.button("🔄 Tự động lấy cùng ngành + BCTC và cập nhật Q17/Q19", use_container_width=True, key=f"ch4q_auto_industry_{safe}"):
-            progress = st.progress(0.02, text=f"Đang cập nhật canonical BCTC cho {len(peers)} mã cùng ngành (tối đa 3 luồng)...")
-            refresh_results = refresh_peer_canonical_universe(peers, max_workers=3)
-            notes = [note for _peer, _ok, _paths, note in refresh_results]
-            ok_count = sum(1 for _peer, ok, _paths, _note in refresh_results if ok)
-            progress.progress(0.92, text="Đang dựng ROIC/CCC/margins và đồng bộ bảng Q17/Q19...")
-            _snapshot_cached.clear()
-            snapshots_after = []
-            for peer in peers:
-                snap, _ = load_quant_snapshot(peer)
-                if snap:
-                    snapshots_after.append(snap)
-            peer_df_after = build_peer_table(snapshots_after)
-            latest_record = load_record(safe, company_name)
-            latest_record["quantitative_peer_tickers"] = [p for p in peers if p != safe]
-            latest_record["quantitative_industry_group"] = industry_group
-            latest_record["quantitative_peer_source"] = "Simplize same-industry universe + Trecapital canonical statements"
-            latest_record = _merge_q17_peer_rows(latest_record, peer_df_after)
-            save_record(latest_record, create_snapshot=False)
-            progress.empty()
-            st.success(f"Đã tự cập nhật {ok_count}/{len(peers)} mã; {len(peer_df_after)} mã có dữ liệu định lượng đã được đưa thẳng vào bảng Q17. Analyst Comment/kết luận được giữ nguyên.")
-            if notes:
-                with st.expander("Chi tiết cập nhật peer", expanded=False):
-                    st.write("\n".join(f"- {x}" for x in notes))
-            st.rerun()
+        if load_clicked:
+            try:
+                _industry_discovery_cached.clear()
+            except Exception:
+                pass
+            discovery = _auto_peer_discovery(safe)
+            st.session_state[discovery_key] = discovery
+            peer_df_seed = discovery.get("peers") if isinstance(discovery, dict) else pd.DataFrame()
+            if not isinstance(peer_df_seed, pd.DataFrame):
+                peer_df_seed = pd.DataFrame()
+            saved_for_seed = stored_peers if stored_peers else None
+            st.session_state[selection_key] = build_peer_selection_table(peer_df_seed, safe, saved_for_seed)
+            st.session_state[version_key] = int(st.session_state.get(version_key, 0)) + 1
+            if isinstance(discovery, dict):
+                industry_group = str(discovery.get("industry_group") or industry_group)
+
+        selection_df = None
+        if isinstance(discovery, dict):
+            industry_group = str(discovery.get("industry_group") or industry_group)
+            seed = st.session_state.get(selection_key)
+            if not isinstance(seed, pd.DataFrame):
+                peer_df_seed = discovery.get("peers")
+                if not isinstance(peer_df_seed, pd.DataFrame):
+                    peer_df_seed = pd.DataFrame()
+                seed = build_peer_selection_table(peer_df_seed, safe, stored_peers if stored_peers else None)
+                st.session_state[selection_key] = seed
+            st.success(
+                f"Nguồn discovery nhận diện: {industry_group or 'chưa rõ'} | "
+                f"{max(0, len(seed) - 1)} candidate peer. Hãy bỏ chọn/xóa peer không sát hoặc thêm mã mới trước khi cập nhật dữ liệu."
+            )
+            version = int(st.session_state.get(version_key, 0))
+            selection_df = st.data_editor(
+                seed,
+                num_rows="dynamic",
+                use_container_width=True,
+                hide_index=True,
+                height=min(500, 90 + 29 * max(1, len(seed))),
+                key=f"ch4q_peer_editor_{safe}_{version}",
+                column_config={
+                    "Use?": st.column_config.CheckboxColumn("Dùng?", help="Chỉ các dòng được chọn mới được tải/cập nhật canonical data."),
+                    "Ticker": st.column_config.TextColumn("Mã", required=True),
+                },
+            )
+            st.caption(str(discovery.get("note") or ""))
+            st.caption(f"Target {safe} luôn được giữ làm mốc benchmark dù có vô tình bỏ chọn/xóa trong editor.")
+        elif stored_peers:
+            st.caption("Bấm 'Tải / tải lại danh sách cùng ngành' để chỉnh peer set. Peer set đã xác nhận hiện tại vẫn được giữ nguyên.")
+
+        st.markdown("#### Bước 2 — Xác nhận danh sách rồi mới tải/cập nhật BCTC")
+        update_disabled = not isinstance(selection_df, pd.DataFrame)
+        if st.button(
+            "2️⃣ Xác nhận peer đã chọn & cập nhật dữ liệu Q17/Q19",
+            use_container_width=True,
+            disabled=update_disabled,
+            key=f"ch4q_confirm_refresh_{safe}",
+        ):
+            selected = selected_peer_tickers(selection_df, safe, max_peers=DEFAULT_MAX_PEERS)
+            if len(selected) < 2:
+                st.warning("Danh sách chỉ có target. Hãy chọn/thêm ít nhất 1 doanh nghiệp so sánh trước khi cập nhật ngành.")
+            else:
+                progress = st.progress(0.02, text=f"Đang cập nhật canonical BCTC cho {len(selected)} mã đã được Analyst xác nhận...")
+                refresh_results = refresh_peer_canonical_universe(selected, max_workers=3)
+                notes = [note for _peer, _ok, _paths, note in refresh_results]
+                ok_count = sum(1 for _peer, ok, _paths, _note in refresh_results if ok)
+                progress.progress(0.90, text="Đang dựng ROIC/CCC/margins từ peer set đã xác nhận...")
+                _snapshot_cached.clear()
+                snapshots_after = []
+                for peer in selected:
+                    snap, _ = load_quant_snapshot(peer)
+                    if snap:
+                        snapshots_after.append(snap)
+                peer_df_after = build_peer_table(snapshots_after)
+                latest_record = load_record(safe, company_name)
+                latest_record["quantitative_peer_tickers"] = [p for p in selected if p != safe]
+                latest_record["quantitative_industry_group"] = industry_group
+                latest_record["quantitative_peer_source"] = "Analyst-curated same-industry peer set + Trecapital canonical statements"
+                latest_record["quantitative_peer_selection_updated_at"] = pd.Timestamp.now().isoformat()
+                latest_record = _merge_q17_peer_rows(latest_record, peer_df_after, preserve_unmatched=False)
+                save_record(latest_record, create_snapshot=False)
+                st.session_state[selection_key] = build_peer_selection_table(
+                    discovery.get("peers") if isinstance(discovery.get("peers"), pd.DataFrame) else pd.DataFrame(),
+                    safe,
+                    latest_record["quantitative_peer_tickers"],
+                )
+                progress.empty()
+                st.success(
+                    f"Đã xác nhận {len(selected)-1} peer; cập nhật thành công {ok_count}/{len(selected)} mã. "
+                    f"Q17/Q19 chỉ dùng {len(peer_df_after)} mã có canonical data trong peer set này."
+                )
+                if notes:
+                    with st.expander("Chi tiết cập nhật peer", expanded=False):
+                        st.write(chr(10).join(f"- {x}" for x in notes))
+                st.rerun()
+
+        # Only the saved/confirmed list is used below. Discovery candidates alone never enter Q17/Q19.
+        record = load_record(safe, company_name)
+        stored_peers = record.get("quantitative_peer_tickers", []) if isinstance(record, dict) else []
+        if not isinstance(stored_peers, list):
+            stored_peers = []
+        peers = normalize_ticker_list(stored_peers, safe, max_peers=DEFAULT_MAX_PEERS)
+        if len(peers) == 1 and not stored_peers:
+            peers = [safe]
+        industry_group = str(record.get("quantitative_industry_group") or industry_group)
 
         snapshots: list[dict[str, Any]] = []
         missing: list[str] = []
@@ -677,7 +778,7 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str]:
             k5.metric("Inventory Turns", _fmt(target_snapshot.get("inventory_turnover_latest"), "x"))
 
         if missing:
-            st.info("Peer chưa có canonical cache nên chưa dùng định lượng: " + ", ".join(missing))
+            st.info("Mã trong peer set đã xác nhận nhưng chưa có canonical cache: " + ", ".join(missing))
 
         with st.expander("Q16 — Historical margin context (không suy Pricing Power)", expanded=False):
             context = pricing_context(target_snapshot or {})
@@ -692,7 +793,7 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str]:
 
         with st.expander("Q17 — Industry ROIC Distribution / Peer Economics", expanded=True):
             if peer_df.empty:
-                st.caption("Chưa có peer canonical data.")
+                st.caption("Chưa có canonical data trong peer set đã xác nhận.")
             else:
                 display_cols = [c for c in (
                     "Company", "Company Name", "ROIC Latest", "ROIC 5Y Median", "ROIC 10Y Median",
@@ -709,8 +810,10 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str]:
                     d5.metric("ROIC dương", _fmt(dist.get("positive_roic_pct"), "%"))
                 if len(peer_df) < 3:
                     st.warning("Peer set còn nhỏ; chưa nên xem đây là đại diện cho economics toàn ngành.")
-                st.caption("Bảng editable Q17 được đồng bộ tự động khi bấm nút 'Tự động lấy cùng ngành + BCTC'; không còn bước nhập peer/copy canonical thủ công.")
-            st.caption("Peer distribution là Data Suggested. 'Good / Mixed / Bad Industry' chỉ Analyst được chọn.")
+            st.caption(
+                "Q17 chỉ sử dụng peer set đã được Analyst xác nhận. Discovery candidate không tự đi vào bảng. "
+                "'Good / Mixed / Bad Industry' vẫn chỉ Analyst được chọn."
+            )
 
         with st.expander("Q19 — Table 4.2 quantitative peer benchmark", expanded=False):
             bench = build_peer_benchmark(peer_df, safe)
@@ -719,7 +822,7 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str]:
             else:
                 st.dataframe(_styled_numeric(bench), use_container_width=True, hide_index=True)
             st.caption(
-                "Peer Min/Max chỉ là mô tả. App không tự gọi Max hoặc Min là 'Ideal'. Analyst phải xác định doanh nghiệp/đặc tính chuẩn ngành và lý do."
+                "Benchmark dùng cùng peer set Analyst đã xác nhận ở Q17. Peer Min/Max chỉ là mô tả; app không tự chọn Ideal Company."
             )
 
         with st.expander("Q20 — Supply-chain operating context", expanded=False):

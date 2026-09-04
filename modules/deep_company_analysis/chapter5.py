@@ -73,6 +73,10 @@ RISK_COLUMNS = [
     "Counter-Evidence", "Trend", "Analyst Assessment", "Evidence",
 ]
 
+# UI intentionally hides Origin to reduce clutter. Provenance is reconstructed internally on save:
+# known Shearn rows => Shearn; all other rows => Analyst-defined.
+RISK_UI_COLUMNS = [column for column in RISK_COLUMNS if column != "Origin"]
+
 INFLATION_COLUMNS = [
     "Input / Exposure", "Channel", "Exposure", "Observed Cost Change", "Pass-through Ability",
     "Lag to Pass Through", "Volume / Customer Impact", "Cost Offset", "Capital Replacement Burden",
@@ -604,8 +608,8 @@ def render_chapter5(default_ticker: str = "DGC", company_name: str = "") -> None
     with st.expander("Q23 — What are the key risks the business faces?", expanded=True):
         q23_status, q23_trend = _question_header(record, "Q23", "Những rủi ro trọng yếu mà doanh nghiệp đối mặt là gì?", prefix)
         st.warning("Shearn: đánh giá risk theo Frequency + Severity và historical evidence. Mức độ báo chí nhắc đến không phải thước đo rủi ro. Không có dữ liệu không đồng nghĩa Low Risk.")
-        st.markdown("**Khi tạo mới bản ghi Chương 5, app nạp sẵn 17 operational-risk examples Shearn nêu trong sách. Sau đó người phân tích toàn quyền xóa các dòng không phù hợp hoặc thêm rủi ro mới. Rủi ro đã xóa sẽ không tự xuất hiện lại khi lưu/mở lại; dòng mới được lưu là `Analyst-defined`.**")
-        risk_df = _editor("Risk Underwriter Register — Shearn defaults chỉ seed khi tạo mới + Analyst-defined risks", record.get("q23_risks", []), RISK_COLUMNS, f"{prefix}_q23_risks", 520)
+        st.markdown("**Khi tạo mới bản ghi Chương 5, app nạp sẵn 17 operational-risk examples Shearn nêu trong sách. Sau đó người phân tích toàn quyền xóa các dòng không phù hợp hoặc thêm rủi ro mới. Rủi ro đã xóa sẽ không tự xuất hiện lại khi lưu/mở lại. Cột nguồn được ẩn khỏi bảng để gọn hơn; app vẫn lưu provenance nội bộ.**")
+        risk_df = _editor("Risk Underwriter Register — Shearn defaults chỉ seed khi tạo mới + analyst-added risks", record.get("q23_risks", []), RISK_UI_COLUMNS, f"{prefix}_q23_risks", 520)
         q23_material = st.text_input("Rủi ro trọng yếu nhất", value=str(record.get("q23", {}).get("most_material_risk", "")), key=f"{prefix}_q23_material")
         q23_unknown = st.text_input("Rủi ro lớn nhất còn chưa hiểu", value=str(record.get("q23", {}).get("largest_unknown_risk", "")), key=f"{prefix}_q23_unknown")
         q23_downside = st.text_area("Downside scenario / valuation linkage", value=str(record.get("q23", {}).get("downside_scenario_link", "")), key=f"{prefix}_q23_downside")

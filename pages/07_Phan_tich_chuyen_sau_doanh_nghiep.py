@@ -15,7 +15,7 @@ from modules.deep_company_analysis.trecapital_auto import build_chapter1_auto_da
 from modules.deep_company_analysis.chapter2_page_support import render_chapter2_tab
 from modules.deep_company_analysis.chapter3_page_support import render_chapter3_tab
 from modules.deep_company_analysis.chapter4_page_support import render_chapter4_tab
-from modules.deep_company_analysis.chapter5 import render_chapter5
+from modules.deep_company_analysis.chapter5_page_support import render_chapter5_tab
 from modules.investment_checklist.trecapital_bridge import CurrentRepoDataProvider
 from modules.investment_checklist.trecapital_debt_enricher import augment_debt_from_latest_fireant_raw
 from tre_full_width import apply_full_width
@@ -424,6 +424,6 @@ with chapter5_tab:
             or default_ticker
         )
     ) or default_ticker
-    render_chapter5(default_ticker=chapter5_ticker)
+    render_chapter5_tab(chapter5_ticker)
 
 apply_full_width()
