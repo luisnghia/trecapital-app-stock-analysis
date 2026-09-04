@@ -32,6 +32,28 @@ from modules.deep_company_analysis.chapter2_evidence import (
     _main_text_from_html,
 )
 
+# Chapter 5 keeps the shared Chapter-2 trusted source registry, but adds resilient DGC fallbacks
+# for operating-health research. The 2025 annual-report PDF endpoint can intermittently return an
+# HTML/WAF body to non-browser clients; these additional first-party sources prevent one endpoint
+# from becoming a single point of failure without introducing a parallel financial source.
+CHAPTER5_OFFICIAL_PAGES = {**CHAPTER2_OFFICIAL_PAGES}
+CHAPTER5_OFFICIAL_PAGES["DGC"] = tuple(CHAPTER2_OFFICIAL_PAGES.get("DGC", ())) + (
+    ("ĐHĐCĐ thường niên 2025", "https://ducgiangchem.vn/9329-2/"),
+    ("Báo cáo thường niên 2025 — trang công bố", "https://ducgiangchem.vn/bao-cao-thuong-nien-nam-2025/"),
+)
+
+CHAPTER5_OFFICIAL_PDFS = {**CHAPTER2_OFFICIAL_PDFS}
+CHAPTER5_OFFICIAL_PDFS["DGC"] = tuple(CHAPTER2_OFFICIAL_PDFS.get("DGC", ())) + (
+    (
+        "Tài liệu ĐHĐCĐ 2025 — kế hoạch SXKD và đầu tư",
+        "https://ducgiangchem.vn/wp-content/uploads/2025/03/20250303-DGC-CBTT-NQ-HDQT-thong-qua-tai-lieu-hop-DHDCD-thuong-nien-2025.pdf",
+    ),
+    (
+        "Báo cáo thường niên 2024 — fallback lịch sử gần nhất",
+        "https://ducgiangchem.vn/wp-content/uploads/2025/03/20250314-DGC-Bao-cao-thuong-nien-Annual-Report-2024.pdf",
+    ),
+)
+
 QUESTIONS = ("Q21", "Q22", "Q23", "Q24", "Q25", "Q26")
 FOCUSES = ("Q21_Q22", "Q23", "Q24", "Q25", "Q26")
 OFFICIAL_STATUS = "Evidence trích từ nguồn chính thức"
@@ -308,7 +330,7 @@ def _fetch_official_rows(raw_dir: Path, ticker: str) -> tuple[list[dict[str, Any
     audit: list[dict[str, str]] = []
     helper = SourceFirstChapter2EvidenceAgent(raw_dir)
     with httpx.Client(headers=HEADERS, timeout=httpx.Timeout(8.0, connect=2.0), follow_redirects=True) as client:
-        for label, url in CHAPTER2_OFFICIAL_PAGES.get(ticker, ()):
+        for label, url in CHAPTER5_OFFICIAL_PAGES.get(ticker, ()):
             try:
                 resp = client.get(url)
                 resp.raise_for_status()
@@ -318,7 +340,7 @@ def _fetch_official_rows(raw_dir: Path, ticker: str) -> tuple[list[dict[str, Any
                 audit.append({"url": url, "status": str(resp.status_code), "rows": str(len(extracted))})
             except Exception as exc:
                 audit.append({"url": url, "error": str(exc)[:220]})
-        for label, url in CHAPTER2_OFFICIAL_PDFS.get(ticker, ()):
+        for label, url in CHAPTER5_OFFICIAL_PDFS.get(ticker, ()):
             try:
                 text, status = helper._official_pdf_text(ticker, label, url, client)
                 extracted = _official_topic_rows(ticker, label, url, text, "Official PDF/BCTN direct extraction") if text else []
