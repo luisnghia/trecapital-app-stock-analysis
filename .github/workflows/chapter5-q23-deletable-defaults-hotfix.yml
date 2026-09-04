@@ -1,0 +1,78 @@
+name: Chapter 5 Q23 Deletable Default Risks Hotfix
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-checklist
+    paths:
+      - 'scripts/apply_chapter5_q23_deletable_defaults_patch.py'
+      - '.github/workflows/chapter5-q23-deletable-defaults-hotfix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  q23-deletable-defaults:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-checklist
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Apply Q23 deletable-default patch
+        run: python scripts/apply_chapter5_q23_deletable_defaults_patch.py
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: Compile Chapter 5
+        run: python -m compileall -q modules/deep_company_analysis/chapter5.py modules/deep_company_analysis/test_chapter5_q23_deletable_defaults.py
+
+      - name: Run Chapter 5 tests
+        run: |
+          python -m pytest -q modules/deep_company_analysis/test_chapter5.py modules/deep_company_analysis/test_chapter5_q23_deletable_defaults.py
+
+      - name: Run full Deep Analysis regression
+        run: python -m pytest -q modules/deep_company_analysis
+
+      - name: Run DGC Chapter 5 diagnostic
+        run: python tools/dgc_chapter5_phase5a_e2e.py
+
+      - name: Smoke-test unified page
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8521 > /tmp/ch5_q23_hotfix.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8521/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then cat /tmp/ch5_q23_hotfix.log; kill "$PID" 2>/dev/null || true; exit 1; fi
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+
+      - name: Commit tested hotfix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add modules/deep_company_analysis/chapter5.py modules/deep_company_analysis/test_chapter5_q23_deletable_defaults.py
+          if ! git diff --cached --quiet; then
+            git commit -m "fix(ch5): persist deletion of default Q23 risks"
+            git push origin HEAD:feature/deep-company-analysis-checklist
+          fi
