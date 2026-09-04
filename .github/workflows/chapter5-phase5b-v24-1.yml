@@ -1,0 +1,150 @@
+name: Chapter 5 Phase 5B Quantitative + Curated Peers V24.1
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-checklist
+    paths:
+      - 'modules/deep_company_analysis/chapter4_page_support.py'
+      - 'modules/deep_company_analysis/chapter4_peer_selection.py'
+      - 'modules/deep_company_analysis/test_chapter4_peer_selection.py'
+      - 'modules/deep_company_analysis/chapter5.py'
+      - 'modules/deep_company_analysis/chapter5_quant.py'
+      - 'modules/deep_company_analysis/chapter5_page_support.py'
+      - 'modules/deep_company_analysis/test_chapter5_phase5b.py'
+      - 'modules/deep_company_analysis/test_chapter5_q23_ui.py'
+      - 'scripts/apply_ch4_peer_curation_ch5_phase5b_patch.py'
+      - 'scripts/fix_ch4_phase5b_generated_escape.py'
+      - 'tools/dgc_chapter5_phase5b_e2e.py'
+      - 'docs/CHAPTER5_PHASE5B_QUANTITATIVE_BRIDGE.md'
+      - 'docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER5_FORMULAS.md'
+      - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
+      - '.github/workflows/chapter5-phase5b-v24-1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  phase5b-v24-1:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-checklist
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Apply approved UI and workflow amendments
+        run: |
+          python scripts/apply_ch4_peer_curation_ch5_phase5b_patch.py
+          python scripts/fix_ch4_phase5b_generated_escape.py
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: Compile Chapters 1-5
+        run: |
+          python -m compileall -q modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py tools/dgc_chapter5_phase5b_e2e.py
+
+      - name: Run Chapter 4 curated peer acceptance
+        run: python -m pytest -q modules/deep_company_analysis/test_chapter4_peer_selection.py
+
+      - name: Run Chapter 5 Phase 5B acceptance
+        run: |
+          python -m pytest -q \
+            modules/deep_company_analysis/test_chapter5.py \
+            modules/deep_company_analysis/test_chapter5_q23_deletable_defaults.py \
+            modules/deep_company_analysis/test_chapter5_q23_ui.py \
+            modules/deep_company_analysis/test_chapter5_phase5b.py
+
+      - name: Run full Deep Analysis regression
+        run: python -m pytest -q modules/deep_company_analysis
+
+      - name: Run DGC Chapter 5 Phase 5B live diagnostic
+        shell: bash
+        run: |
+          set -o pipefail
+          python tools/dgc_chapter5_phase5b_e2e.py | tee dgc_chapter5_phase5b_e2e.log
+
+      - name: Smoke-test unified Deep Analysis page
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8525 > /tmp/ch5_v241.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 35); do
+            if curl -fsS http://127.0.0.1:8525/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then cat /tmp/ch5_v241.log; kill "$PID" 2>/dev/null || true; exit 1; fi
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+
+      - name: Commit tested Phase 5B integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            modules/deep_company_analysis/chapter4_page_support.py \
+            modules/deep_company_analysis/chapter5.py \
+            pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+          if ! git diff --cached --quiet; then
+            git commit -m "feat(deep-analysis): curate Chapter 4 peers and integrate Chapter 5 Phase 5B"
+            git push origin HEAD:feature/deep-company-analysis-checklist
+          fi
+
+      - name: Build Windows offline package V24
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V24_CHAPTER5_PHASE5B"
+          rm -rf dist
+          mkdir -p "dist/${PKG_NAME}"
+          rsync -a ./ "dist/${PKG_NAME}/" \
+            --exclude '.git' \
+            --exclude 'dist' \
+            --exclude 'offline_wheels' \
+            --exclude '.streamlit/secrets.toml' \
+            --exclude '.env' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude '*.log'
+          mkdir -p "dist/${PKG_NAME}/data_cache"
+          test -f "dist/${PKG_NAME}/CHAY_TRECAPITAL_OFFLINE.bat"
+          test -f "dist/${PKG_NAME}/pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter5_quant.py"
+          test -f "dist/${PKG_NAME}/docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER5_FORMULAS.md"
+          (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
+          sha256sum "dist/${PKG_NAME}.zip" > "dist/${PKG_NAME}.zip.sha256"
+
+      - name: Upload DGC Phase 5B audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: DGC_Chapter5_Phase5B_Audit_V24_1
+          path: dgc_chapter5_phase5b_e2e.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload offline package V24
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Offline_V24_CHAPTER5_PHASE5B
+          path: |
+            dist/Trecapital_Deep_Analysis_Offline_V24_CHAPTER5_PHASE5B.zip
+            dist/Trecapital_Deep_Analysis_Offline_V24_CHAPTER5_PHASE5B.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
