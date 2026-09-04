@@ -1,0 +1,106 @@
+name: Chapter 4 Phase 4D Q16 Gap Semantics Hotfix
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-checklist
+    paths:
+      - 'scripts/fix_chapter4_phase4d_q16_gap_semantics.py'
+      - 'modules/deep_company_analysis/test_chapter4_lock_q16_semantics.py'
+      - '.github/workflows/chapter4-phase4d-q16-hotfix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  q16-gap-hotfix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-checklist
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Apply Q16 gap-semantics hardening
+        run: python scripts/fix_chapter4_phase4d_q16_gap_semantics.py
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Compile final Chapter 4 lock sources
+        run: python -m compileall -q modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py tools/dgc_chapter4_phase4d_lock.py
+      - name: Run Phase 4D lock tests including Q16 semantics
+        run: |
+          python -m pytest -q modules/deep_company_analysis/test_chapter4_lock.py modules/deep_company_analysis/test_chapter4_lock_q16_semantics.py
+          python -m pytest -q modules/deep_company_analysis/test_chapter4_evidence_c3.py
+      - name: Run full Deep Analysis regression
+        run: python -m pytest -q modules/deep_company_analysis
+      - name: Run DGC final lock diagnostic again
+        shell: bash
+        run: |
+          set -o pipefail
+          python tools/dgc_chapter4_phase4d_lock.py | tee dgc_chapter4_phase4d_lock_final.log
+      - name: Smoke-test unified Deep Analysis page
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8518 > /tmp/ch4d_final.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8518/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then cat /tmp/ch4d_final.log; kill "$PID" 2>/dev/null || true; exit 1; fi
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+      - name: Commit Q16 lock semantics hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add modules/deep_company_analysis/chapter4_lock.py
+          if ! git diff --cached --quiet; then
+            git commit -m "fix(ch4): make Q16 corroboration gap explicit at lock"
+            git push origin HEAD:feature/deep-company-analysis-checklist
+          fi
+      - name: Build final Chapter 4 LOCKED package V22
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V22_CHAPTER4_LOCKED_FINAL"
+          rm -rf dist
+          mkdir -p "dist/${PKG_NAME}"
+          rsync -a ./ "dist/${PKG_NAME}/" \
+            --exclude '.git' --exclude 'dist' --exclude 'offline_wheels' \
+            --exclude '.streamlit/secrets.toml' --exclude '.env' --exclude '__pycache__' \
+            --exclude '*.pyc' --exclude '*.log'
+          mkdir -p "dist/${PKG_NAME}/data_cache"
+          test -f "dist/${PKG_NAME}/CHAY_TRECAPITAL_OFFLINE.bat"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter4_lock.py"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/test_chapter4_lock_q16_semantics.py"
+          test -f "dist/${PKG_NAME}/docs/CHAPTER4_LOCKED_ACCEPTANCE.md"
+          (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
+          sha256sum "dist/${PKG_NAME}.zip" > "dist/${PKG_NAME}.zip.sha256"
+      - name: Upload final DGC lock audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: DGC_Chapter4_Phase4D_LOCK_Audit_FINAL
+          path: dgc_chapter4_phase4d_lock_final.log
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload final Chapter 4 LOCKED V22
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Offline_V22_CHAPTER4_LOCKED_FINAL
+          path: |
+            dist/Trecapital_Deep_Analysis_Offline_V22_CHAPTER4_LOCKED_FINAL.zip
+            dist/Trecapital_Deep_Analysis_Offline_V22_CHAPTER4_LOCKED_FINAL.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
