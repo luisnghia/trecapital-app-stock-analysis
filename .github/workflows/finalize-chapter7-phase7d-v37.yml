@@ -1,4 +1,5 @@
 name: Finalize Chapter 7 Phase 7D V37 — Final Source Closure + QA
+# rerun 2: preserve Phase 7A regression wording while enabling approved Phase 7D gate
 
 on:
   push:
