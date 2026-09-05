@@ -105,7 +105,9 @@ def test_peer_benchmark_does_not_choose_ideal_company():
 def test_pricing_context_is_margin_history_only_not_price_event_inference():
     snap = build_company_snapshot("AAA", "Alpha", _annual(), "fixture")
     ctx = pricing_context(snap)
-    assert len(ctx) == 10
+    # Contract V32: 10 annual periods + valid canonical TTM.
+    assert len(ctx) == 11
+    assert ctx.iloc[-1]["Kỳ"] == "TTM"
     assert "Gross Margin %" in ctx.columns
     assert "EBIT Margin %" in ctx.columns
     assert "Price Increase %" not in ctx.columns
@@ -115,7 +117,9 @@ def test_pricing_context_is_margin_history_only_not_price_event_inference():
 def test_supply_chain_context_keeps_operating_metrics_without_supplier_judgement():
     snap = build_company_snapshot("AAA", "Alpha", _annual(), "fixture")
     ctx = supply_chain_context(snap)
-    assert len(ctx) == 10
+    # Contract V32: 10 annual periods + valid canonical TTM.
+    assert len(ctx) == 11
+    assert ctx.iloc[-1]["Kỳ"] == "TTM"
     assert "Vòng quay tồn kho" in ctx.columns
     assert "CCC ngày" in ctx.columns
     assert "Supplier Relationship" not in ctx.columns
