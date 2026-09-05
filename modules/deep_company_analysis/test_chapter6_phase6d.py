@@ -77,7 +77,8 @@ def test_valuation_guidance_does_not_create_assumptions_or_signal():
     narrow = valuation_method_guidance("Narrow")
     assert "Scenario analysis" in wide["guidance"]
     assert "Point-estimate" in narrow["guidance"]
-    assert "automatic MOS" in wide["boundary"]
+    assert "analyst-owned" in wide["boundary"]
+    assert "MOS" in wide["boundary"]
     assert "Buy Signal" in narrow["boundary"]
 
 
