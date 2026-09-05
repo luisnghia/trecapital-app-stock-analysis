@@ -1,14 +1,16 @@
-# Chapter 6 — Phase 6A Source Lock
+# Chapter 6 — APPROVED Phase 6A Source-Locked Analytical Workspace
 
-Status: **IMPLEMENTED for analyst review** (2026-09-05). This document is not marked APPROVED until the analyst/user reviews the Phase 6A behavior.
+Status: **APPROVED by analyst/user on 2026-09-05**.
 
-Primary source: Michael Shearn, *The Investment Checklist*, Chapter 6 — **Evaluating the Distribution of Earnings (Cash Flows)**, pp. 137–172 in the original book pagination.
+Primary source: Michael Shearn, *The Investment Checklist*, Chapter 6 — **Evaluating the Distribution of Earnings (Cash Flows)**.
 
-## Source objective
+## Core objective
 
-Chapter 6 asks the analyst to understand the **range / distribution of future earnings and cash flows**, rather than pretending the future can be forecast as a single precise number. A wider distribution makes a business harder to value. Recurring revenue, lower cyclicality, lower operating leverage, sustainable working-capital economics and lower maintenance-capex burden generally make future cash flows easier to understand, but Chapter 6 does not provide a mechanical investment score.
+Chapter 6 evaluates the **width / predictability of the future earnings and cash-flow distribution**, not a single-point forecast and not a mechanical quality score. The analyst asks:
 
-Questions:
+> How predictable are this business's future earnings/cash flows, and what can make realized results deviate materially from expectations?
+
+Questions remain exactly Q27–Q32:
 
 - Q27 — Are the accounting standards that management uses conservative or liberal?
 - Q28 — Does the business generate revenues that are recurring or from one-off transactions?
@@ -19,159 +21,152 @@ Questions:
 
 ## Q27 — Accounting quality / true operating earnings
 
-Shearn's stated purpose is to get closer to the business's **true operating earnings**. Phase 6A therefore keeps separate investigation fields for:
+The approved workspace keeps the following analytical areas separate:
 
-- income-tax / book-income differences;
-- CFO versus Net Income;
-- timing of revenue recognition;
-- expensing versus capitalization;
-- temporary cuts in discretionary costs such as advertising, R&D and maintenance;
-- depreciation assumptions / useful lives;
-- restructuring charges;
-- reserve accounts and the match between provisions and actual outcomes.
+1. Tax vs Book Earnings
+2. CFO vs Net Income
+3. Revenue recognition
+4. Expense vs capitalization
+5. Discretionary-cost behavior
+6. Depreciation / estimate assumptions
+7. Restructuring / one-offs
+8. Reserve quality
 
-### Tables 6.1–6.2 conversion
+Tables 6.1–6.2 are implemented as two complementary tools:
 
-Tables 6.1 and 6.2 compare **allowance/provision for doubtful accounts** with **actual charge-offs**. The app therefore includes an Accounting / Reserve Quality Register.
+- **Accounting Quality Investigation Register** for policy/estimate evidence and counter-evidence.
+- **Reserve / Provision Roll-forward** with Beginning Reserve, Provision, Write-offs/Usage, Adjustments, Ending Reserve, Actual Outcome and Provision/Actual.
 
-Shearn explicitly lists reserves for:
+The seven Shearn reserve areas remain seeded as research prompts: bad debts, sales returns, inventory obsolescence, warranties, product liability, litigation and environmental contingencies. They are not allegations. Deleted analyst rows are not silently restored after save/load.
 
-1. Bad debts
-2. Sales returns
-3. Inventory obsolescence
-4. Warranties
-5. Product liability
-6. Litigation
-7. Environmental contingencies
+Chapter 6 does **not** recompute Beneish M-Score, Dechow/Jones or REM. Phase 6C may receive read-only manipulation evidence from the existing module, while the Conservative/Mixed/Liberal conclusion remains analyst-owned.
 
-These rows are seeded only when a Chapter-6 record is first created. They are research prompts, not allegations. After first save the analyst owns the register and may delete or add rows; the app must not silently restore deleted rows.
+## Q28 — Revenue durability
 
-The Sysco / Krispy Kreme examples teach the comparison method, not a universal numeric fraud rule. Phase 6A therefore does **not** auto-label manipulation.
+Revenue is not reduced to a binary recurring/one-off flag. The approved Revenue Durability Map distinguishes:
 
-## Q28 — Recurring versus one-off revenue
+- Contractual recurring
+- Behavioral recurring
+- Repeat purchase
+- One-off
+- Mixed
 
-Shearn says businesses with recurring revenue are easier to forecast because the next period begins with a base greater than zero instead of having to replace all prior sales.
+It stores revenue share, contractual status, duration, renewal, churn/retention evidence, switching cost, replacement requirement, revenue at risk, customer dependency, evidence/counter-evidence and analyst assessment.
 
-Source examples include:
+No recurring-revenue percentage is fabricated. Company disclosure is preferred; analyst estimates must be explicitly labelled and evidence-backed.
 
-- subscription businesses;
-- razor / razorblade models;
-- franchisors earning license fees;
-- service businesses with recurring contracts.
+## Q29 — Cycle Exposure Map
 
-Phase 6A stores a Revenue Stream Map. Revenue share, retention, contract duration and at-risk revenue remain `Unknown` unless the company discloses them or the analyst explicitly enters an estimate with evidence.
+The analyst must examine purchase deferrability, recurring-revenue protection, customer budget importance, customer economic-cycle exposure, supply/demand context, commodity exposure, historical downturn evidence and peak/trough behavior.
 
-## Q29 — Cyclicality / recession resistance
+Sector cyclicality or one apparently resilient recession does not automatically classify a company as cyclical or recession-resistant.
 
-The source directs the analyst to consider:
+## Q30 — Operating Leverage
 
-- whether customers can defer purchases, and for how long;
-- recurring-revenue protection;
-- the share of the customer's budget spent on the product/service;
-- how exposed the customer base itself is to the economic cycle;
-- historical downturn evidence;
-- supply/demand imbalances that may have made a past recession look less severe than it really was.
+Phase 6A stores the economic cost structure as Fixed / Variable / Semi-variable with driver, adjustment lag, capacity/utilization link, management flexibility, downturn behavior, evidence and counter-evidence.
 
-A prior period of resilience does not justify an automatic `recession-resistant` label. Phase 6A therefore requires a Cycle Driver / Downturn Evidence Map.
+Historical DOL belongs to Phase 6B and will use Trecapital canonical data. No single abnormal year may automatically set the analyst conclusion.
 
-## Q30 — Operating leverage
+## Q31 — Working Capital
 
-Shearn defines operating leverage as the impact of sales changes on earnings. Businesses with large fixed costs can turn relatively small sales changes into much larger earnings changes and are therefore harder to forecast.
+Phase 6A stores the operating mechanism and whether cash absorption/release is sustainable or temporary. The approved design explicitly rejects the rules:
 
-The book's Tables 6.3–6.5 combine:
+- `lower CCC = automatically better`
+- `negative working capital = automatically better`
 
-- historical revenue / operating-income behavior; and
-- economic cost structure: fixed, variable and semi-variable costs.
+Phase 6B will compute 5–10Y DSO/DIO/DPO/CCC and operating-working-capital cash impact from canonical fields only.
 
-Phase 6A implements only the analyst cost-structure map. Historical DOL and any stress scenarios are reserved for Phase 6B, where they must use canonical Trecapital data and remain research aids rather than conclusions.
+## Q32 — Capital expenditure requirements
 
-## Q31 — Working capital / cash conversion cycle
+Maintenance-capex evidence follows this hierarchy:
 
-Shearn instructs the analyst to calculate the **cash conversion cycle (CCC) for at least five years** and explain changes in its components:
+1. **Company-disclosed maintenance capex** — highest priority.
+2. **Analyst estimate with explicit evidence/provenance**.
+3. **Depreciation rough proxy — clearly labelled** when appropriate under Shearn's framework and accompanied by a written rationale/limitations.
+4. Otherwise **Unknown**.
 
-- DIO — days inventory outstanding;
-- DSO — days sales outstanding;
-- DPO — days payable outstanding.
+Total capex must never be silently relabelled as maintenance capex. A depreciation proxy is not canonical company disclosure and must remain visibly marked as a rough proxy.
 
-Table 6.6 demonstrates that very different business models can have negative or very long CCCs. The source emphasizes that the analyst must determine whether changes are **sustainable or temporary**. For example, cash released by stretching supplier payments may later reverse and should be normalized if it is not sustainable.
+## Earnings & Cash-flow Predictability Matrix
 
-Negative working capital can be favorable when suppliers/customers fund the operating model, but it can also create liquidity risk if a reversal must be funded and the company lacks cash. Therefore Phase 6A never implements `lower CCC = better` as a rule.
+Q27–Q32 feed one analyst-owned matrix with six drivers:
 
-## Q32 — Capital-expenditure requirements
+- Accounting quality
+- Revenue recurrence
+- Cyclicality
+- Operating leverage
+- Working capital
+- Capital intensity
 
-Shearn links high capital requirements to lower distributable cash flow because the business must recycle cash into existing assets merely to maintain operations.
+Final distribution choices are:
 
-The source distinguishes:
+- Narrow
+- Moderately Narrow
+- Medium
+- Moderately Wide
+- Wide
+- Unknown
 
-- capital-intensive businesses;
-- capital-light businesses;
-- **maintenance capital expenditures** required to keep the business in steady state;
-- growth capex;
-- regulatory / non-discretionary required investment;
-- deferred-maintenance and asset-age replacement risk.
+There is **no weighted score / 0–100 score**. The app also does not automatically change MOS or valuation assumptions from this classification.
 
-Shearn notes that many capital-intensive examples have capex/sales above roughly 0.20, but this is an observation about the examples in the book, not a universal classification rule. The app must not use 20% as a hard automatic cutoff.
+## Data / AI / Analyst boundary
 
-Most importantly: **maintenance capex must not be invented.** If it is not separately disclosed and cannot be supported by evidence, the field remains `Unknown`. Phase 6B may present total capex, capex/sales, capex/D&A and asset-age diagnostics, but it may not silently equate total capex with maintenance capex.
+- **Data Engine:** canonical facts and transparent derived metrics only.
+- **AI Research Assistant:** find disclosures, evidence, counter-evidence, anomalies and research gaps.
+- **AI must not:** set Conservative/Liberal accounting, recurring quality, cyclicality class, operating-leverage risk, maintenance capex, distribution width, Research Gate or BUY/HOLD/SELL.
+- **Analyst:** owns all Q27–Q32 conclusions and final distribution width.
 
-## Phase 6A persistence
+Missing evidence remains `Unknown`; it is never interpreted as positive evidence.
+
+## Persistence
 
 Database: `data_cache/deep_company_analysis_chapter6.db`
 
-Tables:
+Persistent child tables include:
 
-- `chapter6_current`
 - `chapter6_accounting_quality`
+- `chapter6_reserve_rollforward`
 - `chapter6_revenue_streams`
 - `chapter6_cycle_drivers`
 - `chapter6_cost_structure`
 - `chapter6_working_capital`
 - `chapter6_capex_register`
+- `chapter6_distribution_matrix`
 - `chapter6_evidence`
 - `chapter6_research_gaps`
+- `chapter6_current`
 - `chapter6_snapshots`
 
-SQLite stores analyst workspace, evidence and snapshots. Financial facts remain owned by the canonical Trecapital Data Layer.
+Financial facts remain owned by the canonical Trecapital Data Layer.
 
-## Immutable analyst boundary
+## Display-format lock
 
-AI/Data must not automatically set:
+Chapter 6 follows the project-wide display rules:
 
-- conservative/liberal accounting conclusion;
-- fraud/manipulation conclusion;
-- recurring-revenue classification or share;
-- cyclical/countercyclical/recession-resistant conclusion;
-- operating-leverage risk conclusion;
-- whether a CCC improvement is sustainable;
-- maintenance capex;
-- capital-intensity conclusion;
-- width of the earnings distribution;
-- Research Gate;
-- BUY/HOLD/SELL.
-
-Missing evidence is `Unknown`, never positive evidence.
+- financial amounts: **tỷ đồng, 0 decimals**;
+- percentages: **1 decimal**;
+- ratios: **1 decimal**;
+- negative numeric values: **red heat intensity**;
+- positive numeric values / positive growth: **emerald heat intensity**;
+- larger absolute values use deeper heat intensity;
+- read-only financial tables use `st.html()` with `table-layout: fixed`, `white-space: normal`, `overflow-wrap: anywhere`;
+- editable research tables use `st.data_editor` with explicit numeric column formats and expose an `st.html()` formatted preview for tables containing financial numbers.
 
 ## Phase 6A acceptance rules
 
-- Q27–Q32 all exist and persist.
-- Seven Shearn reserve areas are seeded for a brand-new Q27 record.
-- Analyst can delete default reserve rows and they do not silently reappear after save/load.
-- Evidence and counter-evidence can be stored for every research area.
-- Q28 recurring-revenue share is not fabricated.
-- Q29 requires explicit cycle/downturn evidence before a strong analyst conclusion is well supported.
-- Q30 keeps cost structure distinct from Phase-6B quantitative DOL.
-- Q31 does not treat low/negative CCC as automatically good.
-- Q32 does not infer maintenance capex from total capex without evidence.
+- Q27–Q32 exist and persist.
+- Tables 6.1–6.2 logic includes a reserve roll-forward.
+- Seven Shearn reserve areas seed only a new record and deletions persist.
+- Q28 explicitly distinguishes Contractual recurring / Behavioral recurring / Repeat purchase / One-off.
+- Q29 captures cycle and supply/demand evidence without auto-classification.
+- Q30 cost structure is separate from future quantitative DOL.
+- Q31 does not treat low/negative CCC as automatically positive.
+- Q32 supports disclosed → analyst estimate → clearly-labelled depreciation rough proxy → Unknown hierarchy.
+- Earnings Distribution Matrix contains Q27–Q32 and has no weighted score.
+- Numeric display-format rules are tested.
 - Save/load/snapshot persistence works.
-- No automatic BUY/HOLD/SELL or Research Gate is created.
+- No automatic Research Gate or BUY/HOLD/SELL.
 
-## Next phase
+## Next phase — only after analyst review
 
-**Phase 6B — Quantitative Bridge** from canonical Trecapital data:
-
-- Q27: CFO vs NI history and selected accounting-quality diagnostics where canonical fields exist;
-- Q29: revenue / EBIT / margin behavior through available history, without claiming macro causality;
-- Q30: historical DOL diagnostics and clearly-labelled Trecapital stress extension;
-- Q31: 5–10Y DIO / DSO / DPO / CCC, ΔOperating WC and cash absorbed/released;
-- Q32: total capex, capex/sales, capex/D&A, FCF and asset-age diagnostics;
-- dedicated provenance (`source_field`, `source_period`, `data_origin`) for every computed metric.
+**Phase 6B — Quantitative Bridge** from Trecapital canonical data: CFO/NI history, historical revenue/EBIT/margin behavior, DOL, DSO/DIO/DPO/CCC, operating-WC cash impact, total capex, capex/revenue, capex/D&A, FCF, PP&E age diagnostics and full provenance.
