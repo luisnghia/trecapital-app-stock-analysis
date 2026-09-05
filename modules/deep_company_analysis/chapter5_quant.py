@@ -217,29 +217,124 @@ def build_balance_sheet_context(annual_df: pd.DataFrame, years: int = 10) -> pd.
     return pd.DataFrame(out)
 
 
-def _adjustment_amount(adjustments: Iterable[dict[str, Any]] | None, needles: tuple[str, ...]) -> Optional[float]:
+def _included_flag(row: dict[str, Any]) -> bool:
+    included = str(row.get("Included?") or "").strip().casefold()
+    return included in {"1", "true", "yes", "y", "x", "✓", "included", "có", "co"}
+
+
+def _adjustment_sum(
+    adjustments: Iterable[dict[str, Any]] | None,
+    needles: tuple[str, ...],
+    *,
+    absolute: bool = True,
+) -> Optional[float]:
+    """Sum explicitly included named adjustments.
+
+    Denominator adjustments such as excess cash and off-BS capital are treated as magnitudes.
+    The engine never invents an adjustment when the analyst has not explicitly included it.
+    """
+    values: list[float] = []
     for row in adjustments or []:
-        if not isinstance(row, dict):
+        if not isinstance(row, dict) or not _included_flag(row):
             continue
         name = str(row.get("Adjustment") or "").casefold()
-        included = str(row.get("Included?") or "").strip().casefold()
-        if included not in {"1", "true", "yes", "y", "x", "✓", "included", "có"}:
+        if not any(needle.casefold() in name for needle in needles):
             continue
-        if any(needle.casefold() in name for needle in needles):
-            value = _safe_float(row.get("Amount"))
-            if value is not None:
-                return abs(value)
-    return None
+        value = _safe_float(row.get("Amount"))
+        if value is not None:
+            values.append(abs(value) if absolute else value)
+    return sum(values) if values else None
+
+
+def _numerator_adjustment_sum(adjustments: Iterable[dict[str, Any]] | None) -> float:
+    """Return analyst-confirmed *signed* EBIT adjustments.
+
+    Positive amounts add to EBIT; negative amounts subtract from EBIT. The app does not decide the
+    sign of restructuring, impairment, amortization or any other non-recurring item for the analyst.
+    A row must explicitly target the Numerator (or Both) to be used.
+    """
+    total = 0.0
+    for row in adjustments or []:
+        if not isinstance(row, dict) or not _included_flag(row):
+            continue
+        target = str(row.get("Numerator / Denominator") or "").strip().casefold()
+        if not ("numerator" in target or target in {"both", "cả hai", "ca hai"}):
+            continue
+        value = _safe_float(row.get("Amount"))
+        if value is not None:
+            total += value
+    return total
+
+
+def _adjusted_ebit(
+    row: dict[str, Any],
+    adjustments: Iterable[dict[str, Any]] | None = None,
+) -> tuple[Optional[float], str]:
+    """Shearn numerator: operating earnings before interest and taxes, plus signed analyst adjustments."""
+    ebit = _metric(row, "ebit")
+    if ebit is None:
+        return None, "Adjusted EBIT unavailable — canonical EBIT/operating profit missing"
+    signed_adjustment = _numerator_adjustment_sum(adjustments)
+    if abs(signed_adjustment) > 1e-12:
+        return ebit + signed_adjustment, f"Canonical EBIT + analyst-confirmed signed numerator adjustments ({signed_adjustment:,.2f})"
+    return ebit, "Canonical EBIT / operating profit; no analyst numerator adjustment included"
+
+
+def _non_interest_bearing_current_liabilities(row: dict[str, Any]) -> tuple[Optional[float], str]:
+    """Return NIBCL without guessing financing liabilities.
+
+    Prefer an explicit normalized NIBCL field. Otherwise use Current Liabilities minus explicit
+    short-term interest-bearing debt. If neither route is supportable, remain Unknown.
+    """
+    explicit = _pick(
+        row,
+        "non_interest_bearing_current_liabilities_bil",
+        "nibcl_bil",
+        "operating_current_liabilities_bil",
+    )
+    if explicit is not None:
+        return explicit, "Canonical/normalized non-interest-bearing current liabilities"
+
+    current_liabilities = _metric(row, "current_liabilities")
+    short_debt = _metric(row, "short_debt")
+    if current_liabilities is not None and short_debt is not None:
+        return max(0.0, current_liabilities - abs(short_debt)), "Proxy = Current Liabilities − short-term interest-bearing debt"
+
+    total_debt = _debt(row)
+    if current_liabilities is not None and total_debt is not None and abs(total_debt) < 1e-12:
+        return current_liabilities, "Current Liabilities treated as NIBCL because canonical interest-bearing debt = 0"
+    return None, "NIBCL unavailable — app does not assume all current liabilities are non-interest-bearing"
+
+
+def _shearn_net_asset_base(row: dict[str, Any]) -> tuple[Optional[float], str]:
+    assets = _metric(row, "assets")
+    nibcl, nibcl_source = _non_interest_bearing_current_liabilities(row)
+    if assets is None or nibcl is None:
+        return None, f"Net investment base unavailable: Total Assets={assets}; {nibcl_source}"
+    return assets - nibcl, f"Total Assets − NIBCL; {nibcl_source}"
+
+
+def _average_strict(current: Optional[float], previous: Optional[float]) -> Optional[float]:
+    """Shearn explicitly asks the analyst to use average investment-base amounts."""
+    if current is None or previous is None:
+        return None
+    return (current + previous) / 2.0
 
 
 def build_roic_variants(
     annual_df: pd.DataFrame,
     adjustments: Iterable[dict[str, Any]] | None = None,
 ) -> pd.DataFrame:
-    """Build auditable ROIC views. No analytical variant replaces canonical ROIC.
+    """Build canonical ROIC plus source-locked Shearn analytical views.
 
-    Excess-cash and off-BS variants require analyst-confirmed adjustments. The engine deliberately
-    does not assume all cash is excess cash.
+    Trecapital Canonical ROIC remains the Single Source of Truth and is read, not recalculated.
+    Every row whose Origin is ``Shearn analytical`` uses:
+
+        Adjusted EBIT / Average Adjusted Invested Capital
+
+    following Shearn's Chapter-5 basic equation. The investment base starts from Total Assets,
+    subtracts non-interest-bearing current liabilities, and then applies the specific cash,
+    goodwill, gross-asset or off-balance-sheet view. Missing/unsupported inputs remain Unknown.
     """
     rows = _annual_rows(annual_df)
     current = rows[-1] if rows else _current_row(annual_df)
@@ -248,47 +343,132 @@ def build_roic_variants(
         return pd.DataFrame()
 
     canonical = _metric(current, "roic")
-    nopat, nopat_source = _nopat_proxy(current)
-    cap_cur = _total_financing_capital(current)
-    cap_prev = _total_financing_capital(previous) if previous else None
-    avg_total_cap = _average(cap_cur, cap_prev)
-    roic_with_cash = _ratio(nopat, avg_total_cap, 100.0)
+    adjusted_ebit, numerator_source = _adjusted_ebit(current, adjustments)
 
-    excess_cash = _adjustment_amount(adjustments, ("excess cash", "tiền dư thừa"))
-    off_bs = _adjustment_amount(adjustments, ("off-bs", "off balance", "ngoài bảng"))
-    base_excess_den = (avg_total_cap - excess_cash) if avg_total_cap is not None and excess_cash is not None else None
-    roic_ex_excess = _ratio(nopat, base_excess_den, 100.0)
+    base_cur, base_cur_source = _shearn_net_asset_base(current)
+    base_prev, base_prev_source = _shearn_net_asset_base(previous) if previous else (None, "Prior-period investment base unavailable")
+    avg_with_cash = _average_strict(base_cur, base_prev)
+    base_source = f"Average of period-end [Total Assets − NIBCL]. Current: {base_cur_source}. Prior: {base_prev_source}."
+
+    roic_with_cash = _ratio(adjusted_ebit, avg_with_cash, 100.0)
+
+    excess_cash = _adjustment_sum(adjustments, ("excess cash", "tiền dư thừa", "tien du thua"), absolute=True)
+    base_ex_excess = None
+    if avg_with_cash is not None and excess_cash is not None:
+        candidate = avg_with_cash - excess_cash
+        base_ex_excess = candidate if candidate > 1e-12 else None
+    roic_ex_excess = _ratio(adjusted_ebit, base_ex_excess, 100.0)
 
     goodwill_cur = _metric(current, "goodwill")
     goodwill_prev = _metric(previous, "goodwill") if previous else None
-    avg_goodwill = _average(goodwill_cur, goodwill_prev)
-    roic_incl_goodwill = roic_ex_excess
-    ex_goodwill_den = (base_excess_den - avg_goodwill) if base_excess_den is not None and avg_goodwill is not None else None
-    roic_ex_goodwill = _ratio(nopat, ex_goodwill_den, 100.0)
+    avg_goodwill = _average_strict(goodwill_cur, goodwill_prev)
+
+    # Total Assets already includes goodwill/intangibles. Thus the ex-excess-cash base is the
+    # "including goodwill" view unless the analyst explicitly removes goodwill below.
+    roic_incl_goodwill = _ratio(adjusted_ebit, base_ex_excess, 100.0)
+    ex_goodwill_den = None
+    if base_ex_excess is not None and avg_goodwill is not None:
+        candidate = base_ex_excess - avg_goodwill
+        ex_goodwill_den = candidate if candidate > 1e-12 else None
+    roic_ex_goodwill = _ratio(adjusted_ebit, ex_goodwill_den, 100.0)
 
     gross_cur, net_cur = _metric(current, "gross_ppe"), _metric(current, "net_ppe")
     gross_prev = _metric(previous, "gross_ppe") if previous else None
     net_prev = _metric(previous, "net_ppe") if previous else None
-    avg_gross = _average(gross_cur, gross_prev)
-    avg_net = _average(net_cur, net_prev)
-    gross_den = None
-    if base_excess_den is not None and avg_gross is not None and avg_net is not None:
-        gross_den = base_excess_den + max(0.0, avg_gross - avg_net)
-    roic_gross = _ratio(nopat, gross_den, 100.0)
+    avg_gross = _average_strict(gross_cur, gross_prev)
+    avg_net = _average_strict(net_cur, net_prev)
+    accumulated_dep_proxy = None
+    if avg_gross is not None and avg_net is not None:
+        accumulated_dep_proxy = max(0.0, avg_gross - avg_net)
+    gross_den = (base_ex_excess + accumulated_dep_proxy) if base_ex_excess is not None and accumulated_dep_proxy is not None else None
+    roic_gross = _ratio(adjusted_ebit, gross_den, 100.0)
 
-    off_den = (base_excess_den + off_bs) if base_excess_den is not None and off_bs is not None else None
-    roic_off = _ratio(nopat, off_den, 100.0)
+    off_bs = _adjustment_sum(
+        adjustments,
+        ("off-bs", "off balance", "off-balance", "ngoài bảng", "ngoai bang"),
+        absolute=True,
+    )
+    off_den = (base_ex_excess + off_bs) if base_ex_excess is not None and off_bs is not None else None
+    roic_off = _ratio(adjusted_ebit, off_den, 100.0)
 
     period = _period(current)
+    common = {
+        "Kỳ": period,
+        "Numerator (tỷ)": adjusted_ebit,
+        "Numerator Source": numerator_source,
+    }
     return pd.DataFrame([
-        {"ROIC View": "Trecapital Canonical ROIC", "Origin": "Trecapital canonical", "Value %": canonical, "Denominator (tỷ)": None, "Status / Requirement": "Single Source of Truth", "Formula / Note": "Read directly from canonical normalized data."},
-        {"ROIC View": "ROIC with cash", "Origin": "Shearn analytical", "Value %": roic_with_cash, "Denominator (tỷ)": avg_total_cap, "Status / Requirement": "Computed" if roic_with_cash is not None else "Missing debt/equity/NOPAT", "Formula / Note": f"NOPAT / average (Equity + interest-bearing debt). {nopat_source}."},
-        {"ROIC View": "ROIC ex excess cash", "Origin": "Shearn analytical", "Value %": roic_ex_excess, "Denominator (tỷ)": base_excess_den, "Status / Requirement": "Computed from analyst-confirmed excess cash" if roic_ex_excess is not None else "Requires analyst-confirmed Excess Cash adjustment", "Formula / Note": "NOPAT / [average total financing capital − analyst-confirmed excess cash]. App never assumes all cash is excess."},
-        {"ROIC View": "ROIC including goodwill", "Origin": "Shearn analytical", "Value %": roic_incl_goodwill, "Denominator (tỷ)": base_excess_den, "Status / Requirement": "Computed" if roic_incl_goodwill is not None else "Requires excess-cash base", "Formula / Note": "Uses the ex-excess-cash capital base without removing goodwill."},
-        {"ROIC View": "ROIC ex goodwill", "Origin": "Shearn analytical", "Value %": roic_ex_goodwill, "Denominator (tỷ)": ex_goodwill_den, "Status / Requirement": "Computed" if roic_ex_goodwill is not None else "Requires goodwill + excess-cash base", "Formula / Note": "NOPAT / [capital base − average goodwill]."},
-        {"ROIC View": "ROIC gross-asset adjusted", "Origin": "Shearn analytical", "Value %": roic_gross, "Denominator (tỷ)": gross_den, "Status / Requirement": "Computed" if roic_gross is not None else "Requires gross PP&E + net PP&E + excess-cash base", "Formula / Note": "Adds accumulated PP&E write-down proxy (gross PP&E − net PP&E) to the capital base."},
-        {"ROIC View": "ROIC off-BS adjusted", "Origin": "Shearn analytical", "Value %": roic_off, "Denominator (tỷ)": off_den, "Status / Requirement": "Computed from analyst-confirmed off-BS adjustment" if roic_off is not None else "Requires analyst-confirmed off-BS obligation adjustment", "Formula / Note": "Adds analyst-confirmed material off-balance-sheet obligations to the capital base."},
-    ]).assign(**{"Kỳ": period})
+        {
+            **common,
+            "ROIC View": "Trecapital Canonical ROIC",
+            "Origin": "Trecapital canonical",
+            "Value %": canonical,
+            "Denominator (tỷ)": None,
+            "Denominator Source": "Canonical Trecapital normalized invested-capital methodology",
+            "Status / Requirement": "Single Source of Truth",
+            "Formula / Note": "Read directly from canonical normalized data; this row is not recalculated by Chapter 5.",
+        },
+        {
+            **common,
+            "ROIC View": "ROIC with cash",
+            "Origin": "Shearn analytical",
+            "Value %": roic_with_cash,
+            "Denominator (tỷ)": avg_with_cash,
+            "Denominator Source": base_source,
+            "Status / Requirement": "Computed from Adjusted EBIT + average asset-based investment base" if roic_with_cash is not None else "Requires EBIT + two-period Total Assets + NIBCL",
+            "Formula / Note": "Adjusted EBIT / Average[Total Assets − non-interest-bearing current liabilities]. Cash remains in the asset base.",
+        },
+        {
+            **common,
+            "ROIC View": "ROIC ex excess cash",
+            "Origin": "Shearn analytical",
+            "Value %": roic_ex_excess,
+            "Denominator (tỷ)": base_ex_excess,
+            "Denominator Source": base_source,
+            "Status / Requirement": "Computed from analyst-confirmed excess cash" if roic_ex_excess is not None else "Requires analyst-confirmed Excess Cash adjustment + average investment base",
+            "Formula / Note": "Adjusted EBIT / [Average asset-based investment base − analyst-confirmed excess cash]. App never assumes all cash is excess cash.",
+        },
+        {
+            **common,
+            "ROIC View": "ROIC including goodwill",
+            "Origin": "Shearn analytical",
+            "Value %": roic_incl_goodwill,
+            "Denominator (tỷ)": base_ex_excess,
+            "Denominator Source": base_source,
+            "Status / Requirement": "Computed; goodwill retained in Total Assets" if roic_incl_goodwill is not None else "Requires analyst-confirmed excess cash + average investment base",
+            "Formula / Note": "Adjusted EBIT / ex-excess-cash investment base with goodwill/intangibles retained.",
+        },
+        {
+            **common,
+            "ROIC View": "ROIC ex goodwill",
+            "Origin": "Shearn analytical",
+            "Value %": roic_ex_goodwill,
+            "Denominator (tỷ)": ex_goodwill_den,
+            "Denominator Source": base_source,
+            "Status / Requirement": "Computed from average goodwill" if roic_ex_goodwill is not None else "Requires goodwill + analyst-confirmed excess cash + average investment base",
+            "Formula / Note": "Adjusted EBIT / [ex-excess-cash investment base − Average Goodwill]. Use alongside the including-goodwill view; do not erase acquisition economics.",
+        },
+        {
+            **common,
+            "ROIC View": "ROIC gross-asset adjusted",
+            "Origin": "Shearn analytical",
+            "Value %": roic_gross,
+            "Denominator (tỷ)": gross_den,
+            "Denominator Source": base_source,
+            "Status / Requirement": "Computed using gross-vs-net PP&E depreciation proxy" if roic_gross is not None else "Requires Gross PP&E + Net PP&E + analyst-confirmed excess cash + average investment base",
+            "Formula / Note": "Adjusted EBIT / [ex-excess-cash base + max(0, Average Gross PP&E − Average Net PP&E)]. Diagnostic proxy for accumulated depreciation/asset aging.",
+        },
+        {
+            **common,
+            "ROIC View": "ROIC off-BS adjusted",
+            "Origin": "Shearn analytical",
+            "Value %": roic_off,
+            "Denominator (tỷ)": off_den,
+            "Denominator Source": base_source,
+            "Status / Requirement": "Computed from analyst-confirmed off-BS capital" if roic_off is not None else "Requires analyst-confirmed Off-Balance-Sheet adjustment + excess-cash base",
+            "Formula / Note": "Adjusted EBIT / [ex-excess-cash investment base + analyst-confirmed material off-BS capital]. No lease/pension/other obligation is invented.",
+        },
+    ])
 
 
 def build_roic_distortion_diagnostics(annual_df: pd.DataFrame) -> pd.DataFrame:
@@ -396,6 +576,7 @@ def build_chapter5_quant_context(
             "auto_balance_sheet_conclusion": False,
             "auto_roic_quality_conclusion": False,
             "auto_compounder_conclusion": False,
+            "shearn_variants_use_nopat": False,
             "assume_all_cash_is_excess": False,
             "invent_off_bs_obligation": False,
         },

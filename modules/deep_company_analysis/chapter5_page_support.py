@@ -63,7 +63,7 @@ def _quant_cached(
     year_sig: tuple[int, int],
     quarter_sig: tuple[int, int],
     source_label: str,
-    adjustments_signature: tuple[tuple[str, str, str], ...],
+    adjustments_signature: tuple[tuple[str, str, str, str], ...],
 ):
     del overview_sig, year_sig, quarter_sig
     safe = _safe_ticker(ticker)
@@ -73,8 +73,8 @@ def _quant_cached(
     annual = append_ttm_row(annual_raw, quarterly)
     company_name = str(getattr(company, "company_name", "") or getattr(company, "name", "") or "")
     adjustments = [
-        {"Adjustment": name, "Amount": amount, "Included?": included}
-        for name, amount, included in adjustments_signature
+        {"Adjustment": name, "Numerator / Denominator": target, "Amount": amount, "Included?": included}
+        for name, target, amount, included in adjustments_signature
     ]
     return build_chapter5_quant_context(
         safe,
@@ -85,16 +85,17 @@ def _quant_cached(
     )
 
 
-def _adjustment_signature(record: dict[str, Any]) -> tuple[tuple[str, str, str], ...]:
+def _adjustment_signature(record: dict[str, Any]) -> tuple[tuple[str, str, str, str], ...]:
     rows = record.get("q26_roic_adjustments") if isinstance(record, dict) else []
     if not isinstance(rows, list):
         return tuple()
-    out: list[tuple[str, str, str]] = []
+    out: list[tuple[str, str, str, str]] = []
     for row in rows:
         if not isinstance(row, dict):
             continue
         out.append((
             str(row.get("Adjustment") or ""),
+            str(row.get("Numerator / Denominator") or ""),
             str(row.get("Amount") or ""),
             str(row.get("Included?") or ""),
         ))
@@ -218,8 +219,9 @@ def render_phase5b_quantitative_bridge(ticker: str) -> tuple[str, str]:
             else:
                 st.caption("Chưa có dữ liệu đủ để dựng ROIC views.")
             st.info(
-                "Canonical ROIC là Single Source of Truth. Các dòng Shearn analytical chỉ là góc nhìn điều chỉnh. "
-                "ROIC ex excess cash KHÔNG được tính nếu analyst chưa xác nhận lượng excess cash; off-BS adjusted cũng vậy."
+                "Canonical ROIC là Single Source of Truth và giữ nguyên methodology của Trecapital. "
+                "Các dòng Shearn analytical dùng Adjusted EBIT / Average Adjusted Invested Capital theo Chương 5 — KHÔNG dùng NOPAT. "
+                "ROIC ex excess cash chỉ tính khi analyst xác nhận excess cash; off-BS adjusted cũng chỉ dùng adjustment đã xác nhận."
             )
 
             diag = ctx.get("q26_distortions")
