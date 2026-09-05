@@ -1,0 +1,189 @@
+name: Finalize Chapter 6 Phase 6D V33 — Source Closure + 3-Pass QA
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter6
+    paths:
+      - '.github/workflows/finalize-chapter6-phase6d-v33.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-phase6d-v33:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-chapter6
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Apply approved Phase 6D production patches
+        run: python scripts/apply_chapter6_phase6d_v33.py
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Compile Chapter 6 V33
+        run: |
+          python -m py_compile \
+            modules/deep_company_analysis/chapter6.py \
+            modules/deep_company_analysis/chapter6_quant.py \
+            modules/deep_company_analysis/chapter6_evidence.py \
+            modules/deep_company_analysis/chapter6_closure.py \
+            modules/deep_company_analysis/chapter6_page_support.py \
+            modules/deep_company_analysis/chapter5_quant.py \
+            pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+
+      - name: QA Pass 1 of 3 — Source closure formulas + persistence
+        run: |
+          pytest -q \
+            modules/deep_company_analysis/test_chapter6_phase6d.py \
+            modules/deep_company_analysis/test_chapter6.py \
+            modules/deep_company_analysis/test_chapter6_quant.py
+
+      - name: QA Pass 2 of 3 — Format + TTM + Sort regression
+        run: |
+          pytest -q \
+            modules/deep_company_analysis/test_table_format.py \
+            modules/deep_company_analysis/test_sortable_table_v32.py \
+            modules/deep_company_analysis/test_ttm_coverage_v32.py \
+            modules/deep_company_analysis/test_chapter6_phase6b_integration.py
+
+      - name: QA Pass 3 of 3 — Evidence boundary + completion gate
+        run: |
+          pytest -q \
+            modules/deep_company_analysis/test_chapter6_phase6c.py \
+            modules/deep_company_analysis/test_chapter6_phase6d.py
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('modules/deep_company_analysis/chapter6_page_support.py').read_text(encoding='utf-8')
+          c = Path('modules/deep_company_analysis/chapter6.py').read_text(encoding='utf-8')
+          e = Path('modules/deep_company_analysis/chapter6_evidence.py').read_text(encoding='utf-8')
+          assert 'def _render_phase6d_final_closure' in p
+          assert 'chapter6_complete_confirmed' in p
+          assert 'SCHEMA_VERSION = 3' in c
+          for token in ('q27_tax_footnote', 'q27_unsustainable_earnings', 'q32_asset_replacement', 'valuation_scenarios', 'chapter6_final_checklist'):
+              assert token in c
+          for token in ('current tax', 'income tax provision', 'tax footnote', 'debt retirement'):
+              assert token in e.lower()
+          assert 'build_balance_sheet_context' in p
+          assert 'no duplicate leverage formula' in p.lower()
+          print('PASS Phase6D source/boundary static audit')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: pytest -q modules/deep_company_analysis/test_*.py
+
+      - name: Static production table audit
+        shell: bash
+        run: |
+          echo '=== Direct production Streamlit table primitives ==='
+          grep -RIn --include='*.py' -E 'st\.table\(|st\.dataframe\(|st\.data_editor\(' modules/deep_company_analysis | grep -v '/test_' | grep -v 'table_format.py' && exit 1 || true
+          echo '=== Phase6D sortable paths ==='
+          grep -n 'q27_tax_footnote\|q27_unsustainable_earnings\|q32_asset_replacement\|valuation_scenarios\|chapter6_final_checklist' modules/deep_company_analysis/chapter6_page_support.py
+
+      - name: Unified Streamlit smoke test
+        shell: bash
+        run: |
+          timeout 35s streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8520 >/tmp/dca_v33_smoke.log 2>&1 &
+          PID=$!
+          sleep 14
+          curl --fail --silent http://127.0.0.1:8520/_stcore/health
+          kill $PID || true
+          wait $PID || true
+          tail -n 120 /tmp/dca_v33_smoke.log || true
+
+      - name: Update Chapter 6 methodology notes
+        shell: bash
+        run: |
+          if ! grep -q 'Phase 6D final source closure' docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md; then
+            cat >> docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md <<'EOF'
+
+          ## Phase 6D final source closure — V33
+
+          Phase 6D adds five source-closure controls before Chapter 6 may be analyst-confirmed Complete:
+
+          1. **Income-tax footnote history:** explicit Current Tax vs Income-Tax Provision over 5–10 years where disclosed. Cash taxes paid are not a substitute. Difference % = |Current Tax − Tax Provision| / |Tax Provision| × 100. Missing disclosure remains N/A; annual-only footnotes do not receive fabricated TTM values.
+          2. **Unsustainable earnings register:** debt-retirement/extinguishment gains/losses, restructuring/write-offs and temporary cuts to advertising/R&D/maintenance are evidence items, not automatic manipulation findings.
+          3. **Operating leverage × debt bridge:** Phase-6B historical DOL is displayed beside the Chapter-5 shared Net Debt, Debt/EBITDA and interest-coverage context. No distress score is computed.
+          4. **Asset replacement register:** Net/Gross PP&E is a diagnostic only and must be interpreted with asset class, land/non-depreciable items, remaining life, replacement timing and depreciation-method comparability.
+          5. **Distribution → valuation bridge:** narrow distributions may support a point-estimate review; wide distributions prefer analyst-owned Bear/Base/Bull scenarios. No scenario assumption, probability, fair value, MOS or recommendation is auto-generated.
+
+          The final Completion Gate is a source/research-completion control only. It does not set Research Gate or BUY/HOLD/SELL.
+          EOF
+          fi
+
+      - name: Write V33 audit record
+        shell: bash
+        run: |
+          cat > docs/DEEP_ANALYSIS_CHAPTER6_V33_AUDIT_RESULT.md <<EOF
+          # Chapter 6 V33 — Final Source Closure Audit
+
+          Status: PASS
+
+          - QA Pass 1/3: Phase 6D formulas, persistence and Chapter 6 quantitative regression PASS.
+          - QA Pass 2/3: numeric format, TTM applicability and sortable-table regression PASS.
+          - QA Pass 3/3: Phase 6C/6D evidence boundary, completion gate and source-lock static audit PASS.
+          - Full Deep Company Analysis regression PASS.
+          - Static production table audit PASS.
+          - Unified Streamlit page smoke test PASS.
+
+          Chapter 6 state: Phase 6A + 6B + 6C + 6D implemented. Final completion remains analyst-confirmed per company record.
+
+          Branch: feature/deep-company-analysis-chapter6
+          Build source before commit: $(git rev-parse HEAD)
+          EOF
+
+      - name: Commit Chapter 6 V33 production implementation
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            modules/deep_company_analysis/chapter6.py \
+            modules/deep_company_analysis/chapter6_evidence.py \
+            modules/deep_company_analysis/chapter6_page_support.py \
+            modules/deep_company_analysis/chapter6_closure.py \
+            modules/deep_company_analysis/test_chapter6_phase6d.py \
+            docs/CHAPTER6_PHASE6D_FINAL_SOURCE_CLOSURE.md \
+            docs/DEEP_ANALYSIS_CHAPTER6_V33_AUDIT_RESULT.md \
+            docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md \
+            scripts/apply_chapter6_phase6d_v33.py
+          git commit -m 'feat(ch6): finalize Phase 6D source closure V33'
+          git push origin HEAD:feature/deep-company-analysis-chapter6
+
+      - name: Build V33 offline package
+        shell: bash
+        run: |
+          cat > OFFLINE_BUILD_INFO.txt <<EOF
+          Trecapital Deep Company Analysis Chapters 1-6 V33 Offline
+          Branch: feature/deep-company-analysis-chapter6
+          Commit: $(git rev-parse HEAD)
+          Chapter 6: Phase 6A + 6B + 6C + 6D Final Source Closure.
+          Includes: 3-pass QA; format/TTM/sort lock; tax-footnote analyzer; unsustainable-earnings register; DOL×debt bridge; asset-replacement register; Distribution→Valuation bridge; analyst-controlled Completion Gate.
+          Single Source of Truth: Trecapital canonical financial data.
+          Analyst boundary: no automatic Q27-Q32 conclusion, Distribution Width, valuation assumption, MOS, Research Gate or BUY/HOLD/SELL.
+          EOF
+          rm -f Trecapital_Deep_Analysis_Ch1-Ch6_V33_Offline.zip
+          zip -qr Trecapital_Deep_Analysis_Ch1-Ch6_V33_Offline.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' \
+               'Trecapital_Deep_Analysis_Ch1-Ch6_V30_Offline.zip' \
+               'Trecapital_Deep_Analysis_Ch1-Ch6_V31_Offline.zip' \
+               'Trecapital_Deep_Analysis_Ch1-Ch6_V32_Offline.zip'
+          unzip -t Trecapital_Deep_Analysis_Ch1-Ch6_V33_Offline.zip | tail -n 3
+
+      - name: Upload V33 offline ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Ch1-Ch6_V33_Offline
+          path: Trecapital_Deep_Analysis_Ch1-Ch6_V33_Offline.zip
+          retention-days: 90
