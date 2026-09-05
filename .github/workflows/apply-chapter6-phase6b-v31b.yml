@@ -1,0 +1,84 @@
+name: Apply Chapter 6 Phase 6B V31B
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter6
+    paths:
+      - '.github/workflows/apply-chapter6-phase6b-v31b.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-phase6b:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-chapter6
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Apply approved Phase 6B integration
+        run: python scripts/apply_chapter6_phase6b_v31.py
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Compile Phase 6B and unified page
+        run: |
+          python -m py_compile modules/deep_company_analysis/chapter6.py
+          python -m py_compile modules/deep_company_analysis/chapter6_quant.py
+          python -m py_compile modules/deep_company_analysis/chapter6_page_support.py
+          python -m py_compile pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+
+      - name: Run Chapter 6 Phase 6B tests
+        run: |
+          pytest -q modules/deep_company_analysis/test_chapter6.py
+          pytest -q modules/deep_company_analysis/test_chapter6_quant.py
+          pytest -q modules/deep_company_analysis/test_chapter6_phase6b_integration.py
+          pytest -q modules/deep_company_analysis/test_chapter6_format.py
+          pytest -q modules/deep_company_analysis/test_table_format.py
+
+      - name: Run full Deep Company Analysis regression
+        run: pytest -q modules/deep_company_analysis
+
+      - name: Static acceptance audit
+        run: |
+          python -c "from pathlib import Path; q=Path('modules/deep_company_analysis/chapter6_quant.py').read_text(encoding='utf-8'); ui=Path('modules/deep_company_analysis/chapter6_page_support.py').read_text(encoding='utf-8'); assert 'tax_paid_bil is NOT treated as current-tax expense' in q; assert 'auto_distribution_width\": False' in q; assert 'auto_mos_change\": False' in q; assert 'auto_buy_hold_sell\": False' in q; assert 'maintenance_capex_bil' in q and 'does NOT import' in q; assert '_render_phase6b_quantitative_bridge(ticker)' in ui; assert 'st.dataframe(' not in ui; assert 'render_static_table(' in ui; print('Phase 6B static acceptance PASS')"
+
+      - name: Commit Phase 6B V31
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add modules/deep_company_analysis/chapter6_quant.py modules/deep_company_analysis/chapter6_page_support.py modules/deep_company_analysis/test_chapter6_phase6b_integration.py docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md docs/CHAPTER6_PHASE6B_IMPLEMENTATION.md
+          git commit -m 'feat(ch6): implement approved Phase 6B quantitative bridge V31'
+          git push origin HEAD:feature/deep-company-analysis-chapter6
+
+      - name: Build V31 offline package
+        run: |
+          rm -rf /tmp/trecapital_v31
+          mkdir -p /tmp/trecapital_v31
+          git archive HEAD | tar -x -C /tmp/trecapital_v31
+          echo 'Trecapital Deep Company Analysis — Chapters 1–6 V31 Offline' > /tmp/trecapital_v31/OFFLINE_BUILD_INFO.txt
+          echo "Branch: feature/deep-company-analysis-chapter6" >> /tmp/trecapital_v31/OFFLINE_BUILD_INFO.txt
+          echo "Commit: $(git rev-parse HEAD)" >> /tmp/trecapital_v31/OFFLINE_BUILD_INFO.txt
+          echo 'Includes: V30 format lock + Chapter 6 Phase 6A + approved Phase 6B quantitative bridge.' >> /tmp/trecapital_v31/OFFLINE_BUILD_INFO.txt
+          echo 'Runtime data policy: Trecapital canonical Single Source of Truth; no live cache bundled.' >> /tmp/trecapital_v31/OFFLINE_BUILD_INFO.txt
+          cd /tmp
+          zip -qr "$GITHUB_WORKSPACE/Trecapital_Deep_Analysis_Ch1-Ch6_V31_Offline.zip" trecapital_v31
+          unzip -t "$GITHUB_WORKSPACE/Trecapital_Deep_Analysis_Ch1-Ch6_V31_Offline.zip"
+
+      - name: Upload V31 offline ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Ch1-Ch6_V31_Offline
+          path: Trecapital_Deep_Analysis_Ch1-Ch6_V31_Offline.zip
+          retention-days: 90
