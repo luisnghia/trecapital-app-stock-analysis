@@ -20,7 +20,7 @@ import pandas as pd
 
 APP_DIR = Path(__file__).resolve().parents[2]
 DB_PATH = APP_DIR / "data_cache" / "deep_company_analysis_chapter7.db"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 QUESTION_KEYS = ("Q33", "Q34", "Q35", "Q36", "Q37", "Q38")
 QUESTION_STATUS_OPTIONS = ("Unknown", "Partial", "Answered", "N/A")
@@ -119,6 +119,7 @@ CAREER_TIMELINE_COLUMNS = [
     "Manager",
     "From",
     "To",
+    "Date Precision",
     "Company",
     "Role",
     "Industry",
@@ -141,6 +142,7 @@ COMPENSATION_HISTORY_COLUMNS = [
     "Manager ID",
     "Manager",
     "Role",
+    "Compensation Scope",
     "Salary (tỷ)",
     "Cash Bonus (tỷ)",
     "Stock Awards (tỷ)",
@@ -159,6 +161,7 @@ COMPENSATION_HISTORY_COLUMNS = [
     "Guaranteed Component",
     "Compensation Consultant",
     "Source",
+    "Data Quality Flags",
     "Analyst Note",
 ]
 
@@ -197,12 +200,16 @@ COMPENSATION_DESIGN_COLUMNS = [
 
 INSIDER_TRANSACTION_COLUMNS = [
     "Transaction Date",
+    "Transaction Date From",
+    "Transaction Date To",
     "Disclosure Date",
     "Manager ID",
     "Insider",
     "Role",
     "Transaction",
     "Transaction Type",
+    "Registered Shares",
+    "Executed Shares",
     "Shares",
     "Price",
     "Transaction Value (tỷ)",
@@ -249,6 +256,9 @@ RESEARCH_GAP_COLUMNS = [
 
 EVENT_COLUMNS = [
     "Event Date",
+    "Publication Date",
+    "Effective Date",
+    "As-of Date",
     "Manager ID",
     "Manager",
     "Event Type",
@@ -412,6 +422,7 @@ def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
         "evidence_that_would_change_view": "",
         "analyst_summary": "",
         "phase7a_source_lock_note": "Event/as-of management data; no fabricated TTM. AI/Data is evidence support only; analyst owns classifications and conclusions.",
+        "phase7b_bridge_note": "Structured official disclosure bridge uses Raw → Candidate → Analyst Apply; registered != executed; actual shares != options/RSU/ESOP; no auto management conclusion.",
     }
 
 

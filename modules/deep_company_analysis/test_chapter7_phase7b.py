@@ -189,7 +189,7 @@ def test_status_frame_is_event_as_of_not_ttm(tmp_path):
 
 def test_no_management_quality_or_buy_sell_signal_in_bridge_contract():
     contract = " ".join([
-        b.__doc__ or "",
+        b.BRIDGE_BOUNDARY,
         json.dumps(b.EVENT_REVIEW_MAP),
         " ".join(b.RECORD_TYPES),
     ]).lower()

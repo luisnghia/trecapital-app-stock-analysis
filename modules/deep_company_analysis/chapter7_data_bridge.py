@@ -44,6 +44,7 @@ from modules.deep_company_analysis.chapter7 import (
 
 
 BRIDGE_SCHEMA_VERSION = 1
+BRIDGE_BOUNDARY = "No automatic OO/LT/HH, Lion/Hyena or Management Quality conclusion; no MOS/Research Gate/BUY/SELL; insider activity is not a buy/sell signal."
 RECORD_TYPES = ("roster", "career", "compensation", "ownership", "insider", "event")
 SOURCE_GRADES = ("A — Primary official", "B — Company official", "C — Secondary structured")
 SOURCE_TYPES = (
@@ -249,6 +250,7 @@ def init_bridge_db() -> None:
 
 def normalize_person_name(value: Any) -> str:
     text = " ".join(str(value or "").strip().split())
+    text = text.replace("Đ", "D").replace("đ", "d")
     folded = unicodedata.normalize("NFKD", text)
     folded = "".join(ch for ch in folded if not unicodedata.combining(ch))
     folded = re.sub(r"[^A-Za-z0-9 ]+", " ", folded).casefold()
@@ -282,15 +284,16 @@ def normalize_role(raw_role: Any) -> str:
     raw = normalize_person_name(raw_role)
     if not raw:
         return "Other"
+    # Specific titles must be tested before broader substrings (e.g. Phó TGĐ contains TGĐ).
     patterns = (
-        (("chu tich hoi dong quan tri", "chu tich hdqt", "chairman"), "Chairman"),
         (("pho chu tich", "vice chairman"), "Vice Chairman"),
-        (("tong giam doc", "ceo", "chief executive"), "CEO"),
         (("pho tong giam doc", "deputy ceo", "deputy general director"), "Deputy CEO"),
+        (("thanh vien hdqt doc lap", "independent director"), "Independent Director"),
         (("giam doc tai chinh", "cfo", "chief financial"), "CFO"),
         (("giam doc van hanh", "coo", "chief operating"), "COO"),
         (("ke toan truong", "chief accountant"), "Chief Accountant"),
-        (("thanh vien hdqt doc lap", "independent director"), "Independent Director"),
+        (("chu tich hoi dong quan tri", "chu tich hdqt", "chairman"), "Chairman"),
+        (("tong giam doc", "ceo", "chief executive"), "CEO"),
         (("thanh vien hoi dong quan tri", "thanh vien hdqt", "board director", "director"), "Board Director"),
     )
     for tokens, normalized in patterns:
@@ -723,7 +726,10 @@ def ingest_structured_rows(
                 stats["raw_count"] += 1
                 payload = normalize_structured_row(safe, record_type, raw, m)
                 key = _record_key(record_type, payload)
-                fp = _json_fingerprint(payload)
+                fp_payload = json.loads(json.dumps(payload, ensure_ascii=False, default=str))
+                if isinstance(fp_payload.get('_provenance'), dict):
+                    fp_payload['_provenance'].pop('retrieved_at', None)
+                fp = _json_fingerprint(fp_payload)
                 duplicate = conn.execute(
                     "SELECT id,normalized_fingerprint,payload_json FROM chapter7_candidate_records WHERE ticker=? AND record_type=? AND record_key=? ORDER BY id DESC LIMIT 1",
                     (safe, record_type, key),
