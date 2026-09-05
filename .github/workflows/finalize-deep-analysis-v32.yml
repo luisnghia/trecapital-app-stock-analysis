@@ -1,0 +1,157 @@
+name: Finalize Deep Analysis V32 — 3-Pass Audit + TTM + Sort + Phase6C
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter6
+    paths:
+      - '.github/workflows/finalize-deep-analysis-v32.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-v32:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-chapter6
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Apply V32 production migrations
+        run: |
+          python scripts/apply_deep_analysis_v32.py
+          python scripts/apply_deep_analysis_v32_custom_tables.py
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Compile V32 production code
+        run: |
+          python -m py_compile \
+            modules/deep_company_analysis/table_format.py \
+            modules/deep_company_analysis/monitoring.py \
+            modules/deep_company_analysis/chapter1.py \
+            modules/deep_company_analysis/chapter2.py \
+            modules/deep_company_analysis/chapter2_page_support.py \
+            modules/deep_company_analysis/chapter3.py \
+            modules/deep_company_analysis/chapter3_page_support.py \
+            modules/deep_company_analysis/chapter4.py \
+            modules/deep_company_analysis/chapter4_quant.py \
+            modules/deep_company_analysis/chapter4_page_support.py \
+            modules/deep_company_analysis/chapter5.py \
+            modules/deep_company_analysis/chapter5_quant.py \
+            modules/deep_company_analysis/chapter5_page_support.py \
+            modules/deep_company_analysis/chapter6.py \
+            modules/deep_company_analysis/chapter6_quant.py \
+            modules/deep_company_analysis/chapter6_evidence.py \
+            modules/deep_company_analysis/chapter6_page_support.py \
+            module2_dashboard.py \
+            pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
+            scripts/audit_deep_analysis_v32.py
+
+      - name: Audit Pass 1 of 3 — Format
+        run: |
+          pytest -q modules/deep_company_analysis/test_table_format.py modules/deep_company_analysis/test_sortable_table_v32.py
+          python scripts/audit_deep_analysis_v32.py
+
+      - name: Audit Pass 2 of 3 — TTM coverage
+        run: |
+          pytest -q modules/deep_company_analysis/test_ttm_coverage_v32.py modules/deep_company_analysis/test_chapter6_phase6b.py modules/deep_company_analysis/test_chapter6_phase6b_integration.py
+          python scripts/audit_deep_analysis_v32.py
+
+      - name: Audit Pass 3 of 3 — Sortability + Phase6C boundary
+        run: |
+          pytest -q modules/deep_company_analysis/test_sortable_table_v32.py modules/deep_company_analysis/test_chapter6_phase6c.py
+          python scripts/audit_deep_analysis_v32.py
+
+      - name: Full Deep Company Analysis regression
+        run: pytest -q modules/deep_company_analysis/test_*.py
+
+      - name: Static table primitive audit
+        shell: bash
+        run: |
+          echo '=== Direct Streamlit production table calls (only wrapper implementation may remain) ==='
+          grep -RIn --include='*.py' -E 'st\.table\(|st\.dataframe\(|st\.data_editor\(' modules/deep_company_analysis | grep -v '/test_' | grep -v 'table_format.py' && exit 1 || true
+          echo '=== Custom HTML display paths ==='
+          grep -RIn --include='*.py' -E 'st\.html\(_html_table|st\.html\(_wrapped_html_table|rows_html|financial_table_html\(edited' modules/deep_company_analysis || true
+          python scripts/audit_deep_analysis_v32.py
+
+      - name: Unified Streamlit smoke test
+        shell: bash
+        run: |
+          timeout 30s streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8518 >/tmp/dca_v32_smoke.log 2>&1 &
+          PID=$!
+          sleep 13
+          curl --fail --silent http://127.0.0.1:8518/_stcore/health
+          kill $PID || true
+          wait $PID || true
+          tail -n 100 /tmp/dca_v32_smoke.log || true
+
+      - name: Write V32 audit record
+        shell: bash
+        run: |
+          cat > docs/DEEP_ANALYSIS_V32_AUDIT_RESULT.md <<EOF
+          # Deep Company Analysis V32 — 3-Pass Audit Result
+
+          Status: PASS
+
+          - Pass 1: numeric/table format contract PASS.
+          - Pass 2: valid canonical TTM coverage + methodology N/A guardrails PASS.
+          - Pass 3: selectable sorting on all production table display/edit paths + Phase 6C analyst boundary PASS.
+          - Full Deep Company Analysis regression PASS.
+          - Unified Streamlit page smoke test PASS.
+
+          Branch: feature/deep-company-analysis-chapter6
+          Build source before commit: $(git rev-parse HEAD)
+          EOF
+
+      - name: Commit V32 production implementation
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            module2_dashboard.py \
+            modules/deep_company_analysis \
+            docs/CHAPTER6_PHASE6C_IMPLEMENTATION.md \
+            docs/DEEP_ANALYSIS_TABLE_FORMAT_TTM_SORT_LOCK_V32.md \
+            docs/DEEP_ANALYSIS_V32_AUDIT_RESULT.md \
+            docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md \
+            scripts/apply_deep_analysis_v32.py \
+            scripts/apply_deep_analysis_v32_custom_tables.py \
+            scripts/audit_deep_analysis_v32.py
+          git commit -m 'feat(ch6): Phase 6C plus 3-pass format TTM sortable-table lock V32'
+          git push origin HEAD:feature/deep-company-analysis-chapter6
+
+      - name: Build V32 offline package
+        shell: bash
+        run: |
+          cat > OFFLINE_BUILD_INFO.txt <<EOF
+          Trecapital Deep Company Analysis Chapters 1-6 V32 Offline
+          Branch: feature/deep-company-analysis-chapter6
+          Commit: $(git rev-parse HEAD)
+          Includes: 3-pass format audit, valid TTM coverage, selectable sorting on all tables, Chapter 6 Phase 6C Evidence & Research Assistant.
+          Data rule: Trecapital canonical financial data remains Single Source of Truth.
+          Analyst boundary: no automatic Q27-Q32 conclusion, Distribution Width, MOS, Research Gate or BUY/HOLD/SELL.
+          EOF
+          rm -f Trecapital_Deep_Analysis_Ch1-Ch6_V32_Offline.zip
+          zip -qr Trecapital_Deep_Analysis_Ch1-Ch6_V32_Offline.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' \
+               'Trecapital_Deep_Analysis_Ch1-Ch6_V30_Offline.zip' 'Trecapital_Deep_Analysis_Ch1-Ch6_V31_Offline.zip'
+          unzip -t Trecapital_Deep_Analysis_Ch1-Ch6_V32_Offline.zip | tail -n 3
+
+      - name: Upload V32 offline ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Ch1-Ch6_V32_Offline
+          path: Trecapital_Deep_Analysis_Ch1-Ch6_V32_Offline.zip
+          retention-days: 90
