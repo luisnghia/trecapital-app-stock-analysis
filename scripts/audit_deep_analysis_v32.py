@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import pandas as pd
 
 from modules.deep_company_analysis.table_format import format_numeric, infer_numeric_kind, sort_frame, static_table_html
 
-ROOT = Path(__file__).resolve().parents[1]
 MOD = ROOT / "modules" / "deep_company_analysis"
 
 
@@ -107,7 +111,6 @@ def pass3_sort_and_boundary() -> None:
     for forbidden in ("module2_engine", "build_beneish", "build_modified_jones", "build_real_earnings"):
         assert forbidden not in evidence, f"Phase6C must not recompute Module2: {forbidden}"
     for boundary in ("q27", "q29", "earnings_distribution_width"):
-        # Guard against future direct conclusion-setting assignment in evidence engine.
         assert re.search(rf'out\[\s*["\']{re.escape(boundary)}["\']\s*\]\s*=', evidence) is None, boundary
 
     sample = pd.DataFrame({"Kỳ": ["2025", "2024", "TTM"], "CFO (tỷ)": [100.4, -20.2, 250.6]})
