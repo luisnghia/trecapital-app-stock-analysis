@@ -1,0 +1,1370 @@
+name: Apply Chapter 6 Phase 6C + 3-Pass Table Audit V32
+
+on:
+  push:
+    branches: [feature/deep-company-analysis-chapter6]
+    paths: ['.github/workflows/apply-chapter6-phase6c-v32.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  implement-audit-export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-chapter6
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Implement universal sortable tables, TTM coverage and Phase 6C
+        shell: bash
+        run: |
+          cat > modules/deep_company_analysis/table_format.py <<'PY'
+          from __future__ import annotations
+
+          from html import escape
+          from pathlib import Path
+          from typing import Any
+          import hashlib
+          import inspect
+
+          import pandas as pd
+          import streamlit as st
+
+
+          ORIGINAL_ORDER_LABEL = "Giữ thứ tự gốc"
+          ASC_LABEL = "Tăng dần"
+          DESC_LABEL = "Giảm dần"
+
+
+          def infer_numeric_kind(column: str) -> str:
+              """Infer only explicit/known Trecapital display units.
+
+              Unknown labels stay text. This prevents silently assigning a financial unit.
+              """
+              name = str(column or "").strip()
+              low = name.casefold()
+              if "(tỷ)" in low or " tỷ" in low or low.endswith("tỷ"):
+                  return "amount_bil"
+              if "(ngày)" in low or " ngày" in low or low in {"dso", "dio", "dpo", "ccc"} or low.startswith(("dso ", "dio ", "dpo ", "ccc ")):
+                  return "days"
+              if "(x)" in low or "/ebit" in low or "/interest" in low or "current ratio" in low or "turnover" in low or "turns" in low:
+                  return "ratio"
+              pct_tokens = (
+                  "%", "margin", "roic", "yield", "growth", "tăng trưởng", "revenue share",
+                  "market share", "retention rate", "churn rate", "drawdown", "percentile",
+              )
+              if any(token in low for token in pct_tokens):
+                  return "percent"
+              return "text"
+
+
+          def format_numeric(value: Any, kind: str) -> str:
+              try:
+                  if value is None or pd.isna(value):
+                      return "—"
+                  number = float(value)
+              except Exception:
+                  return escape(str(value or ""))
+              if kind == "amount_bil":
+                  return f"{number:,.0f}"
+              if kind == "percent":
+                  return f"{number:,.1f}%"
+              if kind == "ratio":
+                  return f"{number:,.1f}x"
+              if kind == "days":
+                  return f"{number:,.1f}"
+              return escape(str(value))
+
+
+          def _heat_eligible(column: str) -> bool:
+              low = str(column or "").casefold()
+              tokens = (
+                  "tăng trưởng", "growth", "change", "delta", "Δ", "margin", "roic",
+                  "cfo", "fcf", "ebit", "profit", "lợi nhuận", "cash flow", "dòng tiền",
+                  "headroom", "impact", "drawdown",
+              )
+              return any(token.casefold() in low for token in tokens)
+
+
+          def _heat_style(value: Any, max_abs: float) -> str:
+              try:
+                  number = float(value)
+              except Exception:
+                  return ""
+              if pd.isna(number) or number == 0:
+                  return ""
+              scale = min(1.0, abs(number) / max_abs) if max_abs > 0 else 0.0
+              alpha = 0.07 + 0.23 * scale
+              if number < 0:
+                  return f"color:#991B1B;font-weight:700;background:rgba(185,28,28,{alpha:.3f});"
+              return f"color:#047857;font-weight:700;background:rgba(4,120,87,{alpha:.3f});"
+
+
+          def _coerce_frame(value: Any) -> pd.DataFrame:
+              if isinstance(value, pd.DataFrame):
+                  return value.copy()
+              data = getattr(value, "data", None)
+              if isinstance(data, pd.DataFrame):
+                  return data.copy()
+              try:
+                  return pd.DataFrame(value)
+              except Exception:
+                  return pd.DataFrame()
+
+
+          def sort_frame(value: Any, sort_by: str | None, ascending: bool = True) -> pd.DataFrame:
+              """Stable sort on raw values. The input frame is never mutated."""
+              frame = _coerce_frame(value)
+              if frame.empty or not sort_by or sort_by not in frame.columns:
+                  return frame
+              work = frame.copy()
+              series = work[sort_by]
+              non_null = int(series.notna().sum())
+              numeric = pd.to_numeric(series, errors="coerce")
+              numeric_count = int(numeric.notna().sum())
+              temp = "__tre_sort_key__"
+              while temp in work.columns:
+                  temp += "_"
+              if non_null > 0 and numeric_count >= max(1, int(non_null * 0.70)):
+                  work[temp] = numeric
+              else:
+                  work[temp] = series.fillna("").astype(str).str.casefold()
+              work = work.sort_values(temp, ascending=bool(ascending), na_position="last", kind="mergesort")
+              return work.drop(columns=[temp]).reset_index(drop=True)
+
+
+          def _stable_widget_key(frame: pd.DataFrame, explicit: str | None, prefix: str) -> str:
+              if explicit:
+                  seed = str(explicit)
+              else:
+                  caller = "unknown"
+                  for info in inspect.stack()[2:]:
+                      if Path(info.filename).resolve() != Path(__file__).resolve():
+                          caller = f"{info.filename}:{info.lineno}"
+                          break
+                  sample = ""
+                  if not frame.empty:
+                      try:
+                          sample = "|".join(str(x) for x in frame.iloc[0].tolist()[:3])
+                      except Exception:
+                          sample = ""
+                  seed = f"{caller}|{list(frame.columns)}|{frame.shape}|{sample}"
+              digest = hashlib.sha1(seed.encode("utf-8", errors="ignore")).hexdigest()[:14]
+              return f"tre_{prefix}_{digest}"
+
+
+          def interactive_sort_frame(value: Any, *, key: str | None = None) -> pd.DataFrame:
+              """Render explicit selectable sort controls and return the sorted raw frame."""
+              frame = _coerce_frame(value)
+              if frame.empty or len(frame.columns) == 0:
+                  return frame
+              base = _stable_widget_key(frame, key, "sort")
+              cols = [str(c) for c in frame.columns]
+              c1, c2 = st.columns([3, 1])
+              with c1:
+                  sort_by = st.selectbox(
+                      "Sort theo cột",
+                      [ORIGINAL_ORDER_LABEL] + cols,
+                      index=0,
+                      key=f"{base}_column",
+                  )
+              with c2:
+                  direction = st.selectbox(
+                      "Thứ tự",
+                      [ASC_LABEL, DESC_LABEL],
+                      index=0,
+                      key=f"{base}_direction",
+                  )
+              if sort_by == ORIGINAL_ORDER_LABEL:
+                  return frame
+              return sort_frame(frame, sort_by, ascending=direction == ASC_LABEL)
+
+
+          def static_table_html(value: Any, *, height: int | None = None) -> str:
+              frame = _coerce_frame(value)
+              if frame.empty:
+                  return ""
+              cols = list(frame.columns)
+              max_abs: dict[str, float] = {}
+              for column in cols:
+                  kind = infer_numeric_kind(column)
+                  if kind == "text" or not _heat_eligible(column):
+                      continue
+                  numeric = pd.to_numeric(frame[column], errors="coerce").abs().dropna()
+                  max_abs[column] = float(numeric.max()) if not numeric.empty else 0.0
+
+              head = "".join(f"<th>{escape(str(column))}</th>" for column in cols)
+              body: list[str] = []
+              for _, row in frame.iterrows():
+                  cells: list[str] = []
+                  for column in cols:
+                      kind = infer_numeric_kind(column)
+                      raw = row.get(column)
+                      if kind == "text":
+                          if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+                              text = "—"
+                          else:
+                              text = escape(str(raw))
+                          cells.append(f"<td>{text}</td>")
+                      else:
+                          style = _heat_style(raw, max_abs.get(column, 0.0)) if _heat_eligible(column) else ""
+                          cells.append(f'<td class="num" style="{style}">{format_numeric(raw, kind)}</td>')
+                  body.append("<tr>" + "".join(cells) + "</tr>")
+
+              max_height = f"max-height:{int(height)}px;" if height else ""
+              return (
+                  '<div class="tre-dca-static-table"><style>'
+                  '.tre-dca-static-table{overflow:auto;width:100%;' + max_height + '}'
+                  '.tre-dca-static-table table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:.92rem;}'
+                  '.tre-dca-static-table th,.tre-dca-static-table td{border:1px solid rgba(148,163,184,.35);padding:7px 8px;'
+                  'white-space:normal;overflow-wrap:anywhere;vertical-align:top;}'
+                  '.tre-dca-static-table th{position:sticky;top:0;z-index:1;background:#F0FDF4;color:#065F46;font-weight:800;}'
+                  '.tre-dca-static-table td.num{text-align:right;font-variant-numeric:tabular-nums;}'
+                  '</style><table><thead><tr>' + head + '</tr></thead><tbody>' + ''.join(body) + '</tbody></table></div>'
+              )
+
+
+          def _default_editor_column_config(frame: pd.DataFrame) -> dict[str, Any]:
+              config: dict[str, Any] = {}
+              for column in frame.columns:
+                  kind = infer_numeric_kind(str(column))
+                  if kind == "amount_bil":
+                      config[column] = st.column_config.NumberColumn(str(column), format="%.0f", help="Đơn vị: tỷ đồng; 0 số lẻ.")
+                  elif kind == "percent":
+                      config[column] = st.column_config.NumberColumn(str(column), format="%.1f%%", help="Đơn vị: %; 1 số lẻ.")
+                  elif kind == "ratio":
+                      config[column] = st.column_config.NumberColumn(str(column), format="%.1f", help="Hệ số; 1 số lẻ.")
+                  elif kind == "days":
+                      config[column] = st.column_config.NumberColumn(str(column), format="%.1f", help="Số ngày; 1 số lẻ.")
+              return config
+
+
+          def sortable_data_editor(value: Any, **kwargs: Any):
+              """Editable table with explicit sort selector plus Trecapital numeric formatting."""
+              frame = _coerce_frame(value)
+              editor_key = kwargs.get("key")
+              sorted_frame = interactive_sort_frame(frame, key=f"editor_{editor_key}" if editor_key else None)
+              defaults = _default_editor_column_config(sorted_frame)
+              provided = kwargs.get("column_config")
+              if isinstance(provided, dict):
+                  defaults.update(provided)
+              if defaults:
+                  kwargs["column_config"] = defaults
+              return st.data_editor(sorted_frame, **kwargs)
+
+
+          def render_static_table(value: Any, **kwargs: Any) -> None:
+              """Read-only table with explicit user-selectable sort and locked display format."""
+              frame = _coerce_frame(value)
+              if frame.empty:
+                  st.caption("Chưa có dữ liệu.")
+                  return
+              sort_key = kwargs.pop("sort_key", None) or kwargs.pop("key", None)
+              frame = interactive_sort_frame(frame, key=f"static_{sort_key}" if sort_key else None)
+              height = kwargs.get("height")
+              st.html(static_table_html(frame, height=int(height) if height else None))
+
+
+          __all__ = [
+              "format_numeric", "infer_numeric_kind", "interactive_sort_frame", "render_static_table",
+              "sort_frame", "sortable_data_editor", "static_table_html",
+          ]
+          PY
+
+          cat > modules/deep_company_analysis/chapter6_evidence.py <<'PY'
+          from __future__ import annotations
+
+          """Chapter 6 Phase 6C — evidence/research assistant.
+
+          The agent only surfaces candidate evidence and research gaps. It never changes analyst-owned
+          Q27-Q32 assessments, Distribution Width, MOS, Research Gate, or BUY/HOLD/SELL.
+          Module-2 manipulation diagnostics are consumed through a read-only published snapshot; this
+          module does not import or recalculate Beneish/Jones/REM models.
+          """
+
+          from copy import deepcopy
+          from dataclasses import dataclass
+          from pathlib import Path
+          from typing import Any
+          import re
+
+          import pandas as pd
+
+          from adapters.module2_web_research import KNOWN_COMPANY_DOMAINS, WebEvidenceAgent
+
+
+          FOCUS_TERMS: dict[str, tuple[str, ...]] = {
+              "Q27": (
+                  "revenue recognition", "ghi nhận doanh thu", "accounting policy", "chính sách kế toán",
+                  "capitalize", "capitalised", "vốn hóa", "depreciation", "khấu hao", "useful life",
+                  "provision", "dự phòng", "reserve", "restructuring", "tái cấu trúc", "impairment",
+                  "kiểm toán", "auditor", "inventory obsolescence", "bad debt", "phải thu khó đòi",
+              ),
+              "Q28": (
+                  "recurring revenue", "doanh thu định kỳ", "subscription", "thuê bao", "contracted revenue",
+                  "hợp đồng", "renewal", "gia hạn", "churn", "retention", "backlog", "repeat purchase",
+              ),
+              "Q29": (
+                  "cyclical", "chu kỳ", "recession", "suy thoái", "downturn", "suy giảm", "capacity",
+                  "công suất", "oversupply", "dư cung", "commodity", "hàng hóa", "deferrable", "nhu cầu",
+              ),
+              "Q30": (
+                  "operating leverage", "đòn bẩy hoạt động", "fixed cost", "chi phí cố định", "variable cost",
+                  "chi phí biến đổi", "capacity utilization", "công suất sử dụng", "lease", "thuê", "payroll",
+              ),
+              "Q31": (
+                  "working capital", "vốn lưu động", "receivable", "phải thu", "inventory", "tồn kho",
+                  "payable", "phải trả", "payment terms", "điều khoản thanh toán", "supplier advance",
+                  "customer advance", "cash conversion cycle", "ccc",
+              ),
+              "Q32": (
+                  "capital expenditure", "capex", "maintenance capex", "sustaining capex", "growth capex",
+                  "đầu tư duy trì", "đầu tư mở rộng", "depreciation", "khấu hao", "ppe", "fixed assets",
+                  "tài sản cố định", "replacement", "thay thế", "expansion project", "dự án mở rộng",
+              ),
+          }
+
+          SUBTOPICS: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
+              "Q27": (
+                  ("Revenue recognition", ("revenue recognition", "ghi nhận doanh thu")),
+                  ("Expense / capitalization", ("capitalize", "capitalised", "vốn hóa")),
+                  ("Depreciation / estimates", ("depreciation", "khấu hao", "useful life")),
+                  ("Reserves / provisions", ("provision", "dự phòng", "reserve", "bad debt", "phải thu khó đòi")),
+                  ("Audit / accounting changes", ("auditor", "kiểm toán", "accounting policy", "chính sách kế toán", "impairment", "restructuring")),
+              ),
+              "Q28": (
+                  ("Contractual recurrence", ("contract", "hợp đồng", "contracted revenue")),
+                  ("Subscription / renewal", ("subscription", "thuê bao", "renewal", "gia hạn", "churn", "retention")),
+                  ("Backlog / repeat purchase", ("backlog", "repeat purchase", "recurring revenue", "doanh thu định kỳ")),
+              ),
+              "Q29": (
+                  ("Demand cycle", ("cyclical", "chu kỳ", "recession", "suy thoái", "downturn", "suy giảm")),
+                  ("Supply / capacity", ("capacity", "công suất", "oversupply", "dư cung")),
+                  ("Commodity exposure", ("commodity", "hàng hóa")),
+              ),
+              "Q30": (
+                  ("Fixed / variable cost", ("fixed cost", "chi phí cố định", "variable cost", "chi phí biến đổi")),
+                  ("Capacity utilization", ("capacity utilization", "công suất sử dụng")),
+                  ("Cost commitments", ("lease", "thuê", "payroll")),
+              ),
+              "Q31": (
+                  ("Receivables", ("receivable", "phải thu")),
+                  ("Inventory", ("inventory", "tồn kho")),
+                  ("Payables / terms", ("payable", "phải trả", "payment terms", "điều khoản thanh toán")),
+                  ("Advances / negative WC", ("supplier advance", "customer advance", "working capital", "vốn lưu động", "cash conversion cycle")),
+              ),
+              "Q32": (
+                  ("Maintenance vs growth capex", ("maintenance capex", "sustaining capex", "growth capex", "đầu tư duy trì", "đầu tư mở rộng")),
+                  ("Asset age / replacement", ("ppe", "fixed assets", "tài sản cố định", "replacement", "thay thế", "depreciation", "khấu hao")),
+                  ("Expansion / regulatory projects", ("expansion project", "dự án mở rộng", "capital expenditure", "capex")),
+              ),
+          }
+
+          NEGATIVE_TERMS = (
+              "qualified opinion", "adverse", "material weakness", "restatement", "bất thường", "ngoại trừ",
+              "suy giảm", "downturn", "oversupply", "dư cung", "delay", "chậm", "write-off", "impairment",
+              "tăng mạnh tồn kho", "tăng mạnh phải thu", "cắt giảm", "cut", "one-off", "không lặp lại",
+          )
+          POSITIVE_TERMS = (
+              "recurring", "renewal", "retention", "stable", "ổn định", "contracted", "backlog",
+              "cash generative", "conservative", "thận trọng", "recession resistant", "kháng suy thoái",
+          )
+
+
+          @dataclass
+          class Chapter6EvidenceResult:
+              candidates: pd.DataFrame
+              raw_tables: list[pd.DataFrame]
+              raw_paths: list[str]
+              note: str
+
+
+          class _FocusedAgent(WebEvidenceAgent):
+              def __init__(self, raw_dir: str | Path, focus: str):
+                  super().__init__(raw_dir)
+                  self.focus = focus
+
+              def _build_queries(self, ticker: str, company_name: str) -> list[str]:
+                  clean = self._clean_company_name(company_name)
+                  name = clean or company_name or ticker
+                  terms = {
+                      "Q27": ["revenue recognition provision depreciation accounting policy auditor", "dự phòng khấu hao ghi nhận doanh thu kiểm toán"],
+                      "Q28": ["recurring revenue subscription renewal contracted revenue backlog", "doanh thu định kỳ hợp đồng gia hạn"],
+                      "Q29": ["cyclical recession downturn capacity oversupply commodity", "chu kỳ suy giảm công suất dư cung"],
+                      "Q30": ["operating leverage fixed cost variable cost capacity utilization", "đòn bẩy hoạt động chi phí cố định công suất"],
+                      "Q31": ["working capital receivables inventory payables payment terms", "vốn lưu động phải thu tồn kho phải trả"],
+                      "Q32": ["maintenance capex growth capex depreciation fixed assets replacement", "capex duy trì đầu tư mở rộng khấu hao tài sản cố định"],
+                  }[self.focus]
+                  return [f'"{ticker}" "{name}" {term}' for term in terms]
+
+
+          def _known_company_domains(ticker: str) -> set[str]:
+              out: set[str] = set()
+              for url in KNOWN_COMPANY_DOMAINS.get(str(ticker).upper().strip(), []):
+                  domain = WebEvidenceAgent._domain(url)
+                  if domain:
+                      out.add(domain)
+              return out
+
+
+          def _source_quality(row: dict[str, Any], ticker: str) -> str:
+              domain = str(row.get("Tên miền") or "").lower().replace("www.", "")
+              group = str(row.get("Nhóm thông tin") or "")
+              known = _known_company_domains(ticker)
+              if any(domain == d or domain.endswith("." + d) for d in known):
+                  return "A — Company/Official disclosure"
+              if "Nguồn công bố chính thức" in group or "Nguồn doanh nghiệp/IR" in group:
+                  return "A — Company/Official disclosure"
+              if "Dữ liệu/tin tài chính" in group:
+                  return "B — Independent financial source/research"
+              return "C — Secondary/context source"
+
+
+          def _subtopic(question: str, text: str) -> str:
+              low = text.casefold()
+              for label, terms in SUBTOPICS.get(question, ()): 
+                  if any(term.casefold() in low for term in terms):
+                      return label
+              return "General Chapter-6 evidence"
+
+
+          def _direction(text: str) -> str:
+              low = text.casefold()
+              neg = sum(1 for term in NEGATIVE_TERMS if term.casefold() in low)
+              pos = sum(1 for term in POSITIVE_TERMS if term.casefold() in low)
+              if neg > pos and neg > 0:
+                  return "Contradicting / widening candidate"
+              if pos > neg and pos > 0:
+                  return "Supporting / narrowing candidate"
+              return "Neutral / context"
+
+
+          def _period_candidate(text: str) -> str:
+              years = re.findall(r"\b(20\d{2}|19\d{2})\b", text or "")
+              return years[-1] if years else ""
+
+
+          def classify_evidence_rows(raw: pd.DataFrame, ticker: str) -> pd.DataFrame:
+              if not isinstance(raw, pd.DataFrame) or raw.empty:
+                  return pd.DataFrame()
+              rows: list[dict[str, Any]] = []
+              for _, item in raw.iterrows():
+                  row = item.to_dict()
+                  question = str(row.get("_Focus") or "")
+                  if question not in FOCUS_TERMS:
+                      continue
+                  status = str(row.get("Trạng thái") or "")
+                  if status not in {"Tìm thấy", "Evidence trích từ nguồn chính thức", "Evidence trích từ PDF chính thức"}:
+                      continue
+                  title = str(row.get("Tiêu đề") or "")
+                  snippet = str(row.get("Trích yếu") or "")
+                  text = f"{title} {snippet}".strip()
+                  if not text:
+                      continue
+                  low = text.casefold()
+                  if not any(term.casefold() in low for term in FOCUS_TERMS[question]):
+                      continue
+                  rows.append({
+                      "Question": question,
+                      "Subtopic": _subtopic(question, text),
+                      "Direction": _direction(text),
+                      "Evidence Quality": _source_quality(row, ticker),
+                      "Explicitness": "Explicit text candidate",
+                      "Period Candidate": _period_candidate(text),
+                      "Title": title[:240],
+                      "URL": str(row.get("Nguồn/URL") or ""),
+                      "Snippet": snippet[:900],
+                      "Source Group": str(row.get("Nhóm thông tin") or ""),
+                      "Source Method": "Phase 6C focused web evidence",
+                      "Data Origin": "External evidence candidate — analyst verification required",
+                      "Status": "Candidate — analyst verify",
+                  })
+              out = pd.DataFrame(rows)
+              if out.empty:
+                  return out
+              dedupe_cols = ["Question", "URL", "Snippet"]
+              return out.drop_duplicates(subset=dedupe_cols, keep="first").reset_index(drop=True)
+
+
+          class Chapter6EvidenceAgent:
+              def __init__(self, raw_dir: str | Path):
+                  self.raw_dir = Path(raw_dir)
+                  self.raw_dir.mkdir(parents=True, exist_ok=True)
+
+              def search(self, ticker: str, company_name: str = "", max_results_per_query: int = 3) -> Chapter6EvidenceResult:
+                  raw_tables: list[pd.DataFrame] = []
+                  raw_paths: list[str] = []
+                  candidate_parts: list[pd.DataFrame] = []
+                  notes: list[str] = []
+                  for focus in ("Q27", "Q28", "Q29", "Q30", "Q31", "Q32"):
+                      agent = _FocusedAgent(self.raw_dir, focus)
+                      result = agent.search(ticker, company_name, max_results_per_query=max_results_per_query)
+                      raw = result.table.copy()
+                      raw["_Focus"] = focus
+                      raw_tables.append(raw)
+                      if result.raw_path:
+                          raw_paths.append(str(result.raw_path))
+                      notes.append(result.note)
+                      candidate = classify_evidence_rows(raw, ticker)
+                      if not candidate.empty:
+                          candidate_parts.append(candidate)
+                  candidates = pd.concat(candidate_parts, ignore_index=True) if candidate_parts else pd.DataFrame()
+                  if not candidates.empty:
+                      candidates = candidates.drop_duplicates(subset=["Question", "URL", "Snippet"], keep="first").reset_index(drop=True)
+                  return Chapter6EvidenceResult(candidates, raw_tables, raw_paths, " | ".join(notes))
+
+
+          def evidence_quality_summary(candidates: pd.DataFrame) -> pd.DataFrame:
+              rows: list[dict[str, Any]] = []
+              for question in ("Q27", "Q28", "Q29", "Q30", "Q31", "Q32"):
+                  sub = candidates[candidates["Question"].eq(question)] if isinstance(candidates, pd.DataFrame) and not candidates.empty and "Question" in candidates.columns else pd.DataFrame()
+                  quality = sub.get("Evidence Quality", pd.Series(dtype="object")).astype(str) if not sub.empty else pd.Series(dtype="object")
+                  direction = sub.get("Direction", pd.Series(dtype="object")).astype(str) if not sub.empty else pd.Series(dtype="object")
+                  rows.append({
+                      "Question": question,
+                      "Candidates": int(len(sub)),
+                      "A — Official": int(quality.str.startswith("A —").sum()) if not quality.empty else 0,
+                      "B — Independent": int(quality.str.startswith("B —").sum()) if not quality.empty else 0,
+                      "C — Secondary": int(quality.str.startswith("C —").sum()) if not quality.empty else 0,
+                      "Counter / widening candidates": int(direction.str.startswith("Contradicting").sum()) if not direction.empty else 0,
+                      "Boundary": "Evidence coverage only — not a quality score",
+                  })
+              return pd.DataFrame(rows)
+
+
+          def research_gaps(candidates: pd.DataFrame) -> pd.DataFrame:
+              rows: list[dict[str, Any]] = []
+              task = {
+                  "Q27": "Verify accounting policies, estimates/reserves, auditor notes and revenue recognition in original filings.",
+                  "Q28": "Find first-party disclosure for recurring/contracted revenue, renewals, churn/retention or explicitly mark Unknown.",
+                  "Q29": "Find company-specific downturn and supply/demand evidence; do not infer cycle causality from history alone.",
+                  "Q30": "Find disclosed fixed/variable cost structure, utilization and adjustment lag evidence.",
+                  "Q31": "Reconcile working-capital movements with receivable/inventory/payable terms and business mechanism.",
+                  "Q32": "Find maintenance/growth/regulatory capex disclosure and asset replacement evidence; do not infer maintenance capex silently.",
+              }
+              for question in task:
+                  sub = candidates[candidates["Question"].eq(question)] if isinstance(candidates, pd.DataFrame) and not candidates.empty and "Question" in candidates.columns else pd.DataFrame()
+                  if sub.empty:
+                      rows.append({
+                          "Question": question,
+                          "Research Gap": "No usable external evidence candidate found in this run.",
+                          "Materiality": "Analyst decide",
+                          "Next Action": task[question],
+                          "Status": "Open — evidence gap",
+                          "Analyst Note": "",
+                      })
+                      continue
+                  has_a = sub["Evidence Quality"].astype(str).str.startswith("A —").any()
+                  if not has_a:
+                      rows.append({
+                          "Question": question,
+                          "Research Gap": "No A-quality company/official disclosure candidate yet.",
+                          "Materiality": "Analyst decide",
+                          "Next Action": task[question],
+                          "Status": "Open — source-quality gap",
+                          "Analyst Note": "",
+                      })
+              return pd.DataFrame(rows)
+
+
+          def manipulation_snapshot_table(snapshot: dict[str, Any] | None) -> pd.DataFrame:
+              if not isinstance(snapshot, dict):
+                  return pd.DataFrame()
+              rows: list[dict[str, Any]] = []
+              for layer in snapshot.get("layers") or []:
+                  if not isinstance(layer, dict):
+                      continue
+                  value = layer.get("latest_score")
+                  try:
+                      value_text = "—" if value is None or pd.isna(value) else f"{float(value):,.3f}"
+                  except Exception:
+                      value_text = str(value or "—")
+                  rows.append({
+                      "Kỳ": str(layer.get("latest_period") or "Latest annual"),
+                      "Lớp": str(layer.get("layer") or ""),
+                      "Giá trị mô hình": value_text,
+                      "Mức cảnh báo": str(layer.get("latest_risk") or "N/A"),
+                      "Ghi chú": str(layer.get("latest_note") or ""),
+                      "Data Origin": "Module 2 — read-only published diagnostic",
+                  })
+              if rows:
+                  rows.append({
+                      "Kỳ": "TTM",
+                      "Lớp": "TTM applicability",
+                      "Giá trị mô hình": "—",
+                      "Mức cảnh báo": "N/A",
+                      "Ghi chú": "Beneish/Jones/REM are annual-statement diagnostics; Phase 6C does not fabricate a TTM model value. Latest valid annual result remains visible above.",
+                      "Data Origin": "Methodology guardrail",
+                  })
+              return pd.DataFrame(rows)
+
+
+          def manipulation_snapshot_candidates(snapshot: dict[str, Any] | None) -> pd.DataFrame:
+              if not isinstance(snapshot, dict):
+                  return pd.DataFrame()
+              rows: list[dict[str, Any]] = []
+              for layer in snapshot.get("layers") or []:
+                  if not isinstance(layer, dict):
+                      continue
+                  layer_name = str(layer.get("layer") or "")
+                  period = str(layer.get("latest_period") or "")
+                  score = layer.get("latest_score")
+                  risk = str(layer.get("latest_risk") or "N/A")
+                  note = str(layer.get("latest_note") or "")
+                  rows.append({
+                      "Question": "Q27",
+                      "Subtopic": "Read-only manipulation/accounting-quality diagnostic",
+                      "Direction": "Neutral / context",
+                      "Evidence Quality": "T — Trecapital Module 2 diagnostic",
+                      "Explicitness": "Computed by source Module 2; not recomputed by Chapter 6",
+                      "Period Candidate": period,
+                      "Title": f"Module 2 — {layer_name}",
+                      "URL": "",
+                      "Snippet": f"Latest score={score}; risk={risk}. {note}",
+                      "Source Group": "Trecapital internal analytical evidence",
+                      "Source Method": "Read-only Module 2 bridge",
+                      "Data Origin": "Module 2 Financial Manipulation 4-layer diagnostics",
+                      "Status": "Candidate — analyst verify",
+                  })
+              return pd.DataFrame(rows)
+
+
+          def merge_candidates_into_record(record: dict[str, Any], candidates: pd.DataFrame, gaps: pd.DataFrame | None = None) -> dict[str, Any]:
+              """Merge only Evidence Matrix / Research Gaps. Analyst assessments are immutable here."""
+              out = deepcopy(record)
+              existing = out.get("evidence_matrix") if isinstance(out.get("evidence_matrix"), list) else []
+              seen = {
+                  (str(r.get("Question") or ""), str(r.get("Source URL / File") or ""), str(r.get("Evidence Text") or ""))
+                  for r in existing if isinstance(r, dict)
+              }
+              for _, row in (candidates.iterrows() if isinstance(candidates, pd.DataFrame) and not candidates.empty else []):
+                  item = row.to_dict()
+                  evidence = {
+                      "Question": str(item.get("Question") or ""),
+                      "Claim": str(item.get("Subtopic") or "Evidence candidate"),
+                      "Evidence Type": str(item.get("Evidence Quality") or "Candidate evidence"),
+                      "Source Title": str(item.get("Title") or ""),
+                      "Source URL / File": str(item.get("URL") or ""),
+                      "Source Date": "",
+                      "Period": str(item.get("Period Candidate") or ""),
+                      "Evidence Text": str(item.get("Snippet") or ""),
+                      "Direction": str(item.get("Direction") or "Neutral / context"),
+                      "Status": "Candidate — analyst verify",
+                      "Data Origin": str(item.get("Data Origin") or "Phase 6C Research Assistant"),
+                      "Analyst Note": "",
+                  }
+                  key = (evidence["Question"], evidence["Source URL / File"], evidence["Evidence Text"])
+                  if key not in seen:
+                      existing.append(evidence)
+                      seen.add(key)
+              out["evidence_matrix"] = existing
+
+              if isinstance(gaps, pd.DataFrame) and not gaps.empty:
+                  existing_gaps = out.get("research_gaps_table") if isinstance(out.get("research_gaps_table"), list) else []
+                  gap_seen = {(str(r.get("Question") or ""), str(r.get("Research Gap") or "")) for r in existing_gaps if isinstance(r, dict)}
+                  for _, row in gaps.iterrows():
+                      item = row.to_dict()
+                      key = (str(item.get("Question") or ""), str(item.get("Research Gap") or ""))
+                      if key not in gap_seen:
+                          existing_gaps.append(item)
+                          gap_seen.add(key)
+                  out["research_gaps_table"] = existing_gaps
+              return out
+
+
+          __all__ = [
+              "Chapter6EvidenceAgent", "Chapter6EvidenceResult", "classify_evidence_rows", "evidence_quality_summary",
+              "manipulation_snapshot_candidates", "manipulation_snapshot_table", "merge_candidates_into_record", "research_gaps",
+          ]
+          PY
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          # Universal sort for every editable table in the unified Deep Analysis workspace.
+          editor_files = [
+              'modules/deep_company_analysis/chapter2.py',
+              'modules/deep_company_analysis/chapter3.py',
+              'modules/deep_company_analysis/chapter4.py',
+              'modules/deep_company_analysis/chapter4_page_support.py',
+              'modules/deep_company_analysis/chapter5.py',
+              'modules/deep_company_analysis/chapter6_page_support.py',
+          ]
+          for name in editor_files:
+              p = Path(name)
+              s = p.read_text(encoding='utf-8')
+              s = s.replace('st.data_editor(', 'sortable_data_editor(')
+              lines = s.splitlines()
+              found = False
+              for i, line in enumerate(lines):
+                  if line.startswith('from modules.deep_company_analysis.table_format import ') and 'sortable_data_editor' not in line:
+                      lines[i] = line + ', sortable_data_editor'
+                      found = True
+                      break
+                  if line.startswith('from modules.deep_company_analysis.table_format import ') and 'sortable_data_editor' in line:
+                      found = True
+                      break
+              if not found:
+                  for i, line in enumerate(lines):
+                      if line.strip() == 'import streamlit as st':
+                          lines.insert(i + 1, 'from modules.deep_company_analysis.table_format import sortable_data_editor')
+                          found = True
+                          break
+              assert found, name
+              p.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+
+          # Chapter 1 has one custom HTML inventory table. Sort the raw values before display formatting.
+          p = Path('modules/deep_company_analysis/chapter1.py')
+          s = p.read_text(encoding='utf-8')
+          import_line = 'from modules.deep_company_analysis.table_format import interactive_sort_frame\n'
+          if import_line not in s:
+              s = s.replace('import streamlit as st\n', 'import streamlit as st\n\n' + import_line, 1)
+          old = '''            if not subset.empty:\n                for col in ["Giá", "Target"]:\n'''
+          new = '''            if not subset.empty:\n                subset = interactive_sort_frame(subset, key=f"ch1_inventory_{gate_key}")\n                for col in ["Giá", "Target"]:\n'''
+          assert old in s, 'Chapter1 inventory pattern changed'
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+
+          # Chapter 4: historical display reaches TTM; annual medians remain annual-only.
+          p = Path('modules/deep_company_analysis/chapter4_quant.py')
+          s = p.read_text(encoding='utf-8')
+          old = '''    history: list[dict[str, Any]] = []\n    for row in annual_rows[-10:]:\n        history.append({\n'''
+          new = '''    history: list[dict[str, Any]] = []\n    display_rows = annual_rows[-10:]\n    if current and _is_ttm(current):\n        display_rows = display_rows + [current]\n    for row in display_rows:\n        history.append({\n'''
+          assert old in s, 'Chapter4 history pattern changed'
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+
+          # Chapter 5: Q22/Q25/Q26 and displayed reinvestment context reach TTM without fabricating invalid comparisons.
+          p = Path('modules/deep_company_analysis/chapter5_quant.py')
+          s = p.read_text(encoding='utf-8')
+          marker = '''def _period(row: dict[str, Any]) -> str:\n    return str(row.get("period") or row.get("year") or "")\n\n\n'''
+          add = '''def _period(row: dict[str, Any]) -> str:\n    return str(row.get("period") or row.get("year") or "")\n\n\ndef _is_ttm(row: dict[str, Any]) -> bool:\n    text = _period(row).upper()\n    return "TTM" in text or "T12M" in text\n\n\n'''
+          assert marker in s
+          s = s.replace(marker, add, 1)
+          marker2 = '''def _current_row(df: pd.DataFrame) -> dict[str, Any]:\n    if not isinstance(df, pd.DataFrame) or df.empty:\n        return {}\n    if "period" in df.columns:\n        mask = df["period"].astype(str).str.upper().str.contains("TTM|T12M", regex=True, na=False)\n        if mask.any():\n            return df[mask].iloc[-1].to_dict()\n    annual = _annual_rows(df)\n    return annual[-1] if annual else df.iloc[-1].to_dict()\n\n\n'''
+          add2 = marker2 + '''def _history_rows(df: pd.DataFrame, years: int = 10, include_ttm: bool = True) -> list[dict[str, Any]]:\n    rows = _annual_rows(df)[-max(1, int(years)):]\n    if include_ttm:\n        current = _current_row(df)\n        if current and _is_ttm(current):\n            rows = rows + [current]\n    return rows\n\n\n'''
+          assert marker2 in s
+          s = s.replace(marker2, add2, 1)
+          s = s.replace('rows = _annual_rows(annual_df)[-max(1, int(years)):]', 'rows = _history_rows(annual_df, years=years, include_ttm=True)', 2)
+
+          old_q26 = '''    rows = _annual_rows(annual_df)\n    current = rows[-1] if rows else _current_row(annual_df)\n    previous = rows[-2] if len(rows) >= 2 else {}\n    if not current:\n'''
+          new_q26 = '''    rows = _annual_rows(annual_df)\n    current = _current_row(annual_df)\n    if _is_ttm(current):\n        previous = rows[-1] if rows else {}\n    else:\n        previous = rows[-2] if len(rows) >= 2 else {}\n    if not current:\n'''
+          assert old_q26 in s, 'Chapter5 Q26 pattern changed'
+          s = s.replace(old_q26, new_q26, 1)
+
+          old_diag = '''    rows = _annual_rows(annual_df)\n    if not rows:\n        return pd.DataFrame()\n    current = rows[-1]\n'''
+          new_diag = '''    rows = _annual_rows(annual_df)\n    current = _current_row(annual_df)\n    if not current and not rows:\n        return pd.DataFrame()\n'''
+          assert old_diag in s, 'Chapter5 diagnostic pattern changed'
+          s = s.replace(old_diag, new_diag, 1)
+
+          old_reinv_end = '''        previous = row\n    return pd.DataFrame(out)\n\n\ndef build_chapter5_quant_context(\n'''
+          new_reinv_end = '''        previous = row\n    current = _current_row(annual_df)\n    if current and _is_ttm(current):\n        out.append({\n            "Kỳ": _period(current),\n            "ΔNOPAT (tỷ)": None,\n            "ΔInvested Capital proxy (tỷ)": None,\n            "Incremental ROIC %": None,\n            "NOPAT Source": "TTM current context",\n            "Interpretation": "TTM displayed; incremental ROIC requires a comparable prior TTM. App does not compare TTM mechanically with full-year FY.",\n        })\n    return pd.DataFrame(out)\n\n\ndef build_chapter5_quant_context(\n'''
+          assert old_reinv_end in s, 'Chapter5 reinvestment pattern changed'
+          s = s.replace(old_reinv_end, new_reinv_end, 1)
+          p.write_text(s, encoding='utf-8')
+
+          # Chapter 6 DOL: show TTM terminal context but do not fabricate DOL vs an incomparable FY base.
+          p = Path('modules/deep_company_analysis/chapter6_quant.py')
+          s = p.read_text(encoding='utf-8')
+          marker = '''        previous = row\n\n    def median(values: list[float]) -> Optional[float]:\n'''
+          add = '''        previous = row\n\n    ttm = _ttm_row(df)\n    if ttm:\n        out.append({\n            "Kỳ": _period(ttm),\n            "Δ Revenue (%)": None,\n            "Δ EBIT (%)": None,\n            "Historical DOL (x)": None,\n            "Observation": "TTM current context",\n            "Validity": "N/A",\n            "Invalid Reason": "TTM displayed; comparable prior TTM is required for DOL. No FY-vs-TTM sensitivity is fabricated.",\n        })\n\n    def median(values: list[float]) -> Optional[float]:\n'''
+          assert marker in s, 'Chapter6 DOL loop pattern changed'
+          s = s.replace(marker, add, 1)
+          s = s.replace('''        "invalid_observations": max(0, len(out) - 1 - len(valid_values)),\n''', '''        "invalid_observations": sum(1 for row in out if row.get("Validity") == "Invalid"),\n''', 1)
+          p.write_text(s, encoding='utf-8')
+
+          # Publish Module-2 manipulation outputs as a read-only snapshot for Chapter 6. No recomputation in Chapter 6.
+          p = Path('module2_dashboard.py')
+          s = p.read_text(encoding='utf-8')
+          before = '\ndef _render_tre_sidebar_nav() -> None:\n'
+          helper = r'''
+
+def _publish_manipulation_snapshot(company, source_label, beneish_df, accrual_quality_df, modified_jones_df, rem_df) -> None:
+    """Publish already-computed Module-2 diagnostics for read-only downstream evidence use."""
+    mapping = [
+        ("1. Beneish M-Score", beneish_df),
+        ("2. Accrual Quality / Sloan", accrual_quality_df),
+        ("3. Modified Jones / Kothari", modified_jones_df),
+        ("4. REM — Real Earnings Management", rem_df),
+    ]
+    layers = []
+    for name, frame in mapping:
+        latest_score = frame.attrs.get("latest_score") if isinstance(frame, pd.DataFrame) else None
+        latest_risk = frame.attrs.get("latest_risk", "N/A") if isinstance(frame, pd.DataFrame) else "N/A"
+        latest_period = frame.attrs.get("latest_period", "") if isinstance(frame, pd.DataFrame) else ""
+        latest_note = frame.attrs.get("latest_note", "") if isinstance(frame, pd.DataFrame) else ""
+        if not latest_period and isinstance(frame, pd.DataFrame) and not frame.empty:
+            for period_col in ("Kỳ", "Period", "period"):
+                if period_col in frame.columns:
+                    latest_period = str(frame.iloc[-1].get(period_col) or "")
+                    break
+        layers.append({
+            "layer": name,
+            "latest_score": latest_score,
+            "latest_risk": latest_risk,
+            "latest_period": latest_period,
+            "latest_note": latest_note,
+        })
+    st.session_state["module2_manipulation_snapshot"] = {
+        "ticker": _safe_ticker(str(getattr(company, "ticker", ""))),
+        "company_name": str(getattr(company, "company_name", "") or ""),
+        "source_label": str(source_label or "Trecapital Module 2"),
+        "source_module": "Module 2 — Financial Manipulation 4 Layers",
+        "data_origin": "Already-computed Module 2 diagnostics; downstream is read-only",
+        "layers": layers,
+    }
+
+'''
+          assert before in s, 'Module2 nav marker changed'
+          s = s.replace(before, helper + before, 1)
+          call_marker = '''    rem_df = build_real_earnings_management_table(company, annual_df)\n    summary = build_module2_summary(company, annual_df, valuation_df, moat_df)\n'''
+          call_new = '''    rem_df = build_real_earnings_management_table(company, annual_df)\n    _publish_manipulation_snapshot(company, source_label, beneish_df, accrual_quality_df, modified_jones_df, rem_df)\n    summary = build_module2_summary(company, annual_df, valuation_df, moat_df)\n'''
+          assert call_marker in s, 'Module2 manipulation calculation marker changed'
+          s = s.replace(call_marker, call_new, 1)
+          p.write_text(s, encoding='utf-8')
+
+          # Integrate Phase 6C UI into Chapter 6.
+          p = Path('modules/deep_company_analysis/chapter6_page_support.py')
+          s = p.read_text(encoding='utf-8')
+          import_marker = 'from modules.deep_company_analysis.chapter6_quant import build_chapter6_quant_context\n'
+          import_add = import_marker + '''from modules.deep_company_analysis.chapter6_evidence import (\n    Chapter6EvidenceAgent,\n    evidence_quality_summary,\n    manipulation_snapshot_candidates,\n    manipulation_snapshot_table,\n    merge_candidates_into_record,\n    research_gaps as phase6c_research_gaps,\n)\n'''
+          assert import_marker in s
+          s = s.replace(import_marker, import_add, 1)
+
+          insert_before = '\ndef render_chapter6_tab(default_ticker: str = "") -> None:\n'
+          renderer = r'''
+
+def _render_phase6c_research_assistant(ticker: str, company_name: str) -> None:
+    safe = _safe_ticker(ticker)
+    external_key = f"ch6c_external_candidates_{safe}"
+    note_key = f"ch6c_note_{safe}"
+    snapshot = st.session_state.get("module2_manipulation_snapshot")
+    if not isinstance(snapshot, dict) or _safe_ticker(str(snapshot.get("ticker") or "")) != safe:
+        snapshot = None
+
+    with st.container(border=True):
+        st.markdown("## 🔎 Phase 6C — Evidence & Research Assistant")
+        st.caption(
+            "AI/Data chỉ tìm candidate evidence, counter-evidence và research gaps. Không tự đổi Conservative/Liberal, recurring quality, "
+            "cycle classification, Distribution Width, MOS, Research Gate hay BUY/HOLD/SELL."
+        )
+
+        with st.expander("Q27 — Read-only Financial Manipulation evidence bridge", expanded=True):
+            if snapshot:
+                table = manipulation_snapshot_table(snapshot)
+                if not table.empty:
+                    render_static_table(table, height=min(340, 100 + 30 * len(table)), sort_key=f"ch6c_manip_{safe}")
+                st.caption(
+                    "Beneish / Sloan / Modified Jones / REM được tính và sở hữu bởi Module 2. Chương 6 chỉ đọc snapshot đã tính; "
+                    "dòng TTM là applicability guardrail, không phải M-Score/Jones/REM TTM giả lập."
+                )
+            else:
+                st.info("Chưa có snapshot Module 2 cho đúng ticker trong phiên này. Mở/cập nhật Định giá chuyên sâu để Module 2 publish diagnostics, rồi quay lại Chương 6.")
+                try:
+                    st.page_link("pages/02_Dinh_gia_Porter_Moat.py", label="Mở Module 2 — Định giá chuyên sâu", icon="🧠")
+                except Exception:
+                    pass
+
+        if st.button("🌐 Cập nhật evidence Chương 6", use_container_width=True, key=f"ch6c_refresh_{safe}"):
+            with st.spinner(f"Đang tìm evidence Q27–Q32 cho {safe}..."):
+                try:
+                    agent = Chapter6EvidenceAgent(APP_DIR / "data_cache" / "deep_company_analysis_evidence")
+                    result = agent.search(safe, company_name, max_results_per_query=3)
+                    st.session_state[external_key] = result.candidates
+                    st.session_state[note_key] = result.note
+                    st.success(f"Đã cập nhật candidate evidence cho {safe}. Analyst cần mở nguồn và xác minh trước khi dùng làm kết luận.")
+                except Exception as exc:
+                    st.warning(f"Evidence search chưa hoàn tất: {exc}")
+
+        external = st.session_state.get(external_key, pd.DataFrame())
+        if not isinstance(external, pd.DataFrame):
+            external = pd.DataFrame()
+        internal = manipulation_snapshot_candidates(snapshot)
+        pieces = [x for x in (external, internal) if isinstance(x, pd.DataFrame) and not x.empty]
+        combined = pd.concat(pieces, ignore_index=True) if pieces else pd.DataFrame()
+        if not combined.empty:
+            combined = combined.drop_duplicates(subset=["Question", "Title", "URL", "Snippet"], keep="first").reset_index(drop=True)
+
+        if not external.empty:
+            st.markdown("### Evidence coverage — A/B/C")
+            render_static_table(evidence_quality_summary(external), height=300, sort_key=f"ch6c_quality_{safe}")
+        elif not combined.empty:
+            st.caption("Hiện mới có internal Module-2 diagnostic; chưa có external A/B/C evidence run trong phiên này.")
+
+        if not combined.empty:
+            st.markdown("### Candidate Evidence / Counter-Evidence")
+            render_static_table(combined, height=min(560, 120 + 30 * len(combined)), sort_key=f"ch6c_candidates_{safe}")
+            st.warning("Candidate ≠ verified evidence. Direction chỉ là research cue để chống confirmation bias, không phải kết luận Q27–Q32.")
+        else:
+            st.info("Chưa có candidate evidence trong phiên này.")
+
+        gaps = phase6c_research_gaps(external)
+        st.markdown("### Research Gaps")
+        if not gaps.empty:
+            render_static_table(gaps, height=min(360, 110 + 30 * len(gaps)), sort_key=f"ch6c_gaps_{safe}")
+
+        if st.session_state.get(note_key):
+            with st.expander("Research log", expanded=False):
+                st.caption(str(st.session_state[note_key]))
+
+        if not combined.empty or not gaps.empty:
+            if st.button("💾 Lưu candidates + research gaps vào Evidence Matrix", use_container_width=True, key=f"ch6c_merge_{safe}"):
+                current = load_record(safe)
+                merged = merge_candidates_into_record(current, combined, gaps)
+                save_record(safe, merged, company_name or str(current.get("company_name") or ""))
+                st.success("Đã lưu candidates/research gaps. Không có analyst conclusion nào bị thay đổi.")
+                st.rerun()
+
+'''
+          assert insert_before in s
+          s = s.replace(insert_before, renderer + insert_before, 1)
+          call = '    _render_phase6b_quantitative_bridge(ticker)\n'
+          call_new = '    _render_phase6b_quantitative_bridge(ticker)\n    _render_phase6c_research_assistant(ticker, str(payload.get("company_name") or ""))\n'
+          assert call in s
+          s = s.replace(call, call_new, 1)
+          s = s.replace('Approved Phase 6A + implemented Phase 6B canonical quantitative bridge.', 'Approved Phase 6A + Phase 6B canonical bridge + Phase 6C Evidence & Research Assistant.')
+          p.write_text(s, encoding='utf-8')
+          PY
+
+          cat > docs/CHAPTER6_PHASE6C_IMPLEMENTATION.md <<'MD'
+          # Chapter 6 — Phase 6C Evidence & Research Assistant V32
+
+          Status: **IMPLEMENTED — user-authorized after V31**.
+
+          ## Scope
+
+          Phase 6C adds evidence collection, counter-evidence prompts and research-gap management for Shearn Q27–Q32. It is a research assistant, not an investment decision engine.
+
+          ### Q27
+          - Revenue recognition, capitalization/expensing, depreciation/estimate changes, reserves/provisions, restructuring/impairment and audit evidence.
+          - Read-only bridge from Module 2 Financial Manipulation diagnostics: Beneish, Sloan/Accrual Quality, Modified Jones/Kothari and REM.
+          - Chapter 6 **does not recalculate** these manipulation models.
+
+          ### Q28–Q32
+          - Q28: recurring/contracted/subscription/renewal/churn/backlog evidence.
+          - Q29: company-specific cycle/downturn/supply-demand/commodity evidence.
+          - Q30: fixed/variable/semi-variable cost and capacity-utilization evidence.
+          - Q31: receivable/inventory/payable/terms/advance working-capital mechanism evidence.
+          - Q32: maintenance/growth/regulatory capex, asset age and replacement evidence.
+
+          ## Evidence quality
+
+          - **A — Company/Official disclosure**
+          - **B — Independent financial source/research**
+          - **C — Secondary/context source**
+          - **T — Trecapital Module 2 diagnostic** is an internal analytical diagnostic, not an A/B/C external-source grade.
+
+          Search results remain `Candidate — analyst verify`. Query text is never used as evidence; classification is based on returned title/snippet text.
+
+          ## Immutable analyst boundary
+
+          Phase 6C must not automatically set or modify Conservative/Liberal accounting, recurring-revenue quality/share, cyclical/countercyclical/recession-resistant classification, operating-leverage risk conclusion, CCC sustainability, maintenance capex, earnings-distribution width, MOS, Research Gate, or BUY/HOLD/SELL.
+
+          ## TTM boundary
+
+          Financial time-series displays extend through TTM when a valid canonical TTM row exists. Annual-only models such as Beneish/Jones/REM show the latest valid annual result and an explicit **TTM = N/A / methodology guardrail** row rather than fabricating a TTM model value.
+          MD
+
+          cat > docs/DEEP_ANALYSIS_TABLE_FORMAT_TTM_SORT_LOCK_V32.md <<'MD'
+          # Deep Company Analysis — Format + TTM + Sort Lock V32
+
+          Scope: unified Chapters 1–6 Deep Company Analysis workspace.
+
+          ## Format
+          - VND amounts explicitly labelled `(tỷ)`: 0 decimals.
+          - Percentages: 1 decimal.
+          - Ratios: 1 decimal.
+          - DSO/DIO/DPO/CCC days: 1 decimal.
+          - Signed performance/cash-flow heat: negative red, positive emerald; heat is not a quality conclusion.
+          - Static financial tables: `st.html()` with fixed layout and wrapped text.
+          - Editable tables: explicit numeric `NumberColumn` formatting.
+
+          ## TTM
+          - Canonical quantitative history tables display the valid appended TTM row when the canonical quarterly bundle can construct it.
+          - Chapter 4 history now ends at TTM while historical medians remain annual-only.
+          - Chapter 5 Q22/Q25/Q26 display current TTM; reinvestment shows a TTM terminal row but refuses an FY-vs-TTM incremental-return calculation.
+          - Chapter 6 Q27/Q28/Q29/Q31/Q32 already use valid TTM; Q30 now shows TTM as current context but DOL is N/A unless a comparable prior TTM exists.
+          - Analyst registers, evidence inventories, peer lists and snapshots are not time-series financial statements; TTM is not fabricated for them.
+          - Beneish/Jones/REM remain annual-statement diagnostics and show a TTM applicability N/A row in Phase 6C.
+
+          ## Sortability
+          - Every shared read-only table exposes `Sort theo cột` + `Tăng dần/Giảm dần` controls.
+          - Every editable `st.data_editor` in Chapters 2–6 is routed through `sortable_data_editor`, which exposes the same explicit sort selector.
+          - Chapter 1 custom Opportunity Inventory sorts raw values through `interactive_sort_frame` before display formatting.
+          - Sorting is view/order behavior only; it does not alter calculations or analyst conclusions.
+          MD
+
+          cat > modules/deep_company_analysis/test_sortable_table_v32.py <<'PY'
+          from pathlib import Path
+
+          import pandas as pd
+
+          from modules.deep_company_analysis.table_format import format_numeric, infer_numeric_kind, sort_frame, static_table_html
+
+
+          def test_raw_numeric_sort_is_stable_and_does_not_mutate_input():
+              original = pd.DataFrame({"Kỳ": ["2025", "2024", "TTM"], "CFO (tỷ)": [100.4, -20.2, 250.6]})
+              before = original.copy(deep=True)
+              out = sort_frame(original, "CFO (tỷ)", ascending=True)
+              assert out["CFO (tỷ)"].tolist() == [-20.2, 100.4, 250.6]
+              pd.testing.assert_frame_equal(original, before)
+
+
+          def test_locked_formats_remain_exact_after_sort_upgrade():
+              assert infer_numeric_kind("CFO (tỷ)") == "amount_bil"
+              assert infer_numeric_kind("EBIT Margin (%)") == "percent"
+              assert infer_numeric_kind("CFO/NI (x)") == "ratio"
+              assert infer_numeric_kind("CCC ngày") == "days"
+              assert format_numeric(1234.56, "amount_bil") == "1,235"
+              assert format_numeric(12.345, "percent") == "12.3%"
+              assert format_numeric(2.345, "ratio") == "2.3x"
+              assert format_numeric(45.67, "days") == "45.7"
+              html = static_table_html(pd.DataFrame([{"CFO (tỷ)": -123.6, "EBIT Margin (%)": 10.25}]))
+              assert "table-layout:fixed" in html
+              assert "white-space:normal" in html
+              assert "overflow-wrap:anywhere" in html
+              assert "rgba(185,28,28" in html
+
+
+          def test_no_direct_data_editor_or_dataframe_remains_in_production_deep_analysis():
+              root = Path(__file__).resolve().parent
+              for path in root.glob("*.py"):
+                  if path.name.startswith("test_") or path.name == "table_format.py":
+                      continue
+                  text = path.read_text(encoding="utf-8")
+                  assert "st.data_editor(" not in text, path.name
+                  assert "st.dataframe(" not in text, path.name
+              table_format = (root / "table_format.py").read_text(encoding="utf-8")
+              assert "def sortable_data_editor" in table_format
+              assert "def interactive_sort_frame" in table_format
+              assert "Sort theo cột" in table_format
+              chapter1 = (root / "chapter1.py").read_text(encoding="utf-8")
+              assert "interactive_sort_frame(subset" in chapter1
+          PY
+
+          cat > modules/deep_company_analysis/test_ttm_coverage_v32.py <<'PY'
+          import pandas as pd
+
+          from modules.deep_company_analysis.chapter4_quant import build_company_snapshot
+          from modules.deep_company_analysis.chapter5_quant import (
+              build_balance_sheet_context,
+              build_q22_context,
+              build_reinvestment_context,
+              build_roic_variants,
+          )
+          from modules.deep_company_analysis.chapter6_quant import build_q30_dol
+
+
+          def _frame(with_ttm=True):
+              rows = [
+                  {"period": "2024", "period_type": "Y", "year": 2024, "revenue_bil": 1000, "gross_profit_bil": 300, "core_operating_profit_bil": 120, "net_profit_bil": 80, "cfo_bil": 100, "capex_bil": -40, "free_cash_flow_bil": 60, "roic_pct": 15, "total_assets_bil": 900, "current_liabilities_bil": 250, "short_term_debt_bil": 50, "cash_equivalents_bil": 100, "equity_bil": 500, "ebitda_bil": 160, "interest_expense_bil": 15, "current_assets_bil": 400},
+                  {"period": "2025", "period_type": "Y", "year": 2025, "revenue_bil": 1200, "gross_profit_bil": 360, "core_operating_profit_bil": 150, "net_profit_bil": 95, "cfo_bil": 120, "capex_bil": -45, "free_cash_flow_bil": 75, "roic_pct": 16, "total_assets_bil": 1000, "current_liabilities_bil": 280, "short_term_debt_bil": 60, "cash_equivalents_bil": 120, "equity_bil": 560, "ebitda_bil": 190, "interest_expense_bil": 16, "current_assets_bil": 450},
+              ]
+              if with_ttm:
+                  rows.append({"period": "TTM", "period_type": "TTM", "year": 2026, "revenue_bil": 1320, "gross_profit_bil": 410, "core_operating_profit_bil": 170, "net_profit_bil": 110, "cfo_bil": 145, "capex_bil": -55, "free_cash_flow_bil": 90, "roic_pct": 17, "total_assets_bil": 1080, "current_liabilities_bil": 300, "short_term_debt_bil": 60, "cash_equivalents_bil": 135, "equity_bil": 610, "ebitda_bil": 215, "interest_expense_bil": 17, "current_assets_bil": 490})
+              return pd.DataFrame(rows)
+
+
+          def test_chapter4_history_reaches_ttm_but_annual_median_logic_stays_available():
+              snap = build_company_snapshot("DGC", "DGC", _frame(True))
+              assert snap["latest_period"] == "TTM"
+              assert snap["history"][-1]["Kỳ"] == "TTM"
+
+
+          def test_chapter5_q22_q25_q26_reach_ttm():
+              df = _frame(True)
+              assert build_q22_context(df).iloc[-1]["Kỳ"] == "TTM"
+              assert build_balance_sheet_context(df).iloc[-1]["Kỳ"] == "TTM"
+              variants = build_roic_variants(df)
+              assert not variants.empty
+              assert variants["Kỳ"].eq("TTM").all()
+
+
+          def test_chapter5_reinvestment_displays_ttm_without_fy_vs_ttm_incremental_roic():
+              out = build_reinvestment_context(_frame(True))
+              assert out.iloc[-1]["Kỳ"] == "TTM"
+              assert pd.isna(out.iloc[-1]["Incremental ROIC %"])
+              assert "comparable prior TTM" in str(out.iloc[-1]["Interpretation"])
+
+
+          def test_chapter6_dol_reaches_ttm_but_does_not_fabricate_ttm_dol():
+              table, summary = build_q30_dol(_frame(True))
+              assert table.iloc[-1]["Kỳ"] == "TTM"
+              assert table.iloc[-1]["Validity"] == "N/A"
+              assert pd.isna(table.iloc[-1]["Historical DOL (x)"])
+              assert "comparable prior TTM" in table.iloc[-1]["Invalid Reason"]
+              assert summary["valid_observations"] >= 1
+
+
+          def test_no_ttm_row_is_fabricated_when_input_has_no_valid_ttm():
+              df = _frame(False)
+              assert build_q22_context(df).iloc[-1]["Kỳ"] == "2025"
+              assert build_balance_sheet_context(df).iloc[-1]["Kỳ"] == "2025"
+              table, _ = build_q30_dol(df)
+              assert table.iloc[-1]["Kỳ"] == "2025"
+          PY
+
+          cat > modules/deep_company_analysis/test_chapter6_phase6c.py <<'PY'
+          from copy import deepcopy
+          from pathlib import Path
+
+          import pandas as pd
+
+          import modules.deep_company_analysis.chapter6 as ch6
+          from modules.deep_company_analysis.chapter6_evidence import (
+              classify_evidence_rows,
+              evidence_quality_summary,
+              manipulation_snapshot_candidates,
+              manipulation_snapshot_table,
+              merge_candidates_into_record,
+              research_gaps,
+          )
+
+
+          def test_external_candidate_classification_uses_returned_text_and_quality_grades():
+              raw = pd.DataFrame([
+                  {"_Focus": "Q28", "Tiêu đề": "DGC annual report recurring revenue contract renewal", "Trích yếu": "contracted revenue and renewal terms", "Nguồn/URL": "https://ducgiangchem.vn/quan-he-co-dong/report", "Tên miền": "ducgiangchem.vn", "Nhóm thông tin": "Tin tham khảo", "Trạng thái": "Tìm thấy"},
+                  {"_Focus": "Q31", "Tiêu đề": "DGC working capital", "Trích yếu": "inventory and receivable movements", "Nguồn/URL": "https://finance.vietstock.vn/DGC", "Tên miền": "finance.vietstock.vn", "Nhóm thông tin": "Dữ liệu/tin tài chính", "Trạng thái": "Tìm thấy"},
+              ])
+              out = classify_evidence_rows(raw, "DGC")
+              assert len(out) == 2
+              assert out.iloc[0]["Evidence Quality"].startswith("A —")
+              assert out.iloc[1]["Evidence Quality"].startswith("B —")
+              assert out["Status"].eq("Candidate — analyst verify").all()
+
+
+          def test_query_or_direct_link_without_evidence_text_does_not_become_candidate():
+              raw = pd.DataFrame([
+                  {"_Focus": "Q32", "Tiêu đề": "DGC investor relations", "Trích yếu": "open this source to verify", "Nguồn/URL": "https://ducgiangchem.vn", "Tên miền": "ducgiangchem.vn", "Nhóm thông tin": "Nguồn doanh nghiệp/IR", "Trạng thái": "Link nguồn ưu tiên", "Truy vấn": "maintenance capex"},
+              ])
+              assert classify_evidence_rows(raw, "DGC").empty
+
+
+          def test_merge_only_changes_evidence_and_research_gaps_not_analyst_conclusions():
+              record = ch6.empty_payload("DGC")
+              record["q27"]["overall_assessment"] = "Balanced"
+              record["q29"]["cycle_classification"] = "Mixed"
+              record["earnings_distribution_width"] = "Medium"
+              before = deepcopy(record)
+              candidates = pd.DataFrame([{
+                  "Question": "Q27", "Subtopic": "Audit / accounting changes", "Direction": "Neutral / context",
+                  "Evidence Quality": "A — Company/Official disclosure", "Explicitness": "Explicit text candidate",
+                  "Period Candidate": "2025", "Title": "Annual report", "URL": "https://example.com/report",
+                  "Snippet": "accounting policy disclosure", "Source Group": "Official", "Source Method": "Phase 6C",
+                  "Data Origin": "External evidence candidate — analyst verification required", "Status": "Candidate — analyst verify",
+              }])
+              gaps = research_gaps(candidates)
+              merged = merge_candidates_into_record(record, candidates, gaps)
+              assert merged["q27"] == before["q27"]
+              assert merged["q29"] == before["q29"]
+              assert merged["earnings_distribution_width"] == "Medium"
+              assert len(merged["evidence_matrix"]) == 1
+
+
+          def test_merge_deduplicates_same_candidate():
+              record = ch6.empty_payload("DGC")
+              candidate = pd.DataFrame([{
+                  "Question": "Q32", "Subtopic": "Maintenance vs growth capex", "Direction": "Neutral / context",
+                  "Evidence Quality": "B — Independent financial source/research", "Period Candidate": "2025",
+                  "Title": "Capex note", "URL": "https://example.com/capex", "Snippet": "maintenance capex disclosure",
+                  "Data Origin": "External evidence candidate — analyst verification required",
+              }])
+              once = merge_candidates_into_record(record, candidate)
+              twice = merge_candidates_into_record(once, candidate)
+              assert len(twice["evidence_matrix"]) == 1
+
+
+          def test_manipulation_bridge_is_read_only_and_ttm_guardrail_is_explicit():
+              snapshot = {"ticker": "DGC", "layers": [
+                  {"layer": "1. Beneish M-Score", "latest_score": -1.85, "latest_risk": "Cảnh báo", "latest_period": "2025", "latest_note": "Review"},
+                  {"layer": "2. Accrual Quality / Sloan", "latest_score": 0.08, "latest_risk": "Trung bình", "latest_period": "2025", "latest_note": "Review"},
+              ]}
+              table = manipulation_snapshot_table(snapshot)
+              assert table.iloc[-1]["Kỳ"] == "TTM"
+              assert table.iloc[-1]["Mức cảnh báo"] == "N/A"
+              candidates = manipulation_snapshot_candidates(snapshot)
+              assert candidates["Question"].eq("Q27").all()
+              assert candidates["Evidence Quality"].str.startswith("T —").all()
+
+
+          def test_phase6c_never_imports_module2_compute_engine():
+              text = Path(__file__).with_name("chapter6_evidence.py").read_text(encoding="utf-8")
+              assert "module2_engine" not in text
+              assert "build_beneish" not in text
+              assert "build_modified_jones" not in text
+              assert "build_real_earnings" not in text
+
+
+          def test_quality_summary_is_coverage_not_score_and_gaps_are_tasks():
+              candidates = pd.DataFrame(columns=["Question", "Evidence Quality", "Direction"])
+              summary = evidence_quality_summary(candidates)
+              assert len(summary) == 6
+              assert summary["Boundary"].str.contains("not a quality score").all()
+              gaps = research_gaps(candidates)
+              assert len(gaps) == 6
+              assert gaps["Status"].str.startswith("Open").all()
+          PY
+
+          # Update formula doc status/boundary.
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('Status: **APPROVED Phase 6A source lock**. Computed metrics are deferred to Phase 6B unless explicitly noted.', 'Status: **APPROVED source lock + implemented Phase 6B quantitative bridge + Phase 6C Evidence & Research Assistant**.')
+          if '## Phase 6C evidence boundary' not in s:
+              s += '''\n\n## Phase 6C evidence boundary\n\nPhase 6C may retrieve and classify candidate evidence for Q27–Q32 and surface counter-evidence/research gaps. A/B/C is a source-quality/coverage grade, not a company-quality score. Module 2 Beneish/Sloan/Modified Jones/REM diagnostics are consumed read-only; Chapter 6 does not recompute them. Evidence candidates never auto-set analyst conclusions, Distribution Width, MOS, Research Gate, or BUY/HOLD/SELL.\n\nFinancial time-series tables extend to a valid canonical TTM when available. Annual-only methodologies show TTM as N/A rather than fabricate a value.\n'''
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Compile implementation
+        run: |
+          python -m py_compile \
+            modules/deep_company_analysis/table_format.py \
+            modules/deep_company_analysis/chapter1.py \
+            modules/deep_company_analysis/chapter2.py \
+            modules/deep_company_analysis/chapter3.py \
+            modules/deep_company_analysis/chapter4.py \
+            modules/deep_company_analysis/chapter4_quant.py \
+            modules/deep_company_analysis/chapter4_page_support.py \
+            modules/deep_company_analysis/chapter5.py \
+            modules/deep_company_analysis/chapter5_quant.py \
+            modules/deep_company_analysis/chapter5_page_support.py \
+            modules/deep_company_analysis/chapter6.py \
+            modules/deep_company_analysis/chapter6_quant.py \
+            modules/deep_company_analysis/chapter6_evidence.py \
+            modules/deep_company_analysis/chapter6_page_support.py \
+            module2_dashboard.py \
+            pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+
+      - name: Audit Pass 1 of 3 — Numeric format contract
+        run: |
+          echo 'PASS 1/3 — Numeric format contract'
+          pytest -q modules/deep_company_analysis/test_table_format.py modules/deep_company_analysis/test_sortable_table_v32.py
+          python - <<'PY'
+          from modules.deep_company_analysis.table_format import format_numeric, infer_numeric_kind
+          checks = {
+              'amount': (infer_numeric_kind('CFO (tỷ)'), format_numeric(1234.56, 'amount_bil')),
+              'percent': (infer_numeric_kind('EBIT Margin (%)'), format_numeric(12.345, 'percent')),
+              'ratio': (infer_numeric_kind('CFO/NI (x)'), format_numeric(2.345, 'ratio')),
+              'days': (infer_numeric_kind('CCC ngày'), format_numeric(45.67, 'days')),
+          }
+          assert checks['amount'] == ('amount_bil', '1,235')
+          assert checks['percent'] == ('percent', '12.3%')
+          assert checks['ratio'] == ('ratio', '2.3x')
+          assert checks['days'] == ('days', '45.7')
+          print('PASS 1 FORMAT CHECKS:', checks)
+          PY
+
+      - name: Audit Pass 2 of 3 — TTM coverage and methodology applicability
+        run: |
+          echo 'PASS 2/3 — TTM coverage'
+          pytest -q modules/deep_company_analysis/test_ttm_coverage_v32.py modules/deep_company_analysis/test_chapter6_phase6b.py
+          python - <<'PY'
+          from pathlib import Path
+          loaders = [
+              'modules/deep_company_analysis/chapter2_page_support.py',
+              'modules/deep_company_analysis/chapter4_page_support.py',
+              'modules/deep_company_analysis/chapter5_page_support.py',
+              'modules/deep_company_analysis/chapter6_page_support.py',
+          ]
+          for name in loaders:
+              text = Path(name).read_text(encoding='utf-8')
+              assert 'append_ttm_row' in text, name
+          print('PASS 2: canonical quantitative loaders append valid TTM; methodology-invalid TTM is explicit N/A.')
+          PY
+
+      - name: Audit Pass 3 of 3 — Universal sortability + Phase 6C analyst boundary
+        run: |
+          echo 'PASS 3/3 — Sortability + analyst boundary'
+          pytest -q modules/deep_company_analysis/test_chapter6_phase6c.py modules/deep_company_analysis/test_sortable_table_v32.py
+          python - <<'PY'
+          from pathlib import Path
+          root = Path('modules/deep_company_analysis')
+          direct_editor=[]; direct_df=[]; direct_table=[]
+          for p in root.glob('*.py'):
+              if p.name.startswith('test_') or p.name == 'table_format.py':
+                  continue
+              s=p.read_text(encoding='utf-8')
+              if 'st.data_editor(' in s: direct_editor.append(p.name)
+              if 'st.dataframe(' in s: direct_df.append(p.name)
+              if 'st.table(' in s: direct_table.append(p.name)
+          assert not direct_editor, direct_editor
+          assert not direct_df, direct_df
+          assert not direct_table, direct_table
+          tf=(root/'table_format.py').read_text(encoding='utf-8')
+          assert 'Sort theo cột' in tf and 'sortable_data_editor' in tf and 'interactive_sort_frame' in tf
+          c1=(root/'chapter1.py').read_text(encoding='utf-8')
+          assert 'interactive_sort_frame(subset' in c1
+          c6=(root/'chapter6_evidence.py').read_text(encoding='utf-8')
+          assert 'module2_engine' not in c6
+          print('PASS 3: every shared/read-only + editable Deep Analysis table has explicit selectable sort; Phase6C boundary locked.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: pytest -q modules/deep_company_analysis/test_*.py
+
+      - name: Static table primitive audit
+        run: |
+          echo '=== Remaining table primitives ==='
+          grep -RIn --include='*.py' -E 'st\.table\(|st\.dataframe\(|st\.data_editor\(|render_static_table\(|<table|to_html\(|_html_table\(' modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py || true
+
+      - name: Unified Streamlit smoke test
+        shell: bash
+        run: |
+          timeout 28s streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8517 >/tmp/ch6_v32_smoke.log 2>&1 &
+          PID=$!
+          sleep 12
+          curl --fail --silent http://127.0.0.1:8517/_stcore/health
+          kill $PID || true
+          wait $PID || true
+          tail -n 80 /tmp/ch6_v32_smoke.log || true
+
+      - name: Commit V32 implementation
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            module2_dashboard.py \
+            modules/deep_company_analysis \
+            docs/CHAPTER6_PHASE6C_IMPLEMENTATION.md \
+            docs/DEEP_ANALYSIS_TABLE_FORMAT_TTM_SORT_LOCK_V32.md \
+            docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md
+          git commit -m 'feat(ch6): Phase 6C evidence assistant plus TTM sortable tables V32'
+          git push origin HEAD:feature/deep-company-analysis-chapter6
+
+      - name: Build V32 offline package
+        shell: bash
+        run: |
+          cat > OFFLINE_BUILD_INFO.txt <<EOF
+          Trecapital Deep Company Analysis Chapters 1-6 V32 Offline
+          Branch: feature/deep-company-analysis-chapter6
+          Commit: $(git rev-parse HEAD)
+          Includes: V32 3-pass format audit, TTM coverage, universal table sorting, Chapter 6 Phase 6C Evidence & Research Assistant.
+          Data rule: Trecapital canonical financial data remains Single Source of Truth.
+          Analyst boundary: no automatic Q27-Q32 conclusion, Distribution Width, MOS, Research Gate or BUY/HOLD/SELL.
+          EOF
+          rm -f Trecapital_Deep_Analysis_Ch1-Ch6_V32_Offline.zip
+          zip -qr Trecapital_Deep_Analysis_Ch1-Ch6_V32_Offline.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' 'Trecapital_Deep_Analysis_Ch1-Ch6_V30_Offline.zip' 'Trecapital_Deep_Analysis_Ch1-Ch6_V31_Offline.zip'
+          unzip -t Trecapital_Deep_Analysis_Ch1-Ch6_V32_Offline.zip | tail -n 3
+
+      - name: Upload V32 offline ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Ch1-Ch6_V32_Offline
+          path: Trecapital_Deep_Analysis_Ch1-Ch6_V32_Offline.zip
+          retention-days: 90
