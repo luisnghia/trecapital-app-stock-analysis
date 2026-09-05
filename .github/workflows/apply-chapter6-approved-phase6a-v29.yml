@@ -1,0 +1,541 @@
+name: Apply Chapter 6 Approved Phase 6A V29
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter6
+    paths:
+      - '.github/workflows/apply-chapter6-approved-phase6a-v29.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-approved-phase6a:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-chapter6
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Apply approved Chapter 6 source lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('modules/deep_company_analysis/chapter6.py')
+          s = p.read_text(encoding='utf-8')
+
+          old = '''TREND_OPTIONS = ("Unknown", "Improving", "Stable", "Deteriorating", "Mixed")\n'''
+          new = '''TREND_OPTIONS = ("Unknown", "Improving", "Stable", "Deteriorating", "Mixed")\nDISTRIBUTION_WIDTH_OPTIONS = ("Unknown", "Narrow", "Moderately Narrow", "Medium", "Moderately Wide", "Wide")\nMAINTENANCE_CAPEX_METHOD_OPTIONS = (\n    "Unknown",\n    "Company disclosed",\n    "Analyst estimate with evidence",\n    "Depreciation rough proxy — clearly labelled",\n    "N/A",\n)\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''ACCOUNTING_QUALITY_COLUMNS = [\n    "Area", "Area (VI)", "Origin", "Policy / Estimate", "Current Treatment",\n    "Conservative / Liberal Indicator", "3Y Pattern", "Provision / Estimate",\n    "Actual Outcome / Charge-off", "Supporting Evidence", "Counter-Evidence",\n    "Analyst Assessment", "Analyst Note",\n]\n\nRECURRING_REVENUE_COLUMNS = [\n    "Revenue Stream", "Recurring / One-off / Mixed", "Mechanism", "Contract / Reorder Basis",\n    "Typical Duration", "Revenue Share", "Renewal / Retention Evidence", "At-Risk Revenue",\n    "Customer Dependency", "Supporting Evidence", "Counter-Evidence", "Analyst Assessment",\n]\n'''
+          new = '''ACCOUNTING_QUALITY_COLUMNS = [\n    "Area", "Area (VI)", "Origin", "Policy / Estimate", "Current Treatment",\n    "Conservative / Liberal Indicator", "3Y Pattern", "Supporting Evidence",\n    "Counter-Evidence", "Analyst Assessment", "Analyst Note",\n]\n\nRESERVE_ROLLFORWARD_COLUMNS = [\n    "Reserve Area", "Period", "Beginning Reserve (tỷ)", "Provision (tỷ)",\n    "Write-offs / Usage (tỷ)", "Adjustments (tỷ)", "Ending Reserve (tỷ)",\n    "Actual Outcome (tỷ)", "Provision / Actual (x)", "Evidence", "Analyst Note",\n]\n\nRECURRING_REVENUE_COLUMNS = [\n    "Revenue Stream", "Revenue Share (%)", "Revenue Type", "Mechanism", "Contractual?",\n    "Contract Duration", "Renewal Rate (%)", "Churn / Retention", "Customer Switching Cost",\n    "Replacement Requirement", "Revenue at Risk (%)", "Customer Dependency",\n    "Supporting Evidence", "Counter-Evidence", "Analyst Assessment",\n]\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''CYCLE_COLUMNS = [\n    "Demand / Cycle Driver", "Exposure Mechanism", "Cyclical / Countercyclical / Resistant / Mixed",\n    "Customer Purchase Deferrability", "Customer Budget Importance", "Customer Cycle Exposure",\n    "Supply / Demand Context", "Past Downturn Evidence", "Peak / Trough Behavior",\n    "Supporting Evidence", "Counter-Evidence", "Analyst Assessment",\n]\n'''
+          new = '''CYCLE_COLUMNS = [\n    "Demand / Cycle Driver", "Exposure Mechanism", "Cyclical / Countercyclical / Resistant / Mixed",\n    "Customer Purchase Deferrability", "Customer Budget Importance", "Customer Cycle Exposure",\n    "Supply / Demand Context", "Commodity Exposure", "Past Downturn Evidence", "Peak / Trough Behavior",\n    "Supporting Evidence", "Counter-Evidence", "Analyst Assessment",\n]\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''CAPEX_COLUMNS = [\n    "Capex Category / Asset", "Maintenance / Growth / Regulatory / Unclear", "Amount",\n    "Period", "Recurring?", "Capacity / Cash-flow Effect", "Discretionary?",\n    "Management Disclosure", "Supporting Evidence", "Counter-Evidence", "Analyst Assessment",\n]\n'''
+          new = '''CAPEX_COLUMNS = [\n    "Capex Category / Asset", "Maintenance / Growth / Regulatory / Unclear", "Amount (tỷ)",\n    "Period", "Recurring?", "Capacity / Cash-flow Effect", "Discretionary?",\n    "Maintenance Evidence / Method", "Management Disclosure", "Supporting Evidence",\n    "Counter-Evidence", "Analyst Assessment",\n]\n\nDISTRIBUTION_MATRIX_COLUMNS = [\n    "Question", "Driver", "Analyst Assessment", "Effect on Distribution",\n    "Evidence / Reason", "Analyst Note",\n]\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''CHILD_TABLES: dict[str, str] = {\n    "q27_accounting_quality": "chapter6_accounting_quality",\n    "q28_revenue_streams": "chapter6_revenue_streams",\n'''
+          new = '''CHILD_TABLES: dict[str, str] = {\n    "q27_accounting_quality": "chapter6_accounting_quality",\n    "q27_reserve_rollforward": "chapter6_reserve_rollforward",\n    "q28_revenue_streams": "chapter6_revenue_streams",\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''    "q32_capex_register": "chapter6_capex_register",\n    "evidence_matrix": "chapter6_evidence",\n'''
+          new = '''    "q32_capex_register": "chapter6_capex_register",\n    "earnings_distribution_matrix": "chapter6_distribution_matrix",\n    "evidence_matrix": "chapter6_evidence",\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          anchor = '''    return rows\n\n\ndef empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:\n'''
+          insert = '''    return rows\n\n\ndef _default_distribution_matrix() -> list[dict[str, Any]]:\n    return [\n        {\n            "Question": question,\n            "Driver": driver,\n            "Analyst Assessment": "Unknown",\n            "Effect on Distribution": "Unknown",\n            "Evidence / Reason": "",\n            "Analyst Note": "",\n        }\n        for question, driver in (\n            ("Q27", "Accounting quality"),\n            ("Q28", "Revenue recurrence"),\n            ("Q29", "Cyclicality"),\n            ("Q30", "Operating leverage"),\n            ("Q31", "Working capital"),\n            ("Q32", "Capital intensity"),\n        )\n    ]\n\n\ndef empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:\n'''
+          assert anchor in s
+          s = s.replace(anchor, insert, 1)
+
+          old = '''        "q27_accounting_quality": _default_accounting_rows(),\n        "q28": {\n            "recurring_revenue_share": "",\n'''
+          new = '''        "q27_accounting_quality": _default_accounting_rows(),\n        "q27_reserve_rollforward": [],\n        "q28": {\n            "recurring_revenue_share": "",\n            "recurring_revenue_share_source": "Unknown",\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''        "q32": {\n            "capital_intensity": "Unknown",\n            "maintenance_capex_visibility": "Unknown",\n            "maintenance_vs_growth_split": "Unknown",\n'''
+          new = '''        "q32": {\n            "capital_intensity": "Unknown",\n            "maintenance_capex_visibility": "Unknown",\n            "maintenance_vs_growth_split": "Unknown",\n            "maintenance_capex_method": "Unknown",\n            "depreciation_proxy_note": "",\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''        "q32_capex_register": [],\n        "evidence_matrix": [],\n        "research_gaps_table": [],\n        "earnings_distribution_summary": "",\n'''
+          new = '''        "q32_capex_register": [],\n        "earnings_distribution_width": "Unknown",\n        "earnings_distribution_matrix": _default_distribution_matrix(),\n        "evidence_matrix": [],\n        "research_gaps_table": [],\n        "earnings_distribution_summary": "",\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''    if str((payload.get("q32") or {}).get("maintenance_vs_growth_split") or "Unknown") not in {"Unknown", "N/A"} and not payload.get("q32_capex_register"):\n        warnings.append("Q32 đã đánh giá maintenance/growth capex nhưng chưa có capex register/evidence.")\n    return warnings\n'''
+          new = '''    if str((payload.get("q32") or {}).get("maintenance_vs_growth_split") or "Unknown") not in {"Unknown", "N/A"} and not payload.get("q32_capex_register"):\n        warnings.append("Q32 đã đánh giá maintenance/growth capex nhưng chưa có capex register/evidence.")\n    q32_method = str((payload.get("q32") or {}).get("maintenance_capex_method") or "Unknown")\n    if q32_method == "Depreciation rough proxy — clearly labelled" and not str((payload.get("q32") or {}).get("depreciation_proxy_note") or "").strip():\n        warnings.append("Q32 đang dùng depreciation làm rough proxy nhưng chưa ghi lý do, giới hạn và bằng chứng hỗ trợ.")\n    width = str(payload.get("earnings_distribution_width") or "Unknown")\n    matrix = payload.get("earnings_distribution_matrix") or []\n    if width not in {"Unknown", "N/A"} and not matrix:\n        warnings.append("Chapter 6 đã kết luận độ rộng earnings distribution nhưng chưa có Predictability Matrix Q27–Q32.")\n    return warnings\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''    "ACCOUNTING_QUALITY_COLUMNS", "CAPEX_COLUMNS", "COST_STRUCTURE_COLUMNS", "CYCLE_COLUMNS",\n    "EVIDENCE_COLUMNS", "QUESTION_KEYS", "QUESTION_STATUS_OPTIONS", "RECURRING_REVENUE_COLUMNS",\n    "RESEARCH_GAP_COLUMNS", "SHEARN_Q27_RESERVE_AREAS", "TREND_OPTIONS", "WORKING_CAPITAL_COLUMNS",\n'''
+          new = '''    "ACCOUNTING_QUALITY_COLUMNS", "CAPEX_COLUMNS", "COST_STRUCTURE_COLUMNS", "CYCLE_COLUMNS",\n    "DISTRIBUTION_MATRIX_COLUMNS", "DISTRIBUTION_WIDTH_OPTIONS", "EVIDENCE_COLUMNS",\n    "MAINTENANCE_CAPEX_METHOD_OPTIONS", "QUESTION_KEYS", "QUESTION_STATUS_OPTIONS",\n    "RECURRING_REVENUE_COLUMNS", "RESERVE_ROLLFORWARD_COLUMNS", "RESEARCH_GAP_COLUMNS",\n    "SHEARN_Q27_RESERVE_AREAS", "TREND_OPTIONS", "WORKING_CAPITAL_COLUMNS",\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+          cat > modules/deep_company_analysis/chapter6_format.py <<'PY'
+          from __future__ import annotations
+
+          from html import escape
+          from typing import Any
+
+          import pandas as pd
+
+
+          def infer_numeric_kind(column: str) -> str:
+              name = str(column or '')
+              if '(tỷ)' in name:
+                  return 'amount_bil'
+              if '(%)' in name:
+                  return 'percent'
+              if '(x)' in name:
+                  return 'ratio'
+              if '(ngày)' in name or 'Days' in name or 'DSO' in name or 'DIO' in name or 'DPO' in name or 'CCC' in name:
+                  return 'days'
+              return 'text'
+
+
+          def format_numeric(value: Any, kind: str) -> str:
+              try:
+                  if value is None or pd.isna(value):
+                      return '—'
+                  number = float(value)
+              except Exception:
+                  return escape(str(value or ''))
+              if kind == 'amount_bil':
+                  return f'{number:,.0f}'
+              if kind == 'percent':
+                  return f'{number:,.1f}%'
+              if kind == 'ratio':
+                  return f'{number:,.1f}x'
+              if kind == 'days':
+                  return f'{number:,.1f}'
+              return f'{number:,.1f}'
+
+
+          def has_financial_numeric_columns(columns: list[str]) -> bool:
+              return any(infer_numeric_kind(column) != 'text' for column in columns)
+
+
+          def _heat_style(value: Any, max_abs: float) -> str:
+              try:
+                  number = float(value)
+              except Exception:
+                  return ''
+              if pd.isna(number) or number == 0:
+                  return ''
+              scale = min(1.0, abs(number) / max_abs) if max_abs > 0 else 0.0
+              alpha = 0.08 + 0.24 * scale
+              if number < 0:
+                  return f'color:#991B1B;font-weight:700;background:rgba(185,28,28,{alpha:.3f});'
+              return f'color:#047857;font-weight:700;background:rgba(4,120,87,{alpha:.3f});'
+
+
+          def financial_table_html(frame: pd.DataFrame, columns: list[str] | None = None) -> str:
+              if not isinstance(frame, pd.DataFrame) or frame.empty:
+                  return ''
+              cols = list(columns or frame.columns)
+              work = frame.copy()
+              for column in cols:
+                  if column not in work.columns:
+                      work[column] = None
+              work = work[cols]
+
+              max_abs: dict[str, float] = {}
+              for column in cols:
+                  kind = infer_numeric_kind(column)
+                  if kind == 'text':
+                      continue
+                  numeric = pd.to_numeric(work[column], errors='coerce').abs().dropna()
+                  max_abs[column] = float(numeric.max()) if not numeric.empty else 0.0
+
+              head = ''.join(f'<th>{escape(str(column))}</th>' for column in cols)
+              body_rows: list[str] = []
+              for _, row in work.iterrows():
+                  cells: list[str] = []
+                  for column in cols:
+                      kind = infer_numeric_kind(column)
+                      value = row.get(column)
+                      if kind == 'text':
+                          text = '—' if value is None or (isinstance(value, float) and pd.isna(value)) else escape(str(value))
+                          cells.append(f'<td>{text}</td>')
+                      else:
+                          style = _heat_style(value, max_abs.get(column, 0.0))
+                          cells.append(f'<td class="num" style="{style}">{format_numeric(value, kind)}</td>')
+                  body_rows.append('<tr>' + ''.join(cells) + '</tr>')
+
+              return (
+                  '<div class="tre-ch6-table"><style>'
+                  '.tre-ch6-table{overflow-x:auto;width:100%;}'
+                  '.tre-ch6-table table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:.92rem;}'
+                  '.tre-ch6-table th,.tre-ch6-table td{border:1px solid rgba(148,163,184,.35);padding:7px 8px;'
+                  'white-space:normal;overflow-wrap:anywhere;vertical-align:top;}'
+                  '.tre-ch6-table th{background:#F0FDF4;color:#065F46;font-weight:800;}'
+                  '.tre-ch6-table td.num{text-align:right;font-variant-numeric:tabular-nums;}'
+                  '</style><table><thead><tr>' + head + '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table></div>'
+              )
+
+
+          __all__ = ['financial_table_html', 'format_numeric', 'has_financial_numeric_columns', 'infer_numeric_kind']
+          PY
+
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('modules/deep_company_analysis/chapter6_page_support.py')
+          s = p.read_text(encoding='utf-8')
+
+          old = '''    COST_STRUCTURE_COLUMNS,\n    CYCLE_COLUMNS,\n    EVIDENCE_COLUMNS,\n'''
+          new = '''    COST_STRUCTURE_COLUMNS,\n    CYCLE_COLUMNS,\n    DISTRIBUTION_MATRIX_COLUMNS,\n    DISTRIBUTION_WIDTH_OPTIONS,\n    EVIDENCE_COLUMNS,\n    MAINTENANCE_CAPEX_METHOD_OPTIONS,\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''    RECURRING_REVENUE_COLUMNS,\n    RESEARCH_GAP_COLUMNS,\n'''
+          new = '''    RECURRING_REVENUE_COLUMNS,\n    RESERVE_ROLLFORWARD_COLUMNS,\n    RESEARCH_GAP_COLUMNS,\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          anchor = '''    save_record,\n)\n\nAPP_DIR = Path(__file__).resolve().parents[2]\n'''
+          replacement = '''    save_record,\n)\nfrom modules.deep_company_analysis.chapter6_format import (\n    financial_table_html,\n    has_financial_numeric_columns,\n    infer_numeric_kind,\n)\n\nAPP_DIR = Path(__file__).resolve().parents[2]\n'''
+          assert anchor in s
+          s = s.replace(anchor, replacement, 1)
+
+          old = '''def _editor(label: str, rows: Any, columns: list[str], key: str, *, height: int = 300) -> list[dict[str, Any]]:\n    st.markdown(f"**{label}**")\n    edited = st.data_editor(\n        _df(rows, columns),\n        num_rows="dynamic",\n        hide_index=True,\n        use_container_width=True,\n        height=height,\n        key=key,\n    )\n    return _rows(edited)\n'''
+          new = '''def _editor_column_config(columns: list[str]) -> dict[str, Any]:\n    config: dict[str, Any] = {}\n    for column in columns:\n        kind = infer_numeric_kind(column)\n        if kind == "amount_bil":\n            config[column] = st.column_config.NumberColumn(column, format="%.0f", help="Đơn vị: tỷ đồng; hiển thị 0 số lẻ.")\n        elif kind == "percent":\n            config[column] = st.column_config.NumberColumn(column, format="%.1f%%", help="Đơn vị: %; hiển thị 1 số lẻ.")\n        elif kind == "ratio":\n            config[column] = st.column_config.NumberColumn(column, format="%.1f", help="Hệ số; hiển thị 1 số lẻ.")\n        elif kind == "days":\n            config[column] = st.column_config.NumberColumn(column, format="%.1f", help="Số ngày; hiển thị 1 số lẻ.")\n    if "Revenue Type" in columns:\n        config["Revenue Type"] = st.column_config.SelectboxColumn(\n            "Revenue Type",\n            options=["Unknown", "Contractual recurring", "Behavioral recurring", "Repeat purchase", "One-off", "Mixed"],\n        )\n    if "Contractual?" in columns:\n        config["Contractual?"] = st.column_config.SelectboxColumn("Contractual?", options=["Unknown", "Yes", "No", "Mixed"])\n    if "Effect on Distribution" in columns:\n        config["Effect on Distribution"] = st.column_config.SelectboxColumn(\n            "Effect on Distribution", options=["Unknown", "Narrower", "Wider", "Neutral", "Mixed"]\n        )\n    return config\n\n\ndef _editor(label: str, rows: Any, columns: list[str], key: str, *, height: int = 300) -> list[dict[str, Any]]:\n    st.markdown(f"**{label}**")\n    edited = st.data_editor(\n        _df(rows, columns),\n        num_rows="dynamic",\n        hide_index=True,\n        use_container_width=True,\n        height=height,\n        column_config=_editor_column_config(columns),\n        key=key,\n    )\n    if has_financial_numeric_columns(columns) and isinstance(edited, pd.DataFrame) and not edited.empty:\n        with st.expander(f"🔎 Preview format số liệu — {label}", expanded=False):\n            st.caption("Quy chuẩn: tỷ đồng 0 số lẻ; % và hệ số 1 số lẻ; số âm đỏ, số dương xanh ngọc với cường độ theo độ lớn.")\n            st.html(financial_table_html(edited, columns))\n    return _rows(edited)\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''- **Q28:** recurring revenue hay one-off — phân rã từng dòng doanh thu, không tự suy ra tỷ lệ nếu doanh nghiệp không công bố.\n'''
+          new = '''- **Q28:** phân biệt **Contractual recurring / Behavioral recurring / Repeat purchase / One-off**; không tự suy ra tỷ lệ nếu doanh nghiệp không công bố hoặc analyst chưa có evidence.\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''- **Q32:** capex — tách maintenance/growth/regulatory nếu có bằng chứng; nếu không tách được thì giữ `Unknown`, **không bịa maintenance capex**.\n\nCác bảng 6.1–6.6 của sách được chuyển thành workspace nghiên cứu, không biến thành điểm số BUY/HOLD/SELL.\n'''
+          new = '''- **Q32:** capex — ưu tiên company disclosure, sau đó analyst estimate có evidence; nếu vẫn thiếu có thể dùng **Depreciation rough proxy** theo Shearn nhưng phải gắn nhãn rõ, ghi lý do/giới hạn và không được coi là canonical maintenance capex.\n\nCác bảng 6.1–6.6 của sách được chuyển thành workspace nghiên cứu, không biến thành điểm số BUY/HOLD/SELL.\n\n**Format lock:** bảng nhập liệu số dùng đúng đơn vị `tỷ / % / x`; preview số liệu dùng `st.html()` với `table-layout: fixed`, wrap nội dung, số âm đỏ và số dương xanh ngọc.\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''        payload["q27_accounting_quality"] = _editor(\n            "Accounting / Reserve Quality Register — Tables 6.1–6.2 logic",\n            payload.get("q27_accounting_quality"), ACCOUNTING_QUALITY_COLUMNS,\n            f"dca6_{ticker}_q27_table", height=340,\n        )\n        st.info("Không tính Beneish lần thứ hai tại đây. Khi nối Phase 6C, module thao túng tài chính chỉ cung cấp read-only evidence/cảnh báo cho analyst.")\n'''
+          new = '''        payload["q27_accounting_quality"] = _editor(\n            "Accounting Quality Investigation Register",\n            payload.get("q27_accounting_quality"), ACCOUNTING_QUALITY_COLUMNS,\n            f"dca6_{ticker}_q27_table", height=340,\n        )\n        payload["q27_reserve_rollforward"] = _editor(\n            "Reserve / Provision Roll-forward — Tables 6.1–6.2",\n            payload.get("q27_reserve_rollforward"), RESERVE_ROLLFORWARD_COLUMNS,\n            f"dca6_{ticker}_q27_reserve_rollforward", height=310,\n        )\n        st.info("Không tính Beneish lần thứ hai tại đây. Phase 6C chỉ nhận read-only evidence/cảnh báo từ Module Manipulation; analyst vẫn quyết định Conservative / Mixed / Liberal.")\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''        q["recurring_revenue_share"] = st.text_input("Recurring revenue share (chỉ nhập khi có nguồn hoặc analyst estimate rõ)", value=str(q.get("recurring_revenue_share") or ""), key=f"dca6_{ticker}_q28_share")\n        q["starting_revenue_base"] = _select'''
+          new = '''        q["recurring_revenue_share"] = st.text_input("Recurring revenue share (chỉ nhập khi có nguồn hoặc analyst estimate rõ)", value=str(q.get("recurring_revenue_share") or ""), key=f"dca6_{ticker}_q28_share")\n        q["recurring_revenue_share_source"] = _select(\n            "Nguồn recurring revenue share", q.get("recurring_revenue_share_source"),\n            ("Unknown", "Company disclosed", "Analyst estimate with evidence", "N/A"),\n            f"dca6_{ticker}_q28_share_source",\n        )\n        q["starting_revenue_base"] = _select'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''    with st.expander("Q32 — Capital-expenditure requirements cao hay thấp?", expanded=False):\n        st.caption("Maintenance capex = vốn cần để giữ doanh nghiệp ở steady state. Nếu doanh nghiệp không công bố và analyst chưa có bằng chứng đủ, app phải để Unknown thay vì dùng total capex như maintenance capex.")\n'''
+          new = '''    with st.expander("Q32 — Capital-expenditure requirements cao hay thấp?", expanded=False):\n        st.caption("Maintenance capex = vốn cần để giữ doanh nghiệp ở steady state. Thứ tự ưu tiên: company disclosure → analyst estimate có evidence → depreciation rough proxy được gắn nhãn rõ. Total capex không được mặc định là maintenance capex.")\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''        q["maintenance_vs_growth_split"] = _select("Maintenance vs growth split", q.get("maintenance_vs_growth_split"), ("Unknown", "Supportable", "Partly supportable", "Not supportable", "N/A"), f"dca6_{ticker}_q32_split")\n        q["regulatory_capex_burden"] = _select'''
+          new = '''        q["maintenance_vs_growth_split"] = _select("Maintenance vs growth split", q.get("maintenance_vs_growth_split"), ("Unknown", "Supportable", "Partly supportable", "Not supportable", "N/A"), f"dca6_{ticker}_q32_split")\n        q["maintenance_capex_method"] = _select(\n            "Maintenance capex method", q.get("maintenance_capex_method"), MAINTENANCE_CAPEX_METHOD_OPTIONS, f"dca6_{ticker}_q32_method"\n        )\n        if q["maintenance_capex_method"] == "Depreciation rough proxy — clearly labelled":\n            st.warning("Depreciation chỉ là rough proxy theo Shearn trong trường hợp phù hợp; phải ghi rõ lý do, giới hạn, asset age và không được relabel thành company-disclosed maintenance capex.")\n            q["depreciation_proxy_note"] = st.text_area(\n                "Lý do / giới hạn khi dùng depreciation proxy",\n                value=str(q.get("depreciation_proxy_note") or ""),\n                key=f"dca6_{ticker}_q32_dep_proxy_note",\n            )\n        q["regulatory_capex_burden"] = _select'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''    st.markdown("### Chapter 6 — Analyst synthesis")\n    payload["earnings_distribution_summary"] = st.text_area("Phân phối earnings/cash flow: hẹp hay rộng, vì sao?", value=str(payload.get("earnings_distribution_summary") or ""), key=f"dca6_{ticker}_dist")\n'''
+          new = '''    st.markdown("### Chapter 6 — Earnings & Cash-flow Predictability Matrix")\n    payload["earnings_distribution_width"] = _select(\n        "Earnings/Cash-flow Distribution",\n        payload.get("earnings_distribution_width"),\n        DISTRIBUTION_WIDTH_OPTIONS,\n        f"dca6_{ticker}_distribution_width",\n    )\n    payload["earnings_distribution_matrix"] = _editor(\n        "Predictability Matrix — không weighted score",\n        payload.get("earnings_distribution_matrix"),\n        DISTRIBUTION_MATRIX_COLUMNS,\n        f"dca6_{ticker}_distribution_matrix",\n        height=280,\n    )\n    st.caption("Không tính điểm 0–100 và không tự điều chỉnh MOS. Nếu distribution rộng, app chỉ gợi ý analyst dùng scenario/normalized earnings ở phase định giá sau này.")\n    payload["earnings_distribution_summary"] = st.text_area("Phân phối earnings/cash flow: hẹp hay rộng, vì sao?", value=str(payload.get("earnings_distribution_summary") or ""), key=f"dca6_{ticker}_dist")\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''                "<div style='overflow-x:auto'><table style='width:100%;table-layout:fixed;border-collapse:collapse'>"\n'''
+          new = '''                "<div style='overflow-x:auto'><table style='width:100%;table-layout:fixed;border-collapse:collapse;white-space:normal;overflow-wrap:anywhere'>"\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+          cat > docs/CHAPTER6_PHASE6A_SOURCE_LOCK.md <<'MD'
+          # Chapter 6 — APPROVED Phase 6A Source-Locked Analytical Workspace
+
+          Status: **APPROVED by analyst/user on 2026-09-05**.
+
+          Primary source: Michael Shearn, *The Investment Checklist*, Chapter 6 — **Evaluating the Distribution of Earnings (Cash Flows)**.
+
+          ## Core objective
+
+          Chapter 6 evaluates the **width / predictability of the future earnings and cash-flow distribution**, not a single-point forecast and not a mechanical quality score. The analyst asks: **How predictable are this business's future earnings/cash flows, and what can make realized results deviate materially from expectations?**
+
+          Questions remain exactly Q27–Q32:
+
+          - Q27 — Are the accounting standards that management uses conservative or liberal?
+          - Q28 — Does the business generate revenues that are recurring or from one-off transactions?
+          - Q29 — To what degree is the business cyclical, countercyclical, or recession-resistant?
+          - Q30 — To what degree does operating leverage impact the earnings of the business?
+          - Q31 — How does working capital impact the cash flows of the business?
+          - Q32 — Does the business have high or low capital-expenditure requirements?
+
+          ## Q27 — Accounting quality / true operating earnings
+
+          The approved workspace keeps seven analytical blocks separate: tax-book differences; CFO versus Net Income; revenue recognition; expense versus capitalization; discretionary-cost behavior; depreciation/estimate changes; restructuring/one-offs and reserve quality.
+
+          Tables 6.1–6.2 are implemented as two complementary tools:
+
+          1. **Accounting Quality Investigation Register** for policy/estimate evidence and counter-evidence.
+          2. **Reserve / Provision Roll-forward** with Beginning Reserve, Provision, Write-offs/Usage, Adjustments, Ending Reserve, Actual Outcome and Provision/Actual.
+
+          The seven Shearn reserve areas remain seeded as research prompts: bad debts, sales returns, inventory obsolescence, warranties, product liability, litigation and environmental contingencies. They are not allegations and deleted analyst rows are not silently restored.
+
+          Chapter 6 does **not** recompute Beneish/Dechow/REM. Phase 6C may receive read-only manipulation evidence from the existing module, while the Conservative/Mixed/Liberal conclusion remains analyst-owned.
+
+          ## Q28 — Revenue durability
+
+          Revenue is not reduced to a binary recurring/one-off flag. The approved Revenue Durability Map distinguishes:
+
+          - Contractual recurring
+          - Behavioral recurring
+          - Repeat purchase
+          - One-off
+          - Mixed
+
+          It stores revenue share, contractual status, duration, renewal, churn/retention evidence, switching cost, replacement requirement, revenue at risk, customer dependency, evidence/counter-evidence and analyst assessment.
+
+          No recurring-revenue percentage is fabricated. Company disclosure is preferred; analyst estimates must be explicitly labelled and evidence-backed.
+
+          ## Q29 — Cycle Exposure Map
+
+          The analyst must examine purchase deferrability, recurring-revenue protection, customer budget importance, customer economic-cycle exposure, supply/demand context, commodity exposure, historical downturn evidence and peak/trough behavior.
+
+          Sector cyclicality or a single prior recession does not automatically classify a company as cyclical or recession-resistant.
+
+          ## Q30 — Operating Leverage
+
+          Phase 6A stores the economic cost structure as Fixed / Variable / Semi-variable with driver, adjustment lag, capacity/utilization link, management flexibility, downturn behavior, evidence and counter-evidence.
+
+          Historical DOL belongs to Phase 6B and will use Trecapital canonical data. No single abnormal year may automatically set the analyst conclusion.
+
+          ## Q31 — Working Capital
+
+          Phase 6A stores the operating mechanism and whether cash absorption/release is sustainable or temporary. The approved design explicitly rejects the rules `lower CCC = automatically better` and `negative working capital = automatically better`.
+
+          Phase 6B will compute 5–10Y DSO/DIO/DPO/CCC and operating-working-capital cash impact from canonical fields only.
+
+          ## Q32 — Capital expenditure requirements
+
+          Maintenance-capex evidence follows this hierarchy:
+
+          1. Company-disclosed maintenance capex — highest priority.
+          2. Analyst estimate with explicit evidence/provenance.
+          3. **Depreciation rough proxy — clearly labelled** when appropriate under Shearn's framework and accompanied by a written rationale/limitations.
+          4. Otherwise `Unknown`.
+
+          Total capex must never be silently relabelled as maintenance capex. A depreciation proxy is not canonical company disclosure and must remain visibly marked as a rough proxy.
+
+          ## Earnings & Cash-flow Predictability Matrix
+
+          Q27–Q32 feed one analyst-owned matrix with six drivers: Accounting quality, Revenue recurrence, Cyclicality, Operating leverage, Working capital and Capital intensity.
+
+          Final distribution choices are:
+
+          - Narrow
+          - Moderately Narrow
+          - Medium
+          - Moderately Wide
+          - Wide
+          - Unknown
+
+          There is **no weighted score / 0–100 score**. The app also does not automatically change MOS or valuation assumptions from this classification.
+
+          ## Data / AI / Analyst boundary
+
+          - **Data Engine:** canonical facts and transparent derived metrics only.
+          - **AI Research Assistant:** find disclosures, evidence, counter-evidence, anomalies and research gaps.
+          - **AI must not:** set Conservative/Liberal accounting, recurring quality, cyclicality class, operating-leverage risk, maintenance capex, distribution width, Research Gate or BUY/HOLD/SELL.
+          - **Analyst:** owns all Q27–Q32 conclusions and final distribution width.
+
+          ## Persistence
+
+          Database: `data_cache/deep_company_analysis_chapter6.db`
+
+          Child tables include accounting quality, reserve roll-forward, revenue streams, cycle drivers, cost structure, working-capital mechanisms, capex register, earnings-distribution matrix, evidence and research gaps, plus current record and snapshots.
+
+          Financial facts remain owned by the canonical Trecapital Data Layer.
+
+          ## Display-format lock
+
+          Chapter 6 follows the project-wide display rules:
+
+          - financial amounts: **tỷ đồng, 0 decimals**;
+          - percentages: **1 decimal**;
+          - ratios: **1 decimal**;
+          - negative numeric values: **red heat intensity**;
+          - positive numeric values / positive growth: **emerald heat intensity**;
+          - larger absolute values use deeper heat intensity;
+          - read-only financial tables use `st.html()` with `table-layout: fixed`, `white-space: normal`, `overflow-wrap: anywhere`;
+          - editable research tables use `st.data_editor` with explicit numeric column formats and provide a read-only `st.html()` formatted preview for numeric tables.
+
+          ## Phase 6A acceptance rules
+
+          - Q27–Q32 exist and persist.
+          - Tables 6.1–6.2 logic includes a reserve roll-forward.
+          - Seven Shearn reserve areas seed only a new record and deletions persist.
+          - Q28 explicitly distinguishes Contractual recurring / Behavioral recurring / Repeat purchase / One-off.
+          - Q29 captures cycle and supply/demand evidence without auto-classification.
+          - Q30 cost structure is separate from future quantitative DOL.
+          - Q31 does not treat low/negative CCC as automatically positive.
+          - Q32 supports disclosed → analyst estimate → clearly-labelled depreciation rough proxy → Unknown hierarchy.
+          - Earnings Distribution Matrix contains Q27–Q32 and has no weighted score.
+          - Numeric display-format rules are tested.
+          - Save/load/snapshot persistence works.
+          - No automatic Research Gate or BUY/HOLD/SELL.
+
+          ## Next phase — only after analyst review
+
+          **Phase 6B — Quantitative Bridge** from Trecapital canonical data: CFO/NI history, historical revenue/EBIT/margin behavior, DOL, DSO/DIO/DPO/CCC, operating-WC cash impact, total capex, capex/revenue, capex/D&A, FCF, PP&E age diagnostics and full provenance.
+          MD
+
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md')
+          s = p.read_text(encoding='utf-8')
+          old = '''Therefore:\n\n- use company disclosure where available;\n- allow analyst input/estimate only with explicit evidence and provenance;\n- otherwise show `Unknown`;\n- never silently set `maintenance capex = total capex`;\n- never use depreciation alone as a hidden maintenance-capex proxy.\n'''
+          new = '''Therefore the approved hierarchy is:\n\n1. use company disclosure where available;\n2. allow an analyst estimate only with explicit evidence and provenance;\n3. when neither is available, allow **depreciation as a rough proxy only when the analyst explicitly selects that method and documents why it is reasonable and its limitations**;\n4. otherwise show `Unknown`.\n\nNever silently set `maintenance capex = total capex`. Never use depreciation as a hidden proxy or relabel a depreciation proxy as company-disclosed maintenance capex.\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+          old = '''Display format follows Trecapital project rules:\n\n- billion VND: no decimal places;\n- percentages: 1 decimal place;\n- ratios: 1 decimal place;\n- negative values: red heat intensity;\n- positive / positive-growth values: emerald heat intensity.\n'''
+          new = '''Display format follows Trecapital project rules:\n\n- billion VND: no decimal places;\n- percentages: 1 decimal place;\n- ratios: 1 decimal place;\n- negative values: red heat intensity;\n- positive / positive-growth values: emerald heat intensity;\n- larger absolute values use deeper heat intensity;\n- read-only financial tables use `st.html()` with fixed layout and wrapped text;\n- editable numeric research tables use explicit Streamlit NumberColumn formatting and expose an `st.html()` formatted preview.\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+
+          cat >> modules/deep_company_analysis/test_chapter6.py <<'PY'
+
+
+def test_approved_phase6a_has_distribution_matrix_and_no_score():
+    payload = ch6.empty_payload("DGC")
+    assert payload["earnings_distribution_width"] == "Unknown"
+    assert len(payload["earnings_distribution_matrix"]) == 6
+    assert {row["Question"] for row in payload["earnings_distribution_matrix"]} == set(ch6.QUESTION_KEYS)
+    assert "score" not in " ".join(payload.keys()).lower()
+    assert ch6.DISTRIBUTION_WIDTH_OPTIONS == (
+        "Unknown", "Narrow", "Moderately Narrow", "Medium", "Moderately Wide", "Wide"
+    )
+
+
+def test_q28_revenue_durability_types_and_q27_rollforward_exist():
+    assert "Revenue Type" in ch6.RECURRING_REVENUE_COLUMNS
+    assert "Revenue Share (%)" in ch6.RECURRING_REVENUE_COLUMNS
+    assert "Revenue at Risk (%)" in ch6.RECURRING_REVENUE_COLUMNS
+    assert "Beginning Reserve (tỷ)" in ch6.RESERVE_ROLLFORWARD_COLUMNS
+    assert "Provision / Actual (x)" in ch6.RESERVE_ROLLFORWARD_COLUMNS
+    assert ch6.empty_payload("DGC")["q27_reserve_rollforward"] == []
+
+
+def test_q32_depreciation_proxy_is_explicit_not_hidden():
+    payload = ch6.empty_payload("DGC")
+    assert payload["q32"]["maintenance_capex_method"] == "Unknown"
+    assert "Depreciation rough proxy — clearly labelled" in ch6.MAINTENANCE_CAPEX_METHOD_OPTIONS
+    payload["q32"]["maintenance_capex_method"] = "Depreciation rough proxy — clearly labelled"
+    warnings = ch6.research_gap_warnings(payload)
+    assert any("depreciation" in warning.lower() for warning in warnings)
+          PY
+
+          cat > modules/deep_company_analysis/test_chapter6_format.py <<'PY'
+          from __future__ import annotations
+
+          import pandas as pd
+
+          from modules.deep_company_analysis.chapter6_format import financial_table_html, format_numeric, infer_numeric_kind
+
+
+def test_chapter6_numeric_format_rules():
+    assert infer_numeric_kind("Amount (tỷ)") == "amount_bil"
+    assert infer_numeric_kind("Revenue Share (%)") == "percent"
+    assert infer_numeric_kind("Debt / EBITDA (x)") == "ratio"
+    assert format_numeric(1234.56, "amount_bil") == "1,235"
+    assert format_numeric(12.34, "percent") == "12.3%"
+    assert format_numeric(1.234, "ratio") == "1.2x"
+
+
+def test_chapter6_html_table_wrap_and_heatmap():
+    df = pd.DataFrame({
+        "Amount (tỷ)": [-100.0, 200.0],
+        "Revenue Share (%)": [-5.25, 10.25],
+        "Note": ["negative", "positive"],
+    })
+    html = financial_table_html(df)
+    assert "table-layout:fixed" in html
+    assert "white-space:normal" in html
+    assert "overflow-wrap:anywhere" in html
+    assert "#991B1B" in html
+    assert "#047857" in html
+    assert "-100" in html
+    assert "200" in html
+    assert "-5.2%" in html
+    assert "10.2%" in html
+          PY
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: Compile and run Chapter 6 acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q modules/deep_company_analysis/chapter6.py modules/deep_company_analysis/chapter6_format.py modules/deep_company_analysis/chapter6_page_support.py pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+          python -m pytest -q modules/deep_company_analysis/test_chapter6.py modules/deep_company_analysis/test_chapter6_format.py
+          grep -q 'APPROVED by analyst/user' docs/CHAPTER6_PHASE6A_SOURCE_LOCK.md
+          grep -q 'Depreciation rough proxy' docs/CHAPTER6_PHASE6A_SOURCE_LOCK.md
+          grep -q 'table-layout: fixed' docs/CHAPTER6_PHASE6A_SOURCE_LOCK.md
+
+      - name: Run full Deep Company Analysis regression
+        run: |
+          python -m pytest -q modules/deep_company_analysis
+
+      - name: Smoke-test unified page
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8516 > /tmp/trecapital_ch6_v29.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8516/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then cat /tmp/trecapital_ch6_v29.log; kill "$PID" 2>/dev/null || true; exit 1; fi
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+
+      - name: Commit approved Phase 6A
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add modules/deep_company_analysis/chapter6.py modules/deep_company_analysis/chapter6_format.py modules/deep_company_analysis/chapter6_page_support.py modules/deep_company_analysis/test_chapter6.py modules/deep_company_analysis/test_chapter6_format.py docs/CHAPTER6_PHASE6A_SOURCE_LOCK.md docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "feat(ch6): implement approved Phase 6A and format lock"
+            git push origin HEAD:feature/deep-company-analysis-chapter6
+          fi
