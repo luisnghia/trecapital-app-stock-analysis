@@ -1,4 +1,4 @@
-# V32C finalizer — corrected Phase6B test path
+# V32D finalizer — Chapter4 TTM regression aligned + pandas warning cleanup
 name: Finalize Deep Analysis V32 — 3-Pass Audit + TTM + Sort + Phase6C
 
 on:
