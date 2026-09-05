@@ -24,8 +24,15 @@ jobs:
           python-version: '3.11'
           cache: pip
 
-      - name: Apply approved Chapter 7 hotfix
-        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1.py
+      - name: Apply approved Chapter 7 research/UI integration
+        shell: bash
+        run: |
+          python - <<'PY'
+          from scripts.apply_chapter7_management_discovery_hotfix_v37_1 import patch_research, patch_ui
+          patch_research()
+          patch_ui()
+          print('V37.1 research/UI integration applied; hardened discovery module kept as-is')
+          PY
 
       - name: Install dependencies
         run: |
@@ -57,7 +64,7 @@ jobs:
 
           ticker = 'DGC'
           company_name = 'Tập đoàn Hóa chất Đức Giang'
-          discovery = discover_management_candidates(ticker, company_name, max_documents=18, max_targets=5, timeout_seconds=10.0)
+          discovery = discover_management_candidates(ticker, company_name, max_documents=24, max_targets=5, timeout_seconds=8.0)
           research = Chapter7ResearchAgent(Path('data_cache/ch7_hotfix_dgc')).search(
               ticker, company_name, managers=[], max_results_per_query=2
           )
@@ -151,7 +158,7 @@ jobs:
           Status: PASS
 
           - Management Profile empty-state now triggers candidate manager discovery from configured company/IR sources.
-          - Category/index pages are used to find deeper official personnel/governance/annual-report sources, not treated as manager identities.
+          - Current/recent official IR category pages and shallow disclosure pagination are prioritized before generic site search.
           - Discovered names/roles are research targets only and are never auto-written into analyst Management Profile.
           - Official company HTML/PDF text is converted into factual Q33-Q38 research candidates only when question-specific terms are present.
           - Q37/Q38 require explicit compensation/ownership or insider-transaction terms in the extracted source window; no evidence is fabricated from a manager name alone.
