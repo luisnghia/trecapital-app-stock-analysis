@@ -2,13 +2,12 @@ from __future__ import annotations
 
 """Michael Shearn Chapter 6 — Evaluating the Distribution of Earnings (Cash Flows).
 
-Phase 6A is a source-locked, analyst-owned workspace for Q27–Q32 from
-*The Investment Checklist*. It deliberately does not auto-classify accounting quality,
-revenue recurrence, cyclicality, operating leverage, working-capital quality, or capex quality.
+Approved Phase 6A is a source-locked, analyst-owned workspace for Q27–Q32 from
+*The Investment Checklist*. It evaluates the width/predictability of future earnings
+and cash flows; it is not a mechanical quality score and it never creates BUY/HOLD/SELL.
 
-Canonical financial data remains owned by the Trecapital Data Layer. Quantitative bridges
-(DOL, CCC, capex intensity, CFO/NI, etc.) belong to Phase 6B and may not create analyst
-conclusions automatically.
+Canonical financial facts remain owned by the Trecapital Data Layer. Phase 6B may add
+transparent derived metrics, but those metrics remain evidence rather than conclusions.
 """
 
 from copy import deepcopy
@@ -20,10 +19,26 @@ import sqlite3
 
 APP_DIR = Path(__file__).resolve().parents[2]
 DB_PATH = APP_DIR / "data_cache" / "deep_company_analysis_chapter6.db"
+SCHEMA_VERSION = 2
 
 QUESTION_KEYS = ("Q27", "Q28", "Q29", "Q30", "Q31", "Q32")
 QUESTION_STATUS_OPTIONS = ("Unknown", "Partial", "Answered", "N/A")
 TREND_OPTIONS = ("Unknown", "Improving", "Stable", "Deteriorating", "Mixed")
+DISTRIBUTION_WIDTH_OPTIONS = (
+    "Unknown",
+    "Narrow",
+    "Moderately Narrow",
+    "Medium",
+    "Moderately Wide",
+    "Wide",
+)
+MAINTENANCE_CAPEX_METHOD_OPTIONS = (
+    "Unknown",
+    "Company disclosed",
+    "Analyst estimate with evidence",
+    "Depreciation rough proxy — clearly labelled",
+    "N/A",
+)
 
 # Shearn explicitly lists these reserve categories in Q27. They are research prompts,
 # not allegations that a company uses or manipulates every reserve.
@@ -38,59 +53,149 @@ SHEARN_Q27_RESERVE_AREAS: tuple[tuple[str, str], ...] = (
 )
 
 ACCOUNTING_QUALITY_COLUMNS = [
-    "Area", "Area (VI)", "Origin", "Policy / Estimate", "Current Treatment",
-    "Conservative / Liberal Indicator", "3Y Pattern", "Provision / Estimate",
-    "Actual Outcome / Charge-off", "Supporting Evidence", "Counter-Evidence",
-    "Analyst Assessment", "Analyst Note",
+    "Area",
+    "Area (VI)",
+    "Origin",
+    "Policy / Estimate",
+    "Current Treatment",
+    "Conservative / Liberal Indicator",
+    "3Y Pattern",
+    "Supporting Evidence",
+    "Counter-Evidence",
+    "Analyst Assessment",
+    "Analyst Note",
+]
+
+RESERVE_ROLLFORWARD_COLUMNS = [
+    "Reserve Area",
+    "Period",
+    "Beginning Reserve (tỷ)",
+    "Provision (tỷ)",
+    "Write-offs / Usage (tỷ)",
+    "Adjustments (tỷ)",
+    "Ending Reserve (tỷ)",
+    "Actual Outcome (tỷ)",
+    "Provision / Actual (x)",
+    "Evidence",
+    "Analyst Note",
 ]
 
 RECURRING_REVENUE_COLUMNS = [
-    "Revenue Stream", "Recurring / One-off / Mixed", "Mechanism", "Contract / Reorder Basis",
-    "Typical Duration", "Revenue Share", "Renewal / Retention Evidence", "At-Risk Revenue",
-    "Customer Dependency", "Supporting Evidence", "Counter-Evidence", "Analyst Assessment",
+    "Revenue Stream",
+    "Revenue Share (%)",
+    "Revenue Type",
+    "Mechanism",
+    "Contractual?",
+    "Contract Duration",
+    "Renewal Rate (%)",
+    "Churn / Retention",
+    "Customer Switching Cost",
+    "Replacement Requirement",
+    "Revenue at Risk (%)",
+    "Customer Dependency",
+    "Supporting Evidence",
+    "Counter-Evidence",
+    "Analyst Assessment",
 ]
 
 CYCLE_COLUMNS = [
-    "Demand / Cycle Driver", "Exposure Mechanism", "Cyclical / Countercyclical / Resistant / Mixed",
-    "Customer Purchase Deferrability", "Customer Budget Importance", "Customer Cycle Exposure",
-    "Supply / Demand Context", "Past Downturn Evidence", "Peak / Trough Behavior",
-    "Supporting Evidence", "Counter-Evidence", "Analyst Assessment",
+    "Demand / Cycle Driver",
+    "Exposure Mechanism",
+    "Cyclical / Countercyclical / Resistant / Mixed",
+    "Customer Purchase Deferrability",
+    "Customer Budget Importance",
+    "Customer Cycle Exposure",
+    "Supply / Demand Context",
+    "Commodity Exposure",
+    "Past Downturn Evidence",
+    "Peak / Trough Behavior",
+    "Supporting Evidence",
+    "Counter-Evidence",
+    "Analyst Assessment",
 ]
 
 COST_STRUCTURE_COLUMNS = [
-    "Cost Item", "Fixed / Variable / Semi-variable", "Economic Driver", "Adjustment Lag",
-    "Capacity / Utilization Link", "Management Flexibility", "Downturn Behavior",
-    "Supporting Evidence", "Counter-Evidence", "Analyst Assessment",
+    "Cost Item",
+    "Fixed / Variable / Semi-variable",
+    "Economic Driver",
+    "Adjustment Lag",
+    "Capacity / Utilization Link",
+    "Management Flexibility",
+    "Downturn Behavior",
+    "Supporting Evidence",
+    "Counter-Evidence",
+    "Analyst Assessment",
 ]
 
 WORKING_CAPITAL_COLUMNS = [
-    "Component / Mechanism", "Cash Absorbed / Released", "Business Driver",
-    "Sustainable / Temporary / Unknown", "Customer / Supplier Consequence",
-    "Normalization Needed?", "Supporting Evidence", "Counter-Evidence", "Analyst Assessment",
+    "Component / Mechanism",
+    "Cash Absorbed / Released",
+    "Business Driver",
+    "Sustainable / Temporary / Unknown",
+    "Customer / Supplier Consequence",
+    "Normalization Needed?",
+    "Supporting Evidence",
+    "Counter-Evidence",
+    "Analyst Assessment",
 ]
 
 CAPEX_COLUMNS = [
-    "Capex Category / Asset", "Maintenance / Growth / Regulatory / Unclear", "Amount",
-    "Period", "Recurring?", "Capacity / Cash-flow Effect", "Discretionary?",
-    "Management Disclosure", "Supporting Evidence", "Counter-Evidence", "Analyst Assessment",
+    "Capex Category / Asset",
+    "Maintenance / Growth / Regulatory / Unclear",
+    "Amount (tỷ)",
+    "Period",
+    "Recurring?",
+    "Capacity / Cash-flow Effect",
+    "Discretionary?",
+    "Maintenance Evidence / Method",
+    "Management Disclosure",
+    "Supporting Evidence",
+    "Counter-Evidence",
+    "Analyst Assessment",
+]
+
+DISTRIBUTION_MATRIX_COLUMNS = [
+    "Question",
+    "Driver",
+    "Analyst Assessment",
+    "Effect on Distribution",
+    "Evidence / Reason",
+    "Analyst Note",
 ]
 
 EVIDENCE_COLUMNS = [
-    "Question", "Claim", "Evidence Type", "Source Title", "Source URL / File",
-    "Source Date", "Period", "Evidence Text", "Direction", "Status", "Data Origin", "Analyst Note",
+    "Question",
+    "Claim",
+    "Evidence Type",
+    "Source Title",
+    "Source URL / File",
+    "Source Date",
+    "Period",
+    "Evidence Text",
+    "Direction",
+    "Status",
+    "Data Origin",
+    "Analyst Note",
 ]
 
 RESEARCH_GAP_COLUMNS = [
-    "Question", "Research Gap", "Materiality", "Next Action", "Status", "Analyst Note",
+    "Question",
+    "Research Gap",
+    "Materiality",
+    "Next Action",
+    "Status",
+    "Analyst Note",
 ]
 
 CHILD_TABLES: dict[str, str] = {
     "q27_accounting_quality": "chapter6_accounting_quality",
+    "q27_reserve_rollforward": "chapter6_reserve_rollforward",
     "q28_revenue_streams": "chapter6_revenue_streams",
     "q29_cycle_drivers": "chapter6_cycle_drivers",
     "q30_cost_structure": "chapter6_cost_structure",
     "q31_working_capital": "chapter6_working_capital",
     "q32_capex_register": "chapter6_capex_register",
+    "earnings_distribution_matrix": "chapter6_distribution_matrix",
     "evidence_matrix": "chapter6_evidence",
     "research_gaps_table": "chapter6_research_gaps",
 }
@@ -152,30 +257,48 @@ def init_db() -> None:
 
 
 def _default_accounting_rows() -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for area, area_vi in SHEARN_Q27_RESERVE_AREAS:
-        rows.append(
-            {
-                "Area": area,
-                "Area (VI)": area_vi,
-                "Origin": "Shearn",
-                "Policy / Estimate": "",
-                "Current Treatment": "",
-                "Conservative / Liberal Indicator": "Unknown",
-                "3Y Pattern": "",
-                "Provision / Estimate": None,
-                "Actual Outcome / Charge-off": None,
-                "Supporting Evidence": "",
-                "Counter-Evidence": "",
-                "Analyst Assessment": "Unknown",
-                "Analyst Note": "",
-            }
+    return [
+        {
+            "Area": area,
+            "Area (VI)": area_vi,
+            "Origin": "Shearn",
+            "Policy / Estimate": "",
+            "Current Treatment": "",
+            "Conservative / Liberal Indicator": "Unknown",
+            "3Y Pattern": "",
+            "Supporting Evidence": "",
+            "Counter-Evidence": "",
+            "Analyst Assessment": "Unknown",
+            "Analyst Note": "",
+        }
+        for area, area_vi in SHEARN_Q27_RESERVE_AREAS
+    ]
+
+
+def _default_distribution_matrix() -> list[dict[str, Any]]:
+    return [
+        {
+            "Question": question,
+            "Driver": driver,
+            "Analyst Assessment": "Unknown",
+            "Effect on Distribution": "Unknown",
+            "Evidence / Reason": "",
+            "Analyst Note": "",
+        }
+        for question, driver in (
+            ("Q27", "Accounting quality"),
+            ("Q28", "Revenue recurrence"),
+            ("Q29", "Cyclicality"),
+            ("Q30", "Operating leverage"),
+            ("Q31", "Working capital"),
+            ("Q32", "Capital intensity"),
         )
-    return rows
+    ]
 
 
 def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
     return {
+        "schema_version": SCHEMA_VERSION,
         "ticker": _safe_ticker(ticker),
         "company_name": company_name or "",
         "question_status": {q: "Unknown" for q in QUESTION_KEYS},
@@ -194,8 +317,10 @@ def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
             "conclusion": "",
         },
         "q27_accounting_quality": _default_accounting_rows(),
+        "q27_reserve_rollforward": [],
         "q28": {
             "recurring_revenue_share": "",
+            "recurring_revenue_share_source": "Unknown",
             "starting_revenue_base": "Unknown",
             "dependence_on_new_sales": "Unknown",
             "expense_budget_visibility": "Unknown",
@@ -238,6 +363,8 @@ def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
             "capital_intensity": "Unknown",
             "maintenance_capex_visibility": "Unknown",
             "maintenance_vs_growth_split": "Unknown",
+            "maintenance_capex_method": "Unknown",
+            "depreciation_proxy_note": "",
             "regulatory_capex_burden": "Unknown",
             "deferred_maintenance_risk": "Unknown",
             "asset_age_replacement_risk": "Unknown",
@@ -245,6 +372,8 @@ def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
             "conclusion": "",
         },
         "q32_capex_register": [],
+        "earnings_distribution_width": "Unknown",
+        "earnings_distribution_matrix": _default_distribution_matrix(),
         "evidence_matrix": [],
         "research_gaps_table": [],
         "earnings_distribution_summary": "",
@@ -304,7 +433,13 @@ def _replace_child_rows(
             continue
         conn.execute(
             f"INSERT INTO {table_name} (ticker, position, row_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-            (ticker, position, json.dumps(row, ensure_ascii=False, default=str), timestamp, timestamp),
+            (
+                ticker,
+                position,
+                json.dumps(row, ensure_ascii=False, default=str),
+                timestamp,
+                timestamp,
+            ),
         )
 
 
@@ -321,10 +456,14 @@ def load_record(ticker: str) -> dict[str, Any]:
             stored = json.loads(current["payload_json"] or "{}")
         except Exception:
             stored = {}
+        old_schema = int(stored.get("schema_version") or 1) if isinstance(stored, dict) else 1
         payload = _merge_dict(empty_payload(safe, str(current["company_name"] or "")), stored)
-        # Existing records own their child tables. Empty means intentionally empty; do not re-seed defaults.
         for payload_key, table_name in CHILD_TABLES.items():
-            payload[payload_key] = _read_child_rows(conn, table_name, safe)
+            rows = _read_child_rows(conn, table_name, safe)
+            if payload_key == "earnings_distribution_matrix" and old_schema < 2 and not rows:
+                rows = _default_distribution_matrix()
+            payload[payload_key] = rows
+        payload["schema_version"] = SCHEMA_VERSION
         return payload
 
 
@@ -333,26 +472,39 @@ def save_record(ticker: str, payload: dict[str, Any], company_name: str = "") ->
     init_db()
     now = _now()
     normalized = _merge_dict(empty_payload(safe, company_name), payload or {})
+    normalized["schema_version"] = SCHEMA_VERSION
     normalized["ticker"] = safe
     normalized["company_name"] = company_name or str(normalized.get("company_name") or "")
+
     for q in QUESTION_KEYS:
         status = str((normalized.get("question_status") or {}).get(q) or "Unknown")
         trend = str((normalized.get("question_trend") or {}).get(q) or "Unknown")
         normalized["question_status"][q] = status if status in QUESTION_STATUS_OPTIONS else "Unknown"
         normalized["question_trend"][q] = trend if trend in TREND_OPTIONS else "Unknown"
 
-    # Keep child rows outside payload_json to avoid two independent sources of truth.
+    width = str(normalized.get("earnings_distribution_width") or "Unknown")
+    normalized["earnings_distribution_width"] = (
+        width if width in DISTRIBUTION_WIDTH_OPTIONS else "Unknown"
+    )
+    method = str((normalized.get("q32") or {}).get("maintenance_capex_method") or "Unknown")
+    normalized["q32"]["maintenance_capex_method"] = (
+        method if method in MAINTENANCE_CAPEX_METHOD_OPTIONS else "Unknown"
+    )
+
     body = deepcopy(normalized)
     for payload_key in CHILD_TABLES:
         body.pop(payload_key, None)
     understanding = _understanding_status(normalized)
 
     with _connect() as conn:
-        existing = conn.execute("SELECT created_at FROM chapter6_current WHERE ticker = ?", (safe,)).fetchone()
+        existing = conn.execute(
+            "SELECT created_at FROM chapter6_current WHERE ticker = ?", (safe,)
+        ).fetchone()
         created_at = str(existing["created_at"]) if existing else now
         conn.execute(
             """
-            INSERT INTO chapter6_current (ticker, company_name, payload_json, understanding_status, created_at, updated_at)
+            INSERT INTO chapter6_current
+                (ticker, company_name, payload_json, understanding_status, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(ticker) DO UPDATE SET
                 company_name = excluded.company_name,
@@ -376,7 +528,8 @@ def save_record(ticker: str, payload: dict[str, Any], company_name: str = "") ->
 
 def create_snapshot(ticker: str, payload: dict[str, Any] | None = None) -> int:
     safe = _safe_ticker(ticker)
-    record = save_record(safe, payload or load_record(safe), str((payload or {}).get("company_name") or ""))
+    source = payload or load_record(safe)
+    record = save_record(safe, source, str(source.get("company_name") or ""))
     init_db()
     with _connect() as conn:
         cur = conn.execute(
@@ -404,25 +557,70 @@ def list_snapshots(ticker: str, limit: int = 20) -> list[dict[str, Any]]:
 
 def research_gap_warnings(payload: dict[str, Any]) -> list[str]:
     warnings: list[str] = []
-    if str((payload.get("q27") or {}).get("overall_assessment") or "Unknown") not in {"Unknown", "N/A"} and not payload.get("q27_accounting_quality"):
-        warnings.append("Q27 đã có kết luận nhưng chưa có register chính sách/ước tính kế toán hoặc reserve evidence.")
-    if str((payload.get("q28") or {}).get("overall_assessment") or "Unknown") not in {"Unknown", "N/A"} and not payload.get("q28_revenue_streams"):
-        warnings.append("Q28 đã có kết luận nhưng chưa phân rã các dòng doanh thu recurring / one-off.")
-    if str((payload.get("q29") or {}).get("cycle_classification") or "Unknown") not in {"Unknown", "N/A"} and not payload.get("q29_cycle_drivers"):
-        warnings.append("Q29 đã phân loại chu kỳ nhưng chưa lưu bằng chứng theo cycle driver / downturn.")
-    if str((payload.get("q30") or {}).get("operating_leverage") or "Unknown") not in {"Unknown", "N/A"} and not payload.get("q30_cost_structure"):
-        warnings.append("Q30 đã đánh giá operating leverage nhưng chưa có cost-structure evidence.")
-    if str((payload.get("q31") or {}).get("ccc_change_quality") or "Unknown") not in {"Unknown", "N/A"} and not payload.get("q31_working_capital"):
-        warnings.append("Q31 đã đánh giá chất lượng thay đổi working capital nhưng chưa có mechanism/evidence register.")
-    if str((payload.get("q32") or {}).get("maintenance_vs_growth_split") or "Unknown") not in {"Unknown", "N/A"} and not payload.get("q32_capex_register"):
-        warnings.append("Q32 đã đánh giá maintenance/growth capex nhưng chưa có capex register/evidence.")
+
+    q27 = payload.get("q27") or {}
+    if str(q27.get("overall_assessment") or "Unknown") not in {"Unknown", "N/A"}:
+        if not payload.get("q27_accounting_quality") and not payload.get("q27_reserve_rollforward"):
+            warnings.append("Q27 đã có kết luận nhưng chưa có accounting/reserve evidence register.")
+
+    q28 = payload.get("q28") or {}
+    if str(q28.get("overall_assessment") or "Unknown") not in {"Unknown", "N/A"} and not payload.get("q28_revenue_streams"):
+        warnings.append("Q28 đã có kết luận nhưng chưa phân rã Revenue Durability Map.")
+    if str(q28.get("recurring_revenue_share") or "").strip() and str(q28.get("recurring_revenue_share_source") or "Unknown") == "Unknown":
+        warnings.append("Q28 có recurring revenue share nhưng chưa ghi nguồn là company disclosure hay analyst estimate có evidence.")
+
+    q29 = payload.get("q29") or {}
+    if str(q29.get("cycle_classification") or "Unknown") not in {"Unknown", "N/A"} and not payload.get("q29_cycle_drivers"):
+        warnings.append("Q29 đã phân loại chu kỳ nhưng chưa lưu Cycle Exposure / downturn evidence.")
+
+    q30 = payload.get("q30") or {}
+    if str(q30.get("operating_leverage") or "Unknown") not in {"Unknown", "N/A"} and not payload.get("q30_cost_structure"):
+        warnings.append("Q30 đã đánh giá operating leverage nhưng chưa có Cost Structure Matrix.")
+
+    q31 = payload.get("q31") or {}
+    if str(q31.get("ccc_change_quality") or "Unknown") not in {"Unknown", "N/A"} and not payload.get("q31_working_capital"):
+        warnings.append("Q31 đã đánh giá working-capital change nhưng chưa có mechanism/evidence register.")
+
+    q32 = payload.get("q32") or {}
+    if str(q32.get("maintenance_vs_growth_split") or "Unknown") not in {"Unknown", "N/A"} and not payload.get("q32_capex_register"):
+        warnings.append("Q32 đã đánh giá maintenance/growth capex nhưng chưa có Capex Register/evidence.")
+    if str(q32.get("maintenance_capex_method") or "Unknown") == "Depreciation rough proxy — clearly labelled" and not str(q32.get("depreciation_proxy_note") or "").strip():
+        warnings.append("Q32 đang dùng depreciation rough proxy nhưng chưa ghi lý do, giới hạn và evidence hỗ trợ.")
+
+    width = str(payload.get("earnings_distribution_width") or "Unknown")
+    matrix = payload.get("earnings_distribution_matrix") or []
+    if width != "Unknown":
+        if not matrix:
+            warnings.append("Chapter 6 đã kết luận distribution width nhưng chưa có Predictability Matrix Q27–Q32.")
+        elif all(str((row or {}).get("Effect on Distribution") or "Unknown") == "Unknown" for row in matrix if isinstance(row, dict)):
+            warnings.append("Chapter 6 đã kết luận distribution width nhưng toàn bộ Effect on Distribution trong matrix vẫn Unknown.")
+
     return warnings
 
 
 __all__ = [
-    "ACCOUNTING_QUALITY_COLUMNS", "CAPEX_COLUMNS", "COST_STRUCTURE_COLUMNS", "CYCLE_COLUMNS",
-    "EVIDENCE_COLUMNS", "QUESTION_KEYS", "QUESTION_STATUS_OPTIONS", "RECURRING_REVENUE_COLUMNS",
-    "RESEARCH_GAP_COLUMNS", "SHEARN_Q27_RESERVE_AREAS", "TREND_OPTIONS", "WORKING_CAPITAL_COLUMNS",
-    "create_snapshot", "empty_payload", "init_db", "list_snapshots", "load_record",
-    "research_gap_warnings", "save_record",
+    "ACCOUNTING_QUALITY_COLUMNS",
+    "CAPEX_COLUMNS",
+    "COST_STRUCTURE_COLUMNS",
+    "CYCLE_COLUMNS",
+    "DISTRIBUTION_MATRIX_COLUMNS",
+    "DISTRIBUTION_WIDTH_OPTIONS",
+    "EVIDENCE_COLUMNS",
+    "MAINTENANCE_CAPEX_METHOD_OPTIONS",
+    "QUESTION_KEYS",
+    "QUESTION_STATUS_OPTIONS",
+    "RECURRING_REVENUE_COLUMNS",
+    "RESERVE_ROLLFORWARD_COLUMNS",
+    "RESEARCH_GAP_COLUMNS",
+    "SCHEMA_VERSION",
+    "SHEARN_Q27_RESERVE_AREAS",
+    "TREND_OPTIONS",
+    "WORKING_CAPITAL_COLUMNS",
+    "create_snapshot",
+    "empty_payload",
+    "init_db",
+    "list_snapshots",
+    "load_record",
+    "research_gap_warnings",
+    "save_record",
 ]
