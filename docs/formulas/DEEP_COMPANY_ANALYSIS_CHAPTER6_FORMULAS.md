@@ -261,3 +261,15 @@ Phase 6B never changes Q27–Q32 analyst assessments, final Earnings/Cash-flow D
 Phase 6C may retrieve and classify candidate evidence for Q27–Q32 and surface counter-evidence/research gaps. A/B/C is a source-quality/coverage grade, not a company-quality score. Module 2 Beneish/Sloan/Modified Jones/REM diagnostics are consumed read-only; Chapter 6 does not recompute them. Evidence candidates never auto-set analyst conclusions, Distribution Width, MOS, Research Gate, or BUY/HOLD/SELL.
 
 Financial time-series tables extend to a valid canonical TTM when available. Annual-only methodologies show TTM as N/A rather than fabricate a value.
+
+## Phase 6D final source closure — V33
+
+Phase 6D adds five source-closure controls before Chapter 6 may be analyst-confirmed Complete:
+
+1. **Income-tax footnote history:** explicit Current Tax vs Income-Tax Provision over 5–10 years where disclosed. Cash taxes paid are not a substitute. Difference % = |Current Tax − Tax Provision| / |Tax Provision| × 100. Missing disclosure remains N/A; annual-only footnotes do not receive fabricated TTM values.
+2. **Unsustainable earnings register:** debt-retirement/extinguishment gains/losses, restructuring/write-offs and temporary cuts to advertising/R&D/maintenance are evidence items, not automatic manipulation findings.
+3. **Operating leverage × debt bridge:** Phase-6B historical DOL is displayed beside the Chapter-5 shared Net Debt, Debt/EBITDA and interest-coverage context. No distress score is computed.
+4. **Asset replacement register:** Net/Gross PP&E is a diagnostic only and must be interpreted with asset class, land/non-depreciable items, remaining life, replacement timing and depreciation-method comparability.
+5. **Distribution → valuation bridge:** narrow distributions may support a point-estimate review; wide distributions prefer analyst-owned Bear/Base/Bull scenarios. No scenario assumption, probability, fair value, MOS or recommendation is auto-generated.
+
+The final Completion Gate is a source/research-completion control only. It does not set Research Gate or BUY/HOLD/SELL.

@@ -25,6 +25,8 @@ FOCUS_TERMS: dict[str, tuple[str, ...]] = {
         "capitalize", "capitalised", "vốn hóa", "depreciation", "khấu hao", "useful life",
         "provision", "dự phòng", "reserve", "restructuring", "tái cấu trúc", "impairment",
         "kiểm toán", "auditor", "inventory obsolescence", "bad debt", "phải thu khó đòi",
+        "current tax", "income tax provision", "tax footnote", "thuế hiện hành", "chi phí thuế",
+        "debt retirement", "debt extinguishment", "early debt retirement", "xử lý nợ",
     ),
     "Q28": (
         "recurring revenue", "doanh thu định kỳ", "subscription", "thuê bao", "contracted revenue",
@@ -57,6 +59,8 @@ SUBTOPICS: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
         ("Depreciation / estimates", ("depreciation", "khấu hao", "useful life")),
         ("Reserves / provisions", ("provision", "dự phòng", "reserve", "bad debt", "phải thu khó đòi")),
         ("Audit / accounting changes", ("auditor", "kiểm toán", "accounting policy", "chính sách kế toán", "impairment", "restructuring")),
+        ("Income-tax footnote", ("current tax", "income tax provision", "tax footnote", "thuế hiện hành", "chi phí thuế")),
+        ("Unsustainable earnings / debt retirement", ("debt retirement", "debt extinguishment", "early debt retirement", "xử lý nợ")),
     ),
     "Q28": (
         ("Contractual recurrence", ("contract", "hợp đồng", "contracted revenue")),
@@ -114,7 +118,10 @@ class _FocusedAgent(WebEvidenceAgent):
         clean = self._clean_company_name(company_name)
         name = clean or company_name or ticker
         terms = {
-            "Q27": ["revenue recognition provision depreciation accounting policy auditor", "dự phòng khấu hao ghi nhận doanh thu kiểm toán"],
+            "Q27": [
+                "revenue recognition provision depreciation accounting policy auditor current tax income tax provision tax footnote debt retirement",
+                "dự phòng khấu hao ghi nhận doanh thu kiểm toán thuế hiện hành chi phí thuế xử lý nợ",
+            ],
             "Q28": ["recurring revenue subscription renewal contracted revenue backlog", "doanh thu định kỳ hợp đồng gia hạn"],
             "Q29": ["cyclical recession downturn capacity oversupply commodity", "chu kỳ suy giảm công suất dư cung"],
             "Q30": ["operating leverage fixed cost variable cost capacity utilization", "đòn bẩy hoạt động chi phí cố định công suất"],
@@ -261,7 +268,7 @@ def evidence_quality_summary(candidates: pd.DataFrame) -> pd.DataFrame:
 def research_gaps(candidates: pd.DataFrame) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     task = {
-        "Q27": "Verify accounting policies, estimates/reserves, auditor notes and revenue recognition in original filings.",
+        "Q27": "Verify accounting policies, Current Tax vs Income-Tax Provision, estimates/reserves, auditor notes, revenue recognition and debt-retirement/unsustainable gains in original filings.",
         "Q28": "Find first-party disclosure for recurring/contracted revenue, renewals, churn/retention or explicitly mark Unknown.",
         "Q29": "Find company-specific downturn and supply/demand evidence; do not infer cycle causality from history alone.",
         "Q30": "Find disclosed fixed/variable cost structure, utilization and adjustment lag evidence.",

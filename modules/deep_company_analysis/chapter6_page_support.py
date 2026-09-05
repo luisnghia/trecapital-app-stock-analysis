@@ -16,6 +16,20 @@ import streamlit as st
 import module1_dashboard as m1
 from module1_engine import append_ttm_row
 from modules.deep_company_analysis.chapter2_page_support import _active_paths, _path_signature
+from modules.deep_company_analysis.chapter5_quant import build_balance_sheet_context
+from modules.deep_company_analysis.chapter6_closure import (
+    TAX_FOOTNOTE_COLUMNS,
+    UNSUSTAINABLE_EARNINGS_COLUMNS,
+    ASSET_REPLACEMENT_COLUMNS,
+    VALUATION_SCENARIO_COLUMNS,
+    FINAL_CHECKLIST_COLUMNS,
+    FINAL_CHECKLIST_STATUS_OPTIONS,
+    tax_footnote_analysis,
+    asset_replacement_analysis,
+    combined_leverage_evidence,
+    valuation_method_guidance,
+    chapter6_completion_status,
+)
 from modules.deep_company_analysis.table_format import format_numeric, render_static_table, sortable_data_editor
 from modules.deep_company_analysis.chapter6_quant import build_chapter6_quant_context
 from modules.deep_company_analysis.chapter6_evidence import (
@@ -164,6 +178,8 @@ def _editor_column_config(columns: list[str]) -> dict[str, Any]:
         )
     if "Question" in columns:
         config["Question"] = st.column_config.TextColumn("Question", disabled=True)
+    if "Source-Locked Requirement" in columns and "Status" in columns:
+        config["Status"] = st.column_config.SelectboxColumn("Status", options=list(FINAL_CHECKLIST_STATUS_OPTIONS))
     if "Driver" in columns and columns == DISTRIBUTION_MATRIX_COLUMNS:
         config["Driver"] = st.column_config.TextColumn("Driver", disabled=True)
     return config
@@ -215,7 +231,7 @@ def _chapter6_quant_cached(
     annual_raw = m1._load_timeseries_cached(year_path, safe, "Y", 11)
     quarterly = m1._load_timeseries_cached(quarter_path, safe, "Q", 20)
     annual_and_ttm = append_ttm_row(annual_raw, quarterly)
-    return build_chapter6_quant_context(
+    ctx = build_chapter6_quant_context(
         safe,
         str(getattr(company, "company_name", "") or getattr(company, "name", "") or ""),
         annual_and_ttm,
@@ -224,6 +240,9 @@ def _chapter6_quant_cached(
         source_label=source_label,
         years=10,
     )
+    # Phase 6D reuses Chapter-5 shared balance-sheet diagnostics read-only; no duplicate leverage formula.
+    ctx["chapter5_balance_sheet_context"] = build_balance_sheet_context(annual_and_ttm, years=10)
+    return ctx
 
 
 def _load_chapter6_quant(ticker: str):
@@ -477,10 +496,146 @@ def _render_phase6c_research_assistant(ticker: str, company_name: str) -> None:
                 st.rerun()
 
 
+
+
+def _render_phase6d_final_closure(ticker: str, payload: dict[str, Any], quant_ctx: dict[str, Any] | None) -> None:
+    safe = _safe_ticker(ticker)
+    ctx = quant_ctx if isinstance(quant_ctx, dict) else {}
+    with st.container(border=True):
+        st.markdown("## 🔒 Phase 6D — Chapter 6 Final Source Closure")
+        st.caption(
+            "Source closure theo Shearn: tax footnote, unsustainable earnings, operating leverage × debt, asset replacement, "
+            "Distribution→Valuation bridge và Final Source Checklist. Analyst vẫn sở hữu toàn bộ kết luận/assumptions."
+        )
+
+        with st.expander("Q27 — Income-tax Footnote Analyzer + Unsustainable Earnings", expanded=True):
+            st.caption(
+                "Current Tax phải đến từ disclosure thuế hiện hành; tax paid không được dùng thay thế. Annual-only disclosure không được chế tạo TTM."
+            )
+            payload["q27_tax_footnote"] = _editor(
+                "Current Tax vs Income-Tax Provision — 5–10Y disclosure register",
+                payload.get("q27_tax_footnote"),
+                TAX_FOOTNOTE_COLUMNS,
+                f"dca6d_{safe}_tax",
+                height=330,
+            )
+            tax_view = tax_footnote_analysis(payload.get("q27_tax_footnote"))
+            if not tax_view.empty:
+                render_static_table(tax_view, height=min(430, 90 + 29 * len(tax_view)), sort_key=f"dca6d_{safe}_tax_analysis")
+            else:
+                st.info("Chưa có Current Tax + Tax Provision disclosure đủ dùng; giữ N/A thay vì proxy.")
+
+            payload["q27_unsustainable_earnings"] = _editor(
+                "Unsustainable Earnings / One-off Register",
+                payload.get("q27_unsustainable_earnings"),
+                UNSUSTAINABLE_EARNINGS_COLUMNS,
+                f"dca6d_{safe}_oneoffs",
+                height=310,
+            )
+            st.caption(
+                "Bao gồm debt-retirement gains/losses, restructuring/write-offs và temporary cuts to advertising/R&D/maintenance khi có bằng chứng."
+            )
+
+        with st.expander("Q30 — Operating Leverage × Balance-Sheet Debt", expanded=True):
+            leverage = combined_leverage_evidence(
+                ctx.get("q30_summary") if ctx else {},
+                ctx.get("chapter5_balance_sheet_context") if ctx else None,
+            )
+            if not leverage.empty:
+                render_static_table(leverage, height=210, sort_key=f"dca6d_{safe}_leverage")
+            else:
+                st.info("Chưa đủ DOL và/hoặc Chapter-5 balance-sheet context để hiển thị combined leverage evidence.")
+            st.caption(
+                "Không tạo distress score. Bảng chỉ đặt DOL cạnh Net Debt, Debt/EBITDA và interest coverage để analyst đánh giá rủi ro kết hợp."
+            )
+
+        with st.expander("Q32 — Asset Replacement / PP&E Age Register", expanded=True):
+            payload["q32_asset_replacement"] = _editor(
+                "Asset Replacement Register",
+                payload.get("q32_asset_replacement"),
+                ASSET_REPLACEMENT_COLUMNS,
+                f"dca6d_{safe}_asset_replacement",
+                height=350,
+            )
+            asset_view = asset_replacement_analysis(payload.get("q32_asset_replacement"))
+            if not asset_view.empty:
+                render_static_table(asset_view, height=min(440, 90 + 29 * len(asset_view)), sort_key=f"dca6d_{safe}_asset_analysis")
+            st.caption(
+                "Net/Gross PP&E chỉ là diagnostic. Phải xem asset class, land/non-depreciable assets, remaining life, replacement timing "
+                "và accelerated-depreciation comparability trước khi suy replacement burden."
+            )
+
+        with st.expander("Distribution Width → Valuation Method Bridge", expanded=True):
+            guidance = valuation_method_guidance(str(payload.get("earnings_distribution_width") or "Unknown"))
+            st.info(f"{guidance['guidance']} | {guidance['boundary']}")
+            payload["valuation_method_selected"] = _select(
+                "Analyst valuation-method selection",
+                payload.get("valuation_method_selected"),
+                (
+                    "Unknown",
+                    "Point estimate / normalized earnings or FCF",
+                    "Hybrid point estimate + scenarios",
+                    "Bear / Base / Bull scenario analysis",
+                    "Analyst custom",
+                ),
+                f"dca6d_{safe}_valuation_method",
+            )
+            payload["valuation_bridge_note"] = st.text_area(
+                "Valuation-method rationale / limitation",
+                value=str(payload.get("valuation_bridge_note") or ""),
+                key=f"dca6d_{safe}_valuation_note",
+            )
+            payload["valuation_scenarios"] = _editor(
+                "Bear / Base / Bull — analyst-owned scenario workspace",
+                payload.get("valuation_scenarios"),
+                VALUATION_SCENARIO_COLUMNS,
+                f"dca6d_{safe}_scenarios",
+                height=300,
+            )
+            st.caption("App không tự đặt probability, revenue, margin, normalized earnings/FCF, fair value hoặc MOS.")
+
+        with st.expander("Chapter 6 Final Source Checklist & Completion Gate", expanded=True):
+            payload["chapter6_final_checklist"] = _editor(
+                "Source-Locked Final Checklist",
+                payload.get("chapter6_final_checklist"),
+                FINAL_CHECKLIST_COLUMNS,
+                f"dca6d_{safe}_final_checklist",
+                height=390,
+            )
+            status = chapter6_completion_status(payload)
+            if status["blockers"]:
+                st.warning("Chapter 6 chưa thể khóa Final:\n\n- " + "\n- ".join(status["blockers"]))
+            else:
+                st.success("Không còn blocker theo Completion Gate. Analyst có thể xác nhận Chapter 6 Complete.")
+            for warning in status["warnings"]:
+                st.info(warning)
+
+            if status["ready"]:
+                payload["chapter6_complete_confirmed"] = st.checkbox(
+                    "✅ Analyst xác nhận Chapter 6 Complete / Source-Closed",
+                    value=bool(payload.get("chapter6_complete_confirmed")),
+                    key=f"dca6d_{safe}_complete",
+                )
+            else:
+                payload["chapter6_complete_confirmed"] = False
+                st.checkbox(
+                    "✅ Analyst xác nhận Chapter 6 Complete / Source-Closed",
+                    value=False,
+                    disabled=True,
+                    key=f"dca6d_{safe}_complete_disabled",
+                )
+            payload["chapter6_completion_note"] = st.text_area(
+                "Completion note / residual uncertainty accepted by analyst",
+                value=str(payload.get("chapter6_completion_note") or ""),
+                key=f"dca6d_{safe}_completion_note",
+            )
+            final_status = chapter6_completion_status(payload)
+            st.caption(f"Completion status: {final_status['status']}. Đây là research/source-completion gate, không phải Research Gate đầu tư.")
+
 def render_chapter6_tab(default_ticker: str = "") -> None:
     st.subheader("Chương 6 — Đánh giá phân phối lợi nhuận & dòng tiền")
     st.caption(
-        "Michael Shearn Q27–Q32 | Approved Phase 6A + Phase 6B canonical bridge + Phase 6C Evidence & Research Assistant. "
+        "Michael Shearn Q27–Q32 | Phase 6A + 6B canonical bridge + 6C Evidence Assistant + 6D Final Source Closure. "
         "Mục tiêu là hiểu độ rộng/predictability của earnings & cash-flow distribution."
     )
 
@@ -522,7 +677,7 @@ def render_chapter6_tab(default_ticker: str = "") -> None:
         key=f"dca_ch6_company_{ticker}",
     )
 
-    _render_phase6b_quantitative_bridge(ticker)
+    quant_ctx = _render_phase6b_quantitative_bridge(ticker)
     _render_phase6c_research_assistant(ticker, str(payload.get("company_name") or ""))
 
     with st.expander("Q27 — Accounting standards: Conservative hay Liberal?", expanded=True):
@@ -983,6 +1138,8 @@ def render_chapter6_tab(default_ticker: str = "") -> None:
         value=str(payload.get("analyst_summary") or ""),
         key=f"dca6_{ticker}_summary",
     )
+
+    _render_phase6d_final_closure(ticker, payload, quant_ctx)
 
     warnings = research_gap_warnings(payload)
     if warnings:

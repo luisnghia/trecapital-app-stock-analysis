@@ -17,9 +17,11 @@ from typing import Any
 import json
 import sqlite3
 
+from modules.deep_company_analysis.chapter6_closure import default_final_checklist_rows, default_scenario_rows
+
 APP_DIR = Path(__file__).resolve().parents[2]
 DB_PATH = APP_DIR / "data_cache" / "deep_company_analysis_chapter6.db"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 QUESTION_KEYS = ("Q27", "Q28", "Q29", "Q30", "Q31", "Q32")
 QUESTION_STATUS_OPTIONS = ("Unknown", "Partial", "Answered", "N/A")
@@ -198,6 +200,11 @@ CHILD_TABLES: dict[str, str] = {
     "earnings_distribution_matrix": "chapter6_distribution_matrix",
     "evidence_matrix": "chapter6_evidence",
     "research_gaps_table": "chapter6_research_gaps",
+    "q27_tax_footnote": "chapter6_tax_footnote",
+    "q27_unsustainable_earnings": "chapter6_unsustainable_earnings",
+    "q32_asset_replacement": "chapter6_asset_replacement",
+    "valuation_scenarios": "chapter6_valuation_scenarios",
+    "chapter6_final_checklist": "chapter6_final_checklist",
 }
 
 
@@ -318,6 +325,8 @@ def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
         },
         "q27_accounting_quality": _default_accounting_rows(),
         "q27_reserve_rollforward": [],
+        "q27_tax_footnote": [],
+        "q27_unsustainable_earnings": [],
         "q28": {
             "recurring_revenue_share": "",
             "recurring_revenue_share_source": "Unknown",
@@ -372,8 +381,15 @@ def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
             "conclusion": "",
         },
         "q32_capex_register": [],
+        "q32_asset_replacement": [],
         "earnings_distribution_width": "Unknown",
         "earnings_distribution_matrix": _default_distribution_matrix(),
+        "valuation_scenarios": default_scenario_rows(),
+        "valuation_method_selected": "Unknown",
+        "valuation_bridge_note": "",
+        "chapter6_final_checklist": default_final_checklist_rows(),
+        "chapter6_complete_confirmed": False,
+        "chapter6_completion_note": "",
         "evidence_matrix": [],
         "research_gaps_table": [],
         "earnings_distribution_summary": "",
@@ -462,6 +478,10 @@ def load_record(ticker: str) -> dict[str, Any]:
             rows = _read_child_rows(conn, table_name, safe)
             if payload_key == "earnings_distribution_matrix" and old_schema < 2 and not rows:
                 rows = _default_distribution_matrix()
+            if payload_key == "chapter6_final_checklist" and old_schema < 3 and not rows:
+                rows = default_final_checklist_rows()
+            if payload_key == "valuation_scenarios" and old_schema < 3 and not rows:
+                rows = default_scenario_rows()
             payload[payload_key] = rows
         payload["schema_version"] = SCHEMA_VERSION
         return payload
