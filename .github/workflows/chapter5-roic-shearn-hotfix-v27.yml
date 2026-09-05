@@ -1,0 +1,166 @@
+name: Chapter 5 Shearn ROIC Methodology Hotfix V27
+
+on:
+  push:
+    branches: [feature/deep-company-analysis-checklist]
+    paths:
+      - 'scripts/apply_ch5_roic_shearn_hotfix.py'
+      - 'modules/deep_company_analysis/test_chapter5_roic_shearn_hotfix.py'
+      - 'docs/CHAPTER5_ROIC_SHEARN_METHOD_HOTFIX.md'
+      - 'docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER5_FORMULAS.md'
+      - '.github/workflows/chapter5-roic-shearn-hotfix-v27.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  roic-source-lock-v27:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-checklist
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Apply source-locked Shearn ROIC methodology hotfix
+        run: python scripts/apply_ch5_roic_shearn_hotfix.py
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: Compile Chapter 5 ROIC stack
+        run: |
+          python -m compileall -q \
+            modules/deep_company_analysis/chapter5_quant.py \
+            modules/deep_company_analysis/chapter5_page_support.py \
+            modules/deep_company_analysis/chapter5_lock.py \
+            pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+
+      - name: Run source-locked ROIC hotfix tests
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest -q modules/deep_company_analysis/test_chapter5_roic_shearn_hotfix.py | tee chapter5_roic_shearn_hotfix_tests.log
+
+      - name: Run Chapter 5 regression
+        run: |
+          python -m pytest -q \
+            modules/deep_company_analysis/test_chapter5.py \
+            modules/deep_company_analysis/test_chapter5_q23_deletable_defaults.py \
+            modules/deep_company_analysis/test_chapter5_q23_ui.py \
+            modules/deep_company_analysis/test_chapter5_phase5b.py \
+            modules/deep_company_analysis/test_chapter5_phase5c.py \
+            modules/deep_company_analysis/test_chapter5_phase5d.py \
+            modules/deep_company_analysis/test_chapter5_roic_shearn_hotfix.py
+
+      - name: Run full Deep Analysis regression
+        run: python -m pytest -q modules/deep_company_analysis
+
+      - name: Run DGC Chapter 5 locked E2E after ROIC correction
+        shell: bash
+        run: |
+          set -o pipefail
+          python tools/dgc_chapter5_phase5d_lock.py | tee dgc_chapter5_roic_hotfix_v27.log
+
+      - name: Smoke-test unified Deep Analysis page
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8528 > /tmp/ch5_roic_v27.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 35); do
+            if curl -fsS http://127.0.0.1:8528/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then cat /tmp/ch5_roic_v27.log; kill "$PID" 2>/dev/null || true; exit 1; fi
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+
+      - name: Commit tested ROIC methodology correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            modules/deep_company_analysis/chapter5_quant.py \
+            modules/deep_company_analysis/chapter5_page_support.py
+          if ! git diff --cached --quiet; then
+            git commit -m "fix(deep-analysis): source-lock Chapter 5 Shearn ROIC methodology"
+            git push origin HEAD:feature/deep-company-analysis-checklist
+          fi
+
+      - name: Write ROIC hotfix manifest
+        shell: bash
+        run: |
+          cat > CHAPTER5_ROIC_SHEARN_HOTFIX_V27_MANIFEST.txt <<EOF
+          Trecapital Deep Company Analysis — Chapter 5 Q26 ROIC Methodology Hotfix V27
+          Branch: feature/deep-company-analysis-checklist
+          Source lock: Michael Shearn Chapter 5 — ROIC = EBIT / Invested Capital.
+          Canonical ROIC: unchanged, read directly from Trecapital canonical Data Layer.
+          Shearn analytical rows: Adjusted EBIT / Average Adjusted Invested Capital.
+          Investment base: Total Assets - NIBCL, then view-specific excess-cash/goodwill/gross-asset/off-BS adjustments.
+          Excess cash/off-BS: analyst-confirmed only.
+          Average base: two-period average required; no silent single-period fallback.
+          No automatic ROIC quality / compounder / Research Gate / BUY-HOLD-SELL conclusion.
+          Acceptance: dedicated hotfix tests + Chapter 5 regression + full Deep Analysis regression + DGC Phase5D E2E + Streamlit smoke.
+          EOF
+
+      - name: Build Windows offline package V27
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_NAME="Trecapital_Deep_Analysis_Offline_V27_CHAPTER5_ROIC_SHEARN_HOTFIX"
+          rm -rf dist
+          mkdir -p "dist/${PKG_NAME}"
+          rsync -a ./ "dist/${PKG_NAME}/" \
+            --exclude '.git' \
+            --exclude 'dist' \
+            --exclude 'offline_wheels' \
+            --exclude '.streamlit/secrets.toml' \
+            --exclude '.env' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude '*.log' \
+            --exclude 'data_cache/deep_company_analysis_phase5d_ci'
+          mkdir -p "dist/${PKG_NAME}/data_cache"
+          cp CHAPTER5_ROIC_SHEARN_HOTFIX_V27_MANIFEST.txt "dist/${PKG_NAME}/"
+          test -f "dist/${PKG_NAME}/CHAY_TRECAPITAL_OFFLINE.bat"
+          test -f "dist/${PKG_NAME}/modules/deep_company_analysis/chapter5_quant.py"
+          test -f "dist/${PKG_NAME}/docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER5_FORMULAS.md"
+          test -f "dist/${PKG_NAME}/docs/CHAPTER5_ROIC_SHEARN_METHOD_HOTFIX.md"
+          (cd dist && zip -qr "${PKG_NAME}.zip" "${PKG_NAME}")
+          sha256sum "dist/${PKG_NAME}.zip" > "dist/${PKG_NAME}.zip.sha256"
+
+      - name: Upload ROIC methodology audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: DGC_Chapter5_ROIC_Shearn_Hotfix_Audit_V27
+          path: |
+            chapter5_roic_shearn_hotfix_tests.log
+            dgc_chapter5_roic_hotfix_v27.log
+            CHAPTER5_ROIC_SHEARN_HOTFIX_V27_MANIFEST.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload offline package V27
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Offline_V27_CHAPTER5_ROIC_SHEARN_HOTFIX
+          path: |
+            dist/Trecapital_Deep_Analysis_Offline_V27_CHAPTER5_ROIC_SHEARN_HOTFIX.zip
+            dist/Trecapital_Deep_Analysis_Offline_V27_CHAPTER5_ROIC_SHEARN_HOTFIX.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
