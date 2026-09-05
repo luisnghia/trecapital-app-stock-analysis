@@ -1,0 +1,52 @@
+name: Chapter 6 Phase 6A Regression V28
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter6
+    paths:
+      - '.github/workflows/chapter6-phase6a-regression-v28.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Compile unified Deep Analysis workspace
+        run: |
+          python -m compileall -q modules/deep_company_analysis
+          python -m py_compile pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+      - name: Run full Deep Company Analysis regression suite
+        run: |
+          python -m pytest -q modules/deep_company_analysis
+      - name: Smoke-test unified page with Chapter 6 tab
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
+            --server.headless true --server.port 8516 > /tmp/trecapital_dca_ch6.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8516/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then
+            cat /tmp/trecapital_dca_ch6.log
+            kill "$PID" 2>/dev/null || true
+            exit 1
+          fi
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
