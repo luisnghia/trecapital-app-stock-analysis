@@ -1,0 +1,77 @@
+name: Audit Deep Analysis Format TTM Sort V32
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter6
+    paths:
+      - '.github/workflows/audit-format-ttm-sort-v32.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-chapter6
+          fetch-depth: 0
+
+      - name: Pass 1 - table renderer and format inventory
+        shell: bash
+        run: |
+          echo '=== PASS 1: TABLE CALL INVENTORY ==='
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          roots = [Path('modules/deep_company_analysis'), Path('pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py')]
+          files=[]
+          for root in roots:
+              if root.is_dir(): files += sorted(root.glob('*.py'))
+              elif root.exists(): files.append(root)
+          patterns = ['st.dataframe(', 'st.data_editor(', 'render_static_table(', 'financial_table_html(', 'st.html(']
+          for p in files:
+              s=p.read_text(encoding='utf-8')
+              counts={x:s.count(x) for x in patterns}
+              if any(counts.values()): print(p, counts)
+          print('--- direct st.dataframe ---')
+          for p in files:
+              for i,line in enumerate(p.read_text(encoding='utf-8').splitlines(),1):
+                  if 'st.dataframe(' in line: print(f'{p}:{i}: {line.strip()}')
+          print('--- direct st.data_editor ---')
+          for p in files:
+              for i,line in enumerate(p.read_text(encoding='utf-8').splitlines(),1):
+                  if 'st.data_editor(' in line: print(f'{p}:{i}: {line.strip()}')
+          PY
+
+      - name: Pass 2 - TTM coverage inventory
+        shell: bash
+        run: |
+          echo '=== PASS 2: TTM INVENTORY ==='
+          grep -RIn --include='*.py' -E 'append_ttm_row|TTM|annual_raw|_load_timeseries_cached\(.*"Y"' modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py || true
+          echo '--- quantitative modules ---'
+          find modules/deep_company_analysis -maxdepth 1 -type f -name '*quant*.py' -print | sort
+
+      - name: Pass 3 - numeric format and sort readiness inventory
+        shell: bash
+        run: |
+          echo '=== PASS 3: FORMAT + SORT READINESS ==='
+          python - <<'PY'
+          from pathlib import Path
+          files=sorted(Path('modules/deep_company_analysis').glob('*.py'))
+          for p in files:
+              s=p.read_text(encoding='utf-8')
+              flags=[]
+              if '(tỷ)' in s or ' tỷ' in s: flags.append('amount')
+              if '(%)' in s or '%' in s: flags.append('percent')
+              if '(x)' in s: flags.append('ratio')
+              if '(ngày)' in s or 'DSO' in s or 'CCC' in s: flags.append('days')
+              if 'sort_values(' in s: flags.append('native-sort-code')
+              if flags: print(p, ', '.join(flags))
+          tf=Path('modules/deep_company_analysis/table_format.py').read_text(encoding='utf-8')
+          required=['amount_bil','percent','ratio','days','table-layout:fixed','white-space:normal','overflow-wrap:anywhere']
+          missing=[x for x in required if x not in tf]
+          print('table_format missing:', missing)
+          PY
