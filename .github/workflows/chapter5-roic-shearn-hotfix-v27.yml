@@ -5,6 +5,7 @@ on:
     branches: [feature/deep-company-analysis-checklist]
     paths:
       - 'scripts/apply_ch5_roic_shearn_hotfix.py'
+      - 'modules/deep_company_analysis/test_chapter5_phase5b.py'
       - 'modules/deep_company_analysis/test_chapter5_roic_shearn_hotfix.py'
       - 'docs/CHAPTER5_ROIC_SHEARN_METHOD_HOTFIX.md'
       - 'docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER5_FORMULAS.md'
