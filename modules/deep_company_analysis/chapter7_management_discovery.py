@@ -9,7 +9,6 @@ management quality, insider conviction, MOS or BUY/HOLD/SELL.
 
 from dataclasses import dataclass
 from io import BytesIO
-from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
 import re
@@ -19,7 +18,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from pypdf import PdfReader
 
-from adapters.module2_web_research import HEADERS, KNOWN_COMPANY_DOMAINS, WebEvidenceAgent
+from adapters.module2_web_research import HEADERS, KNOWN_COMPANY_DOMAINS
 
 
 MANAGER_CANDIDATE_COLUMNS = [
@@ -48,21 +47,28 @@ ROLE_RULES: tuple[tuple[str, tuple[str, ...], int], ...] = (
 )
 
 LINK_TERMS = (
-    "ban lanh dao", "ban-lanh-dao", "ban điều hành", "ban dieu hanh", "management", "leadership",
+    "ban lanh dao", "ban-lanh-dao", "ban lãnh đạo", "ban điều hành", "ban dieu hanh", "management", "leadership",
     "hoi dong quan tri", "hội đồng quản trị", "hdqt", "nhan su", "nhân sự", "bo nhiem", "bổ nhiệm",
     "mien nhiem", "miễn nhiệm", "bao cao thuong nien", "báo cáo thường niên", "annual report", "bctn",
     "bao cao quan tri", "báo cáo quản trị", "corporate governance", "cbtt", "cong bo thong tin",
     "công bố thông tin", "thu lao", "thù lao", "esop", "giao dich", "giao dịch", "nguoi noi bo", "người nội bộ",
+    "ke toan truong", "kế toán trưởng", "tong giam doc", "tổng giám đốc", "chu tich", "chủ tịch",
 )
 
-ROLE_CUE = "|".join(sorted({re.escape(term) for _, terms, _ in ROLE_RULES for term in terms}, key=len, reverse=True))
+ROLE_CUE = "|".join(sorted({re.escape(term.strip()) for _, terms, _ in ROLE_RULES for term in terms if term.strip()}, key=len, reverse=True))
 PERSON_PATTERN = re.compile(
-    rf"(?:Ông|Bà|Mr\.?|Ms\.?)\s+"
+    rf"(?<![A-Za-zÀ-ỹĐđ])(?:Ông|Bà|Mr\.?|Ms\.?)\s+"
     rf"([A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\.-]+"
     rf"(?:\s+[A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\.-]+){{1,4}}?)"
     rf"(?=\s+(?:{ROLE_CUE}|\(|,|;|\.|từ ngày|giữ chức|được bổ nhiệm|được miễn nhiệm)|$)",
     flags=re.IGNORECASE,
 )
+
+NOISE_NAME_TOKENS = {
+    "báo", "thay", "đổi", "nhân", "sự", "qua", "bầu", "nghị", "quyết", "thông", "tin", "công", "bố",
+    "xem", "thêm", "họp", "đại", "hội", "đồng", "quản", "trị", "công", "ty", "tập", "đoàn", "chủ", "tịch",
+    "tổng", "giám", "đốc", "phó", "thành", "viên", "kế", "toán", "trưởng", "điều", "lệ", "bổ", "nhiệm",
+}
 
 
 @dataclass
@@ -99,19 +105,25 @@ def _role_from_context(context: str) -> tuple[str, str, int]:
     best = ("", "", 0)
     for normalized, terms, priority in ROLE_RULES:
         for term in terms:
-            pos = low.find(term.casefold())
+            needle = term.casefold().strip()
+            pos = low.find(needle)
             if pos >= 0 and priority > best[2]:
-                best = (term, normalized, priority)
+                best = (term.strip(), normalized, priority)
     return best
 
 
 def _candidate_name(raw_name: str) -> str:
     name = _clean_text(raw_name).strip(" ,.;:-")
-    # Keep Vietnamese personal names; reject obvious role fragments accidentally captured by OCR/PDF text.
-    banned = {"chủ", "tịch", "tổng", "giám", "đốc", "phó", "thành", "viên", "hội", "đồng", "quản", "trị", "kế", "toán", "trưởng"}
-    tokens = name.split()
-    while tokens and tokens[-1].casefold() in banned:
+    tokens = [t for t in name.split() if t]
+    while tokens and tokens[-1].casefold() in NOISE_NAME_TOKENS:
         tokens.pop()
+    if not (2 <= len(tokens) <= 5):
+        return ""
+    if any(token.casefold() in NOISE_NAME_TOKENS for token in tokens):
+        return ""
+    # Vietnamese names normally contain alphabetic tokens; reject menu/headline fragments with digits/symbols.
+    if any(not re.fullmatch(r"[A-Za-zÀ-ỹĐđ'\.-]+", token) for token in tokens):
+        return ""
     return " ".join(tokens)
 
 
@@ -127,17 +139,20 @@ def extract_management_candidates_from_documents(documents: list[dict[str, Any]]
             continue
         source_url = _clean_text(document.get("url"))
         source_title = _clean_text(document.get("title")) or source_url
-        as_of = _year(f"{source_title} {source_url} {text[:3000]}")
+        as_of = _year(f"{source_title} {source_url} {text[:4000]}")
         for match in PERSON_PATTERN.finditer(text):
             manager = _candidate_name(match.group(1))
-            if len(manager.split()) < 2:
+            if not manager:
                 continue
-            start = max(0, match.start() - 120)
-            end = min(len(text), match.end() + 220)
-            context = _clean_text(text[start:end])
-            role_raw, role_norm, priority = _role_from_context(context)
+            before = _clean_text(text[max(0, match.start() - 140):match.start()])
+            after = _clean_text(text[match.end():min(len(text), match.end() + 240)])
+            # Prefer a role stated after the person's name; fall back to immediately preceding context.
+            role_raw, role_norm, priority = _role_from_context(after)
+            if not role_norm:
+                role_raw, role_norm, priority = _role_from_context(before)
             if not role_norm:
                 continue
+            context = _clean_text(text[max(0, match.start() - 120):min(len(text), match.end() + 240)])
             rows.append({
                 "Select": False,
                 "Manager": manager,
@@ -214,13 +229,29 @@ def _fetch_text(client: httpx.Client, url: str, max_pages: int = 120, max_chars:
 
 def _link_score(label: str, url: str) -> int:
     text = f"{label} {url}".casefold()
-    score = sum(4 for term in LINK_TERMS if term.casefold() in text)
+    score = sum(5 for term in LINK_TERMS if term.casefold() in text)
     year = _year(text)
     if year:
         score += max(0, int(year) - 2020)
-    if url.lower().endswith(".pdf"):
-        score += 2
+    if url.lower().split("?")[0].endswith(".pdf"):
+        score += 4
+    # WordPress article/permalink pages are more useful than category indexes once discovered.
+    if "/category/" not in url.lower() and len(urlparse(url).path.strip("/").split("/")) >= 2:
+        score += 3
     return score
+
+
+def _index_like(url: str, links: list[tuple[str, str]]) -> bool:
+    low = url.lower()
+    return "/category/" in low or (len(links) >= 20 and low.rstrip("/").endswith("quan-he-co-dong"))
+
+
+def _document_has_management_signal(text: str) -> bool:
+    low = text.casefold()
+    role_hit = any(term.strip().casefold() in low for _, terms, _ in ROLE_RULES for term in terms if term.strip())
+    person_hit = bool(PERSON_PATTERN.search(text))
+    compensation_hit = any(x in low for x in ("thù lao", "remuneration", "esop", "cổ phần nắm giữ", "ownership", "người nội bộ", "giao dịch"))
+    return (role_hit and person_hit) or compensation_hit
 
 
 def discover_management_candidates(
@@ -233,8 +264,9 @@ def discover_management_candidates(
 ) -> ManagementDiscoveryResult:
     """Crawl known company/IR sources and discover candidate senior managers.
 
-    Only same-domain company documents are crawled. The function does not confirm identities or
-    mutate Chapter-7 analyst records.
+    Only same-domain company documents are crawled. Category/index pages are used to discover deeper
+    official disclosures but are not treated as substantive evidence by themselves. The function does
+    not confirm identities or mutate Chapter-7 analyst records.
     """
     safe = _clean_text(ticker).upper()
     seeds = list(KNOWN_COMPANY_DOMAINS.get(safe, []))
@@ -245,48 +277,64 @@ def discover_management_candidates(
         )
 
     documents: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    candidate_links: list[tuple[int, str, str]] = []
+    fetched: set[str] = set()
+    queued: set[str] = set()
+    queue: list[tuple[int, int, str, str, str]] = []  # score, depth, label, url, root-domain
     errors: list[str] = []
+    fetch_count = 0
+    max_fetches = max(24, max_documents * 5)
+
     with httpx.Client(headers=HEADERS, timeout=httpx.Timeout(timeout_seconds, connect=min(3.0, timeout_seconds)), follow_redirects=True) as client:
         for seed in seeds:
-            try:
-                text, method, final_url, links = _fetch_text(client, seed, max_pages=30, max_chars=180_000)
-                seen.add(final_url)
-                documents.append({"title": f"{safe} official/IR seed", "url": final_url, "text": text, "method": method})
-                domain = _domain(final_url)
-                for label, href in links:
-                    if _same_domain(href, domain):
-                        score = _link_score(label, href)
-                        if score > 0:
-                            candidate_links.append((score, label, href))
-            except Exception as exc:
-                errors.append(f"seed {seed}: {exc}")
+            domain = _domain(seed)
+            queue.append((100, 0, f"{safe} official/IR seed", seed, domain))
+            queued.add(seed)
 
-        # Prefer current official disclosures/annual reports and management pages.
-        candidate_links = sorted(candidate_links, key=lambda x: x[0], reverse=True)
-        for _, label, href in candidate_links:
-            if len(documents) >= max_documents:
-                break
-            if href in seen:
+        while queue and len(documents) < max_documents and fetch_count < max_fetches:
+            queue.sort(key=lambda x: (x[0], -x[1]), reverse=True)
+            score, depth, label, href, root_domain = queue.pop(0)
+            if href in fetched:
                 continue
-            seen.add(href)
+            fetched.add(href)
+            fetch_count += 1
             try:
-                text, method, final_url, _ = _fetch_text(client, href)
-                if len(text) < 80:
-                    continue
+                text, method, final_url, links = _fetch_text(client, href)
+            except Exception as exc:
+                errors.append(f"document {href}: {exc}")
+                continue
+            if len(text) < 80:
+                continue
+
+            is_pdf = "PDF" in method
+            is_index = _index_like(final_url, links)
+            if (is_pdf or not is_index) and (_document_has_management_signal(text) or is_pdf):
                 documents.append({
                     "title": label or f"{safe} official management disclosure",
                     "url": final_url,
                     "text": text,
                     "method": method,
                 })
-            except Exception as exc:
-                errors.append(f"document {href}: {exc}")
+
+            # Follow relevant same-domain links up to two hops. This lets IR/category pages act as
+            # indexes to actual personnel-change posts, governance reports and annual-report PDFs.
+            if links and depth < 2:
+                for child_label, child_href in links:
+                    if child_href in fetched or child_href in queued:
+                        continue
+                    if not _same_domain(child_href, root_domain):
+                        continue
+                    child_score = _link_score(child_label, child_href)
+                    if child_score <= 0:
+                        continue
+                    queue.append((child_score, depth + 1, child_label, child_href, root_domain))
+                    queued.add(child_href)
 
     managers = extract_management_candidates_from_documents(documents, max_targets=max_targets)
     targets = choose_research_targets(managers, max_targets=max_targets)
-    note = f"Crawled {len(documents)} official/company documents; discovered {len(managers)} manager-role candidates; research targets={len(targets)}."
+    note = (
+        f"Fetched {fetch_count} official/company URLs; retained {len(documents)} substantive management documents; "
+        f"discovered {len(managers)} manager-role candidates; research targets={len(targets)}."
+    )
     if errors:
         note += " Some sources failed: " + " | ".join(errors[:3])
     return ManagementDiscoveryResult(managers, documents, targets, note)
