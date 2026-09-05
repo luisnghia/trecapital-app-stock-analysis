@@ -1,0 +1,137 @@
+name: Finalize Chapter 7 Phase 7A V34 — Source Lock + QA
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter7
+    paths:
+      - '.github/workflows/finalize-chapter7-phase7a-v34.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-phase7a-v34:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-chapter7
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Apply approved Phase 7A unified-page integration
+        run: python scripts/apply_chapter7_phase7a_v34.py
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Compile Chapter 7 V34
+        run: |
+          python -m py_compile \
+            modules/deep_company_analysis/chapter7.py \
+            modules/deep_company_analysis/chapter7_page_support.py \
+            scripts/apply_chapter7_phase7a_v34.py \
+            pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+
+      - name: QA Pass 1 of 3 — Source lock + persistence
+        run: |
+          pytest -q \
+            modules/deep_company_analysis/test_chapter7.py
+
+      - name: QA Pass 2 of 3 — Table/sort + analyst boundary + integration
+        run: |
+          pytest -q \
+            modules/deep_company_analysis/test_table_format.py \
+            modules/deep_company_analysis/test_chapter7_phase7a_integration.py
+
+      - name: QA Pass 3 of 3 — Full Deep Company Analysis regression
+        run: pytest -q modules/deep_company_analysis/test_*.py
+
+      - name: Static Chapter 7 production audit
+        shell: bash
+        run: |
+          echo '=== Chapter 7 direct Streamlit table primitives ==='
+          grep -RIn --include='chapter7*.py' -E 'st\.table\(|st\.dataframe\(|st\.data_editor\(' modules/deep_company_analysis | grep -v '/test_' && exit 1 || true
+          echo '=== Chapter 7 source-lock tokens ==='
+          grep -n 'OO1\|OO2\|OO3\|LT1\|LT2\|HH1\|HH2' modules/deep_company_analysis/chapter7.py
+          grep -n 'Lion–Hyena Evidence Matrix\|Actual Shares\|Insider Transaction Register\|Không tạo TTM giả' modules/deep_company_analysis/chapter7_page_support.py
+          echo '=== Unified page integration ==='
+          grep -n 'render_chapter7_tab\|chapter7_tab\|Chương 7 — Ban điều hành' pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+
+      - name: Unified Streamlit smoke test
+        shell: bash
+        run: |
+          timeout 40s streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8521 >/tmp/dca_v34_smoke.log 2>&1 &
+          PID=$!
+          sleep 15
+          curl --fail --silent http://127.0.0.1:8521/_stcore/health
+          kill $PID || true
+          wait $PID || true
+          tail -n 140 /tmp/dca_v34_smoke.log || true
+
+      - name: Write V34 audit record
+        shell: bash
+        run: |
+          cat > docs/DEEP_ANALYSIS_CHAPTER7_PHASE7A_V34_AUDIT_RESULT.md <<EOF
+          # Chapter 7 Phase 7A V34 — Audit Result
+
+          Status: PASS
+
+          - QA Pass 1/3: Q33-Q38 source lock, OO/LT/HH taxonomy, Table 7.1, persistence and snapshot tests PASS.
+          - QA Pass 2/3: shared numeric/table format, selectable sorting, analyst boundary and unified-page integration PASS.
+          - QA Pass 3/3: full Deep Company Analysis regression PASS.
+          - Static Chapter 7 production table/source-lock audit PASS.
+          - Unified Streamlit page smoke test PASS.
+
+          Phase 7A scope only: source-locked manual management workspace. No automated research/data bridge and no Chapter 7 Completion Gate yet.
+
+          Branch: feature/deep-company-analysis-chapter7
+          Build source before commit: $(git rev-parse HEAD)
+          EOF
+
+      - name: Commit Phase 7A V34 integration
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
+            docs/DEEP_ANALYSIS_CHAPTER7_PHASE7A_V34_AUDIT_RESULT.md
+          git commit -m 'feat(ch7): integrate approved Phase 7A management workspace V34'
+          git push origin HEAD:feature/deep-company-analysis-chapter7
+
+      - name: Build V34 offline package
+        shell: bash
+        run: |
+          cat > OFFLINE_BUILD_INFO.txt <<EOF
+          Trecapital Deep Company Analysis Chapters 1-7 V34 Offline
+          Branch: feature/deep-company-analysis-chapter7
+          Commit: $(git rev-parse HEAD)
+          Chapter 7: Approved Phase 7A Source-Locked Management Workspace only.
+          Includes: Q33-Q38; OO1/OO2/OO3/LT1/LT2/HH1/HH2 taxonomy; Table 7.1 Lion/Hyena evidence matrix; career timeline; compensation/ownership split; insider transaction register; evidence/research gaps/events; sortable tables; snapshots.
+          Time convention: event/as-of management data; no fabricated TTM for Chapter 7 event tables.
+          Analyst boundary: no management score, no automatic Lion/Hyena, no insider Buy/Sell Signal, no MOS/Research Gate/BUY-HOLD-SELL change.
+          Deferred: Phase 7B structured data bridge, Phase 7C research assistant, Phase 7D final source closure/completion gate.
+          EOF
+          rm -f Trecapital_Deep_Analysis_Ch1-Ch7_V34_Offline.zip
+          zip -qr Trecapital_Deep_Analysis_Ch1-Ch7_V34_Offline.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' \
+               'Trecapital_Deep_Analysis_Ch1-Ch6_V30_Offline.zip' \
+               'Trecapital_Deep_Analysis_Ch1-Ch6_V31_Offline.zip' \
+               'Trecapital_Deep_Analysis_Ch1-Ch6_V32_Offline.zip' \
+               'Trecapital_Deep_Analysis_Ch1-Ch6_V33_Offline.zip'
+          unzip -t Trecapital_Deep_Analysis_Ch1-Ch7_V34_Offline.zip | tail -n 3
+
+      - name: Upload V34 offline ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Ch1-Ch7_V34_Offline
+          path: Trecapital_Deep_Analysis_Ch1-Ch7_V34_Offline.zip
+          retention-days: 90
