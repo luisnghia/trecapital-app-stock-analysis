@@ -77,7 +77,7 @@ def patch_page() -> None:
     )
     text = text.replace(
         "Phase 7A chưa có Chapter 7 Completion Gate chính thức; Phase 7B/7C cũng không tự khóa chương. Final source-closure vẫn thuộc Phase 7D.",
-        "Final source-closure vẫn thuộc Phase 7D; Phase 7D hiện triển khai Completion Gate chỉ cho research/source completeness, không phải Investment Research Gate.",
+        "Phase 7A chưa có Chapter 7 Completion Gate chính thức; Final source-closure vẫn thuộc Phase 7D; Phase 7D hiện triển khai Completion Gate chỉ cho research/source completeness, không phải Investment Research Gate.",
     )
     text = text.replace(
         "Assessing the Quality of Management — Background and Classification: Who Are They? | Phase 7A + 7B structured bridge + 7C Evidence Research Assistant",
