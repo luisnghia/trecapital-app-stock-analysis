@@ -1,0 +1,40 @@
+name: Hotfix Format Lock Pytest V30
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter6
+    paths:
+      - '.github/workflows/hotfix-format-lock-pytest-v30.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  hotfix-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-chapter6
+          fetch-depth: 0
+      - name: Add pytest to V30 verification workflow
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/apply-deep-analysis-format-lock-v30.yml')
+          s = p.read_text(encoding='utf-8')
+          old = '          pip install -r requirements.txt\n'
+          new = '          pip install -r requirements.txt pytest\n'
+          assert old in s
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Commit hotfix
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/apply-deep-analysis-format-lock-v30.yml
+          git commit -m 'ci(dca): install pytest in V30 format-lock workflow'
+          git push origin HEAD:feature/deep-company-analysis-chapter6
