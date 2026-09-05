@@ -22,6 +22,15 @@ def patch_bridge() -> None:
     old = '''    patterns = (\n        (("chu tich hoi dong quan tri", "chu tich hdqt", "chairman"), "Chairman"),\n        (("pho chu tich", "vice chairman"), "Vice Chairman"),\n        (("tong giam doc", "ceo", "chief executive"), "CEO"),\n        (("pho tong giam doc", "deputy ceo", "deputy general director"), "Deputy CEO"),\n        (("giam doc tai chinh", "cfo", "chief financial"), "CFO"),\n        (("giam doc van hanh", "coo", "chief operating"), "COO"),\n        (("ke toan truong", "chief accountant"), "Chief Accountant"),\n        (("thanh vien hdqt doc lap", "independent director"), "Independent Director"),\n        (("thanh vien hoi dong quan tri", "thanh vien hdqt", "board director", "director"), "Board Director"),\n    )'''
     new = '''    # Specific titles must be tested before broader substrings (e.g. Phó TGĐ contains TGĐ).\n    patterns = (\n        (("pho chu tich", "vice chairman"), "Vice Chairman"),\n        (("pho tong giam doc", "deputy ceo", "deputy general director"), "Deputy CEO"),\n        (("thanh vien hdqt doc lap", "independent director"), "Independent Director"),\n        (("giam doc tai chinh", "cfo", "chief financial"), "CFO"),\n        (("giam doc van hanh", "coo", "chief operating"), "COO"),\n        (("ke toan truong", "chief accountant"), "Chief Accountant"),\n        (("chu tich hoi dong quan tri", "chu tich hdqt", "chairman"), "Chairman"),\n        (("tong giam doc", "ceo", "chief executive"), "CEO"),\n        (("thanh vien hoi dong quan tri", "thanh vien hdqt", "board director", "director"), "Board Director"),\n    )'''
     text = replace_once(text, old, new, "role specificity")
+    text = replace_once(
+        text,
+        "                fp = _json_fingerprint(payload)\n",
+        "                fp_payload = json.loads(json.dumps(payload, ensure_ascii=False, default=str))\n"
+        "                if isinstance(fp_payload.get('_provenance'), dict):\n"
+        "                    fp_payload['_provenance'].pop('retrieved_at', None)\n"
+        "                fp = _json_fingerprint(fp_payload)\n",
+        "stable normalized fingerprint",
+    )
     BRIDGE.write_text(text, encoding="utf-8")
 
 
