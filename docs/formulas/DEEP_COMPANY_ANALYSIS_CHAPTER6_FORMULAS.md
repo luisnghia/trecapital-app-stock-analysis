@@ -2,7 +2,7 @@
 
 Source framework: Michael Shearn, *The Investment Checklist*, Chapter 6 — **Evaluating the Distribution of Earnings (Cash Flows)**.
 
-Status: Phase 6A source lock. Computed metrics are deferred to Phase 6B unless explicitly noted.
+Status: **APPROVED Phase 6A source lock**. Computed metrics are deferred to Phase 6B unless explicitly noted.
 
 ## Core rule
 
@@ -28,17 +28,26 @@ Interpretation is contextual. A persistent gap is a research trigger, not proof 
 
 Shearn's Key Points state that a difference below 10% is associated with conservative accounting in his framework. This is a **source-specific heuristic**, not a universal accounting rule.
 
-If the canonical Trecapital dataset does not separately contain current tax paid / current tax expense and total income-tax provision, the app must display `N/A / insufficient source data` rather than synthesize the figures.
+If the canonical Trecapital dataset does not separately contain current tax paid/current tax expense and total income-tax provision, the app must display `N/A / insufficient source data` rather than synthesize the figures.
 
-### Provision versus actual charge-off
+### Reserve / provision roll-forward
 
-For reserve categories with disclosed data, Phase 6B may calculate:
+For disclosed reserve categories, Phase 6A stores:
 
-`Provision gap = Provision / Estimate - Actual Outcome / Charge-off`
+- Beginning Reserve
+- Provision
+- Write-offs / Usage
+- Adjustments
+- Ending Reserve
+- Actual Outcome
 
-and optionally:
+Phase 6B may calculate:
 
-`Provision coverage = Provision / Actual Outcome`
+`Provision gap = Provision - Actual Outcome`
+
+and, where economically meaningful:
+
+`Provision / Actual = Provision / Actual Outcome`
 
 A large difference alone is not a manipulation verdict. The source asks the analyst to inspect multi-year patterns and the underlying reason.
 
@@ -52,7 +61,9 @@ If the analyst enters an estimate:
 
 `Recurring revenue share = Analyst-supported recurring revenue / Total revenue`
 
-it must be clearly marked `Analyst estimate`, never `Trecapital canonical`.
+it must be clearly marked `Analyst estimate with evidence`, never `Trecapital canonical`.
+
+The analyst workspace distinguishes **Contractual recurring / Behavioral recurring / Repeat purchase / One-off / Mixed** because these have different durability characteristics.
 
 ## Q29 — Cyclicality
 
@@ -60,9 +71,9 @@ Phase 6B may display historical:
 
 - Revenue growth
 - EBIT / operating-profit growth
-- operating margin
-- gross margin where available
-- drawdowns from local revenue/EBIT peaks
+- Operating margin
+- Gross margin where available
+- Drawdowns from local revenue/EBIT peaks
 
 These measures describe historical earnings variability. They do **not** prove that GDP, commodity prices or a recession caused the change unless evidence establishes that causal link.
 
@@ -80,6 +91,7 @@ Implementation guardrails:
 - do not compute when prior-period revenue or EBIT makes the percentage change undefined or economically meaningless;
 - do not average extreme/invalid observations without displaying them;
 - show period-by-period history before any summary statistic;
+- distinguish downside and upside observations where useful;
 - a high DOL observation is evidence, not an automatic conclusion.
 
 ### Trecapital stress extension
@@ -91,8 +103,6 @@ A revenue stress such as -5%, -10% or -20% is an **app extension**, not a table 
 ### Cash conversion cycle
 
 `CCC = DIO + DSO - DPO`
-
-where the component definitions should be held consistently through time.
 
 Typical transparent forms, subject to canonical field availability:
 
@@ -116,7 +126,7 @@ A transparent form is:
 
 The cash impact of a period change depends on the cash-flow sign convention. The app must label the convention explicitly and reconcile it to the canonical cash-flow statement where available.
 
-A falling CCC or negative working capital is not automatically positive. Supplier-stretch or a reversal of customer prepayments can create future cash demands.
+A falling CCC or negative working capital is not automatically positive. Supplier-stretch or reversal of customer prepayments can create future cash demands.
 
 ## Q32 — Capital expenditure requirements
 
@@ -150,17 +160,26 @@ Source concept:
 
 There is no single source-locked formula in Chapter 6 that mechanically extracts maintenance capex from reported total capex.
 
-Therefore:
+The approved hierarchy is:
 
-- use company disclosure where available;
-- allow analyst input/estimate only with explicit evidence and provenance;
-- otherwise show `Unknown`;
-- never silently set `maintenance capex = total capex`;
-- never use depreciation alone as a hidden maintenance-capex proxy.
+1. use company disclosure where available;
+2. allow an analyst estimate only with explicit evidence and provenance;
+3. when neither is available, allow **depreciation as a rough proxy only when the analyst explicitly selects that method and documents why it is reasonable and its limitations**;
+4. otherwise show `Unknown`.
+
+Never silently set `maintenance capex = total capex`. Never use depreciation as a hidden proxy or relabel a depreciation proxy as company-disclosed maintenance capex.
 
 ### Asset-age diagnostic
 
 Shearn discusses net assets versus gross assets as a way to investigate whether older assets may require higher future replacement expenditure. Phase 6B may expose such a ratio when gross and net PP&E are available, but it is a diagnostic rather than a maintenance-capex formula.
+
+## Earnings & Cash-flow Distribution
+
+The final Chapter-6 distribution width is analyst-owned and must be one of:
+
+`Unknown / Narrow / Moderately Narrow / Medium / Moderately Wide / Wide`
+
+There is no weighted score. Q27–Q32 may be summarized in a Predictability Matrix, but the engine may not calculate a 0–100 score or automatically change MOS/valuation assumptions.
 
 ## Formatting and provenance
 
@@ -174,11 +193,14 @@ For every computed Chapter-6 metric, production UI should retain:
 
 Display format follows Trecapital project rules:
 
-- billion VND: no decimal places;
-- percentages: 1 decimal place;
-- ratios: 1 decimal place;
-- negative values: red heat intensity;
-- positive / positive-growth values: emerald heat intensity.
+- billion VND: **0 decimal places**;
+- percentages: **1 decimal place**;
+- ratios: **1 decimal place**;
+- negative values: **red heat intensity**;
+- positive / positive-growth values: **emerald heat intensity**;
+- larger absolute values use deeper heat intensity;
+- read-only financial tables use `st.html()` with fixed layout and wrapped text;
+- editable numeric research tables use explicit Streamlit `NumberColumn` formatting and expose an `st.html()` formatted preview.
 
 ## Missing-data rule
 
