@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from modules.deep_company_analysis.table_format import render_static_table
+from modules.deep_company_analysis.table_format import render_static_table, sortable_data_editor
 
 APP_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = APP_ROOT / "data_cache" / "deep_company_analysis_chapter2.db"
@@ -371,7 +371,7 @@ def render_chapter2(default_ticker: str = "", company_name: str = "") -> None:
     q3 = record["q3"]
     st.markdown("### Q3. Tôi có thể mô tả doanh nghiệp vận hành bằng chính lời của mình không?")
     st.caption("Bảng segment là lớp cấu trúc của Trecapital; phần 'Own words' là kiểm tra quan trọng nhất để xác nhận analyst thực sự hiểu business.")
-    segments_df = st.data_editor(_rows_to_df(q3.get("segments"), SEGMENT_COLUMNS), num_rows="dynamic", use_container_width=True, key=f"ch2_segments_{ticker}")
+    segments_df = sortable_data_editor(_rows_to_df(q3.get("segments"), SEGMENT_COLUMNS), num_rows="dynamic", use_container_width=True, key=f"ch2_segments_{ticker}")
     business_flow = st.text_area("Business Flow — Input → Production/Service → Product → Distribution → Customer → Cash", value=q3.get("business_flow", ""), height=100, key=f"ch2_flow_{ticker}")
     own_words = st.text_area("Explain it to a friend — mô tả doanh nghiệp bằng lời của chính mình trong 5–10 câu", value=q3.get("own_words", ""), height=150, key=f"ch2_ownwords_{ticker}")
     analogy = st.text_input("Analogy — doanh nghiệp này giống cái gì?", value=q3.get("analogy", ""), key=f"ch2_analogy_{ticker}")
@@ -379,7 +379,7 @@ def render_chapter2(default_ticker: str = "", company_name: str = "") -> None:
 
     q4 = record["q4"]
     st.markdown("### Q4. Doanh nghiệp kiếm tiền bằng cách nào?")
-    money_df = st.data_editor(_rows_to_df(q4.get("money_engine"), MONEY_COLUMNS), num_rows="dynamic", use_container_width=True, key=f"ch2_money_{ticker}")
+    money_df = sortable_data_editor(_rows_to_df(q4.get("money_engine"), MONEY_COLUMNS), num_rows="dynamic", use_container_width=True, key=f"ch2_money_{ticker}")
     money_summary = st.text_area("Money-Making Engine — mô tả ngắn gọn ai trả tiền, volume × price, chi phí chính và profit engine", value=q4.get("money_summary", ""), height=120, key=f"ch2_money_summary_{ticker}")
     complexity_status = st.selectbox("Mức độ hiểu earnings model", COMPLEXITY_STATUS, index=COMPLEXITY_STATUS.index(q4.get("complexity_status", "Có phần phức tạp")), key=f"ch2_complexity_{ticker}")
     what_can_break = st.text_area("Điều gì có thể phá vỡ earnings engine?", value=q4.get("what_can_break", ""), height=90, key=f"ch2_break_{ticker}")
@@ -388,7 +388,7 @@ def render_chapter2(default_ticker: str = "", company_name: str = "") -> None:
 
     q5 = record["q5"]
     st.markdown("### Q5. Doanh nghiệp đã tiến hóa như thế nào theo thời gian?")
-    evolution_df = st.data_editor(_rows_to_df(q5.get("evolution"), EVOLUTION_COLUMNS), num_rows="dynamic", use_container_width=True, key=f"ch2_evolution_{ticker}")
+    evolution_df = sortable_data_editor(_rows_to_df(q5.get("evolution"), EVOLUTION_COLUMNS), num_rows="dynamic", use_container_width=True, key=f"ch2_evolution_{ticker}")
     history_summary = st.text_area("10+ year business history summary — các bước ngoặt quan trọng", value=q5.get("history_summary", ""), height=110, key=f"ch2_history_{ticker}")
     skill_vs_luck = st.text_area("Skill vs Luck — thành công lịch sử đến từ năng lực, structural tailwind, tài nguyên, chính sách, timing/luck hay sự kết hợp nào?", value=q5.get("skill_vs_luck", ""), height=110, key=f"ch2_skillluck_{ticker}")
 
@@ -396,12 +396,12 @@ def render_chapter2(default_ticker: str = "", company_name: str = "") -> None:
     st.markdown("### Q6. Doanh nghiệp hoạt động ở thị trường nước ngoài nào và rủi ro là gì?")
     st.caption("Phân biệt rõ **thị trường xuất khẩu** với **hiện diện/hoạt động trực tiếp ở nước ngoài** (công ty con, nhà máy, văn phòng...). Không suy diễn export market thành foreign operation.")
     no_foreign = st.checkbox("Không có hoạt động nước ngoài trọng yếu / Q6 hiện N/A về mặt thực tế", value=bool(q6.get("no_material_foreign_operations")), key=f"ch2_noforeign_{ticker}")
-    foreign_df = st.data_editor(_rows_to_df(q6.get("foreign_markets"), FOREIGN_COLUMNS), num_rows="dynamic", use_container_width=True, disabled=no_foreign, key=f"ch2_foreign_{ticker}")
+    foreign_df = sortable_data_editor(_rows_to_df(q6.get("foreign_markets"), FOREIGN_COLUMNS), num_rows="dynamic", use_container_width=True, disabled=no_foreign, key=f"ch2_foreign_{ticker}")
     foreign_strategy_summary = st.text_area("Foreign-market commitment — thời gian hiện diện, localization/R&D, regional management, revenue→profit", value=q6.get("foreign_strategy_summary", ""), height=110, disabled=no_foreign, key=f"ch2_foreign_summary_{ticker}")
     with st.expander("Country Risk — ưu tiên thị trường có exposure trọng yếu", expanded=False):
-        country_risk_df = st.data_editor(_rows_to_df(q6.get("country_risks"), COUNTRY_RISK_COLUMNS), num_rows="dynamic", use_container_width=True, disabled=no_foreign, key=f"ch2_countryrisk_{ticker}")
+        country_risk_df = sortable_data_editor(_rows_to_df(q6.get("country_risks"), COUNTRY_RISK_COLUMNS), num_rows="dynamic", use_container_width=True, disabled=no_foreign, key=f"ch2_countryrisk_{ticker}")
     with st.expander("Currency Risk / Hedging", expanded=False):
-        currency_df = st.data_editor(_rows_to_df(q6.get("currency_risks"), CURRENCY_COLUMNS), num_rows="dynamic", use_container_width=True, disabled=no_foreign, key=f"ch2_currency_{ticker}")
+        currency_df = sortable_data_editor(_rows_to_df(q6.get("currency_risks"), CURRENCY_COLUMNS), num_rows="dynamic", use_container_width=True, disabled=no_foreign, key=f"ch2_currency_{ticker}")
 
     research_gaps = st.text_area("Research Gaps của Chương 2 — mỗi dòng một điều chưa biết cần chuyển sang chương sau", value=record.get("research_gaps", ""), height=120, key=f"ch2_gaps_{ticker}")
     analyst_summary = st.text_area("Business Understanding Summary — kết luận của analyst", value=record.get("analyst_summary", ""), height=130, key=f"ch2_summary_{ticker}")

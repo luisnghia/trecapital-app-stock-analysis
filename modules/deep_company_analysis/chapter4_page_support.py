@@ -7,7 +7,7 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from modules.deep_company_analysis.table_format import render_static_table
+from modules.deep_company_analysis.table_format import render_static_table, sortable_data_editor
 
 import module1_dashboard as m1
 from module1_engine import append_ttm_row
@@ -688,7 +688,7 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str, str]:
                 f"{max(0, len(seed) - 1)} candidate peer. Hãy bỏ chọn/xóa peer không sát hoặc thêm mã mới trước khi cập nhật dữ liệu."
             )
             version = int(st.session_state.get(version_key, 0))
-            selection_df = st.data_editor(
+            selection_df = sortable_data_editor(
                 seed,
                 num_rows="dynamic",
                 use_container_width=True,

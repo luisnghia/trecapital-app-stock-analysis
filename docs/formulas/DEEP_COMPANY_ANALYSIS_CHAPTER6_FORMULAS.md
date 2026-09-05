@@ -254,3 +254,10 @@ DSO/DIO/DPO prefer average current/prior balances. Canonical day metrics are use
 
 Phase 6B never changes Q27–Q32 analyst assessments, final Earnings/Cash-flow Distribution Width, MOS, Research Gate or BUY/HOLD/SELL. Quantitative context is evidence only.
 
+
+
+## Phase 6C evidence boundary
+
+Phase 6C may retrieve and classify candidate evidence for Q27–Q32 and surface counter-evidence/research gaps. A/B/C is a source-quality/coverage grade, not a company-quality score. Module 2 Beneish/Sloan/Modified Jones/REM diagnostics are consumed read-only; Chapter 6 does not recompute them. Evidence candidates never auto-set analyst conclusions, Distribution Width, MOS, Research Gate, or BUY/HOLD/SELL.
+
+Financial time-series tables extend to a valid canonical TTM when available. Annual-only methodologies show TTM as N/A rather than fabricate a value.

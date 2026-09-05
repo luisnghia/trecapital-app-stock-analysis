@@ -18,7 +18,7 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
-from modules.deep_company_analysis.table_format import render_static_table
+from modules.deep_company_analysis.table_format import render_static_table, sortable_data_editor
 
 
 APP_DIR = Path(__file__).resolve().parents[2]
@@ -526,7 +526,7 @@ def _select(label: str, value: str, options: list[str], key: str, help: str | No
 
 def _editor(label: str, rows: Any, columns: list[str], key: str, height: int = 260) -> list[dict[str, Any]]:
     st.markdown(f"**{label}**")
-    edited = st.data_editor(
+    edited = sortable_data_editor(
         _rows_to_df(rows, columns),
         use_container_width=True,
         hide_index=True,

@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from modules.deep_company_analysis.table_format import render_static_table
+from modules.deep_company_analysis.table_format import render_static_table, sortable_data_editor
 
 APP_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = APP_ROOT / "data_cache" / "deep_company_analysis_chapter3.db"
@@ -547,7 +547,7 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
     q7 = record["q7"]
     st.markdown("### Q7. Khách hàng cốt lõi của doanh nghiệp là ai?")
     st.caption("Tách rõ buyer, người trả tiền và người sử dụng. Revenue Relevance và Profit Relevance chỉ nhập khi có disclosure/evidence; không bắt buộc và không suy diễn từ segment/geography.")
-    core_customer_df = st.data_editor(
+    core_customer_df = sortable_data_editor(
         _rows_to_df(q7.get("core_customers"), CORE_CUSTOMER_COLUMNS),
         num_rows="dynamic",
         use_container_width=True,
@@ -574,7 +574,7 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
         index=CONCENTRATION_STATUS.index(q8.get("concentration_status", "Unknown")),
         key=f"ch3_q8_status_{ticker}",
     )
-    concentration_df = st.data_editor(
+    concentration_df = sortable_data_editor(
         _rows_to_df(q8.get("concentration_table"), CONCENTRATION_COLUMNS),
         num_rows="dynamic",
         use_container_width=True,
@@ -655,7 +655,7 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
 
     q12 = record["q12"]
     st.markdown("### Q12. Doanh nghiệp giải quyết 'nỗi đau' nào cho khách hàng?")
-    pain_df = st.data_editor(
+    pain_df = sortable_data_editor(
         _rows_to_df(q12.get("pain_map"), PAIN_COLUMNS),
         num_rows="dynamic",
         use_container_width=True,
@@ -666,7 +666,7 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
     q13 = record["q13"]
     st.markdown("### Q13. Khách hàng phụ thuộc vào sản phẩm/dịch vụ ở mức độ nào?")
     st.caption("Dùng đúng continuum của Shearn: Need to have → Need to have, but not immediately → Nice to have, but not critical. Đánh giá theo customer/product trước, rồi mới viết kết luận tổng hợp. Không mặc định discretionary = business xấu.")
-    dependency_df = st.data_editor(
+    dependency_df = sortable_data_editor(
         _rows_to_df(q13.get("dependency_table"), DEPENDENCY_TABLE_COLUMNS),
         num_rows="dynamic",
         use_container_width=True,
@@ -686,7 +686,7 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
 
     q14 = record["q14"]
     st.markdown("### Q14. Nếu doanh nghiệp biến mất ngày mai, khách hàng sẽ bị ảnh hưởng thế nào?")
-    disappearance_df = st.data_editor(
+    disappearance_df = sortable_data_editor(
         _rows_to_df(q14.get("disappearance_table"), DISAPPEARANCE_COLUMNS),
         num_rows="dynamic",
         use_container_width=True,
@@ -708,7 +708,7 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
 
     st.markdown("### 🎤 Customer / Channel Interview Log")
     st.caption("Shearn khuyến nghị nói chuyện với khách hàng thật. Log này là Layer C — Analyst Fieldwork và không được AI tự tạo.")
-    interview_df = st.data_editor(
+    interview_df = sortable_data_editor(
         _rows_to_df(record.get("customer_interviews"), CUSTOMER_INTERVIEW_COLUMNS),
         num_rows="dynamic",
         use_container_width=True,
@@ -725,7 +725,7 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
 
     st.markdown("### 🧾 Evidence Matrix — Claim → Source → Verification")
     st.caption("Layer A = Company Disclosure; Layer B = Independent/Customer-side; Layer C = Analyst Fieldwork. Status nên dùng Verified / Unverified / Conflicting. Giữ evidence mâu thuẫn thay vì tự chọn một phía.")
-    evidence_matrix_df = st.data_editor(
+    evidence_matrix_df = sortable_data_editor(
         _rows_to_df(record.get("evidence_matrix"), EVIDENCE_MATRIX_COLUMNS),
         num_rows="dynamic",
         use_container_width=True,

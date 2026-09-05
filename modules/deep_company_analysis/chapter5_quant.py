@@ -36,6 +36,11 @@ def _period(row: dict[str, Any]) -> str:
     return str(row.get("period") or row.get("year") or "")
 
 
+def _is_ttm(row: dict[str, Any]) -> bool:
+    text = _period(row).upper()
+    return "TTM" in text or "T12M" in text
+
+
 def _annual_rows(df: pd.DataFrame) -> list[dict[str, Any]]:
     if not isinstance(df, pd.DataFrame) or df.empty:
         return []
@@ -65,6 +70,15 @@ def _current_row(df: pd.DataFrame) -> dict[str, Any]:
             return df[mask].iloc[-1].to_dict()
     annual = _annual_rows(df)
     return annual[-1] if annual else df.iloc[-1].to_dict()
+
+
+def _history_rows(df: pd.DataFrame, years: int = 10, include_ttm: bool = True) -> list[dict[str, Any]]:
+    rows = _annual_rows(df)[-max(1, int(years)):]
+    if include_ttm:
+        current = _current_row(df)
+        if current and _is_ttm(current):
+            rows = rows + [current]
+    return rows
 
 
 def _ratio(num: Optional[float], den: Optional[float], multiplier: float = 1.0) -> Optional[float]:
@@ -168,7 +182,7 @@ def _average(current: Optional[float], previous: Optional[float]) -> Optional[fl
 
 def build_q22_context(annual_df: pd.DataFrame, years: int = 10) -> pd.DataFrame:
     """Financial/operating context only; it does not choose Shearn's critical operating KPIs."""
-    rows = _annual_rows(annual_df)[-max(1, int(years)):]
+    rows = _history_rows(annual_df, years=years, include_ttm=True)
     out: list[dict[str, Any]] = []
     previous_revenue: Optional[float] = None
     for row in rows:
@@ -192,7 +206,7 @@ def build_q22_context(annual_df: pd.DataFrame, years: int = 10) -> pd.DataFrame:
 
 
 def build_balance_sheet_context(annual_df: pd.DataFrame, years: int = 10) -> pd.DataFrame:
-    rows = _annual_rows(annual_df)[-max(1, int(years)):]
+    rows = _history_rows(annual_df, years=years, include_ttm=True)
     out: list[dict[str, Any]] = []
     for row in rows:
         cash = _metric(row, "cash")
@@ -337,8 +351,11 @@ def build_roic_variants(
     goodwill, gross-asset or off-balance-sheet view. Missing/unsupported inputs remain Unknown.
     """
     rows = _annual_rows(annual_df)
-    current = rows[-1] if rows else _current_row(annual_df)
-    previous = rows[-2] if len(rows) >= 2 else {}
+    current = _current_row(annual_df)
+    if _is_ttm(current):
+        previous = rows[-1] if rows else {}
+    else:
+        previous = rows[-2] if len(rows) >= 2 else {}
     if not current:
         return pd.DataFrame()
 
@@ -473,9 +490,9 @@ def build_roic_variants(
 
 def build_roic_distortion_diagnostics(annual_df: pd.DataFrame) -> pd.DataFrame:
     rows = _annual_rows(annual_df)
-    if not rows:
+    current = _current_row(annual_df)
+    if not current and not rows:
         return pd.DataFrame()
-    current = rows[-1]
     cash, assets = _metric(current, "cash"), _metric(current, "assets")
     goodwill = _metric(current, "goodwill")
     diagnostics = [
@@ -539,6 +556,16 @@ def build_reinvestment_context(annual_df: pd.DataFrame, years: int = 6) -> pd.Da
             "Interpretation": "Analyst only — cyclical/base effects must be reviewed",
         })
         previous = row
+    current = _current_row(annual_df)
+    if current and _is_ttm(current):
+        out.append({
+            "Kỳ": _period(current),
+            "ΔNOPAT (tỷ)": None,
+            "ΔInvested Capital proxy (tỷ)": None,
+            "Incremental ROIC %": None,
+            "NOPAT Source": "TTM current context",
+            "Interpretation": "TTM displayed; incremental ROIC requires a comparable prior TTM. App does not compare TTM mechanically with full-year FY.",
+        })
     return pd.DataFrame(out)
 
 

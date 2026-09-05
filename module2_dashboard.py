@@ -3564,6 +3564,43 @@ def _render_peer_universe_and_comparison(company, source: str, assumptions: dict
         st.download_button("Tải kết quả so sánh peer", export_result.to_csv(index=False, encoding="utf-8-sig"), file_name=f"peer_compare_{_safe_ticker(str(getattr(company, 'ticker', '')))}.csv", mime="text/csv", use_container_width=True)
 
 
+
+def _publish_manipulation_snapshot(company, source_label, beneish_df, accrual_quality_df, modified_jones_df, rem_df) -> None:
+    """Publish already-computed Module-2 diagnostics for read-only downstream evidence use."""
+    mapping = [
+        ("1. Beneish M-Score", beneish_df),
+        ("2. Accrual Quality / Sloan", accrual_quality_df),
+        ("3. Modified Jones / Kothari", modified_jones_df),
+        ("4. REM — Real Earnings Management", rem_df),
+    ]
+    layers = []
+    for layer_name, frame in mapping:
+        latest_score = frame.attrs.get("latest_score") if isinstance(frame, pd.DataFrame) else None
+        latest_risk = frame.attrs.get("latest_risk", "N/A") if isinstance(frame, pd.DataFrame) else "N/A"
+        latest_period = frame.attrs.get("latest_period", "") if isinstance(frame, pd.DataFrame) else ""
+        latest_note = frame.attrs.get("latest_note", "") if isinstance(frame, pd.DataFrame) else ""
+        if not latest_period and isinstance(frame, pd.DataFrame) and not frame.empty:
+            for period_col in ("Kỳ", "Period", "period"):
+                if period_col in frame.columns:
+                    latest_period = str(frame.iloc[-1].get(period_col) or "")
+                    break
+        layers.append({
+            "layer": layer_name,
+            "latest_score": latest_score,
+            "latest_risk": latest_risk,
+            "latest_period": latest_period,
+            "latest_note": latest_note,
+        })
+    st.session_state["module2_manipulation_snapshot"] = {
+        "ticker": _safe_ticker(str(getattr(company, "ticker", ""))),
+        "company_name": str(getattr(company, "company_name", "") or ""),
+        "source_label": str(source_label or "Trecapital Module 2"),
+        "source_module": "Module 2 — Financial Manipulation 4 Layers",
+        "data_origin": "Already-computed Module 2 diagnostics; downstream is read-only",
+        "layers": layers,
+    }
+
+
 def _render_tre_sidebar_nav() -> None:
     """Manual branded navigation so Streamlit never exposes the technical root page name 'app'."""
     st.markdown("### Điều hướng")
@@ -3663,6 +3700,7 @@ def render_dashboard() -> None:
     accrual_quality_df = build_accrual_quality_table(company, annual_df)
     modified_jones_df = build_modified_jones_kothari_table(company, annual_df)
     rem_df = build_real_earnings_management_table(company, annual_df)
+    _publish_manipulation_snapshot(company, source_label, beneish_df, accrual_quality_df, modified_jones_df, rem_df)
     summary = build_module2_summary(company, annual_df, valuation_df, moat_df)
 
     st.session_state["module2_note_context"] = {

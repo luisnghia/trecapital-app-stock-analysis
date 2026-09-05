@@ -168,7 +168,10 @@ def build_company_snapshot(
     latest_period = _period(current) or (_period(annual_rows[-1]) if annual_rows else "")
 
     history: list[dict[str, Any]] = []
-    for row in annual_rows[-10:]:
+    display_rows = annual_rows[-10:]
+    if current and _is_ttm(current):
+        display_rows = display_rows + [current]
+    for row in display_rows:
         history.append({
             "Kỳ": _period(row),
             "Tăng trưởng DT %": _metric(row, "revenue_growth_pct"),

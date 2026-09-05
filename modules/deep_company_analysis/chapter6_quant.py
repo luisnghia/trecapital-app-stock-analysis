@@ -354,6 +354,18 @@ def build_q30_dol(df: pd.DataFrame, years: int = 10, min_revenue_change_pct: flo
         })
         previous = row
 
+    ttm = _ttm_row(df)
+    if ttm:
+        out.append({
+            "Kỳ": _period(ttm),
+            "Δ Revenue (%)": None,
+            "Δ EBIT (%)": None,
+            "Historical DOL (x)": None,
+            "Observation": "TTM current context",
+            "Validity": "N/A",
+            "Invalid Reason": "TTM displayed; comparable prior TTM is required for DOL. No FY-vs-TTM sensitivity is fabricated.",
+        })
+
     def median(values: list[float]) -> Optional[float]:
         return float(pd.Series(values, dtype="float64").median()) if values else None
 
@@ -362,7 +374,7 @@ def build_q30_dol(df: pd.DataFrame, years: int = 10, min_revenue_change_pct: flo
         "median_dol": median(valid_values),
         "downside_median_dol": median(downside),
         "upside_median_dol": median(upside),
-        "invalid_observations": max(0, len(out) - 1 - len(valid_values)),
+        "invalid_observations": sum(1 for item in out if item.get("Validity") == "Invalid"),
         "guardrail": "Invalid rows remain visible and are excluded from medians; no automatic operating-leverage conclusion.",
     }
 

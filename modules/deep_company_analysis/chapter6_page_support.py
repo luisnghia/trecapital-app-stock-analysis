@@ -16,8 +16,16 @@ import streamlit as st
 import module1_dashboard as m1
 from module1_engine import append_ttm_row
 from modules.deep_company_analysis.chapter2_page_support import _active_paths, _path_signature
-from modules.deep_company_analysis.table_format import format_numeric, render_static_table
+from modules.deep_company_analysis.table_format import format_numeric, render_static_table, sortable_data_editor
 from modules.deep_company_analysis.chapter6_quant import build_chapter6_quant_context
+from modules.deep_company_analysis.chapter6_evidence import (
+    Chapter6EvidenceAgent,
+    evidence_quality_summary,
+    manipulation_snapshot_candidates,
+    manipulation_snapshot_table,
+    merge_candidates_into_record,
+    research_gaps as phase6c_research_gaps,
+)
 
 from modules.deep_company_analysis.chapter6 import (
     ACCOUNTING_QUALITY_COLUMNS,
@@ -170,7 +178,7 @@ def _editor(
     height: int = 300,
 ) -> list[dict[str, Any]]:
     st.markdown(f"**{label}**")
-    edited = st.data_editor(
+    edited = sortable_data_editor(
         _df(rows, columns),
         num_rows="dynamic",
         hide_index=True,
@@ -185,7 +193,7 @@ def _editor(
                 "Quy chuẩn: tỷ đồng 0 số lẻ; % và hệ số 1 số lẻ; số âm đỏ, số dương xanh ngọc; "
                 "cường độ màu tăng theo độ lớn tuyệt đối."
             )
-            st.html(financial_table_html(edited, columns))
+            render_static_table(edited, height=min(360, 90 + 30 * len(edited)), sort_key=f"{key}_formatted_preview")
     return _rows(edited)
 
 
@@ -386,10 +394,93 @@ def _render_phase6b_quantitative_bridge(ticker: str) -> dict[str, Any] | None:
 
     return ctx
 
+
+def _render_phase6c_research_assistant(ticker: str, company_name: str) -> None:
+    safe = _safe_ticker(ticker)
+    external_key = f"ch6c_external_candidates_{safe}"
+    note_key = f"ch6c_note_{safe}"
+    snapshot = st.session_state.get("module2_manipulation_snapshot")
+    if not isinstance(snapshot, dict) or _safe_ticker(str(snapshot.get("ticker") or "")) != safe:
+        snapshot = None
+
+    with st.container(border=True):
+        st.markdown("## 🔎 Phase 6C — Evidence & Research Assistant")
+        st.caption(
+            "AI/Data chỉ tìm candidate evidence, counter-evidence và research gaps. Không tự đổi Conservative/Liberal, recurring quality, "
+            "cycle classification, Distribution Width, MOS, Research Gate hay BUY/HOLD/SELL."
+        )
+
+        with st.expander("Q27 — Read-only Financial Manipulation evidence bridge", expanded=True):
+            if snapshot:
+                table = manipulation_snapshot_table(snapshot)
+                if not table.empty:
+                    render_static_table(table, height=min(340, 100 + 30 * len(table)), sort_key=f"ch6c_manip_{safe}")
+                st.caption(
+                    "Beneish / Sloan / Modified Jones / REM được tính và sở hữu bởi Module 2. Chương 6 chỉ đọc snapshot đã tính; "
+                    "dòng TTM là applicability guardrail, không phải M-Score/Jones/REM TTM giả lập."
+                )
+            else:
+                st.info("Chưa có snapshot Module 2 cho đúng ticker trong phiên này. Mở/cập nhật Định giá chuyên sâu để Module 2 publish diagnostics, rồi quay lại Chương 6.")
+                try:
+                    st.page_link("pages/02_Dinh_gia_Porter_Moat.py", label="Mở Module 2 — Định giá chuyên sâu", icon="🧠")
+                except Exception:
+                    pass
+
+        if st.button("🌐 Cập nhật evidence Chương 6", use_container_width=True, key=f"ch6c_refresh_{safe}"):
+            with st.spinner(f"Đang tìm evidence Q27–Q32 cho {safe}..."):
+                try:
+                    agent = Chapter6EvidenceAgent(APP_DIR / "data_cache" / "deep_company_analysis_evidence")
+                    result = agent.search(safe, company_name, max_results_per_query=3)
+                    st.session_state[external_key] = result.candidates
+                    st.session_state[note_key] = result.note
+                    st.success(f"Đã cập nhật candidate evidence cho {safe}. Analyst cần mở nguồn và xác minh trước khi dùng làm kết luận.")
+                except Exception as exc:
+                    st.warning(f"Evidence search chưa hoàn tất: {exc}")
+
+        external = st.session_state.get(external_key, pd.DataFrame())
+        if not isinstance(external, pd.DataFrame):
+            external = pd.DataFrame()
+        internal = manipulation_snapshot_candidates(snapshot)
+        pieces = [x for x in (external, internal) if isinstance(x, pd.DataFrame) and not x.empty]
+        combined = pd.concat(pieces, ignore_index=True) if pieces else pd.DataFrame()
+        if not combined.empty:
+            combined = combined.drop_duplicates(subset=["Question", "Title", "URL", "Snippet"], keep="first").reset_index(drop=True)
+
+        if not external.empty:
+            st.markdown("### Evidence coverage — A/B/C")
+            render_static_table(evidence_quality_summary(external), height=300, sort_key=f"ch6c_quality_{safe}")
+        elif not combined.empty:
+            st.caption("Hiện mới có internal Module-2 diagnostic; chưa có external A/B/C evidence run trong phiên này.")
+
+        if not combined.empty:
+            st.markdown("### Candidate Evidence / Counter-Evidence")
+            render_static_table(combined, height=min(560, 120 + 30 * len(combined)), sort_key=f"ch6c_candidates_{safe}")
+            st.warning("Candidate ≠ verified evidence. Direction chỉ là research cue để chống confirmation bias, không phải kết luận Q27–Q32.")
+        else:
+            st.info("Chưa có candidate evidence trong phiên này.")
+
+        gaps = phase6c_research_gaps(external)
+        st.markdown("### Research Gaps")
+        if not gaps.empty:
+            render_static_table(gaps, height=min(360, 110 + 30 * len(gaps)), sort_key=f"ch6c_gaps_{safe}")
+
+        if st.session_state.get(note_key):
+            with st.expander("Research log", expanded=False):
+                st.caption(str(st.session_state[note_key]))
+
+        if not combined.empty or not gaps.empty:
+            if st.button("💾 Lưu candidates + research gaps vào Evidence Matrix", use_container_width=True, key=f"ch6c_merge_{safe}"):
+                current = load_record(safe)
+                merged = merge_candidates_into_record(current, combined, gaps)
+                save_record(safe, merged, company_name or str(current.get("company_name") or ""))
+                st.success("Đã lưu candidates/research gaps. Không có analyst conclusion nào bị thay đổi.")
+                st.rerun()
+
+
 def render_chapter6_tab(default_ticker: str = "") -> None:
     st.subheader("Chương 6 — Đánh giá phân phối lợi nhuận & dòng tiền")
     st.caption(
-        "Michael Shearn Q27–Q32 | Approved Phase 6A + implemented Phase 6B canonical quantitative bridge. "
+        "Michael Shearn Q27–Q32 | Approved Phase 6A + Phase 6B canonical bridge + Phase 6C Evidence & Research Assistant. "
         "Mục tiêu là hiểu độ rộng/predictability của earnings & cash-flow distribution."
     )
 
@@ -432,6 +523,7 @@ def render_chapter6_tab(default_ticker: str = "") -> None:
     )
 
     _render_phase6b_quantitative_bridge(ticker)
+    _render_phase6c_research_assistant(ticker, str(payload.get("company_name") or ""))
 
     with st.expander("Q27 — Accounting standards: Conservative hay Liberal?", expanded=True):
         st.caption(
@@ -909,20 +1001,15 @@ def render_chapter6_tab(default_ticker: str = "") -> None:
     snapshots = list_snapshots(ticker, limit=8)
     if snapshots:
         with st.expander("🕘 Snapshot gần nhất", expanded=False):
-            rows_html = "".join(
-                "<tr>"
-                f"<td>{int(item['id'])}</td>"
-                f"<td>{escape(str(item['created_at']))}</td>"
-                f"<td>{escape(str(item['understanding_status']))}</td>"
-                "</tr>"
+            snapshot_table = pd.DataFrame([
+                {
+                    "Snapshot": int(item["id"]),
+                    "Created": str(item["created_at"]),
+                    "Research completion": str(item["understanding_status"]),
+                }
                 for item in snapshots
-            )
-            st.html(
-                "<div style='overflow-x:auto;width:100%'>"
-                "<table style='width:100%;table-layout:fixed;border-collapse:collapse;white-space:normal;overflow-wrap:anywhere'>"
-                "<thead><tr><th>Snapshot</th><th>Created</th><th>Research completion</th></tr></thead>"
-                f"<tbody>{rows_html}</tbody></table></div>"
-            )
+            ])
+            render_static_table(snapshot_table, height=min(330, 90 + 30 * len(snapshot_table)), sort_key=f"ch6_snapshots_{ticker}")
 
 
 __all__ = ["render_chapter6_tab"]

@@ -449,10 +449,10 @@ def render_phase5d_lock_panel(ticker: str, company_name: str = "") -> None:
         st.markdown("**Implementation Lock Checks — hard methodology/architecture checks**")
         lock_table = report.implementation_checks.copy()
         lock_table["PASS"] = lock_table["PASS"].map(lambda x: "PASS" if bool(x) else "FAIL")
-        st.html(_wrapped_html_table(lock_table, 420))
+        render_static_table(lock_table, height=420)
 
         st.markdown("**Ticker Research Readiness — không phải investment-quality score**")
-        st.html(_wrapped_html_table(report.research_readiness, 360))
+        render_static_table(report.research_readiness, height=360)
         if quant_ctx is None and quant_error:
             st.warning(f"Canonical readiness: {quant_error}")
 

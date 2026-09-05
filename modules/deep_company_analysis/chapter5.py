@@ -21,7 +21,7 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
-from modules.deep_company_analysis.table_format import render_static_table
+from modules.deep_company_analysis.table_format import render_static_table, sortable_data_editor
 
 APP_DIR = Path(__file__).resolve().parents[2]
 DB_PATH = APP_DIR / "data_cache" / "deep_company_analysis_chapter5.db"
@@ -536,7 +536,7 @@ def _to_records(df: pd.DataFrame, columns: list[str]) -> list[dict[str, Any]]:
 def _editor(label: str, rows: list[dict[str, Any]], columns: list[str], key: str, height: int = 320) -> pd.DataFrame:
     df = pd.DataFrame(rows or [], columns=columns)
     st.caption(label)
-    return st.data_editor(
+    return sortable_data_editor(
         df,
         num_rows="dynamic",
         use_container_width=True,
