@@ -24,8 +24,7 @@ def patch_bridge() -> None:
         text,
         "BRIDGE_SCHEMA_VERSION = 1\n",
         "BRIDGE_SCHEMA_VERSION = 1\n"
-        "BRIDGE_BOUNDARY = (\"No automatic OO/LT/HH, Lion/Hyena or Management Quality conclusion; \"
-        "\"no MOS/Research Gate/BUY/SELL; insider activity is not a buy/sell signal.\")\n",
+        "BRIDGE_BOUNDARY = \"No automatic OO/LT/HH, Lion/Hyena or Management Quality conclusion; no MOS/Research Gate/BUY/SELL; insider activity is not a buy/sell signal.\"\n",
         "bridge boundary constant",
     )
     text = replace_once(
