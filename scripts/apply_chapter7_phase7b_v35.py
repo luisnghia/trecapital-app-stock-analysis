@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "modules" / "deep_company_analysis" / "chapter7.py"
 PAGE = ROOT / "modules" / "deep_company_analysis" / "chapter7_page_support.py"
 BRIDGE = ROOT / "modules" / "deep_company_analysis" / "chapter7_data_bridge.py"
+TEST = ROOT / "modules" / "deep_company_analysis" / "test_chapter7_phase7b.py"
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -19,6 +20,22 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 def patch_bridge() -> None:
     text = BRIDGE.read_text(encoding="utf-8")
+    text = replace_once(
+        text,
+        "BRIDGE_SCHEMA_VERSION = 1\n",
+        "BRIDGE_SCHEMA_VERSION = 1\n"
+        "BRIDGE_BOUNDARY = (\"No automatic OO/LT/HH, Lion/Hyena or Management Quality conclusion; \"
+        "\"no MOS/Research Gate/BUY/SELL; insider activity is not a buy/sell signal.\")\n",
+        "bridge boundary constant",
+    )
+    text = replace_once(
+        text,
+        '    text = " ".join(str(value or "").strip().split())\n    folded = unicodedata.normalize("NFKD", text)\n',
+        '    text = " ".join(str(value or "").strip().split())\n'
+        '    text = text.replace("Đ", "D").replace("đ", "d")\n'
+        '    folded = unicodedata.normalize("NFKD", text)\n',
+        "Vietnamese D normalization",
+    )
     old = '''    patterns = (\n        (("chu tich hoi dong quan tri", "chu tich hdqt", "chairman"), "Chairman"),\n        (("pho chu tich", "vice chairman"), "Vice Chairman"),\n        (("tong giam doc", "ceo", "chief executive"), "CEO"),\n        (("pho tong giam doc", "deputy ceo", "deputy general director"), "Deputy CEO"),\n        (("giam doc tai chinh", "cfo", "chief financial"), "CFO"),\n        (("giam doc van hanh", "coo", "chief operating"), "COO"),\n        (("ke toan truong", "chief accountant"), "Chief Accountant"),\n        (("thanh vien hdqt doc lap", "independent director"), "Independent Director"),\n        (("thanh vien hoi dong quan tri", "thanh vien hdqt", "board director", "director"), "Board Director"),\n    )'''
     new = '''    # Specific titles must be tested before broader substrings (e.g. Phó TGĐ contains TGĐ).\n    patterns = (\n        (("pho chu tich", "vice chairman"), "Vice Chairman"),\n        (("pho tong giam doc", "deputy ceo", "deputy general director"), "Deputy CEO"),\n        (("thanh vien hdqt doc lap", "independent director"), "Independent Director"),\n        (("giam doc tai chinh", "cfo", "chief financial"), "CFO"),\n        (("giam doc van hanh", "coo", "chief operating"), "COO"),\n        (("ke toan truong", "chief accountant"), "Chief Accountant"),\n        (("chu tich hoi dong quan tri", "chu tich hdqt", "chairman"), "Chairman"),\n        (("tong giam doc", "ceo", "chief executive"), "CEO"),\n        (("thanh vien hoi dong quan tri", "thanh vien hdqt", "board director", "director"), "Board Director"),\n    )'''
     text = replace_once(text, old, new, "role specificity")
@@ -125,10 +142,19 @@ def patch_page() -> None:
     PAGE.write_text(text, encoding="utf-8")
 
 
+def patch_tests() -> None:
+    text = TEST.read_text(encoding="utf-8")
+    old = '''def test_no_management_quality_or_buy_sell_signal_in_bridge_contract():\n    contract = " ".join([\n        b.__doc__ or "",\n        json.dumps(b.EVENT_REVIEW_MAP),\n        " ".join(b.RECORD_TYPES),\n    ]).lower()\n    assert "no automatic" in contract\n    assert "buy/sell signal" in contract\n    assert "management quality" in contract'''
+    new = '''def test_no_management_quality_or_buy_sell_signal_in_bridge_contract():\n    contract = " ".join([\n        b.BRIDGE_BOUNDARY,\n        json.dumps(b.EVENT_REVIEW_MAP),\n        " ".join(b.RECORD_TYPES),\n    ]).lower()\n    assert "no automatic" in contract\n    assert "buy/sell signal" in contract\n    assert "management quality" in contract'''
+    text = replace_once(text, old, new, "bridge contract test")
+    TEST.write_text(text, encoding="utf-8")
+
+
 def main() -> None:
     patch_bridge()
     patch_core()
     patch_page()
+    patch_tests()
     print("Chapter 7 Phase 7B V35 integration applied")
 
 
