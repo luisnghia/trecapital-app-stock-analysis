@@ -1,0 +1,213 @@
+name: DGC V37 Live End-to-End Test
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter7
+    paths:
+      - '.github/workflows/test-dgc-v37-live.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  dgc-live-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-chapter7
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Fetch DGC live data + build canonical cache + Chapter 7 research probe
+        shell: bash
+        run: |
+          mkdir -p reports raw_data data_cache/dgc_live_test/DGC
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          from adapters.vn_public_crawler import PublicFireAntCrawler, PublicVietstockCrawler
+          from adapters.base import MODULE1_OVERVIEW_COLUMNS, MODULE1_TIMESERIES_COLUMNS, ProviderResult, normalize_columns
+          from module1_engine import ensure_derived_metrics, append_ttm_row
+          from modules.deep_company_analysis.chapter7_research import Chapter7ResearchAgent, evidence_quality_summary
+
+          ticker = 'DGC'
+          raw_dir = Path('raw_data')
+          out_dir = Path('data_cache/dgc_live_test/DGC')
+          out_dir.mkdir(parents=True, exist_ok=True)
+          report = {
+              'ticker': ticker,
+              'sources': {},
+              'merged': {},
+              'chapter7_research': {},
+              'critical_errors': [],
+              'warnings': [],
+          }
+
+          results = []
+          for label, crawler in [('FireAnt', PublicFireAntCrawler(raw_dir)), ('Vietstock', PublicVietstockCrawler(raw_dir))]:
+              try:
+                  r = crawler.fetch(ticker)
+                  results.append((label, r))
+                  report['sources'][label] = {
+                      'overview_rows': int(len(r.overview)),
+                      'annual_rows': int(len(r.annual)),
+                      'quarterly_rows': int(len(r.quarterly)),
+                      'raw_path': str(r.raw_path or ''),
+                      'note': str(r.note or '')[:1200],
+                  }
+              except Exception as exc:
+                  report['sources'][label] = {'error': str(exc)}
+                  report['warnings'].append(f'{label} fetch failed: {exc}')
+
+          if not results:
+              report['critical_errors'].append('No live provider returned any result object.')
+              overview = pd.DataFrame(columns=MODULE1_OVERVIEW_COLUMNS)
+              annual = pd.DataFrame(columns=MODULE1_TIMESERIES_COLUMNS)
+              quarterly = pd.DataFrame(columns=MODULE1_TIMESERIES_COLUMNS)
+          else:
+              overview = pd.DataFrame()
+              annual = pd.DataFrame()
+              quarterly = pd.DataFrame()
+              for _, r in results:
+                  if isinstance(r.overview, pd.DataFrame) and len(r.overview) > len(overview): overview = r.overview.copy()
+                  if isinstance(r.annual, pd.DataFrame) and len(r.annual) > len(annual): annual = r.annual.copy()
+                  if isinstance(r.quarterly, pd.DataFrame) and len(r.quarterly) > len(quarterly): quarterly = r.quarterly.copy()
+
+          if overview.empty:
+              overview = pd.DataFrame([{'ticker': ticker, 'company_name': 'DGC - live test', 'updated_at': pd.Timestamp.now().isoformat()}])
+              report['warnings'].append('Overview missing from live providers; minimal DGC overview created for smoke path only.')
+
+          overview = normalize_columns(overview, MODULE1_OVERVIEW_COLUMNS)
+          annual = normalize_columns(annual, MODULE1_TIMESERIES_COLUMNS)
+          quarterly = normalize_columns(quarterly, MODULE1_TIMESERIES_COLUMNS)
+
+          if not annual.empty:
+              annual = ensure_derived_metrics(annual)
+          if not quarterly.empty:
+              quarterly = ensure_derived_metrics(quarterly)
+
+          overview.to_csv(out_dir / 'company_overview_sample.csv', index=False, encoding='utf-8-sig')
+          annual.to_csv(out_dir / 'financial_timeseries_year.csv', index=False, encoding='utf-8-sig')
+          quarterly.to_csv(out_dir / 'financial_timeseries_quarter.csv', index=False, encoding='utf-8-sig')
+
+          def latest_period(df):
+              if df is None or df.empty: return ''
+              cols = [c for c in ['year','quarter','period'] if c in df.columns]
+              if not cols: return ''
+              row = df.iloc[-1]
+              return ' / '.join(str(row.get(c,'')) for c in cols if str(row.get(c,'')) not in ('','nan','None'))
+
+          report['merged'] = {
+              'overview_rows': int(len(overview)),
+              'annual_rows': int(len(annual)),
+              'quarterly_rows': int(len(quarterly)),
+              'annual_latest_period': latest_period(annual),
+              'quarterly_latest_period': latest_period(quarterly),
+              'annual_columns_nonempty': int(sum(annual[c].notna().any() for c in annual.columns)) if not annual.empty else 0,
+              'quarterly_columns_nonempty': int(sum(quarterly[c].notna().any() for c in quarterly.columns)) if not quarterly.empty else 0,
+          }
+
+          if annual.empty:
+              report['critical_errors'].append('Annual financial table is empty.')
+          if quarterly.empty:
+              report['critical_errors'].append('Quarterly financial table is empty.')
+          if len(annual) < 5:
+              report['warnings'].append(f'Annual history is short: {len(annual)} rows.')
+          if len(quarterly) < 8:
+              report['warnings'].append(f'Quarterly history is short: {len(quarterly)} rows.')
+
+          try:
+              ttm = append_ttm_row(annual, quarterly)
+              report['merged']['annual_plus_ttm_rows'] = int(len(ttm))
+              report['merged']['ttm_added'] = bool(len(ttm) > len(annual))
+          except Exception as exc:
+              report['warnings'].append(f'TTM bridge failed: {exc}')
+
+          company_name = ''
+          try:
+              if 'company_name' in overview.columns and not overview.empty:
+                  company_name = str(overview.iloc[0].get('company_name') or '')
+          except Exception:
+              pass
+
+          try:
+              research = Chapter7ResearchAgent(raw_dir).search(ticker, company_name, managers=[], max_results_per_query=2)
+              quality = evidence_quality_summary(research.candidates)
+              report['chapter7_research'] = {
+                  'candidate_rows': int(len(research.candidates)),
+                  'raw_paths': research.raw_paths,
+                  'quality': quality.to_dict('records'),
+                  'note': research.note[:2000],
+              }
+              research.candidates.to_csv('reports/DGC_ch7_candidates.csv', index=False, encoding='utf-8-sig')
+              quality.to_csv('reports/DGC_ch7_quality.csv', index=False, encoding='utf-8-sig')
+              if research.candidates.empty:
+                  report['warnings'].append('Chapter 7 research returned no candidate evidence; analyst research remains open.')
+          except Exception as exc:
+              report['chapter7_research'] = {'error': str(exc)}
+              report['warnings'].append(f'Chapter 7 research probe failed: {exc}')
+
+          Path('reports/DGC_V37_LIVE_TEST.json').write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
+
+          lines = ['# DGC V37 Live Test', '', f"Ticker: **{ticker}**", '']
+          lines += ['## Live source coverage']
+          for k,v in report['sources'].items(): lines.append(f"- {k}: {v}")
+          lines += ['', '## Canonical merged bundle', f"- {report['merged']}", '', '## Chapter 7 research probe', f"- {report['chapter7_research']}", '', '## Warnings']
+          lines += [f"- {x}" for x in report['warnings']] or ['- None']
+          lines += ['', '## Critical errors']
+          lines += [f"- {x}" for x in report['critical_errors']] or ['- None']
+          Path('reports/DGC_V37_LIVE_TEST.md').write_text('\n'.join(lines), encoding='utf-8')
+          print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
+          PY
+
+      - name: DGC deep-analysis Streamlit smoke
+        shell: bash
+        run: |
+          timeout 55s streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8537 >reports/DGC_streamlit.log 2>&1 &
+          PID=$!
+          sleep 18
+          curl --fail --silent http://127.0.0.1:8537/_stcore/health
+          STATUS=$?
+          kill $PID || true
+          wait $PID || true
+          tail -n 200 reports/DGC_streamlit.log || true
+          exit $STATUS
+
+      - name: Evaluate critical DGC data-path result
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          r=json.load(open('reports/DGC_V37_LIVE_TEST.json',encoding='utf-8'))
+          print('Critical errors:', r.get('critical_errors'))
+          print('Warnings:', r.get('warnings'))
+          if r.get('critical_errors'):
+              raise SystemExit(1)
+          PY
+
+      - name: Upload DGC diagnostic report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DGC_V37_LIVE_TEST_REPORT
+          path: |
+            reports/DGC_V37_LIVE_TEST.json
+            reports/DGC_V37_LIVE_TEST.md
+            reports/DGC_ch7_candidates.csv
+            reports/DGC_ch7_quality.csv
+            reports/DGC_streamlit.log
+            data_cache/dgc_live_test/DGC/*.csv
+          if-no-files-found: warn
+          retention-days: 30
