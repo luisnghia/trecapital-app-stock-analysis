@@ -19,6 +19,7 @@ def _sample() -> pd.DataFrame:
             "revenue_bil": 1000, "gross_profit_bil": 300, "core_operating_profit_bil": 180,
             "pretax_profit_bil": 170, "tax_expense_bil": 34, "cfo_bil": 170, "capex_bil": 80,
             "free_cash_flow_bil": 90, "roic_pct": 15.0, "cash_bil": 100, "total_debt_bil": 300,
+            "short_term_debt_bil": 100,
             "equity_bil": 600, "ebitda_bil": 230, "interest_expense_bil": 30,
             "current_assets_bil": 500, "current_liabilities_bil": 250, "total_assets_bil": 1200,
             "goodwill_bil": 60, "net_ppe_bil": 500, "gross_ppe_bil": 850,
@@ -29,6 +30,7 @@ def _sample() -> pd.DataFrame:
             "revenue_bil": 1120, "gross_profit_bil": 350, "core_operating_profit_bil": 200,
             "pretax_profit_bil": 190, "tax_expense_bil": 38, "cfo_bil": 190, "capex_bil": 90,
             "free_cash_flow_bil": 100, "roic_pct": 17.0, "cash_bil": 120, "total_debt_bil": 280,
+            "short_term_debt_bil": 90,
             "equity_bil": 650, "ebitda_bil": 250, "interest_expense_bil": 28,
             "current_assets_bil": 560, "current_liabilities_bil": 260, "total_assets_bil": 1280,
             "goodwill_bil": 60, "net_ppe_bil": 470, "gross_ppe_bil": 870,
@@ -39,6 +41,7 @@ def _sample() -> pd.DataFrame:
             "revenue_bil": 1250, "gross_profit_bil": 410, "core_operating_profit_bil": 205,
             "pretax_profit_bil": 198, "tax_expense_bil": 39.6, "cfo_bil": 210, "capex_bil": 95,
             "free_cash_flow_bil": 115, "roic_pct": 20.5, "cash_bil": 150, "total_debt_bil": 250,
+            "short_term_debt_bil": 70,
             "equity_bil": 700, "ebitda_bil": 260, "interest_expense_bil": 25,
             "current_assets_bil": 620, "current_liabilities_bil": 250, "total_assets_bil": 1350,
             "goodwill_bil": 60, "net_ppe_bil": 420, "gross_ppe_bil": 900,
@@ -81,14 +84,15 @@ def test_excess_cash_variant_is_unknown_without_analyst_adjustment():
 
 def test_excess_cash_and_off_bs_variants_require_explicit_included_adjustments():
     adjustments = [
-        {"Adjustment": "Excess cash", "Amount": 100, "Included?": "Yes"},
-        {"Adjustment": "Off-BS obligations", "Amount": 50, "Included?": "Yes"},
+        {"Adjustment": "Excess cash", "Numerator / Denominator": "Denominator", "Amount": 100, "Included?": "Yes"},
+        {"Adjustment": "Off-BS obligations", "Numerator / Denominator": "Denominator", "Amount": 50, "Included?": "Yes"},
     ]
     variants = build_roic_variants(_sample(), adjustments=adjustments)
     ex_cash = variants[variants["ROIC View"] == "ROIC ex excess cash"].iloc[0]
     off_bs = variants[variants["ROIC View"] == "ROIC off-BS adjusted"].iloc[0]
     assert pd.notna(ex_cash["Value %"])
     assert pd.notna(off_bs["Value %"])
+    assert "EBIT" in str(ex_cash["Numerator Source"])
 
 
 def test_reinvestment_context_is_descriptive_not_compounder_score():
