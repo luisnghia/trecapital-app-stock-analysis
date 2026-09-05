@@ -1,0 +1,46 @@
+name: Chapter 6 Phase 6A V28
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter6
+    paths:
+      - 'modules/deep_company_analysis/chapter6.py'
+      - 'modules/deep_company_analysis/chapter6_page_support.py'
+      - 'modules/deep_company_analysis/test_chapter6.py'
+      - 'docs/CHAPTER6_PHASE6A_SOURCE_LOCK.md'
+      - 'docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md'
+      - '.github/workflows/chapter6-phase6a-v28.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  phase6a-source-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Compile Chapter 6
+        run: |
+          python -m py_compile \
+            modules/deep_company_analysis/chapter6.py \
+            modules/deep_company_analysis/chapter6_page_support.py \
+            modules/deep_company_analysis/test_chapter6.py
+      - name: Run Phase 6A source-lock tests
+        run: |
+          python -m pytest -q modules/deep_company_analysis/test_chapter6.py
+      - name: Verify methodology documentation
+        run: |
+          test -f docs/CHAPTER6_PHASE6A_SOURCE_LOCK.md
+          test -f docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md
+          grep -q 'maintenance capex must not be invented' docs/CHAPTER6_PHASE6A_SOURCE_LOCK.md
+          grep -q 'CCC = DIO + DSO - DPO' docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md
