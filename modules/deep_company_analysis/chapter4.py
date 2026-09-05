@@ -18,6 +18,8 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+from modules.deep_company_analysis.table_format import render_static_table
+
 
 APP_DIR = Path(__file__).resolve().parents[2]
 DB_PATH = APP_DIR / "data_cache" / "deep_company_analysis_chapter4.db"
@@ -839,7 +841,7 @@ def _render_synthesis(payload: dict[str, Any], ticker: str) -> None:
         {"Dimension": "Q19 Competition", "Assessment": payload["q19"].get("competition_intensity"), "Trend": payload["q19"].get("trend"), "Confidence": payload["q19"].get("confidence"), "Main Threat": payload["q19"].get("biggest_direct_threat")},
         {"Dimension": "Q20 Suppliers", "Assessment": payload["q20"].get("supplier_relationship"), "Trend": payload["q20"].get("trend"), "Confidence": payload["q20"].get("confidence"), "Main Threat": payload["q20"].get("biggest_supply_risk")},
     ]
-    st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+    render_static_table(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
 
     payload["top_business_strengths"] = st.text_area("Top Business Strengths", value=str(payload.get("top_business_strengths") or ""), key=f"ch4_strengths_{ticker}", height=100)
     payload["top_business_weaknesses"] = st.text_area("Top Business Weaknesses", value=str(payload.get("top_business_weaknesses") or ""), key=f"ch4_weaknesses_{ticker}", height=100)
@@ -897,4 +899,4 @@ def render_chapter4(default_ticker: str = "DGC", company_name: str = "") -> None
     history = load_history(ticker)
     if not history.empty:
         with st.expander(f"Version History — {ticker}", expanded=False):
-            st.dataframe(history, use_container_width=True, hide_index=True)
+            render_static_table(history, use_container_width=True, hide_index=True)

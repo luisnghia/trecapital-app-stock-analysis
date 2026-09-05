@@ -7,6 +7,8 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from modules.deep_company_analysis.table_format import render_static_table
+
 import module1_dashboard as m1
 from modules.deep_company_analysis.chapter2_page_support import _active_paths, _path_signature
 from modules.deep_company_analysis.chapter3 import conflicting_evidence_count, load_record, render_chapter3, save_record
@@ -212,7 +214,7 @@ def render_assistant_panel(ticker: str, draft: dict | None, company_name: str, e
                 if evidence.empty:
                     st.caption("Chưa có evidence candidate phù hợp.")
                 else:
-                    st.dataframe(evidence, use_container_width=True, hide_index=True)
+                    render_static_table(evidence, use_container_width=True, hide_index=True)
 
         record = load_record(ticker, company_name)
         if st.button(

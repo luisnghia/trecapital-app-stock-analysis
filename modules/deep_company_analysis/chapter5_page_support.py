@@ -8,6 +8,8 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+from modules.deep_company_analysis.table_format import render_static_table
+
 import module1_dashboard as m1
 from module1_engine import append_ttm_row
 from modules.deep_company_analysis.chapter2_page_support import _active_paths, _path_signature
@@ -175,7 +177,7 @@ def render_phase5b_quantitative_bridge(ticker: str) -> tuple[str, str]:
         with st.expander("Q22 — Financial / operating context 10 năm", expanded=True):
             q22 = ctx.get("q22_context")
             if isinstance(q22, pd.DataFrame) and not q22.empty:
-                st.dataframe(_heat_style(q22), use_container_width=True, hide_index=True, height=min(420, 70 + 28 * len(q22)))
+                render_static_table(_heat_style(q22), use_container_width=True, hide_index=True, height=min(420, 70 + 28 * len(q22)))
             else:
                 st.caption("Chưa có lịch sử canonical đủ dùng.")
             st.warning(
@@ -186,17 +188,17 @@ def render_phase5b_quantitative_bridge(ticker: str) -> tuple[str, str]:
         with st.expander("Q25 — Balance Sheet quantitative context", expanded=True):
             q25 = ctx.get("q25_context")
             if isinstance(q25, pd.DataFrame) and not q25.empty:
-                st.dataframe(_heat_style(q25), use_container_width=True, hide_index=True, height=min(420, 70 + 28 * len(q25)))
+                render_static_table(_heat_style(q25), use_container_width=True, hide_index=True, height=min(420, 70 + 28 * len(q25)))
                 latest = q25.iloc[-1].to_dict()
                 cols = st.columns(5)
-                def _fmt(value, suffix=""):
+                def _fmt(value, suffix="", decimals=1):
                     try:
                         if value is None or pd.isna(value):
                             return "—"
-                        return f"{float(value):,.1f}{suffix}"
+                        return f"{float(value):,.{int(decimals)}f}{suffix}"
                     except Exception:
                         return "—"
-                cols[0].metric("Nợ vay ròng", _fmt(latest.get("Nợ vay ròng (tỷ)"), " tỷ"))
+                cols[0].metric("Nợ vay ròng", _fmt(latest.get("Nợ vay ròng (tỷ)"), " tỷ", decimals=0))
                 cols[1].metric("Debt/EBITDA", _fmt(latest.get("Debt/EBITDA (x)"), "x"))
                 cols[2].metric("EBIT/Interest", _fmt(latest.get("EBIT/Interest (x)"), "x"))
                 cols[3].metric("CFO/Interest", _fmt(latest.get("CFO/Interest (x)"), "x"))
@@ -215,7 +217,7 @@ def render_phase5b_quantitative_bridge(ticker: str) -> tuple[str, str]:
                 for col in ("Value %", "Denominator (tỷ)"):
                     if col in show.columns:
                         show[col] = pd.to_numeric(show[col], errors="coerce")
-                st.dataframe(_heat_style(show), use_container_width=True, hide_index=True, height=330)
+                render_static_table(_heat_style(show), use_container_width=True, hide_index=True, height=330)
             else:
                 st.caption("Chưa có dữ liệu đủ để dựng ROIC views.")
             st.info(
@@ -227,12 +229,12 @@ def render_phase5b_quantitative_bridge(ticker: str) -> tuple[str, str]:
             diag = ctx.get("q26_distortions")
             if isinstance(diag, pd.DataFrame) and not diag.empty:
                 st.markdown("**ROIC Distortion Diagnostics — review only**")
-                st.dataframe(diag, use_container_width=True, hide_index=True)
+                render_static_table(diag, use_container_width=True, hide_index=True)
 
             reinv = ctx.get("reinvestment_context")
             if isinstance(reinv, pd.DataFrame) and not reinv.empty:
                 st.markdown("**Incremental-return / Reinvestment context — Trecapital extension**")
-                st.dataframe(_heat_style(reinv), use_container_width=True, hide_index=True, height=min(300, 80 + 28 * len(reinv)))
+                render_static_table(_heat_style(reinv), use_container_width=True, hide_index=True, height=min(300, 80 + 28 * len(reinv)))
                 st.caption("Incremental ROIC có thể bị méo bởi chu kỳ/base effect. Không tự suy High ROIC + High reinvestment = compounder.")
 
         with st.expander("🔎 Data provenance & formula boundary", expanded=False):
@@ -304,7 +306,7 @@ def render_phase5c_research_assistant(ticker: str, company_name: str = "") -> No
                 st.success(note)
             summary = evidence_quality_summary(candidates)
             st.markdown("**Evidence Coverage — Research completeness, không phải investment-quality score**")
-            st.dataframe(summary, use_container_width=True, hide_index=True, height=250)
+            render_static_table(summary, use_container_width=True, hide_index=True, height=250)
 
             if not candidates.empty:
                 display_cols = [
@@ -312,7 +314,7 @@ def render_phase5c_research_assistant(ticker: str, company_name: str = "") -> No
                     "Title", "URL", "Snippet", "Source Method",
                 ]
                 st.markdown("**Candidate Evidence / Counter-Evidence**")
-                st.dataframe(
+                render_static_table(
                     candidates[[c for c in display_cols if c in candidates.columns]],
                     use_container_width=True,
                     hide_index=True,
@@ -327,7 +329,7 @@ def render_phase5c_research_assistant(ticker: str, company_name: str = "") -> No
 
             if gaps:
                 st.markdown("**Research Gaps được gợi ý**")
-                st.dataframe(pd.DataFrame(gaps), use_container_width=True, hide_index=True, height=min(360, 80 + 45 * len(gaps)))
+                render_static_table(pd.DataFrame(gaps), use_container_width=True, hide_index=True, height=min(360, 80 + 45 * len(gaps)))
 
             if st.button(
                 "➕ Lưu Candidate Evidence + Research Gaps vào Chương 5",

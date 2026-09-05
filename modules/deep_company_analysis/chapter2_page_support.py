@@ -7,6 +7,8 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from modules.deep_company_analysis.table_format import render_static_table
+
 import module1_dashboard as m1
 from module1_engine import append_ttm_row
 from modules.deep_company_analysis.chapter2 import load_record, render_chapter2, save_record
@@ -214,11 +216,11 @@ def render_assistant_panel(ticker: str, draft: dict | None, company_name: str, e
                 if evidence.empty:
                     st.caption("Chưa có evidence candidate đủ keyword.")
                 else:
-                    st.dataframe(evidence, use_container_width=True, hide_index=True)
+                    render_static_table(evidence, use_container_width=True, hide_index=True)
             currency = draft.get("q6", {}).get("currency_evidence", [])
             if currency:
                 st.markdown("**Currency evidence candidates**")
-                st.dataframe(pd.DataFrame(currency), use_container_width=True, hide_index=True)
+                render_static_table(pd.DataFrame(currency), use_container_width=True, hide_index=True)
 
         record = load_record(ticker, company_name)
         if st.button(

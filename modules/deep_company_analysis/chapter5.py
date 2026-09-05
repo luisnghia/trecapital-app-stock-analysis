@@ -21,6 +21,8 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+from modules.deep_company_analysis.table_format import render_static_table
+
 APP_DIR = Path(__file__).resolve().parents[2]
 DB_PATH = APP_DIR / "data_cache" / "deep_company_analysis_chapter5.db"
 
@@ -728,6 +730,6 @@ def render_chapter5(default_ticker: str = "DGC", company_name: str = "") -> None
         if history.empty:
             st.caption("Chưa có snapshot Chương 5.")
         else:
-            st.dataframe(history, use_container_width=True, hide_index=True)
+            render_static_table(history, use_container_width=True, hide_index=True)
 
     st.caption("Phase 5A guardrails: " + " | ".join(f"{k}={v}" for k, v in guardrails().items()))

@@ -7,6 +7,8 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+from modules.deep_company_analysis.table_format import render_static_table
+
 import module1_dashboard as m1
 from module1_engine import append_ttm_row
 from modules.deep_company_analysis.chapter2_page_support import _active_paths, _path_signature
@@ -191,7 +193,7 @@ def render_phase4c_evidence_bridge(ticker: str, company_name: str, industry_grou
             quality = evidence_quality_summary(candidates)
             if not quality.empty:
                 st.markdown("**Evidence Quality / Coverage Audit**")
-                st.dataframe(quality, use_container_width=True, hide_index=True, height=250)
+                render_static_table(quality, use_container_width=True, hide_index=True, height=250)
 
             gaps = research_gaps(candidates)
             if gaps:
@@ -202,11 +204,11 @@ def render_phase4c_evidence_bridge(ticker: str, company_name: str, industry_grou
                 st.success("Không còn coverage gap định lượng theo Phase 4C.1; analyst vẫn phải xác minh từng candidate trước khi kết luận.")
 
             show_cols = [c for c in ["Question", "Subtopic", "Direction", "Evidence Quality", "Source Method", "Explicitness", "Title", "URL", "Snippet"] if c in candidates.columns]
-            st.dataframe(candidates[show_cols].head(100), use_container_width=True, hide_index=True, height=420)
+            render_static_table(candidates[show_cols].head(100), use_container_width=True, hide_index=True, height=420)
             st.warning("Nguồn A/B, Direction và Explicitness đều chỉ là Research Assistant classification. Analyst phải mở nguồn gốc và xác minh trước khi dùng làm kết luận.")
         elif not existing.empty:
             show_cols = [c for c in ["Question", "Claim", "Direction", "Evidence Type", "Source Title", "Source URL / File", "Evidence Text", "Status"] if c in existing.columns]
-            st.dataframe(existing[show_cols].tail(60), use_container_width=True, hide_index=True, height=320)
+            render_static_table(existing[show_cols].tail(60), use_container_width=True, hide_index=True, height=320)
 
 
 def render_phase4c2_gap_engine(ticker: str, company_name: str, industry_group: str) -> None:
@@ -276,7 +278,7 @@ def render_phase4c2_gap_engine(ticker: str, company_name: str, industry_group: s
             )
             summary = c2_quality_summary(summary_result)
             st.markdown("**Phase 4C.2 Gap Audit**")
-            st.dataframe(summary, use_container_width=True, hide_index=True)
+            render_static_table(summary, use_container_width=True, hide_index=True)
 
         if isinstance(pricing, pd.DataFrame):
             with st.expander(f"Q16 — Pricing evidence ({len(pricing)})", expanded=True):
@@ -287,7 +289,7 @@ def render_phase4c2_gap_engine(ticker: str, company_name: str, industry_group: s
                         "Period Candidate", "Explicitness", "Event Type Candidate", "Evidence Quality",
                         "Source Method", "Title", "URL", "Snippet"
                     ] if c in pricing.columns]
-                    st.dataframe(pricing[cols].head(60), use_container_width=True, hide_index=True, height=330)
+                    render_static_table(pricing[cols].head(60), use_container_width=True, hide_index=True, height=330)
                     explicit = int(pricing["Explicitness"].astype(str).str.startswith("Explicit price + customer/volume").sum()) if "Explicitness" in pricing.columns else 0
                     if explicit == 0:
                         st.warning("Có nhắc giá nhưng chưa có bằng chứng đủ mạnh về phản ứng volume/customer. Không được kết luận Pricing Power.")
@@ -299,7 +301,7 @@ def render_phase4c2_gap_engine(ticker: str, company_name: str, industry_group: s
                 if universe.empty:
                     st.caption("Chưa có peer universe cùng ngành.")
                 else:
-                    st.dataframe(universe, use_container_width=True, hide_index=True, height=min(370, 75 + 27 * len(universe)))
+                    render_static_table(universe, use_container_width=True, hide_index=True, height=min(370, 75 + 27 * len(universe)))
                 st.caption("Danh sách này là candidate context từ cùng ngành. Analyst phải xác nhận competitor overlap; app không tự gọi toàn bộ peer là đối thủ trực tiếp.")
 
         if isinstance(q19, pd.DataFrame):
@@ -311,7 +313,7 @@ def render_phase4c2_gap_engine(ticker: str, company_name: str, industry_group: s
                         "Subtopic", "Direction", "Evidence Quality", "Period Candidate", "Source Method",
                         "Title", "URL", "Snippet"
                     ] if c in q19.columns]
-                    st.dataframe(q19[cols].head(80), use_container_width=True, hide_index=True, height=380)
+                    render_static_table(q19[cols].head(80), use_container_width=True, hide_index=True, height=380)
                     covered = int(q19["Subtopic"].nunique()) if "Subtopic" in q19.columns else 0
                     if covered < 4:
                         st.warning(f"Q19 mới có evidence ở {covered}/8 nhóm logic; chưa nên coi competitive landscape đã hiểu đầy đủ.")
@@ -386,7 +388,7 @@ def render_phase4c3_close_gaps(ticker: str, company_name: str, industry_group: s
             if corroboration.empty:
                 st.warning("Chưa có explicit price + customer/volume evidence đủ để triangulate. Q16 vẫn là Research Gap nếu analyst chưa có nguồn riêng.")
             else:
-                st.dataframe(corroboration, use_container_width=True, hide_index=True)
+                render_static_table(corroboration, use_container_width=True, hide_index=True)
                 st.caption(
                     "Period-level corroboration chỉ xác nhận có ≥2 nguồn/domain trong cùng kỳ và có independent evidence. "
                     "Analyst vẫn phải mở nguồn để xác minh chúng đang nói về cùng pricing event và loại trừ commodity/cost pass-through."
@@ -394,7 +396,7 @@ def render_phase4c3_close_gaps(ticker: str, company_name: str, industry_group: s
 
         if isinstance(coverage, pd.DataFrame):
             st.markdown("**Q19 — Full Shearn Coverage Matrix**")
-            st.dataframe(coverage, use_container_width=True, hide_index=True, height=330)
+            render_static_table(coverage, use_container_width=True, hide_index=True, height=330)
             covered = int(coverage["Candidates"].fillna(0).astype(int).gt(0).sum()) if "Candidates" in coverage.columns else 0
             if covered < len(coverage):
                 st.warning(f"Q19 mới có evidence candidate ở {covered}/{len(coverage)} nhóm. Các dòng Gap phải tiếp tục để mở.")
@@ -414,7 +416,7 @@ def render_phase4c3_close_gaps(ticker: str, company_name: str, industry_group: s
                     "Period Candidate", "Explicitness", "Event Type Candidate", "Evidence Quality",
                     "Source Method", "Title", "URL", "Snippet"
                 ] if c in pricing.columns]
-                st.dataframe(pricing[cols].head(80), use_container_width=True, hide_index=True, height=340)
+                render_static_table(pricing[cols].head(80), use_container_width=True, hide_index=True, height=340)
 
         if isinstance(q19, pd.DataFrame) and not q19.empty:
             with st.expander(f"Q19 — Multi-label evidence ({len(q19)})", expanded=False):
@@ -422,7 +424,7 @@ def render_phase4c3_close_gaps(ticker: str, company_name: str, industry_group: s
                     "Subtopic", "Direction", "Evidence Quality", "Period Candidate", "Source Method",
                     "Title", "URL", "Snippet"
                 ] if c in q19.columns]
-                st.dataframe(q19[cols].head(140), use_container_width=True, hide_index=True, height=420)
+                render_static_table(q19[cols].head(140), use_container_width=True, hide_index=True, height=420)
 
         st.warning(
             "Guardrail Phase 4C.3: coverage ≠ conclusion; period-level corroboration ≠ event-level proof; cùng ngành ≠ direct competitor; "
@@ -471,7 +473,7 @@ def render_phase4d_final_lock(ticker: str, company_name: str, industry_group: st
         audit = st.session_state.get(f"ch4d_audit_{safe}")
         if audit is not None:
             st.markdown("**Final Acceptance Checks**")
-            st.dataframe(audit.checks, use_container_width=True, hide_index=True)
+            render_static_table(audit.checks, use_container_width=True, hide_index=True)
 
             c1, c2, c3 = st.columns(3)
             c1.metric("Evidence giữ lại", len(audit.retained_candidates))
@@ -482,11 +484,11 @@ def render_phase4d_final_lock(ticker: str, company_name: str, industry_group: st
             if not audit.quarantined_candidates.empty:
                 with st.expander(f"🧹 Evidence bị quarantine ({len(audit.quarantined_candidates)})", expanded=False):
                     cols = [c for c in ["Quarantine Reason", "Evidence Quality", "Title", "URL", "Snippet"] if c in audit.quarantined_candidates.columns]
-                    st.dataframe(audit.quarantined_candidates[cols].head(60), use_container_width=True, hide_index=True, height=300)
+                    render_static_table(audit.quarantined_candidates[cols].head(60), use_container_width=True, hide_index=True, height=300)
                     st.caption("Quarantine không xóa dữ liệu; row được giữ để audit nhưng không được dùng đóng evidence coverage.")
 
             st.markdown("**Q19 A/B Lock Coverage**")
-            st.dataframe(audit.q19_coverage, use_container_width=True, hide_index=True, height=330)
+            render_static_table(audit.q19_coverage, use_container_width=True, hide_index=True, height=330)
 
             if audit.research_gaps:
                 with st.expander(f"📌 Stock-specific Research Gaps vẫn mở ({len(audit.research_gaps)})", expanded=True):
@@ -785,7 +787,7 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str, str]:
             if context.empty:
                 st.caption("Chưa có lịch sử canonical đủ dùng.")
             else:
-                st.dataframe(_styled_numeric(context), use_container_width=True, hide_index=True)
+                render_static_table(_styled_numeric(context), use_container_width=True, hide_index=True)
             st.caption(
                 "Gross/EBIT margin chỉ là bằng chứng hỗ trợ. Không được suy 'đã tăng giá' hoặc 'có Pricing Power' từ margin tăng. "
                 "Pricing Event vẫn cần explicit price/volume/customer evidence."
@@ -799,7 +801,7 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str, str]:
                     "Company", "Company Name", "ROIC Latest", "ROIC 5Y Median", "ROIC 10Y Median",
                     "ROIC Min", "ROIC Max", "EBIT Margin", "CCC", "Data Period"
                 ) if c in peer_df.columns]
-                st.dataframe(_styled_numeric(peer_df[display_cols]), use_container_width=True, hide_index=True)
+                render_static_table(_styled_numeric(peer_df[display_cols]), use_container_width=True, hide_index=True)
                 dist = build_industry_distribution(peer_df)
                 if dist:
                     d1, d2, d3, d4, d5 = st.columns(5)
@@ -820,7 +822,7 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str, str]:
             if bench.empty:
                 st.caption("Chưa có peer canonical data để dựng benchmark.")
             else:
-                st.dataframe(_styled_numeric(bench), use_container_width=True, hide_index=True)
+                render_static_table(_styled_numeric(bench), use_container_width=True, hide_index=True)
             st.caption(
                 "Benchmark dùng cùng peer set Analyst đã xác nhận ở Q17. Peer Min/Max chỉ là mô tả; app không tự chọn Ideal Company."
             )
@@ -830,7 +832,7 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str, str]:
             if supply.empty:
                 st.caption("Chưa có canonical inventory/receivable/payable data đủ để tính lịch sử.")
             else:
-                st.dataframe(_styled_numeric(supply), use_container_width=True, hide_index=True)
+                render_static_table(_styled_numeric(supply), use_container_width=True, hide_index=True)
             st.caption(
                 "Inventory Turnover và CCC là operating evidence. DPO tăng không tự động nghĩa là supplier relationship tốt; "
                 "Supplier Reliability/Relationship/Concentration vẫn là analyst judgement dựa trên disclosure/evidence."
@@ -849,7 +851,7 @@ def render_quantitative_bridge(ticker: str) -> tuple[str, str, str]:
                         "Data Origin": prov.get("data_origin"),
                         "Source Label": prov.get("source_label"),
                     })
-                st.dataframe(pd.DataFrame(prov_rows), use_container_width=True, hide_index=True)
+                render_static_table(pd.DataFrame(prov_rows), use_container_width=True, hide_index=True)
 
     return safe, company_name, industry_group
 

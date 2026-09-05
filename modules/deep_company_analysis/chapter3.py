@@ -9,6 +9,8 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+from modules.deep_company_analysis.table_format import render_static_table
+
 APP_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = APP_ROOT / "data_cache" / "deep_company_analysis_chapter3.db"
 
@@ -870,4 +872,4 @@ def render_chapter3(default_ticker: str = "", company_name: str = "") -> None:
         if history.empty:
             st.caption("Chưa có snapshot.")
         else:
-            st.dataframe(history, use_container_width=True, hide_index=True)
+            render_static_table(history, use_container_width=True, hide_index=True)
