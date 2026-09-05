@@ -1,0 +1,146 @@
+name: Finalize Chapter 7 Phase 7B V35 — Structured Data Bridge + QA
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter7
+    paths:
+      - '.github/workflows/finalize-chapter7-phase7b-v35.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-phase7b-v35:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-chapter7
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Apply approved Phase 7B integration
+        run: python scripts/apply_chapter7_phase7b_v35.py
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Compile Chapter 7 V35
+        run: |
+          python -m py_compile \
+            modules/deep_company_analysis/chapter7.py \
+            modules/deep_company_analysis/chapter7_page_support.py \
+            modules/deep_company_analysis/chapter7_data_bridge.py \
+            modules/deep_company_analysis/chapter7_data_bridge_ui.py \
+            scripts/apply_chapter7_phase7b_v35.py \
+            scripts/audit_chapter7_phase7b_v35.py \
+            pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+
+      - name: QA Pass 1 of 3 — Structured bridge + persistence boundaries
+        run: |
+          pytest -q \
+            modules/deep_company_analysis/test_chapter7_phase7b.py \
+            modules/deep_company_analysis/test_chapter7.py
+
+      - name: QA Pass 2 of 3 — Format/sort + static source-lock audit
+        run: |
+          pytest -q \
+            modules/deep_company_analysis/test_table_format.py \
+            modules/deep_company_analysis/test_sortable_table_v32.py
+          python scripts/audit_chapter7_phase7b_v35.py
+
+      - name: QA Pass 3 of 3 — Full Deep Company Analysis regression
+        run: pytest -q modules/deep_company_analysis/test_*.py
+
+      - name: Static Chapter 7 production table audit
+        shell: bash
+        run: |
+          echo '=== Direct production Streamlit table primitives ==='
+          grep -RIn --include='*.py' -E 'st\.table\(|st\.dataframe\(|st\.data_editor\(' modules/deep_company_analysis/chapter7*.py \
+            | grep -v '/test_' | grep -v 'table_format.py' && exit 1 || true
+          echo '=== Phase7B structured bridge tokens ==='
+          grep -n 'Raw.*Candidate\|Registered Shares\|Executed Shares\|chapter7_data_conflicts\|chapter7_review_queue' \
+            modules/deep_company_analysis/chapter7_data_bridge.py
+
+      - name: Unified Streamlit smoke test
+        shell: bash
+        run: |
+          timeout 35s streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8521 >/tmp/dca_v35_smoke.log 2>&1 &
+          PID=$!
+          sleep 14
+          curl --fail --silent http://127.0.0.1:8521/_stcore/health
+          kill $PID || true
+          wait $PID || true
+          tail -n 120 /tmp/dca_v35_smoke.log || true
+
+      - name: Write V35 audit record
+        shell: bash
+        run: |
+          cat > docs/DEEP_ANALYSIS_CHAPTER7_PHASE7B_V35_AUDIT_RESULT.md <<EOF
+          # Chapter 7 Phase 7B V35 — Audit Result
+
+          Status: PASS
+
+          - QA Pass 1/3: structured bridge normalization, Raw→Candidate→Apply boundary, provenance/conflict/persistence and Phase 7A regression PASS.
+          - QA Pass 2/3: shared table format/sort and Phase 7B static source-lock audit PASS.
+          - QA Pass 3/3: full Deep Company Analysis regression PASS.
+          - Static Chapter 7 production table audit PASS.
+          - Unified Streamlit page smoke test PASS.
+
+          Phase 7B scope: structured JSON/CSV/HTML official-source bridge, candidate review/apply, manager identity suggestions without auto-merge, role/date normalization, compensation/ownership/insider separation, conflict register, refresh audit and management-event review queue.
+
+          Boundary: PDF/unstructured research remains Phase 7C; no auto OO/LT/HH, Lion/Hyena, Management Quality, MOS, Research Gate or BUY/HOLD/SELL; no fake TTM.
+
+          Branch: feature/deep-company-analysis-chapter7
+          Build source before commit: $(git rev-parse HEAD)
+          EOF
+
+      - name: Commit Phase 7B V35 production integration
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            modules/deep_company_analysis/chapter7.py \
+            modules/deep_company_analysis/chapter7_page_support.py \
+            modules/deep_company_analysis/chapter7_data_bridge.py \
+            modules/deep_company_analysis/chapter7_data_bridge_ui.py \
+            modules/deep_company_analysis/test_chapter7_phase7b.py \
+            docs/CHAPTER7_PHASE7B_STRUCTURED_DATA_BRIDGE.md \
+            docs/DEEP_ANALYSIS_CHAPTER7_PHASE7B_V35_AUDIT_RESULT.md \
+            scripts/apply_chapter7_phase7b_v35.py \
+            scripts/audit_chapter7_phase7b_v35.py
+          git commit -m 'feat(ch7): integrate approved Phase 7B structured data bridge V35'
+          git push origin HEAD:feature/deep-company-analysis-chapter7
+
+      - name: Build V35 offline package
+        shell: bash
+        run: |
+          cat > OFFLINE_BUILD_INFO.txt <<EOF
+          Trecapital Deep Company Analysis Chapters 1-7 V35 Offline
+          Branch: feature/deep-company-analysis-chapter7
+          Commit: $(git rev-parse HEAD)
+          Chapter 7: Phase 7A + Phase 7B Structured Management Data Bridge.
+          Includes: source register; Raw→Candidate→Analyst Apply; structured JSON/CSV/HTML ingest; provenance; identity suggestions; role/date normalization; compensation/ownership/insider separation; conflicts; refresh audit; management-event review queue.
+          Boundary: no PDF/unstructured inference in Phase 7B; no auto management classification, MOS, Research Gate or BUY/HOLD/SELL; no fake TTM.
+          EOF
+          rm -f Trecapital_Deep_Analysis_Ch1-Ch7_V35_Offline.zip
+          zip -qr Trecapital_Deep_Analysis_Ch1-Ch7_V35_Offline.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' \
+               'Trecapital_Deep_Analysis_Ch1-Ch6_V33_Offline.zip' \
+               'Trecapital_Deep_Analysis_Ch1-Ch7_V34_Offline.zip'
+          unzip -t Trecapital_Deep_Analysis_Ch1-Ch7_V35_Offline.zip | tail -n 3
+
+      - name: Upload V35 offline ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Ch1-Ch7_V35_Offline
+          path: Trecapital_Deep_Analysis_Ch1-Ch7_V35_Offline.zip
+          retention-days: 90
