@@ -1,71 +1,87 @@
 from __future__ import annotations
 
 from html import escape
+from pathlib import Path
 from typing import Any
+import hashlib
+import inspect
 
 import pandas as pd
 import streamlit as st
 
+ORIGINAL_ORDER_LABEL = "Giữ thứ tự gốc"
+ASC_LABEL = "Tăng dần"
+DESC_LABEL = "Giảm dần"
+
 
 def infer_numeric_kind(column: str) -> str:
-    name = str(column or '').strip()
+    """Infer only explicit/known Trecapital display units.
+
+    Unknown labels stay text so the renderer never invents a financial unit.
+    """
+    name = str(column or "").strip()
     low = name.casefold()
-    if '(tỷ)' in low or ' tỷ' in low or low.endswith('tỷ'):
-        return 'amount_bil'
-    if '(ngày)' in low or ' ngày' in low or low in {'dso', 'dio', 'dpo', 'ccc'} or low.startswith(('dso ', 'dio ', 'dpo ', 'ccc ')):
-        return 'days'
-    if '(x)' in low or '/ebit' in low or '/interest' in low or 'current ratio' in low or 'turnover' in low or 'turns' in low:
-        return 'ratio'
-    if any(token in low for token in ('%', 'margin', 'roic', 'yield', 'growth', 'tăng trưởng', 'revenue share', 'market share', 'retention rate', 'churn rate')):
-        return 'percent'
-    return 'text'
+    if "(tỷ)" in low or " tỷ" in low or low.endswith("tỷ"):
+        return "amount_bil"
+    if "(ngày)" in low or " ngày" in low or low in {"dso", "dio", "dpo", "ccc"} or low.startswith(("dso ", "dio ", "dpo ", "ccc ")):
+        return "days"
+    if "(x)" in low or "/ebit" in low or "/interest" in low or "current ratio" in low or "turnover" in low or "turns" in low:
+        return "ratio"
+    pct_tokens = (
+        "%", "margin", "roic", "yield", "growth", "tăng trưởng", "revenue share",
+        "market share", "retention rate", "churn rate", "drawdown", "percentile",
+    )
+    if any(token in low for token in pct_tokens):
+        return "percent"
+    return "text"
 
 
 def format_numeric(value: Any, kind: str) -> str:
     try:
         if value is None or pd.isna(value):
-            return '—'
+            return "—"
         number = float(value)
     except Exception:
-        return escape(str(value or ''))
-    if kind == 'amount_bil':
-        return f'{number:,.0f}'
-    if kind == 'percent':
-        return f'{number:,.1f}%'
-    if kind == 'ratio':
-        return f'{number:,.1f}x'
-    if kind == 'days':
-        return f'{number:,.1f}'
+        return escape(str(value or ""))
+    if kind == "amount_bil":
+        return f"{number:,.0f}"
+    if kind == "percent":
+        return f"{number:,.1f}%"
+    if kind == "ratio":
+        return f"{number:,.1f}x"
+    if kind == "days":
+        return f"{number:,.1f}"
     return escape(str(value))
 
 
 def _heat_eligible(column: str) -> bool:
-    low = str(column or '').casefold()
-    return any(token.casefold() in low for token in (
-        'tăng trưởng', 'growth', 'change', 'delta', 'Δ', 'margin', 'roic',
-        'cfo', 'fcf', 'ebit', 'profit', 'lợi nhuận', 'cash flow', 'dòng tiền',
-        'headroom', 'impact',
-    ))
+    low = str(column or "").casefold()
+    tokens = (
+        "tăng trưởng", "growth", "change", "delta", "Δ", "margin", "roic",
+        "cfo", "fcf", "ebit", "profit", "lợi nhuận", "cash flow", "dòng tiền",
+        "headroom", "impact", "drawdown",
+    )
+    return any(token.casefold() in low for token in tokens)
 
 
 def _heat_style(value: Any, max_abs: float) -> str:
     try:
         number = float(value)
     except Exception:
-        return ''
+        return ""
     if pd.isna(number) or number == 0:
-        return ''
+        return ""
     scale = min(1.0, abs(number) / max_abs) if max_abs > 0 else 0.0
     alpha = 0.07 + 0.23 * scale
     if number < 0:
-        return f'color:#991B1B;font-weight:700;background:rgba(185,28,28,{alpha:.3f});'
-    return f'color:#047857;font-weight:700;background:rgba(4,120,87,{alpha:.3f});'
+        return f"color:#991B1B;font-weight:700;background:rgba(185,28,28,{alpha:.3f});"
+    return f"color:#047857;font-weight:700;background:rgba(4,120,87,{alpha:.3f});"
 
 
 def _coerce_frame(value: Any) -> pd.DataFrame:
     if isinstance(value, pd.DataFrame):
         return value.copy()
-    data = getattr(value, 'data', None)
+    data = getattr(value, "data", None)
     if isinstance(data, pd.DataFrame):
         return data.copy()
     try:
@@ -74,38 +90,106 @@ def _coerce_frame(value: Any) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def sort_frame(value: Any, sort_by: str | None, ascending: bool = True) -> pd.DataFrame:
+    """Stable sort on raw values. The input frame is never mutated."""
+    frame = _coerce_frame(value)
+    if frame.empty or not sort_by or sort_by not in frame.columns:
+        return frame
+    work = frame.copy()
+    series = work[sort_by]
+    non_null = int(series.notna().sum())
+    numeric = pd.to_numeric(series, errors="coerce")
+    numeric_count = int(numeric.notna().sum())
+    temp = "__tre_sort_key__"
+    while temp in work.columns:
+        temp += "_"
+    if non_null > 0 and numeric_count >= max(1, int(non_null * 0.70)):
+        work[temp] = numeric
+    else:
+        work[temp] = series.fillna("").astype(str).str.casefold()
+    work = work.sort_values(temp, ascending=bool(ascending), na_position="last", kind="mergesort")
+    return work.drop(columns=[temp]).reset_index(drop=True)
+
+
+def _stable_widget_key(frame: pd.DataFrame, explicit: str | None, prefix: str) -> str:
+    if explicit:
+        seed = str(explicit)
+    else:
+        caller = "unknown"
+        for info in inspect.stack()[2:]:
+            if Path(info.filename).resolve() != Path(__file__).resolve():
+                caller = f"{info.filename}:{info.lineno}"
+                break
+        sample = ""
+        if not frame.empty:
+            try:
+                sample = "|".join(str(x) for x in frame.iloc[0].tolist()[:3])
+            except Exception:
+                sample = ""
+        seed = f"{caller}|{list(frame.columns)}|{frame.shape}|{sample}"
+    digest = hashlib.sha1(seed.encode("utf-8", errors="ignore")).hexdigest()[:14]
+    return f"tre_{prefix}_{digest}"
+
+
+def interactive_sort_frame(value: Any, *, key: str | None = None) -> pd.DataFrame:
+    """Render explicit selectable sort controls and return the sorted raw frame."""
+    frame = _coerce_frame(value)
+    if frame.empty or len(frame.columns) == 0:
+        return frame
+    base = _stable_widget_key(frame, key, "sort")
+    cols = [str(c) for c in frame.columns]
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        sort_by = st.selectbox(
+            "Sort theo cột",
+            [ORIGINAL_ORDER_LABEL] + cols,
+            index=0,
+            key=f"{base}_column",
+        )
+    with c2:
+        direction = st.selectbox(
+            "Thứ tự",
+            [ASC_LABEL, DESC_LABEL],
+            index=0,
+            key=f"{base}_direction",
+        )
+    if sort_by == ORIGINAL_ORDER_LABEL:
+        return frame
+    return sort_frame(frame, sort_by, ascending=direction == ASC_LABEL)
+
+
 def static_table_html(value: Any, *, height: int | None = None) -> str:
     frame = _coerce_frame(value)
     if frame.empty:
-        return ''
+        return ""
     cols = list(frame.columns)
     max_abs: dict[str, float] = {}
     for column in cols:
         kind = infer_numeric_kind(column)
-        if kind == 'text' or not _heat_eligible(column):
+        if kind == "text" or not _heat_eligible(column):
             continue
-        numeric = pd.to_numeric(frame[column], errors='coerce').abs().dropna()
+        numeric = pd.to_numeric(frame[column], errors="coerce").abs().dropna()
         max_abs[column] = float(numeric.max()) if not numeric.empty else 0.0
 
-    head = ''.join(f'<th>{escape(str(column))}</th>' for column in cols)
+    head = "".join(f"<th>{escape(str(column))}</th>" for column in cols)
     body: list[str] = []
     for _, row in frame.iterrows():
         cells: list[str] = []
         for column in cols:
             kind = infer_numeric_kind(column)
             raw = row.get(column)
-            if kind == 'text':
+            if kind == "text":
                 if raw is None or (isinstance(raw, float) and pd.isna(raw)):
-                    text = '—'
+                    text = "—"
                 else:
                     text = escape(str(raw))
-                cells.append(f'<td>{text}</td>')
+                cells.append(f"<td>{text}</td>")
             else:
-                style = _heat_style(raw, max_abs.get(column, 0.0)) if _heat_eligible(column) else ''
+                style = _heat_style(raw, max_abs.get(column, 0.0)) if _heat_eligible(column) else ""
                 cells.append(f'<td class="num" style="{style}">{format_numeric(raw, kind)}</td>')
-        body.append('<tr>' + ''.join(cells) + '</tr>')
+        body.append("<tr>" + "".join(cells) + "</tr>")
 
-    max_height = f'max-height:{int(height)}px;' if height else ''
+    max_height = f"max-height:{int(height)}px;" if height else ""
     return (
         '<div class="tre-dca-static-table"><style>'
         '.tre-dca-static-table{overflow:auto;width:100%;' + max_height + '}'
@@ -118,13 +202,48 @@ def static_table_html(value: Any, *, height: int | None = None) -> str:
     )
 
 
+def _default_editor_column_config(frame: pd.DataFrame) -> dict[str, Any]:
+    config: dict[str, Any] = {}
+    for column in frame.columns:
+        kind = infer_numeric_kind(str(column))
+        if kind == "amount_bil":
+            config[column] = st.column_config.NumberColumn(str(column), format="%.0f", help="Đơn vị: tỷ đồng; 0 số lẻ.")
+        elif kind == "percent":
+            config[column] = st.column_config.NumberColumn(str(column), format="%.1f%%", help="Đơn vị: %; 1 số lẻ.")
+        elif kind == "ratio":
+            config[column] = st.column_config.NumberColumn(str(column), format="%.1f", help="Hệ số; 1 số lẻ.")
+        elif kind == "days":
+            config[column] = st.column_config.NumberColumn(str(column), format="%.1f", help="Số ngày; 1 số lẻ.")
+    return config
+
+
+def sortable_data_editor(value: Any, **kwargs: Any):
+    """Editable table with explicit sort selector plus Trecapital numeric formatting."""
+    frame = _coerce_frame(value)
+    editor_key = kwargs.get("key")
+    sorted_frame = interactive_sort_frame(frame, key=f"editor_{editor_key}" if editor_key else None)
+    defaults = _default_editor_column_config(sorted_frame)
+    provided = kwargs.get("column_config")
+    if isinstance(provided, dict):
+        defaults.update(provided)
+    if defaults:
+        kwargs["column_config"] = defaults
+    return st.data_editor(sorted_frame, **kwargs)
+
+
 def render_static_table(value: Any, **kwargs: Any) -> None:
+    """Read-only table with explicit user-selectable sort and locked display format."""
     frame = _coerce_frame(value)
     if frame.empty:
-        st.caption('Chưa có dữ liệu.')
+        st.caption("Chưa có dữ liệu.")
         return
-    height = kwargs.get('height')
+    sort_key = kwargs.pop("sort_key", None) or kwargs.pop("key", None)
+    frame = interactive_sort_frame(frame, key=f"static_{sort_key}" if sort_key else None)
+    height = kwargs.get("height")
     st.html(static_table_html(frame, height=int(height) if height else None))
 
 
-__all__ = ['format_numeric', 'infer_numeric_kind', 'render_static_table', 'static_table_html']
+__all__ = [
+    "format_numeric", "infer_numeric_kind", "interactive_sort_frame", "render_static_table",
+    "sort_frame", "sortable_data_editor", "static_table_html",
+]
