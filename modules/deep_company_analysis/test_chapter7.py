@@ -73,11 +73,29 @@ def test_q38_transaction_types_are_not_buy_sell_signal_fields():
     assert "sell signal" not in joined
 
 
-def test_event_as_of_workspace_has_no_fake_ttm_defaults():
+def test_event_as_of_workspace_has_no_fake_ttm_rows_or_period_columns():
     payload = ch7.empty_payload("VCB")
-    text = str(payload).upper()
-    assert "TTM" not in text
-    assert "T12M" not in text
+    event_tables = [
+        payload["management_profiles"],
+        payload["outside_transitions"],
+        payload["career_timeline"],
+        payload["compensation_history"],
+        payload["ownership_history"],
+        payload["insider_transactions"],
+        payload["management_events"],
+    ]
+    assert all(table == [] for table in event_tables)
+    column_text = " ".join(
+        ch7.MANAGEMENT_PROFILE_COLUMNS
+        + ch7.OUTSIDE_TRANSITION_COLUMNS
+        + ch7.CAREER_TIMELINE_COLUMNS
+        + ch7.COMPENSATION_HISTORY_COLUMNS
+        + ch7.OWNERSHIP_HISTORY_COLUMNS
+        + ch7.INSIDER_TRANSACTION_COLUMNS
+        + ch7.EVENT_COLUMNS
+    ).upper()
+    assert "TTM" not in column_text
+    assert "T12M" not in column_text
     assert "As-of Date" in ch7.OWNERSHIP_HISTORY_COLUMNS
     assert "Transaction Date" in ch7.INSIDER_TRANSACTION_COLUMNS
     assert "Year" in ch7.COMPENSATION_HISTORY_COLUMNS
