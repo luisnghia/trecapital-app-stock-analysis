@@ -1,5 +1,5 @@
 name: Finalize Chapter 7 Phase 7B V35 — Structured Data Bridge + QA
-# rerun 3: migration syntax repaired; Vietnamese title normalization + stable boundary contract
+# rerun 4: preserve Phase 7A completion-gate regression lock
 
 on:
   push:
