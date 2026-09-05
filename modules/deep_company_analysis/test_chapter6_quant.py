@@ -95,6 +95,9 @@ def test_q28_never_infers_recurring_share():
 
 def test_dol_keeps_invalid_rows_visible_and_excludes_them_from_median():
     df = _sample_rows().copy()
+    # Explicit float dtype keeps the edge-case mutation compatible with future pandas versions.
+    df["revenue_bil"] = pd.to_numeric(df["revenue_bil"], errors="coerce").astype(float)
+    df["core_operating_profit_bil"] = pd.to_numeric(df["core_operating_profit_bil"], errors="coerce").astype(float)
     # Create one near-flat revenue period and one EBIT sign shift.
     df.loc[df.index[3], "revenue_bil"] = df.loc[df.index[2], "revenue_bil"] * 1.005
     df.loc[df.index[5], "core_operating_profit_bil"] = -20.0
