@@ -1,0 +1,31 @@
+name: Discover Phase 6C Sources V32
+
+on:
+  push:
+    branches: [feature/deep-company-analysis-chapter6]
+    paths: ['.github/workflows/discover-phase6c-sources-v32.yml']
+permissions:
+  contents: read
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-chapter6
+          fetch-depth: 0
+      - name: Locate manipulation and evidence infrastructure
+        shell: bash
+        run: |
+          echo '=== MANIPULATION / BENEISH / DECHOW / REM ==='
+          grep -RIn --exclude-dir=.git --include='*.py' -E 'Beneish|M-Score|M_Score|m_score|Dechow|Jones|REM|manipulat|thao túng|fraud' . | head -n 500 || true
+          echo '=== EVIDENCE AGENTS ==='
+          grep -RIn --exclude-dir=.git --include='*.py' -E 'class .*Evidence|EvidenceAgent|evidence_quality|research_gaps|counter.evidence|candidate' modules/deep_company_analysis | head -n 400 || true
+          echo '=== LIKELY DATA CACHE / REPORT FILES ==='
+          find . -maxdepth 4 -type f | grep -Ei 'beneish|dechow|jones|rem|manip|fraud|evidence|disclosure' | head -n 400 || true
+          echo '=== CH4/CH5 EVIDENCE FILE HEADERS ==='
+          for f in modules/deep_company_analysis/chapter4_evidence*.py modules/deep_company_analysis/chapter5_evidence*.py; do
+            [ -f "$f" ] || continue
+            echo "--- $f ---"
+            sed -n '1,240p' "$f"
+          done
