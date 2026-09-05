@@ -1,4 +1,4 @@
-# V32B rerun after audit import-path hotfix
+# V32C finalizer — corrected Phase6B test path
 name: Finalize Deep Analysis V32 — 3-Pass Audit + TTM + Sort + Phase6C
 
 on:
@@ -66,7 +66,7 @@ jobs:
 
       - name: Audit Pass 2 of 3 — TTM coverage
         run: |
-          pytest -q modules/deep_company_analysis/test_ttm_coverage_v32.py modules/deep_company_analysis/test_chapter6_phase6b.py modules/deep_company_analysis/test_chapter6_phase6b_integration.py
+          pytest -q modules/deep_company_analysis/test_ttm_coverage_v32.py modules/deep_company_analysis/test_chapter6_quant.py modules/deep_company_analysis/test_chapter6_phase6b_integration.py
           python scripts/audit_deep_analysis_v32.py
 
       - name: Audit Pass 3 of 3 — Sortability + Phase6C boundary
