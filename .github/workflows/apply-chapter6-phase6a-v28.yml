@@ -1,0 +1,85 @@
+name: Apply Chapter 6 Phase 6A V28
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter6
+    paths:
+      - '.github/workflows/apply-chapter6-phase6a-v28.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  wire-unified-workspace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-chapter6
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Wire Chapter 6 tab
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py')
+          text = path.read_text(encoding='utf-8')
+
+          old = 'from modules.deep_company_analysis.chapter5_page_support import render_chapter5_tab\n'
+          new = old + 'from modules.deep_company_analysis.chapter6_page_support import render_chapter6_tab\n'
+          if 'chapter6_page_support import render_chapter6_tab' not in text:
+              if old not in text:
+                  raise SystemExit('Chapter 5 import anchor not found')
+              text = text.replace(old, new, 1)
+
+          old_default = '        or st.session_state.get("dca_ch5_ticker")\n        or st.session_state.get("active_ticker")'
+          new_default = '        or st.session_state.get("dca_ch6_ticker")\n        or st.session_state.get("dca_ch5_ticker")\n        or st.session_state.get("active_ticker")'
+          if 'or st.session_state.get("dca_ch6_ticker")' not in text:
+              if old_default not in text:
+                  raise SystemExit('Default ticker anchor not found')
+              text = text.replace(old_default, new_default, 1)
+
+          old_tabs = '''chapter1_tab, chapter2_tab, chapter3_tab, chapter4_tab, chapter5_tab = st.tabs([\n    "📗 Chương 1 — Cơ hội đầu tư",\n    "📘 Chương 2 — Hiểu doanh nghiệp",\n    "📙 Chương 3 — Góc nhìn khách hàng",\n    "📕 Chương 4 — Lợi thế & ngành",\n    "📒 Chương 5 — Hoạt động & tài chính",\n])'''
+          new_tabs = '''chapter1_tab, chapter2_tab, chapter3_tab, chapter4_tab, chapter5_tab, chapter6_tab = st.tabs([\n    "📗 Chương 1 — Cơ hội đầu tư",\n    "📘 Chương 2 — Hiểu doanh nghiệp",\n    "📙 Chương 3 — Góc nhìn khách hàng",\n    "📕 Chương 4 — Lợi thế & ngành",\n    "📒 Chương 5 — Hoạt động & tài chính",\n    "📓 Chương 6 — Earnings & dòng tiền",\n])'''
+          if 'chapter6_tab = st.tabs' not in text and 'chapter5_tab, chapter6_tab = st.tabs' not in text:
+              if old_tabs not in text:
+                  raise SystemExit('Tabs anchor not found')
+              text = text.replace(old_tabs, new_tabs, 1)
+
+          old_end = '''    render_chapter5_tab(chapter5_ticker)\n\napply_full_width()'''
+          new_end = '''    render_chapter5_tab(chapter5_ticker)\n\nwith chapter6_tab:\n    chapter6_ticker = _safe_ticker(\n        str(\n            st.session_state.get("dca_ch6_ticker")\n            or st.session_state.get("dca_ch5_ticker")\n            or st.session_state.get("dca_ch4_ticker")\n            or st.session_state.get("dca_ch3_ticker")\n            or st.session_state.get("dca_ch2_ticker")\n            or st.session_state.get("dca_ch1_ticker")\n            or st.session_state.get("active_ticker")\n            or default_ticker\n        )\n    ) or default_ticker\n    render_chapter6_tab(chapter6_ticker)\n\napply_full_width()'''
+          if 'render_chapter6_tab(chapter6_ticker)' not in text:
+              if old_end not in text:
+                  raise SystemExit('Page footer anchor not found')
+              text = text.replace(old_end, new_end, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Compile and test before commit
+        run: |
+          python -m py_compile \
+            pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
+            modules/deep_company_analysis/chapter6.py \
+            modules/deep_company_analysis/chapter6_page_support.py
+          python -m pytest -q modules/deep_company_analysis/test_chapter6.py
+      - name: Commit unified Chapter 6 tab
+        run: |
+          if git diff --quiet -- pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py; then
+            echo 'No page changes required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+          git commit -m 'feat(ch6): add Chapter 6 tab to unified deep analysis workspace'
+          git push origin HEAD:feature/deep-company-analysis-chapter6
