@@ -1047,6 +1047,18 @@ def list_conflicts(ticker: str, status: str | None = None) -> list[dict[str, Any
     return [dict(row) for row in rows]
 
 
+def resolve_conflict(conflict_id: int, status: str = "Resolved") -> None:
+    """Analyst-owned conflict disposition. No candidate or Chapter-7 conclusion is modified here."""
+    init_bridge_db()
+    allowed = {"Resolved", "Accepted residual uncertainty", "Needs analyst review"}
+    final_status = status if status in allowed else "Resolved"
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE chapter7_data_conflicts SET status=?,updated_at=? WHERE id=?",
+            (final_status, _now(), int(conflict_id)),
+        )
+
+
 def list_review_queue(ticker: str, status: str | None = "Open") -> list[dict[str, Any]]:
     init_bridge_db()
     sql = "SELECT * FROM chapter7_review_queue WHERE ticker=?"
@@ -1141,6 +1153,6 @@ __all__ = [
     "suggest_identity_matches", "normalize_role", "parse_date_with_precision", "normalize_structured_row",
     "register_source", "list_sources", "ingest_structured_rows", "parse_structured_bytes", "fetch_structured_source",
     "refresh_registered_sources", "scan_local_sources", "list_candidates", "candidate_review_frame", "apply_candidate_ids",
-    "list_conflicts", "list_review_queue", "resolve_review_item", "latest_refresh_runs", "bridge_status_frame",
+    "list_conflicts", "resolve_conflict", "list_review_queue", "resolve_review_item", "latest_refresh_runs", "bridge_status_frame",
     "staleness_warnings",
 ]

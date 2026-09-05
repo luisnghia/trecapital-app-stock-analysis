@@ -34,6 +34,7 @@ from modules.deep_company_analysis.chapter7 import (
 from modules.deep_company_analysis.table_format import render_static_table, sortable_data_editor
 from modules.deep_company_analysis.chapter7_data_bridge_ui import render_structured_management_bridge
 from modules.deep_company_analysis.chapter7_research_ui import render_chapter7_research_assistant
+from modules.deep_company_analysis.chapter7_closure_ui import render_chapter7_final_closure
 
 
 def _safe_ticker(value: str) -> str:
@@ -103,7 +104,7 @@ def _render_source_lock() -> None:
 - Q37 tách **Actual Shares / Options / RSU / ESOP / Unvested Awards**; không cộng thành một ownership number mơ hồ.
 - Q38 insider buy/sell là evidence cần review, không phải Buy/Sell Signal. Heuristic trong sách không phải universal threshold của Trecapital.
 - Dữ liệu chương này chủ yếu là **event/as-of data**. Không tạo TTM giả cho career, ownership, classification hoặc insider event.
-- **AI/Data = Research Assistant; Analyst = người kết luận.** Phase 7B xử lý structured disclosure; Phase 7C research web/PDF/HTML chỉ tạo candidate evidence + research gaps và yêu cầu analyst Promote.
+- **AI/Data = Research Assistant; Analyst = người kết luận.** Phase 7B xử lý structured disclosure; Phase 7C tạo candidate evidence; Phase 7D chỉ kiểm tra source/research completeness và yêu cầu analyst confirmation.
             """
         )
         taxonomy = pd.DataFrame(
@@ -328,7 +329,7 @@ def _render_final_conclusion(ticker: str, payload: dict[str, Any]) -> None:
     payload["critical_unknowns"] = st.text_area("Critical unknowns", value=str(payload.get("critical_unknowns") or ""), key=f"dca7_{ticker}_unknowns")
     payload["evidence_that_would_change_view"] = st.text_area("Evidence that would change my view", value=str(payload.get("evidence_that_would_change_view") or ""), key=f"dca7_{ticker}_change_view")
     payload["analyst_summary"] = st.text_area("Kết luận Chương 7 của analyst", value=str(payload.get("analyst_summary") or ""), key=f"dca7_{ticker}_summary")
-    st.caption("Phase 7A chưa có Chapter 7 Completion Gate chính thức; Phase 7B/7C cũng không tự khóa chương. Final source-closure vẫn thuộc Phase 7D.")
+    st.caption("Phase 7A chưa có Chapter 7 Completion Gate chính thức; Final source-closure vẫn thuộc Phase 7D; Phase 7D hiện triển khai Completion Gate chỉ cho research/source completeness, không phải Investment Research Gate.")
 
 
 def render_chapter7_tab(default_ticker: str = "") -> None:
@@ -342,7 +343,7 @@ def render_chapter7_tab(default_ticker: str = "") -> None:
     )
 
     st.title("👥 Chương 7 — Ban điều hành: Nền tảng & Phân loại")
-    st.caption("Assessing the Quality of Management — Background and Classification: Who Are They? | Phase 7A + 7B structured bridge + 7C Evidence Research Assistant")
+    st.caption("Assessing the Quality of Management — Background and Classification: Who Are They? | Phase 7A + 7B + 7C + 7D Final Source Closure")
     _render_source_lock()
     _render_status_panel(ticker, payload)
 
@@ -369,15 +370,18 @@ def render_chapter7_tab(default_ticker: str = "") -> None:
     with st.container(border=True):
         _render_final_conclusion(ticker, payload)
 
+    with st.container(border=True):
+        payload = render_chapter7_final_closure(ticker, payload)
+
     warnings = research_gap_warnings(payload)
     if warnings:
         st.warning("Consistency / Research Gap:\n\n- " + "\n- ".join(warnings))
 
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("💾 Lưu Chapter 7 — Phase 7A+7B+7C", use_container_width=True, key=f"dca7_{ticker}_save"):
+        if st.button("💾 Lưu Chapter 7 — Phase 7A+7B+7C+7D", use_container_width=True, key=f"dca7_{ticker}_save"):
             save_record(ticker, payload, str(payload.get("company_name") or ""))
-            st.success("Đã lưu Phase 7A+7B+7C. Structured bridge/Research Assistant không ghi đè classification/conclusion của analyst.")
+            st.success("Đã lưu Phase 7A+7B+7C+7D. Data/Research/Closure layers không ghi đè classification/conclusion của analyst.")
     with c2:
         if st.button("📸 Lưu snapshot Chapter 7", use_container_width=True, key=f"dca7_{ticker}_snapshot"):
             snapshot_id = create_snapshot(ticker, payload)

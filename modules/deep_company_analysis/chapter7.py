@@ -20,7 +20,7 @@ import pandas as pd
 
 APP_DIR = Path(__file__).resolve().parents[2]
 DB_PATH = APP_DIR / "data_cache" / "deep_company_analysis_chapter7.db"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 QUESTION_KEYS = ("Q33", "Q34", "Q35", "Q36", "Q37", "Q38")
 QUESTION_STATUS_OPTIONS = ("Unknown", "Partial", "Answered", "N/A")
@@ -281,6 +281,8 @@ CHILD_TABLES: dict[str, str] = {
     "evidence_matrix": "chapter7_evidence",
     "research_gaps_table": "chapter7_research_gaps",
     "management_events": "chapter7_events",
+    "chapter7_final_checklist": "chapter7_final_checklist",
+    "chapter7_residual_unknowns": "chapter7_residual_unknowns",
 }
 
 
@@ -424,6 +426,18 @@ def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
         "phase7a_source_lock_note": "Event/as-of management data; no fabricated TTM. AI/Data is evidence support only; analyst owns classifications and conclusions.",
         "phase7b_bridge_note": "Structured official disclosure bridge uses Raw → Candidate → Analyst Apply; registered != executed; actual shares != options/RSU/ESOP; no auto management conclusion.",
         "phase7c_research_note": "Web/PDF/HTML Research Assistant produces candidate evidence and research gaps only; analyst must explicitly Promote; no auto classification, Management Quality conclusion or insider trading signal.",
+        "phase7d_closure_note": "Final source closure verifies Q33-Q38 research completeness only; no Management Quality score, MOS, investment Research Gate or BUY/HOLD/SELL.",
+        "chapter7_final_checklist": [],
+        "chapter7_residual_unknowns": [],
+        "chapter7_complete_confirmed": False,
+        "chapter7_completion_note": "",
+        "chapter7_completion_as_of": "",
+        "chapter7_completion_version": 0,
+        "chapter7_last_management_review_at": "",
+        "chapter7_last_management_review_result": "",
+        "chapter7_closure_source_snapshot": [],
+        "chapter7_closure_conflict_snapshot": [],
+        "chapter7_closure_review_snapshot": [],
     }
 
 
