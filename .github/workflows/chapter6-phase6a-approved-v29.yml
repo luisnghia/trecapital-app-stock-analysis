@@ -1,0 +1,76 @@
+name: Chapter 6 Approved Phase 6A V29
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter6
+    paths:
+      - 'modules/deep_company_analysis/chapter6.py'
+      - 'modules/deep_company_analysis/chapter6_format.py'
+      - 'modules/deep_company_analysis/chapter6_page_support.py'
+      - 'modules/deep_company_analysis/test_chapter6.py'
+      - 'modules/deep_company_analysis/test_chapter6_format.py'
+      - 'docs/CHAPTER6_PHASE6A_SOURCE_LOCK.md'
+      - 'docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md'
+      - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
+      - '.github/workflows/chapter6-phase6a-approved-v29.yml'
+  pull_request:
+    paths:
+      - 'modules/deep_company_analysis/chapter6.py'
+      - 'modules/deep_company_analysis/chapter6_format.py'
+      - 'modules/deep_company_analysis/chapter6_page_support.py'
+      - 'modules/deep_company_analysis/test_chapter6.py'
+      - 'modules/deep_company_analysis/test_chapter6_format.py'
+      - 'docs/CHAPTER6_PHASE6A_SOURCE_LOCK.md'
+      - 'docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md'
+      - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
+
+permissions:
+  contents: read
+
+jobs:
+  approved-phase6a-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Compile Chapter 6 and unified page
+        run: |
+          python -m compileall -q modules/deep_company_analysis/chapter6.py modules/deep_company_analysis/chapter6_format.py modules/deep_company_analysis/chapter6_page_support.py pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+      - name: Run Chapter 6 approved Phase 6A tests
+        run: |
+          python -m pytest -q modules/deep_company_analysis/test_chapter6.py modules/deep_company_analysis/test_chapter6_format.py
+      - name: Verify approved methodology and format lock
+        run: |
+          grep -q 'APPROVED by analyst/user' docs/CHAPTER6_PHASE6A_SOURCE_LOCK.md
+          grep -q 'Depreciation rough proxy' docs/CHAPTER6_PHASE6A_SOURCE_LOCK.md
+          grep -q 'table-layout: fixed' docs/CHAPTER6_PHASE6A_SOURCE_LOCK.md
+          grep -q '0 decimal places' docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md
+      - name: Run full Deep Company Analysis regression
+        run: |
+          python -m pytest -q modules/deep_company_analysis
+      - name: Smoke-test unified page with Chapter 6
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py --server.headless true --server.port 8516 > /tmp/trecapital_ch6_v29.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8516/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then
+            cat /tmp/trecapital_ch6_v29.log
+            kill "$PID" 2>/dev/null || true
+            exit 1
+          fi
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
