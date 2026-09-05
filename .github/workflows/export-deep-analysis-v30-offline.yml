@@ -1,0 +1,53 @@
+name: Export Deep Analysis V30 Offline
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter6
+    paths:
+      - '.github/workflows/export-deep-analysis-v30-offline.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export-offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-chapter6
+          fetch-depth: 1
+
+      - name: Build offline package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p offline_export/Trecapital_Deep_Analysis_Ch1-Ch6_V30
+          rsync -a \
+            --exclude '.git' \
+            --exclude '.github/workflows/export-deep-analysis-v30-offline.yml' \
+            ./ offline_export/Trecapital_Deep_Analysis_Ch1-Ch6_V30/
+          cat > offline_export/Trecapital_Deep_Analysis_Ch1-Ch6_V30/OFFLINE_BUILD_INFO.txt <<EOF
+          Trecapital Deep Company Analysis Chapters 1-6 — V30 Offline
+          Branch: feature/deep-company-analysis-chapter6
+          Commit: $(git rev-parse HEAD)
+          Exported: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          Phase 6A: Approved / tested
+          Table format lock: V30
+          Money: tỷ đồng, 0 decimals
+          Percentages: 1 decimal
+          Ratios: 1 decimal
+          Static read-only tables: st.html()
+          Editable analyst registers: st.data_editor()
+          EOF
+          cd offline_export
+          zip -qr Trecapital_Deep_Analysis_Ch1-Ch6_V30_Offline.zip Trecapital_Deep_Analysis_Ch1-Ch6_V30
+
+      - name: Upload offline ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Ch1-Ch6_V30_Offline
+          path: offline_export/Trecapital_Deep_Analysis_Ch1-Ch6_V30_Offline.zip
+          if-no-files-found: error
+          compression-level: 0
