@@ -16,6 +16,7 @@ from modules.deep_company_analysis.chapter2_page_support import render_chapter2_
 from modules.deep_company_analysis.chapter3_page_support import render_chapter3_tab
 from modules.deep_company_analysis.chapter4_page_support import render_chapter4_tab
 from modules.deep_company_analysis.chapter5_page_support import render_chapter5_tab
+from modules.deep_company_analysis.chapter6_page_support import render_chapter6_tab
 from modules.investment_checklist.trecapital_bridge import CurrentRepoDataProvider
 from modules.investment_checklist.trecapital_debt_enricher import augment_debt_from_latest_fireant_raw
 from tre_full_width import apply_full_width
@@ -300,6 +301,7 @@ default_ticker = _safe_ticker(
         or st.session_state.get("dca_ch2_ticker")
         or st.session_state.get("dca_ch3_ticker")
         or st.session_state.get("dca_ch4_ticker")
+        or st.session_state.get("dca_ch6_ticker")
         or st.session_state.get("dca_ch5_ticker")
         or st.session_state.get("active_ticker")
         or st.session_state.get("shared_ticker")
@@ -308,12 +310,13 @@ default_ticker = _safe_ticker(
     )
 ) or "DGC"
 
-chapter1_tab, chapter2_tab, chapter3_tab, chapter4_tab, chapter5_tab = st.tabs([
+chapter1_tab, chapter2_tab, chapter3_tab, chapter4_tab, chapter5_tab, chapter6_tab = st.tabs([
     "📗 Chương 1 — Cơ hội đầu tư",
     "📘 Chương 2 — Hiểu doanh nghiệp",
     "📙 Chương 3 — Góc nhìn khách hàng",
     "📕 Chương 4 — Lợi thế & ngành",
     "📒 Chương 5 — Hoạt động & tài chính",
+    "📓 Chương 6 — Earnings & dòng tiền",
 ])
 
 with chapter1_tab:
@@ -425,5 +428,20 @@ with chapter5_tab:
         )
     ) or default_ticker
     render_chapter5_tab(chapter5_ticker)
+
+with chapter6_tab:
+    chapter6_ticker = _safe_ticker(
+        str(
+            st.session_state.get("dca_ch6_ticker")
+            or st.session_state.get("dca_ch5_ticker")
+            or st.session_state.get("dca_ch4_ticker")
+            or st.session_state.get("dca_ch3_ticker")
+            or st.session_state.get("dca_ch2_ticker")
+            or st.session_state.get("dca_ch1_ticker")
+            or st.session_state.get("active_ticker")
+            or default_ticker
+        )
+    ) or default_ticker
+    render_chapter6_tab(chapter6_ticker)
 
 apply_full_width()
