@@ -423,6 +423,7 @@ def empty_payload(ticker: str = "", company_name: str = "") -> dict[str, Any]:
         "analyst_summary": "",
         "phase7a_source_lock_note": "Event/as-of management data; no fabricated TTM. AI/Data is evidence support only; analyst owns classifications and conclusions.",
         "phase7b_bridge_note": "Structured official disclosure bridge uses Raw → Candidate → Analyst Apply; registered != executed; actual shares != options/RSU/ESOP; no auto management conclusion.",
+        "phase7c_research_note": "Web/PDF/HTML Research Assistant produces candidate evidence and research gaps only; analyst must explicitly Promote; no auto classification, Management Quality conclusion or insider trading signal.",
     }
 
 
