@@ -2,7 +2,12 @@
 
 ## Boundary
 
-Chapter 5 Phase 5B **consumes Trecapital canonical normalized statements**. It does not create a second financial source-of-truth. `Trecapital Canonical ROIC` remains the authoritative canonical ROIC. All other ROIC rows are explicitly analytical views inspired by the issues Michael Shearn asks the analyst to examine.
+Chapter 5 consumes **Trecapital canonical normalized statements**. It does not create a second financial source-of-truth.
+
+Two ROIC methodologies are intentionally kept separate:
+
+1. **Trecapital Canonical ROIC** — authoritative app-wide metric from the canonical Data Layer. Chapter 5 reads it directly and never recalculates or overwrites it.
+2. **Shearn Analytical ROIC Views** — source-locked Chapter-5 analytical views based on Michael Shearn's basic equation: **Adjusted EBIT / Average Adjusted Invested Capital**.
 
 No formula in this document is a BUY/HOLD/SELL rule or an automatic quality score.
 
@@ -26,59 +31,115 @@ A missing input produces `Unknown/—`; the app does not fill it with an estimat
 
 **No fixed leverage threshold is an automatic Strong/Weak Balance Sheet conclusion.** Business cyclicality and cash-flow stability still matter.
 
-## Q26 — canonical and analytical ROIC views
+# Q26 — ROIC methodology
 
-### 1. Trecapital Canonical ROIC
+## 1. Trecapital Canonical ROIC
 
-Read directly from Trecapital canonical normalized data. Phase 5B does not recalculate or overwrite it.
+`Trecapital Canonical ROIC` is read directly from the canonical normalized Data Layer. Chapter 5 does not alter its numerator or denominator.
 
-### 2. Analytical NOPAT proxy
+The canonical metric may use NOPAT / Average Invested Capital according to the app-wide canonical methodology. That is deliberately separate from the Shearn analytical views below.
 
-When canonical/normalized NOPAT is present, use it. Otherwise, and only when EBIT, tax expense and pretax profit are all available:
+## 2. Michael Shearn source-locked basic equation
 
-`Effective Tax Rate = |Tax Expense| / Pretax Profit`, capped to 0%–60% for data-error containment.
+In Chapter 5, **Methods of Calculating ROIC**, Shearn states the basic equation as:
 
-`Analytical NOPAT Proxy = EBIT × (1 − Effective Tax Rate)`.
+`ROIC = Earnings Before Interest and Taxes / Invested Capital`
 
-If those inputs are absent, NOPAT stays unknown. The engine does not assume a tax rate.
+The app therefore uses **Adjusted EBIT**, not NOPAT, for every row whose `Origin = Shearn analytical`.
 
-### 3. ROIC with cash
+Shearn's investment-base framework is represented as:
 
-`ROIC with cash = NOPAT / Average(Equity + Interest-bearing Debt)`.
+`Invested Capital = Total Assets − Excess Cash ± Accumulated Amortization and Depreciation ± Goodwill / Other Intangibles + Off-Balance-Sheet Items − Non-Interest-Bearing Current Liabilities`
 
-This is an analytical total-financing-capital view.
+The `±` items depend on the analytical view selected. Shearn explicitly notes that there is no single universally accepted ROIC calculation and that the calculation should be adapted to the business being analyzed.
 
-### 4. ROIC ex excess cash
+### Average investment base is mandatory
 
-`ROIC ex excess cash = NOPAT / [Average Total Financing Capital − Analyst-confirmed Excess Cash]`.
+Shearn warns against using one quarter-end snapshot and asks the analyst to use **average amounts for the investment base**. Therefore the source-locked analytical rows use two-period average investment-base amounts when the necessary inputs exist.
 
-**The app never assumes all cash is excess cash.** If the analyst has not explicitly included an `Excess cash` adjustment in the Q26 adjustment register, this variant is not calculated.
+If the prior-period investment base is unavailable, the Shearn analytical row remains `Unknown`; the engine does not silently replace an average with a single-period denominator.
 
-### 5. ROIC including goodwill
+## 3. Shearn numerator — Adjusted EBIT
 
-Uses the ex-excess-cash capital base **without removing goodwill**. It is only computed when the excess-cash base is available.
+Base numerator:
 
-### 6. ROIC ex goodwill
+`Adjusted EBIT = Canonical EBIT / Operating Profit + Analyst-confirmed signed numerator adjustments`
 
-`ROIC ex goodwill = NOPAT / [Ex-excess-cash capital base − Average Goodwill]`.
+The goal is to isolate earnings from core operations before financing and tax effects.
 
-This is a tangible operating-return view. It does not erase the economic fact that management may have paid goodwill in an acquisition; both views must be considered.
+The app does **not** use an effective-tax-rate/NOPAT proxy for Shearn analytical rows.
 
-### 7. Gross-asset adjusted ROIC
+### Analyst numerator adjustments
 
-When both Gross PP&E and Net PP&E are available:
+The Q26 adjustment register may contain explicitly included numerator adjustments for non-recurring/restructuring/impairment/amortization or other analyst-identified items.
 
-`Adjusted capital base = Ex-excess-cash capital base + max(0, Average Gross PP&E − Average Net PP&E)`.
+- Positive `Amount` **adds** to EBIT.
+- Negative `Amount` **subtracts** from EBIT.
+- The app does not decide the sign for the analyst.
+- A row must explicitly target `Numerator` or `Both` and be marked Included before it affects Adjusted EBIT.
 
-`Gross-asset adjusted ROIC = NOPAT / Adjusted capital base`.
+This preserves auditability and avoids automatic normalization guesses.
 
-This is a diagnostic for depreciation/aging-asset distortion, not a new canonical ROIC.
+## 4. Non-interest-bearing current liabilities (NIBCL)
 
-### 8. Off-balance-sheet adjusted ROIC
+The Shearn investment base deducts non-interest-bearing current liabilities.
 
-`Adjusted capital base = Ex-excess-cash capital base + Analyst-confirmed Off-Balance-Sheet Obligations`.
+The engine uses the following order:
 
-The adjustment is only used if the analyst explicitly marks it Included in Q26. No lease/pension/other obligation is invented.
+1. explicit canonical/normalized NIBCL field, when available;
+2. otherwise: `Current Liabilities − Short-term Interest-bearing Debt`, but only when both fields are explicitly available;
+3. if canonical interest-bearing debt is explicitly zero, Current Liabilities may be treated as NIBCL;
+4. otherwise NIBCL remains Unknown.
+
+The app does **not** assume all current liabilities are non-interest-bearing.
+
+## 5. ROIC with cash
+
+This is the comparison view before removing excess cash:
+
+`ROIC with cash = Adjusted EBIT / Average[Total Assets − NIBCL]`
+
+Cash remains inside Total Assets.
+
+## 6. ROIC ex excess cash — Shearn core operating view
+
+`ROIC ex excess cash = Adjusted EBIT / [Average(Total Assets − NIBCL) − Analyst-confirmed Excess Cash]`
+
+**The app never assumes all cash is excess cash.** If the analyst has not explicitly included an Excess Cash adjustment, this row remains Unknown.
+
+## 7. ROIC including goodwill
+
+Total Assets already includes goodwill/intangibles. Therefore:
+
+`ROIC including goodwill = Adjusted EBIT / Ex-excess-cash investment base with goodwill retained`
+
+This view preserves acquisition capital in the denominator.
+
+## 8. ROIC ex goodwill
+
+`ROIC ex goodwill = Adjusted EBIT / [Ex-excess-cash investment base − Average Goodwill]`
+
+This is a tangible operating-return view. It must be considered alongside the including-goodwill view so acquisition overpayment is not hidden.
+
+## 9. Gross-asset adjusted ROIC
+
+When both Gross PP&E and Net PP&E are available, the bridge uses the diagnostic proxy:
+
+`Accumulated Depreciation Proxy = max(0, Average Gross PP&E − Average Net PP&E)`
+
+`Gross-asset Adjusted Capital Base = Ex-excess-cash investment base + Accumulated Depreciation Proxy`
+
+`Gross-asset adjusted ROIC = Adjusted EBIT / Gross-asset Adjusted Capital Base`
+
+This is a diagnostic implementation of Shearn's gross-vs-net-asset discussion. It is not a new canonical ROIC.
+
+## 10. Off-balance-sheet adjusted ROIC
+
+`Off-BS Adjusted Capital Base = Ex-excess-cash investment base + Analyst-confirmed material Off-Balance-Sheet Capital`
+
+`ROIC off-BS adjusted = Adjusted EBIT / Off-BS Adjusted Capital Base`
+
+The adjustment is used only when the analyst explicitly includes it. No lease, pension, securitized receivable or other obligation is invented.
 
 ## ROIC distortion diagnostics
 
@@ -90,12 +151,24 @@ The bridge surfaces **review diagnostics only**:
 
 The last rule is a **Trecapital diagnostic heuristic**, not a rule stated by Shearn and not an automatic quality conclusion.
 
-## Reinvestment / incremental-return context
+## Reinvestment / incremental-return context — Trecapital extension
 
-Trecapital extension:
+The separate reinvestment context remains a Trecapital analytical extension and is **not the Shearn basic ROIC formula**:
 
 - `ΔNOPAT = NOPAT(t) − NOPAT(t-1)`.
 - `ΔInvested Capital = Invested Capital(t) − Invested Capital(t-1)`.
 - `Incremental ROIC = ΔNOPAT / ΔInvested Capital`, only when ΔInvested Capital > 0.
 
-Invested Capital uses a canonical normalized invested-capital field when available; otherwise the bridge may use the descriptive proxy `Equity + Debt − Cash` and labels the output as a proxy. Incremental ROIC is highly sensitive to cyclicality and base effects, so it is analyst context only and never a compounder score.
+Invested Capital uses a canonical normalized invested-capital field when available; otherwise the bridge may use the descriptive proxy `Equity + Debt − Cash` and labels the output as a proxy.
+
+Incremental ROIC is highly sensitive to cyclicality and base effects. It is analyst context only and never a compounder score.
+
+## Hard boundary
+
+The app must never:
+
+- replace Trecapital Canonical ROIC with a Shearn analytical variant;
+- use NOPAT in a row labelled `Shearn analytical`;
+- assume all cash is excess cash;
+- invent NIBCL, goodwill, off-BS capital or numerator adjustments;
+- infer High-quality ROIC, Compounder, Research Gate, BUY/HOLD/SELL from any ROIC threshold.
