@@ -172,11 +172,12 @@ def build_q27_accounting_quality(df: pd.DataFrame, years: int = 10) -> tuple[pd.
         cfo = _cfo(row)
         ratio = _ratio(cfo, ni) if ni is not None and ni > 0 else None
         gap = (cfo - ni) if cfo is not None and ni is not None else None
-        if cfo is not None and ni is not None:
+        overlapping_ttm = _is_ttm(row)
+        if cfo is not None and ni is not None and not overlapping_ttm:
             cumulative_cfo += cfo
             cumulative_ni += ni
             cumulative_count += 1
-        cumulative_ratio = _ratio(cumulative_cfo, cumulative_ni) if cumulative_count and cumulative_ni > 0 else None
+        cumulative_ratio = _ratio(cumulative_cfo, cumulative_ni) if cumulative_count and cumulative_ni > 0 and not overlapping_ttm else None
 
         provision, provision_field = _pick_with_field(row, "tax_expense_bil", "income_tax_expense_bil")
         current_tax, current_tax_field = _pick_with_field(
@@ -198,8 +199,8 @@ def build_q27_accounting_quality(df: pd.DataFrame, years: int = 10) -> tuple[pd.
             "CFO (tỷ)": cfo,
             "CFO/NI (x)": ratio,
             "CFO - NI (tỷ)": gap,
-            "Cumulative CFO (tỷ)": cumulative_cfo if cumulative_count else None,
-            "Cumulative NI (tỷ)": cumulative_ni if cumulative_count else None,
+            "Cumulative CFO (tỷ)": cumulative_cfo if cumulative_count and not overlapping_ttm else None,
+            "Cumulative NI (tỷ)": cumulative_ni if cumulative_count and not overlapping_ttm else None,
             "Cumulative CFO/NI (x)": cumulative_ratio,
             "Tax Provision (tỷ)": abs(provision) if provision is not None else None,
             "Current Tax (tỷ)": abs(current_tax) if current_tax is not None else None,

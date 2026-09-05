@@ -2,7 +2,7 @@
 
 Source framework: Michael Shearn, *The Investment Checklist*, Chapter 6 — **Evaluating the Distribution of Earnings (Cash Flows)**.
 
-Status: **APPROVED Phase 6A source lock**. Computed metrics are deferred to Phase 6B unless explicitly noted.
+Status: **APPROVED Phase 6A source lock + IMPLEMENTED Phase 6B canonical quantitative bridge (V31)**.
 
 ## Core rule
 
@@ -205,3 +205,52 @@ Display format follows Trecapital project rules:
 ## Missing-data rule
 
 Missing inputs must produce `Unknown`, `N/A`, or a documented coarse proxy. Missing data must never be interpreted as evidence of quality.
+
+## Phase 6B implementation lock — V31
+
+The production bridge reads only the active Trecapital canonical overview/year/quarter bundle and appends TTM through the existing Module-1 path. It does not fetch a second financial dataset.
+
+### Q27 implementation
+
+- Annual and valid TTM rows may display `CFO/NI` and `CFO - NI`.
+- Cumulative CFO/NI is **annual-only**; an overlapping TTM row is never added on top of annual history.
+- Current-tax comparison is calculated only from a separately mapped current-tax-expense field. `tax_paid_bil` is **not** substituted for current-tax expense.
+- Missing current-tax expense therefore remains `N/A`.
+
+### Q28 implementation
+
+Phase 6B exposes only explicit canonical fields such as `recurring_revenue_pct`, `contracted_revenue_pct` or `subscription_revenue_pct` if such fields truly exist in the canonical row. Otherwise the table remains empty/Unknown. No observed repeat-sales pattern is converted into a recurring-revenue percentage.
+
+### Q29 implementation
+
+Historical context includes revenue, EBIT, revenue growth, EBIT growth, gross/EBIT margins, and drawdown from the running historical peak. These are variability diagnostics only.
+
+### Q30 implementation
+
+`Historical DOL = %Δ EBIT / %Δ Revenue`
+
+A row is retained but marked `Invalid` when revenue growth is undefined, absolute revenue change is below 1.0%, or current/prior EBIT is non-positive/sign-shifted. Invalid rows do not enter median, downside-median or upside-median DOL.
+
+### Q31 implementation
+
+`OWC = Operating Current Assets - Operating Current Liabilities`
+
+`ΔOWC = OWC_t - OWC_(t-1)`
+
+`Cash impact from ΔOWC = -ΔOWC`
+
+Therefore positive cash impact means cash released and negative cash impact means cash absorbed. The bridge displays the canonical CFS working-capital change beside the balance-sheet-derived cash impact and exposes the reconciliation gap rather than silently forcing them to match.
+
+DSO/DIO/DPO prefer average current/prior balances. Canonical day metrics are used only as a labelled fallback when average-balance inputs are insufficient. Banks, insurers, securities firms and other identified financial-service businesses are marked `N/A — not economically applicable` for CCC/OWC analysis rather than being forced through an industrial-company formula.
+
+### Q32 implementation
+
+- Total Capex is displayed as expenditure magnitude.
+- `Capex/Revenue`, `Capex/D&A`, canonical/transparent FCF and Net/Gross PP&E are diagnostics.
+- Chapter 6 **does not import Module-1 `maintenance_capex_bil`** because upstream Owner-Earnings logic may contain a generic proxy. That proxy is not allowed to become a Chapter-6 maintenance-capex fact.
+- Chapter-6 maintenance capex remains: company disclosure → analyst estimate with evidence → explicitly selected D&A rough proxy → Unknown.
+
+### Analyst boundary
+
+Phase 6B never changes Q27–Q32 analyst assessments, final Earnings/Cash-flow Distribution Width, MOS, Research Gate or BUY/HOLD/SELL. Quantitative context is evidence only.
+

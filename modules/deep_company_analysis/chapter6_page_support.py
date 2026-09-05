@@ -13,6 +13,12 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+import module1_dashboard as m1
+from module1_engine import append_ttm_row
+from modules.deep_company_analysis.chapter2_page_support import _active_paths, _path_signature
+from modules.deep_company_analysis.table_format import format_numeric, render_static_table
+from modules.deep_company_analysis.chapter6_quant import build_chapter6_quant_context
+
 from modules.deep_company_analysis.chapter6 import (
     ACCOUNTING_QUALITY_COLUMNS,
     CAPEX_COLUMNS,
@@ -183,10 +189,207 @@ def _editor(
     return _rows(edited)
 
 
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _chapter6_quant_cached(
+    ticker: str,
+    overview_path: str,
+    year_path: str,
+    quarter_path: str,
+    overview_sig: tuple[int, int],
+    year_sig: tuple[int, int],
+    quarter_sig: tuple[int, int],
+    source_label: str,
+):
+    del overview_sig, year_sig, quarter_sig
+    safe = _safe_ticker(ticker)
+    company = m1._load_overview_cached(overview_path, safe)
+    annual_raw = m1._load_timeseries_cached(year_path, safe, "Y", 11)
+    quarterly = m1._load_timeseries_cached(quarter_path, safe, "Q", 20)
+    annual_and_ttm = append_ttm_row(annual_raw, quarterly)
+    return build_chapter6_quant_context(
+        safe,
+        str(getattr(company, "company_name", "") or getattr(company, "name", "") or ""),
+        annual_and_ttm,
+        industry=str(getattr(company, "industry", "") or ""),
+        sub_industry=str(getattr(company, "sub_industry", "") or ""),
+        source_label=source_label,
+        years=10,
+    )
+
+
+def _load_chapter6_quant(ticker: str):
+    safe = _safe_ticker(ticker)
+    paths, source_label = _active_paths(safe)
+    if not paths:
+        return None, f"{safe}: chưa có canonical statement cache trên máy."
+    overview, year, quarter = paths
+    try:
+        ctx = _chapter6_quant_cached(
+            safe,
+            str(overview), str(year), str(quarter),
+            _path_signature(overview), _path_signature(year), _path_signature(quarter),
+            source_label,
+        )
+        if not ctx:
+            return None, f"{safe}: canonical bundle chưa có dữ liệu usable cho Phase 6B."
+        return ctx, ""
+    except Exception as exc:
+        return None, f"{safe}: không dựng được Chapter 6 quantitative context: {exc}"
+
+
+def _refresh_chapter6_canonical(ticker: str) -> tuple[bool, str]:
+    safe = _safe_ticker(ticker)
+    try:
+        st.session_state["last_query_ticker"] = safe
+        st.session_state["last_query_source"] = "FireAnt + Vietstock"
+        m1._search_and_bind(safe, "FireAnt + Vietstock")
+        checker = getattr(m1, "_active_bundle_has_data_for_ticker", None)
+        ok = bool(checker(safe)) if callable(checker) else _safe_ticker(str(st.session_state.get("active_ticker", ""))) == safe
+        if ok:
+            for key in ("active_ticker", "shared_ticker", "module1_ticker", "module2_ticker"):
+                st.session_state[key] = safe
+            _chapter6_quant_cached.clear()
+            return True, f"Đã cập nhật Trecapital canonical data cho {safe}."
+        return False, f"Chưa lấy được canonical data cho {safe}; Chương 6 không dùng dữ liệu mã khác thay thế."
+    except Exception as exc:
+        return False, f"Cập nhật canonical data chưa thành công: {exc}"
+
+
+def _metric_value(value: Any, kind: str) -> str:
+    if value is None:
+        return "—"
+    try:
+        if pd.isna(value):
+            return "—"
+    except Exception:
+        pass
+    return format_numeric(value, kind)
+
+
+def _render_phase6b_quantitative_bridge(ticker: str) -> dict[str, Any] | None:
+    safe = _safe_ticker(ticker)
+    ctx, error = _load_chapter6_quant(safe)
+
+    with st.container(border=True):
+        st.markdown("## 📐 Phase 6B — Quantitative Bridge từ Trecapital canonical data")
+        st.caption(
+            "Single Source of Truth: FireAnt/Vietstock/Simplize → Trecapital normalize/validate → canonical dataset → Chapter 6. "
+            "Bridge chỉ tạo evidence định lượng; không tự sửa Q27–Q32, Distribution Width, MOS hay BUY/HOLD/SELL."
+        )
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            if ctx:
+                prov = ctx.get("provenance", {})
+                industry = str(ctx.get("industry") or "—")
+                sub_industry = str(ctx.get("sub_industry") or "—")
+                st.success(
+                    f"{safe} — {ctx.get('company_name') or 'Doanh nghiệp'} | kỳ {ctx.get('latest_period') or '—'} | "
+                    f"{industry} / {sub_industry} | {prov.get('source_label') or 'Trecapital canonical'}"
+                )
+            else:
+                st.warning(error)
+        with c2:
+            if st.button("🔄 Cập nhật canonical data Chương 6", use_container_width=True, key=f"ch6b_refresh_{safe}"):
+                with st.spinner(f"Đang cập nhật canonical data cho {safe}..."):
+                    ok, note = _refresh_chapter6_canonical(safe)
+                (st.success if ok else st.warning)(note)
+                if ok:
+                    st.rerun()
+
+        if not ctx:
+            return None
+
+        warnings = ctx.get("coverage_warnings") or []
+        if warnings:
+            with st.expander(f"⚠ Phase 6B coverage / applicability warnings ({len(warnings)})", expanded=True):
+                for warning in warnings:
+                    st.write(f"- {warning}")
+
+        with st.expander("Q27 — CFO/NI + Accounting-quality diagnostics", expanded=True):
+            table = ctx.get("q27_accounting_quality")
+            if isinstance(table, pd.DataFrame) and not table.empty:
+                render_static_table(table, height=min(430, 90 + 29 * len(table)))
+                summary = ctx.get("q27_summary") or {}
+                cols = st.columns(3)
+                cols[0].metric("Annual periods", int(summary.get("annual_periods") or 0))
+                cols[1].metric("Cumulative CFO/NI", _metric_value(summary.get("cumulative_cfo_to_ni"), "ratio"))
+                cols[2].metric("Current-tax comparison", "Available" if summary.get("tax_comparison_available") else "N/A")
+            st.caption(
+                "CFO/NI là research diagnostic. TTM không được cộng chồng vào cumulative annual CFO/NI. "
+                "tax_paid_bil không bao giờ được dùng thay current-tax expense."
+            )
+
+        with st.expander("Q28 — Explicit recurring-revenue disclosure", expanded=False):
+            table = ctx.get("q28_disclosed_recurring")
+            if isinstance(table, pd.DataFrame) and not table.empty:
+                render_static_table(table, height=min(300, 90 + 29 * len(table)))
+            else:
+                st.info(
+                    "Canonical dataset hiện không có explicit recurring/contracted revenue share. "
+                    "App giữ Unknown và không suy recurring % từ doanh thu lặp lại quan sát được."
+                )
+
+        with st.expander("Q29 — Historical cycle / drawdown context", expanded=True):
+            table = ctx.get("q29_cycle_history")
+            if isinstance(table, pd.DataFrame) and not table.empty:
+                render_static_table(table, height=min(430, 90 + 29 * len(table)))
+            st.caption(
+                "Bảng chỉ mô tả historical variability. Không tự suy GDP/commodity/recession là nguyên nhân và không tự gắn Cyclical / Resistant."
+            )
+
+        with st.expander("Q30 — Historical Operating Leverage (DOL)", expanded=True):
+            table = ctx.get("q30_dol_history")
+            if isinstance(table, pd.DataFrame) and not table.empty:
+                render_static_table(table, height=min(430, 90 + 29 * len(table)))
+            summary = ctx.get("q30_summary") or {}
+            cols = st.columns(4)
+            cols[0].metric("Valid DOL periods", int(summary.get("valid_observations") or 0))
+            cols[1].metric("Median DOL", _metric_value(summary.get("median_dol"), "ratio"))
+            cols[2].metric("Downside median", _metric_value(summary.get("downside_median_dol"), "ratio"))
+            cols[3].metric("Upside median", _metric_value(summary.get("upside_median_dol"), "ratio"))
+            st.caption(
+                "DOL = %Δ EBIT / %Δ Revenue. Revenue gần như không đổi hoặc EBIT ≤ 0/sign shift được giữ trên bảng là Invalid, "
+                "không bị ẩn và không tham gia median."
+            )
+
+        with st.expander("Q31 — Working Capital / CCC 5–10 năm", expanded=True):
+            summary = ctx.get("q31_summary") or {}
+            if not summary.get("applicable", True):
+                st.warning(summary.get("status") or "N/A — not economically applicable")
+                st.caption(summary.get("reason") or "")
+            else:
+                table = ctx.get("q31_working_capital")
+                if isinstance(table, pd.DataFrame) and not table.empty:
+                    render_static_table(table, height=min(460, 90 + 29 * len(table)))
+                st.info(summary.get("cash_sign_convention") or "Cash impact = -ΔOWC.")
+                st.caption(summary.get("reconciliation_note") or "")
+            st.caption("Không tự kết luận CCC thấp hoặc negative working capital là tốt. Analyst phải xem business mechanism và tính bền vững.")
+
+        with st.expander("Q32 — Capex intensity / D&A / FCF / PP&E age diagnostic", expanded=True):
+            table = ctx.get("q32_capex_history")
+            if isinstance(table, pd.DataFrame) and not table.empty:
+                render_static_table(table, height=min(460, 90 + 29 * len(table)))
+            summary = ctx.get("q32_summary") or {}
+            cols = st.columns(3)
+            cols[0].metric("Median Capex/Revenue", _metric_value(summary.get("median_capex_to_revenue_pct"), "percent"))
+            cols[1].metric("Median Capex/D&A", _metric_value(summary.get("median_capex_to_da"), "ratio"))
+            cols[2].metric("Sector relevance", str(summary.get("relevance") or "—"))
+            st.warning(summary.get("maintenance_capex_guardrail") or "Maintenance capex remains analyst/source driven.")
+
+        with st.expander("🔎 Phase 6B provenance & formula audit", expanded=False):
+            table = ctx.get("provenance_table")
+            if isinstance(table, pd.DataFrame) and not table.empty:
+                render_static_table(table, height=360)
+            st.write(ctx.get("provenance") or {})
+            st.caption("Formula methodology: docs/formulas/DEEP_COMPANY_ANALYSIS_CHAPTER6_FORMULAS.md")
+
+    return ctx
+
 def render_chapter6_tab(default_ticker: str = "") -> None:
     st.subheader("Chương 6 — Đánh giá phân phối lợi nhuận & dòng tiền")
     st.caption(
-        "Michael Shearn Q27–Q32 | Approved Phase 6A: source-locked analyst workspace. "
+        "Michael Shearn Q27–Q32 | Approved Phase 6A + implemented Phase 6B canonical quantitative bridge. "
         "Mục tiêu là hiểu độ rộng/predictability của earnings & cash-flow distribution."
     )
 
@@ -198,7 +401,7 @@ def render_chapter6_tab(default_ticker: str = "") -> None:
 - **Q27:** tìm true operating earnings; kiểm tra tax/book, CFO/NI, revenue recognition, capitalization, discretionary costs, depreciation/estimate changes, restructuring và reserves.
 - **Q28:** phân biệt **Contractual recurring / Behavioral recurring / Repeat purchase / One-off**; không tự suy ra recurring share nếu thiếu disclosure/evidence.
 - **Q29:** cyclical / countercyclical / recession-resistant phải dựa trên company economics, customer cycle, supply/demand và downturn evidence.
-- **Q30:** Phase 6A phân rã fixed / variable / semi-variable; historical DOL thuộc Phase 6B.
+- **Q30:** Phase 6A phân rã fixed / variable / semi-variable; Phase 6B hiển thị historical DOL có invalid-row guardrails.
 - **Q31:** không dùng quy tắc máy móc `CCC thấp = tốt` hay `negative WC = tốt`.
 - **Q32:** maintenance capex theo thứ tự **company disclosure → analyst estimate có evidence → depreciation rough proxy gắn nhãn rõ → Unknown**. Total capex không được mặc định là maintenance capex.
 
@@ -227,6 +430,8 @@ def render_chapter6_tab(default_ticker: str = "") -> None:
         value=str(payload.get("company_name") or ""),
         key=f"dca_ch6_company_{ticker}",
     )
+
+    _render_phase6b_quantitative_bridge(ticker)
 
     with st.expander("Q27 — Accounting standards: Conservative hay Liberal?", expanded=True):
         st.caption(
