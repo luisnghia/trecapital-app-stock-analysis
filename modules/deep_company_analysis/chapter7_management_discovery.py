@@ -2,15 +2,16 @@ from __future__ import annotations
 
 """Chapter 7 management-target discovery hotfix.
 
-The helper discovers *candidate* senior-manager identities and official management documents.
-It never writes to the analyst Management Profile and never classifies OO/LT/HH, Lion/Hyena,
-management quality, insider conviction, MOS or BUY/HOLD/SELL.
+Discovers candidate senior-manager identities and official management documents.
+Discovered rows are research targets only: this module never writes analyst Management Profile,
+never confirms current office, and never classifies OO/LT/HH, Lion/Hyena, management quality,
+insider conviction, MOS or BUY/HOLD/SELL.
 """
 
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, quote_plus
 import re
 
 import httpx
@@ -22,16 +23,9 @@ from adapters.module2_web_research import HEADERS, KNOWN_COMPANY_DOMAINS
 
 
 MANAGER_CANDIDATE_COLUMNS = [
-    "Select",
-    "Manager",
-    "Role Raw",
-    "Role Normalized",
-    "As-of Date",
-    "Source Title",
-    "Source URL / File",
-    "Source Grade",
-    "Evidence Text / Reference",
-    "Status",
+    "Select", "Manager", "Role Raw", "Role Normalized", "As-of Date",
+    "Source Title", "Source URL / File", "Source Grade",
+    "Evidence Text / Reference", "Status",
 ]
 
 ROLE_RULES: tuple[tuple[str, tuple[str, ...], int], ...] = (
@@ -50,24 +44,26 @@ LINK_TERMS = (
     "ban lanh dao", "ban-lanh-dao", "ban lãnh đạo", "ban điều hành", "ban dieu hanh", "management", "leadership",
     "hoi dong quan tri", "hội đồng quản trị", "hdqt", "nhan su", "nhân sự", "bo nhiem", "bổ nhiệm",
     "mien nhiem", "miễn nhiệm", "bao cao thuong nien", "báo cáo thường niên", "annual report", "bctn",
-    "bao cao quan tri", "báo cáo quản trị", "corporate governance", "cbtt", "cong bo thong tin",
-    "công bố thông tin", "thu lao", "thù lao", "esop", "giao dich", "giao dịch", "nguoi noi bo", "người nội bộ",
+    "bao cao quan tri", "báo cáo quản trị", "corporate governance", "cbtt", "cong bo thong tin", "công bố thông tin",
+    "bao cao tai chinh", "báo cáo tài chính", "bctc", "financial statement", "kiem toan", "kiểm toán", "soat xet", "soát xét",
+    "thu lao", "thù lao", "esop", "giao dich", "giao dịch", "nguoi noi bo", "người nội bộ",
     "ke toan truong", "kế toán trưởng", "tong giam doc", "tổng giám đốc", "chu tich", "chủ tịch",
 )
 
-ROLE_CUE = "|".join(sorted({re.escape(term.strip()) for _, terms, _ in ROLE_RULES for term in terms if term.strip()}, key=len, reverse=True))
-PERSON_PATTERN = re.compile(
-    rf"(?<![A-Za-zÀ-ỹĐđ])(?:Ông|Bà|Mr\.?|Ms\.?)\s+"
-    rf"([A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\.-]+"
-    rf"(?:\s+[A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\.-]+){{1,4}}?)"
-    rf"(?=\s+(?:{ROLE_CUE}|\(|,|;|\.|từ ngày|giữ chức|được bổ nhiệm|được miễn nhiệm)|$)",
+# Name extraction intentionally does not require the role to be adjacent. Official PDF table extraction
+# often returns a column of names followed by a column of roles. Role is therefore a separately verified field.
+PERSON_NAME_PATTERN = re.compile(
+    r"(?<![A-Za-zÀ-ỹĐđ])(?:Ông|Bà|Mr\.?|Ms\.?)\s+"
+    r"([A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\.-]+"
+    r"(?:\s+[A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\.-]+){1,5})",
     flags=re.IGNORECASE,
 )
 
 NOISE_NAME_TOKENS = {
     "báo", "thay", "đổi", "nhân", "sự", "qua", "bầu", "nghị", "quyết", "thông", "tin", "công", "bố",
-    "xem", "thêm", "họp", "đại", "hội", "đồng", "quản", "trị", "công", "ty", "tập", "đoàn", "chủ", "tịch",
+    "xem", "thêm", "họp", "đại", "hội", "đồng", "quản", "trị", "ty", "tập", "đoàn", "chủ", "tịch",
     "tổng", "giám", "đốc", "phó", "thành", "viên", "kế", "toán", "trưởng", "điều", "lệ", "bổ", "nhiệm",
+    "ông", "bà", "mr", "ms", "ủy", "uỷ", "ban", "kiểm", "soát",
 }
 
 
@@ -81,6 +77,12 @@ class ManagementDiscoveryResult:
 
 def _clean_text(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _preserve_lines(value: Any) -> str:
+    text = str(value or "").replace("\r\n", "\n").replace("\r", "\n")
+    lines = [re.sub(r"[\t ]+", " ", line).strip() for line in text.split("\n")]
+    return "\n".join(line for line in lines if line).strip()
 
 
 def _domain(url: str) -> str:
@@ -106,53 +108,96 @@ def _role_from_context(context: str) -> tuple[str, str, int]:
     for normalized, terms, priority in ROLE_RULES:
         for term in terms:
             needle = term.casefold().strip()
-            pos = low.find(needle)
-            if pos >= 0 and priority > best[2]:
+            if needle and needle in low and priority > best[2]:
                 best = (term.strip(), normalized, priority)
     return best
 
 
 def _candidate_name(raw_name: str) -> str:
-    name = _clean_text(raw_name).strip(" ,.;:-")
-    tokens = [t for t in name.split() if t]
-    while tokens and tokens[-1].casefold() in NOISE_NAME_TOKENS:
-        tokens.pop()
-    if not (2 <= len(tokens) <= 5):
+    tokens = [t.strip(" ,.;:()-") for t in _clean_text(raw_name).split() if t.strip(" ,.;:()-")]
+    kept: list[str] = []
+    for token in tokens:
+        folded = token.casefold().rstrip(".")
+        if folded in NOISE_NAME_TOKENS:
+            break
+        if not re.fullmatch(r"[A-Za-zÀ-ỹĐđ'\.-]+", token):
+            break
+        kept.append(token)
+        if len(kept) >= 5:
+            break
+    if not (2 <= len(kept) <= 5):
         return ""
-    if any(token.casefold() in NOISE_NAME_TOKENS for token in tokens):
+    # Reject all-uppercase menu/headline fragments unless they have a common Vietnamese surname-like length/name shape.
+    name = " ".join(kept)
+    if all(t.isupper() for t in kept) and any(t.casefold() in NOISE_NAME_TOKENS for t in kept):
         return ""
-    # Vietnamese names normally contain alphabetic tokens; reject menu/headline fragments with digits/symbols.
-    if any(not re.fullmatch(r"[A-Za-zÀ-ỹĐđ'\.-]+", token) for token in tokens):
-        return ""
-    return " ".join(tokens)
+    return name
 
 
-def extract_management_candidates_from_documents(documents: list[dict[str, Any]], max_targets: int = 5) -> pd.DataFrame:
-    """Extract person/role candidates from already-fetched official document text.
+def _nearest_role(raw_text: str, start: int, end: int) -> tuple[str, str, int]:
+    """Find a role only in the same local person segment; do not cross into another person row."""
+    after_raw = raw_text[end:min(len(raw_text), end + 180)]
+    next_person = re.search(r"(?<![A-Za-zÀ-ỹĐđ])(?:Ông|Bà|Mr\.?|Ms\.?)\s+", after_raw, flags=re.I)
+    if next_person:
+        after_raw = after_raw[:next_person.start()]
+    role = _role_from_context(after_raw)
+    if role[1]:
+        return role
 
-    The output is a discovery layer only. Conflicting roles and historical episodes are preserved.
-    """
-    rows: list[dict[str, Any]] = []
-    for document in documents:
-        text = _clean_text(document.get("text"))
-        if not text:
-            continue
-        source_url = _clean_text(document.get("url"))
-        source_title = _clean_text(document.get("title")) or source_url
-        as_of = _year(f"{source_title} {source_url} {text[:4000]}")
-        for match in PERSON_PATTERN.finditer(text):
+    before_raw = raw_text[max(0, start - 140):start]
+    prev = list(re.finditer(r"(?<![A-Za-zÀ-ỹĐđ])(?:Ông|Bà|Mr\.?|Ms\.?)\s+", before_raw, flags=re.I))
+    if prev:
+        before_raw = before_raw[prev[-1].end():]
+    return _role_from_context(before_raw)
+
+
+def _line_role_candidates(raw_text: str) -> dict[str, tuple[str, str, int]]:
+    """Use preserved HTML/PDF line layout for common `person | role` and two-line patterns."""
+    lines = [line for line in _preserve_lines(raw_text).split("\n") if line]
+    mapping: dict[str, tuple[str, str, int]] = {}
+    for idx, line in enumerate(lines):
+        for match in PERSON_NAME_PATTERN.finditer(line):
             manager = _candidate_name(match.group(1))
             if not manager:
                 continue
-            before = _clean_text(text[max(0, match.start() - 140):match.start()])
-            after = _clean_text(text[match.end():min(len(text), match.end() + 240)])
-            # Prefer a role stated after the person's name; fall back to immediately preceding context.
-            role_raw, role_norm, priority = _role_from_context(after)
-            if not role_norm:
-                role_raw, role_norm, priority = _role_from_context(before)
-            if not role_norm:
+            candidates = [line[match.end():]]
+            # Only consult next lines until another honorific appears; avoids assigning next person's role.
+            for j in range(idx + 1, min(len(lines), idx + 3)):
+                if re.search(r"(?<![A-Za-zÀ-ỹĐđ])(?:Ông|Bà|Mr\.?|Ms\.?)\s+", lines[j], flags=re.I):
+                    break
+                candidates.append(lines[j])
+            role = _role_from_context(" ".join(candidates))
+            if role[1] and role[2] > mapping.get(manager, ("", "", 0))[2]:
+                mapping[manager] = role
+    return mapping
+
+
+def extract_management_candidates_from_documents(documents: list[dict[str, Any]], max_targets: int = 5) -> pd.DataFrame:
+    """Extract candidate identities and, when locally supported, roles from official text.
+
+    `Unknown` role is deliberately allowed: a reliably named manager from a management document is
+    still useful as a research target. The role stays Unknown until an adjacent/line-local source supports it.
+    """
+    rows: list[dict[str, Any]] = []
+    for document in documents:
+        raw_text = _preserve_lines(document.get("text"))
+        plain = _clean_text(raw_text)
+        if not plain:
+            continue
+        source_url = _clean_text(document.get("url"))
+        source_title = _clean_text(document.get("title")) or source_url
+        as_of = _year(f"{source_title} {source_url} {plain[:5000]}")
+        line_roles = _line_role_candidates(raw_text)
+        for match in PERSON_NAME_PATTERN.finditer(plain):
+            manager = _candidate_name(match.group(1))
+            if not manager:
                 continue
-            context = _clean_text(text[max(0, match.start() - 120):min(len(text), match.end() + 240)])
+            role_raw, role_norm, priority = line_roles.get(manager, ("", "", 0))
+            if not role_norm:
+                role_raw, role_norm, priority = _nearest_role(plain, match.start(), match.end())
+            if not role_norm:
+                role_raw, role_norm, priority = "", "Unknown", 1
+            context = _clean_text(plain[max(0, match.start() - 140):min(len(plain), match.end() + 240)])
             rows.append({
                 "Select": False,
                 "Manager": manager,
@@ -180,7 +225,7 @@ def choose_research_targets(managers: pd.DataFrame, max_targets: int = 5) -> lis
         return []
     ranked = managers.copy()
     priority_map = {normalized: priority for normalized, _, priority in ROLE_RULES}
-    ranked["_priority"] = ranked["Role Normalized"].map(priority_map).fillna(0)
+    ranked["_priority"] = ranked["Role Normalized"].map(priority_map).fillna(1)
     ranked["_year"] = pd.to_numeric(ranked["As-of Date"], errors="coerce").fillna(0)
     ranked = ranked.sort_values(["_year", "_priority"], ascending=[False, False])
     names: list[str] = []
@@ -206,7 +251,10 @@ def _fetch_text(client: httpx.Client, url: str, max_pages: int = 120, max_chars:
         total = 0
         for page in reader.pages[:max_pages]:
             try:
-                page_text = page.extract_text() or ""
+                try:
+                    page_text = page.extract_text(extraction_mode="layout") or ""
+                except TypeError:
+                    page_text = page.extract_text() or ""
             except Exception:
                 page_text = ""
             if page_text:
@@ -214,7 +262,8 @@ def _fetch_text(client: httpx.Client, url: str, max_pages: int = 120, max_chars:
                 total += len(page_text)
             if total >= max_chars:
                 break
-        return _clean_text(" ".join(parts))[:max_chars], "PDF text extraction (no OCR)", final_url, []
+        return _preserve_lines("\n".join(parts))[:max_chars], "PDF text extraction (no OCR)", final_url, []
+
     soup = BeautifulSoup(content, "html.parser")
     for tag in soup(["script", "style", "noscript", "svg"]):
         tag.decompose()
@@ -224,7 +273,7 @@ def _fetch_text(client: httpx.Client, url: str, max_pages: int = 120, max_chars:
         label = _clean_text(anchor.get_text(" ", strip=True))
         if href.startswith(("http://", "https://")):
             links.append((label, href))
-    return _clean_text(soup.get_text(" ", strip=True))[:max_chars], "HTML text extraction", final_url, links
+    return _preserve_lines(soup.get_text("\n", strip=True))[:max_chars], "HTML text extraction", final_url, links
 
 
 def _link_score(label: str, url: str) -> int:
@@ -234,8 +283,7 @@ def _link_score(label: str, url: str) -> int:
     if year:
         score += max(0, int(year) - 2020)
     if url.lower().split("?")[0].endswith(".pdf"):
-        score += 4
-    # WordPress article/permalink pages are more useful than category indexes once discovered.
+        score += 5
     if "/category/" not in url.lower() and len(urlparse(url).path.strip("/").split("/")) >= 2:
         score += 3
     return score
@@ -247,11 +295,20 @@ def _index_like(url: str, links: list[tuple[str, str]]) -> bool:
 
 
 def _document_has_management_signal(text: str) -> bool:
-    low = text.casefold()
+    low = _clean_text(text).casefold()
     role_hit = any(term.strip().casefold() in low for _, terms, _ in ROLE_RULES for term in terms if term.strip())
-    person_hit = bool(PERSON_PATTERN.search(text))
+    person_hit = bool(PERSON_NAME_PATTERN.search(_clean_text(text)))
     compensation_hit = any(x in low for x in ("thù lao", "remuneration", "esop", "cổ phần nắm giữ", "ownership", "người nội bộ", "giao dịch"))
     return (role_hit and person_hit) or compensation_hit
+
+
+def _wordpress_search_urls(seed: str) -> list[str]:
+    parsed = urlparse(seed)
+    if not parsed.scheme or not parsed.netloc:
+        return []
+    root = f"{parsed.scheme}://{parsed.netloc}/"
+    terms = ("nhân sự", "tổng giám đốc", "chủ tịch", "báo cáo thường niên", "báo cáo tài chính")
+    return [root + "?s=" + quote_plus(term) for term in terms]
 
 
 def discover_management_candidates(
@@ -262,12 +319,7 @@ def discover_management_candidates(
     max_targets: int = 5,
     timeout_seconds: float = 8.0,
 ) -> ManagementDiscoveryResult:
-    """Crawl known company/IR sources and discover candidate senior managers.
-
-    Only same-domain company documents are crawled. Category/index pages are used to discover deeper
-    official disclosures but are not treated as substantive evidence by themselves. The function does
-    not confirm identities or mutate Chapter-7 analyst records.
-    """
+    """Crawl configured company/IR sources and discover candidate manager research targets."""
     safe = _clean_text(ticker).upper()
     seeds = list(KNOWN_COMPANY_DOMAINS.get(safe, []))
     if not seeds:
@@ -279,16 +331,20 @@ def discover_management_candidates(
     documents: list[dict[str, Any]] = []
     fetched: set[str] = set()
     queued: set[str] = set()
-    queue: list[tuple[int, int, str, str, str]] = []  # score, depth, label, url, root-domain
+    queue: list[tuple[int, int, str, str, str]] = []
     errors: list[str] = []
     fetch_count = 0
-    max_fetches = max(24, max_documents * 5)
+    max_fetches = max(30, max_documents * 6)
 
     with httpx.Client(headers=HEADERS, timeout=httpx.Timeout(timeout_seconds, connect=min(3.0, timeout_seconds)), follow_redirects=True) as client:
         for seed in seeds:
             domain = _domain(seed)
-            queue.append((100, 0, f"{safe} official/IR seed", seed, domain))
-            queued.add(seed)
+            starters = [(100, f"{safe} official/IR seed", seed)]
+            starters += [(92, f"{safe} official site search", u) for u in _wordpress_search_urls(seed)]
+            for score, label, href in starters:
+                if href not in queued:
+                    queue.append((score, 0, label, href, domain))
+                    queued.add(href)
 
         while queue and len(documents) < max_documents and fetch_count < max_fetches:
             queue.sort(key=lambda x: (x[0], -x[1]), reverse=True)
@@ -302,12 +358,12 @@ def discover_management_candidates(
             except Exception as exc:
                 errors.append(f"document {href}: {exc}")
                 continue
-            if len(text) < 80:
+            if len(_clean_text(text)) < 80:
                 continue
 
             is_pdf = "PDF" in method
             is_index = _index_like(final_url, links)
-            if (is_pdf or not is_index) and (_document_has_management_signal(text) or is_pdf):
+            if (is_pdf or not is_index) and _document_has_management_signal(text):
                 documents.append({
                     "title": label or f"{safe} official management disclosure",
                     "url": final_url,
@@ -315,13 +371,10 @@ def discover_management_candidates(
                     "method": method,
                 })
 
-            # Follow relevant same-domain links up to two hops. This lets IR/category pages act as
-            # indexes to actual personnel-change posts, governance reports and annual-report PDFs.
-            if links and depth < 2:
+            # Index/search pages are discovery surfaces. Follow relevant same-domain links up to 3 hops.
+            if links and depth < 3:
                 for child_label, child_href in links:
-                    if child_href in fetched or child_href in queued:
-                        continue
-                    if not _same_domain(child_href, root_domain):
+                    if child_href in fetched or child_href in queued or not _same_domain(child_href, root_domain):
                         continue
                     child_score = _link_score(child_label, child_href)
                     if child_score <= 0:
@@ -341,9 +394,7 @@ def discover_management_candidates(
 
 
 __all__ = [
-    "MANAGER_CANDIDATE_COLUMNS",
-    "ManagementDiscoveryResult",
-    "extract_management_candidates_from_documents",
-    "choose_research_targets",
+    "MANAGER_CANDIDATE_COLUMNS", "ManagementDiscoveryResult",
+    "extract_management_candidates_from_documents", "choose_research_targets",
     "discover_management_candidates",
 ]
