@@ -1,0 +1,117 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+CORE = ROOT / "modules" / "deep_company_analysis" / "chapter7.py"
+PAGE = ROOT / "modules" / "deep_company_analysis" / "chapter7_page_support.py"
+
+
+def replace_once(text: str, old: str, new: str, label: str) -> str:
+    if new in text:
+        return text
+    if old not in text:
+        raise RuntimeError(f"Phase7B integration marker not found: {label}")
+    return text.replace(old, new, 1)
+
+
+def patch_core() -> None:
+    text = CORE.read_text(encoding="utf-8")
+    text = replace_once(text, "SCHEMA_VERSION = 1", "SCHEMA_VERSION = 2", "schema version")
+    text = replace_once(
+        text,
+        '    "From",\n    "To",\n    "Company",',
+        '    "From",\n    "To",\n    "Date Precision",\n    "Company",',
+        "career date precision",
+    )
+    text = replace_once(
+        text,
+        '    "Role",\n    "Salary (tỷ)",',
+        '    "Role",\n    "Compensation Scope",\n    "Salary (tỷ)",',
+        "comp scope",
+    )
+    text = replace_once(
+        text,
+        '    "Compensation Consultant",\n    "Source",\n    "Analyst Note",',
+        '    "Compensation Consultant",\n    "Source",\n    "Data Quality Flags",\n    "Analyst Note",',
+        "comp flags",
+    )
+    text = replace_once(
+        text,
+        'INSIDER_TRANSACTION_COLUMNS = [\n    "Transaction Date",\n    "Disclosure Date",',
+        'INSIDER_TRANSACTION_COLUMNS = [\n    "Transaction Date",\n    "Transaction Date From",\n    "Transaction Date To",\n    "Disclosure Date",',
+        "insider date range",
+    )
+    text = replace_once(
+        text,
+        '    "Transaction Type",\n    "Shares",\n    "Price",',
+        '    "Transaction Type",\n    "Registered Shares",\n    "Executed Shares",\n    "Shares",\n    "Price",',
+        "registered executed",
+    )
+    text = replace_once(
+        text,
+        'EVENT_COLUMNS = [\n    "Event Date",\n    "Manager ID",',
+        'EVENT_COLUMNS = [\n    "Event Date",\n    "Publication Date",\n    "Effective Date",\n    "As-of Date",\n    "Manager ID",',
+        "event three dates",
+    )
+    text = replace_once(
+        text,
+        '        "phase7a_source_lock_note": "Event/as-of management data; no fabricated TTM. AI/Data is evidence support only; analyst owns classifications and conclusions.",',
+        '        "phase7a_source_lock_note": "Event/as-of management data; no fabricated TTM. AI/Data is evidence support only; analyst owns classifications and conclusions.",\n'
+        '        "phase7b_bridge_note": "Structured official disclosure bridge uses Raw → Candidate → Analyst Apply; registered != executed; actual shares != options/RSU/ESOP; no auto management conclusion.",',
+        "payload bridge note",
+    )
+    CORE.write_text(text, encoding="utf-8")
+
+
+def patch_page() -> None:
+    text = PAGE.read_text(encoding="utf-8")
+    text = replace_once(
+        text,
+        "from modules.deep_company_analysis.table_format import render_static_table, sortable_data_editor\n",
+        "from modules.deep_company_analysis.table_format import render_static_table, sortable_data_editor\n"
+        "from modules.deep_company_analysis.chapter7_data_bridge_ui import render_structured_management_bridge\n",
+        "bridge ui import",
+    )
+    text = text.replace(
+        "- **AI/Data = Research Assistant; Analyst = người kết luận.** Phase 7A chưa có research assistant tự động.",
+        "- **AI/Data = Research Assistant; Analyst = người kết luận.** Phase 7B chỉ tự động hóa structured disclosure bridge; research assistant web/PDF sâu vẫn để Phase 7C.",
+    )
+    text = text.replace(
+        "Phase 7C mới tự động phát hiện/research management events. Phase 7A chỉ cung cấp cấu trúc lưu và review.",
+        "Phase 7B phát hiện event từ structured disclosures và đưa vào Review Queue; Phase 7C mới research/extract sâu từ nguồn unstructured/web.",
+    )
+    text = text.replace(
+        "Phase 7A chưa có Chapter 7 Completion Gate chính thức; gate source-closure sẽ được khóa ở Phase 7D sau khi 7B/7C hoàn tất.",
+        "Phase 7B chưa có Chapter 7 Completion Gate chính thức; gate source-closure sẽ được khóa ở Phase 7D sau khi 7C hoàn tất.",
+    )
+    text = text.replace(
+        "Assessing the Quality of Management — Background and Classification: Who Are They? | Phase 7A source-locked workspace",
+        "Assessing the Quality of Management — Background and Classification: Who Are They? | Phase 7A + 7B structured data bridge",
+    )
+    text = replace_once(
+        text,
+        "    _render_source_lock()\n    _render_status_panel(ticker, payload)\n\n    with st.container(border=True):\n        _render_q33(ticker, payload)",
+        "    _render_source_lock()\n    _render_status_panel(ticker, payload)\n\n"
+        "    with st.container(border=True):\n"
+        "        payload = render_structured_management_bridge(ticker, payload)\n\n"
+        "    with st.container(border=True):\n        _render_q33(ticker, payload)",
+        "render bridge before Q33",
+    )
+    text = text.replace("💾 Lưu Chapter 7 — Phase 7A", "💾 Lưu Chapter 7 — Phase 7A+7B")
+    text = text.replace(
+        "Đã lưu Phase 7A. Không có classification/conclusion nào bị AI/Data ghi đè.",
+        "Đã lưu Phase 7A+7B. Structured bridge không ghi đè classification/conclusion của analyst.",
+    )
+    PAGE.write_text(text, encoding="utf-8")
+
+
+def main() -> None:
+    patch_core()
+    patch_page()
+    print("Chapter 7 Phase 7B V35 integration applied")
+
+
+if __name__ == "__main__":
+    main()
