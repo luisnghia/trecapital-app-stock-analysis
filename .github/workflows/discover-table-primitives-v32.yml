@@ -1,0 +1,20 @@
+name: Discover Deep Analysis Table Primitives V32
+on:
+  push:
+    branches: [feature/deep-company-analysis-chapter6]
+    paths: ['.github/workflows/discover-table-primitives-v32.yml']
+permissions:
+  contents: read
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-chapter6
+          fetch-depth: 0
+      - name: Inventory every table primitive
+        shell: bash
+        run: |
+          echo '=== st.table / dataframe / editor / html table primitives ==='
+          grep -RIn --include='*.py' -E 'st\.table\(|st\.dataframe\(|st\.data_editor\(|render_static_table\(|<table|to_html\(|_html_table\(' modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py || true
