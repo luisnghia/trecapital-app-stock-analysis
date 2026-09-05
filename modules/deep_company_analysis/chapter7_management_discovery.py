@@ -50,6 +50,17 @@ LINK_TERMS = (
     "ke toan truong", "kế toán trưởng", "tong giam doc", "tổng giám đốc", "chu tich", "chủ tịch",
 )
 
+MANAGEMENT_PRIORITY_TERMS = (
+    "thay đổi nhân sự", "thay doi nhan su", "nhân sự", "nhan su", "bổ nhiệm", "bo nhiem", "miễn nhiệm", "mien nhiem",
+    "tổng giám đốc", "tong giam doc", "chủ tịch", "chu tich", "phó tổng giám đốc", "pho tong giam doc",
+    "kế toán trưởng", "ke toan truong", "hội đồng quản trị", "hoi dong quan tri", "hdqt",
+)
+
+REPORT_PRIORITY_TERMS = (
+    "báo cáo thường niên", "bao cao thuong nien", "annual report", "bctn",
+    "báo cáo quản trị", "bao cao quan tri", "corporate governance",
+)
+
 # Name extraction intentionally does not require the role to be adjacent. Official PDF table extraction
 # often returns a column of names followed by a column of roles. Role is therefore a separately verified field.
 PERSON_NAME_PATTERN = re.compile(
@@ -127,7 +138,6 @@ def _candidate_name(raw_name: str) -> str:
             break
     if not (2 <= len(kept) <= 5):
         return ""
-    # Reject all-uppercase menu/headline fragments unless they have a common Vietnamese surname-like length/name shape.
     name = " ".join(kept)
     if all(t.isupper() for t in kept) and any(t.casefold() in NOISE_NAME_TOKENS for t in kept):
         return ""
@@ -161,7 +171,6 @@ def _line_role_candidates(raw_text: str) -> dict[str, tuple[str, str, int]]:
             if not manager:
                 continue
             candidates = [line[match.end():]]
-            # Only consult next lines until another honorific appears; avoids assigning next person's role.
             for j in range(idx + 1, min(len(lines), idx + 3)):
                 if re.search(r"(?<![A-Za-zÀ-ỹĐđ])(?:Ông|Bà|Mr\.?|Ms\.?)\s+", lines[j], flags=re.I):
                     break
@@ -278,14 +287,16 @@ def _fetch_text(client: httpx.Client, url: str, max_pages: int = 120, max_chars:
 
 def _link_score(label: str, url: str) -> int:
     text = f"{label} {url}".casefold()
-    score = sum(5 for term in LINK_TERMS if term.casefold() in text)
+    score = sum(3 for term in LINK_TERMS if term.casefold() in text)
+    score += sum(30 for term in MANAGEMENT_PRIORITY_TERMS if term.casefold() in text)
+    score += sum(18 for term in REPORT_PRIORITY_TERMS if term.casefold() in text)
     year = _year(text)
     if year:
-        score += max(0, int(year) - 2020)
+        score += max(0, int(year) - 2020) * 2
     if url.lower().split("?")[0].endswith(".pdf"):
-        score += 5
+        score += 15
     if "/category/" not in url.lower() and len(urlparse(url).path.strip("/").split("/")) >= 2:
-        score += 3
+        score += 5
     return score
 
 
@@ -307,7 +318,7 @@ def _wordpress_search_urls(seed: str) -> list[str]:
     if not parsed.scheme or not parsed.netloc:
         return []
     root = f"{parsed.scheme}://{parsed.netloc}/"
-    terms = ("nhân sự", "tổng giám đốc", "chủ tịch", "báo cáo thường niên", "báo cáo tài chính")
+    terms = ("nhân sự", "tổng giám đốc", "chủ tịch", "báo cáo thường niên", "báo cáo quản trị")
     return [root + "?s=" + quote_plus(term) for term in terms]
 
 
@@ -322,6 +333,30 @@ def discover_management_candidates(
     """Crawl configured company/IR sources and discover candidate manager research targets."""
     safe = _clean_text(ticker).upper()
     seeds = list(KNOWN_COMPANY_DOMAINS.get(safe, []))
+    # Vietnamese listed-company IR sites frequently expose a short friendly /quan-he-co-dong/
+    # URL while actual disclosures live under WordPress category paths. Add common category and
+    # recent pagination seeds generically. These remain same-domain official sources.
+    expanded_seeds = list(seeds)
+    for seed in list(seeds):
+        parsed = urlparse(seed)
+        root = f"{parsed.scheme}://{parsed.netloc}/" if parsed.scheme and parsed.netloc else ""
+        if root:
+            expanded_seeds.append(root)
+        if "quan-he-co-dong" not in parsed.path.casefold() or not root:
+            continue
+        bases = [
+            root + "category/quan-he-co-dong/",
+            root + "category/quan-he-co-dong/bao-cao-thuong-nien/",
+            root + "category/quan-he-co-dong/bao-cao-tai-chinh/",
+            root + "category/quan-he-co-dong/thong-bao/",
+        ]
+        expanded_seeds.extend(bases)
+        # Personnel changes often move off page 1 quickly. Crawl only a shallow recent history.
+        for page in range(2, 7):
+            expanded_seeds.append(root + f"category/quan-he-co-dong/thong-bao/page/{page}/")
+        for page in range(2, 4):
+            expanded_seeds.append(root + f"category/quan-he-co-dong/bao-cao-thuong-nien/page/{page}/")
+    seeds = list(dict.fromkeys(expanded_seeds))
     if not seeds:
         return ManagementDiscoveryResult(
             pd.DataFrame(columns=MANAGER_CANDIDATE_COLUMNS), [], [],
@@ -334,13 +369,14 @@ def discover_management_candidates(
     queue: list[tuple[int, int, str, str, str]] = []
     errors: list[str] = []
     fetch_count = 0
-    max_fetches = max(30, max_documents * 6)
+    max_fetches = max(60, max_documents * 10)
 
     with httpx.Client(headers=HEADERS, timeout=httpx.Timeout(timeout_seconds, connect=min(3.0, timeout_seconds)), follow_redirects=True) as client:
         for seed in seeds:
             domain = _domain(seed)
-            starters = [(100, f"{safe} official/IR seed", seed)]
-            starters += [(92, f"{safe} official site search", u) for u in _wordpress_search_urls(seed)]
+            seed_score = 150 if "/category/quan-he-co-dong/" in seed else 120
+            starters = [(seed_score, f"{safe} official/IR seed", seed)]
+            starters += [(70, f"{safe} official site search", u) for u in _wordpress_search_urls(seed)]
             for score, label, href in starters:
                 if href not in queued:
                     queue.append((score, 0, label, href, domain))
@@ -371,7 +407,6 @@ def discover_management_candidates(
                     "method": method,
                 })
 
-            # Index/search pages are discovery surfaces. Follow relevant same-domain links up to 3 hops.
             if links and depth < 3:
                 for child_label, child_href in links:
                     if child_href in fetched or child_href in queued or not _same_domain(child_href, root_domain):
