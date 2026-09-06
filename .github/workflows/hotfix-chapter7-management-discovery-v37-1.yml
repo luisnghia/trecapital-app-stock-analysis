@@ -1,4 +1,4 @@
-name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5Y
+name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5Z
 
 on:
   push:
@@ -39,6 +39,7 @@ jobs:
           python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5v.py
           python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5x.py
           python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5y.py
+          python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5z.py
 
       - name: Install dependencies
         run: |
@@ -58,7 +59,7 @@ jobs:
       - name: QA 2 — Full Chapter 7 regression
         run: pytest -q modules/deep_company_analysis/test_chapter7*.py
 
-      - name: DGC Round 5Y — strict production path live acceptance
+      - name: DGC Round 5Z — strict production path live acceptance
         run: PYTHONPATH=. python scripts/qa_chapter7_v37_1_dgc.py
 
       - name: Streamlit smoke after hotfix
@@ -82,17 +83,17 @@ jobs:
 
           Status: PASS
 
-          - Official-company discovery remains candidate-only and analyst-verification required.
-          - Current Chairman/CEO/Vice-Chairman identities must be reachable from official management/report/search-result paths.
-          - URL token normalization, direct-content priority, targeted-search child priority, role-intent scheduling, isolated role coverage, and two-hop archive→article→PDF discovery are enabled.
-          - Role-specific search and IR archive fallback use independent crawl budgets.
-          - Already-retained official HTML management/disclosure pages are directly revisited as attachment indexes for linked official PDFs; duplicate documents are not re-added and already-parsed PDFs are not fetched again.
-          - Tight board-signature blocks such as `T/M. HỘI ĐỒNG QUẢN TRỊ → CHỦ TỊCH → Name` are parsed as Chairman research evidence without making `Chủ tịch` a global role alias; Vice Chairman remains excluded from this fallback.
-          - Signature-derived candidates retain source/title/URL provenance and derive their as-of date through the same source-local candidate date resolver as other manager evidence.
-          - Role coverage remains same-domain and source-text-only; no identity or office is inferred from a title, URL, or missing evidence.
+          - Company/IR discovery remains candidate-only and analyst-verification required.
+          - If a priority senior role remains missing, a Tier-A exchange/regulator fallback may search HSX/HNX/SSC/UPCoM official disclosures.
+          - Secondary financial/news sources are excluded from management identity fallback even when their snippets name the manager.
+          - Official exchange form fields such as `Họ và tên / Full name` plus `Chức vụ hiện nay / Current position` are parsed only when the person and role are locally explicit in extracted source text.
+          - No OCR is introduced; image-only/scanned company PDFs remain unresolved unless an independent text-extractable Tier-A official disclosure provides the same identity evidence.
+          - Existing company/IR candidates and exchange/regulator candidates are merged with source URL, as-of date and analyst-verification status preserved.
+          - Current Chairman/CEO identities must be reachable from Tier-A official evidence; no identity is inferred from a title, URL, family relationship or missing evidence.
+          - Tight board-signature blocks remain supported without making plain `Chủ tịch` a global role alias; Vice Chairman remains separately classified.
           - Personnel event roles/dates remain occurrence- and clause-local; ended roles are not silently treated as current.
           - No automatic OO/LT/HH, Lion/Hyena, Management Quality, insider Buy/Sell, MOS or Research Gate conclusion.
-          - DGC Round 5Y strict production-path live acceptance passed.
+          - DGC Round 5Z strict production-path live acceptance passed.
           - Unified Streamlit smoke passed.
           EOF
 
@@ -102,19 +103,21 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add modules/deep_company_analysis/chapter7_management_discovery.py
+          git add modules/deep_company_analysis/chapter7_research.py
           git add modules/deep_company_analysis/test_chapter7_management_discovery.py
+          git add modules/deep_company_analysis/test_chapter7_phase7c.py
           git add scripts/qa_chapter7_v37_1_dgc.py
           git add docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
           if ! git diff --cached --quiet; then
-            git commit -m "fix(ch7): finalize management discovery V37.1 round5y"
+            git commit -m "fix(ch7): finalize management discovery V37.1 round5z"
             git push origin HEAD:feature/deep-company-analysis-chapter7
           fi
 
-      - name: Upload DGC Round 5Y diagnostic artifact
+      - name: Upload DGC Round 5Z diagnostic artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DGC_V37_1_ROUND5Y_REPORT
+          name: DGC_V37_1_ROUND5Z_REPORT
           path: |
             reports/DGC_V37_1_ROUND3.json
             reports/DGC_V37_1_ROUND3.md
