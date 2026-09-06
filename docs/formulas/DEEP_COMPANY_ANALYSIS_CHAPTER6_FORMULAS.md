@@ -2,7 +2,7 @@
 
 Source framework: Michael Shearn, *The Investment Checklist*, Chapter 6 — **Evaluating the Distribution of Earnings (Cash Flows)**.
 
-Status: **APPROVED Phase 6A source lock + IMPLEMENTED Phase 6B canonical quantitative bridge (V31)**.
+Status: **APPROVED Phase 6A source lock + IMPLEMENTED Phase 6B canonical quantitative bridge (V31), with Q32 explicit-PP&E source guardrail added after V38 regression review**.
 
 ## Core rule
 
@@ -173,6 +173,24 @@ Never silently set `maintenance capex = total capex`. Never use depreciation as 
 
 Shearn discusses net assets versus gross assets as a way to investigate whether older assets may require higher future replacement expenditure. Phase 6B may expose such a ratio when gross and net PP&E are available, but it is a diagnostic rather than a maintenance-capex formula.
 
+#### Explicit PP&E source guardrail
+
+For this diagnostic, **Net PP&E is accepted only from fields that explicitly mean net property, plant and equipment**:
+
+- `net_ppe_bil`
+- `ppe_net_bil`
+- `property_plant_equipment_net_bil`
+
+Gross PP&E is accepted only from:
+
+- `gross_ppe_bil`
+- `ppe_gross_bil`
+- `property_plant_equipment_gross_bil`
+
+`fixed_assets_bil`, total long-term assets, total non-current assets and other broad asset aggregates are **not** valid substitutes for PP&E. They can contain land-use rights, construction in progress, investment property, intangibles or other assets and therefore would distort the Net/Gross PP&E diagnostic.
+
+If explicit Net PP&E or Gross PP&E is unavailable, the corresponding Q32 field and Net/Gross PP&E ratio must remain `N/A / Unknown`, with a coverage warning. The app must not fabricate a value from a broader balance-sheet category.
+
 ## Earnings & Cash-flow Distribution
 
 The final Chapter-6 distribution width is analyst-owned and must be one of:
@@ -204,7 +222,7 @@ Display format follows Trecapital project rules:
 
 ## Missing-data rule
 
-Missing inputs must produce `Unknown`, `N/A`, or a documented coarse proxy. Missing data must never be interpreted as evidence of quality.
+Missing inputs must produce `Unknown`, `N/A`, or a documented coarse proxy. Missing data must never be interpreted as evidence of quality. A proxy may only be used when its economic meaning is explicitly documented and approved for that metric; broad balance-sheet asset categories are not approved PP&E proxies.
 
 ## Phase 6B implementation lock — V31
 
@@ -247,14 +265,13 @@ DSO/DIO/DPO prefer average current/prior balances. Canonical day metrics are use
 
 - Total Capex is displayed as expenditure magnitude.
 - `Capex/Revenue`, `Capex/D&A`, canonical/transparent FCF and Net/Gross PP&E are diagnostics.
+- Net/Gross PP&E uses only explicit PP&E fields. `fixed_assets_bil` and broader fixed/non-current asset aggregates are never substituted; missing explicit PP&E remains `N/A / Unknown`.
 - Chapter 6 **does not import Module-1 `maintenance_capex_bil`** because upstream Owner-Earnings logic may contain a generic proxy. That proxy is not allowed to become a Chapter-6 maintenance-capex fact.
 - Chapter-6 maintenance capex remains: company disclosure → analyst estimate with evidence → explicitly selected D&A rough proxy → Unknown.
 
 ### Analyst boundary
 
 Phase 6B never changes Q27–Q32 analyst assessments, final Earnings/Cash-flow Distribution Width, MOS, Research Gate or BUY/HOLD/SELL. Quantitative context is evidence only.
-
-
 
 ## Phase 6C evidence boundary
 
@@ -269,7 +286,7 @@ Phase 6D adds five source-closure controls before Chapter 6 may be analyst-confi
 1. **Income-tax footnote history:** explicit Current Tax vs Income-Tax Provision over 5–10 years where disclosed. Cash taxes paid are not a substitute. Difference % = |Current Tax − Tax Provision| / |Tax Provision| × 100. Missing disclosure remains N/A; annual-only footnotes do not receive fabricated TTM values.
 2. **Unsustainable earnings register:** debt-retirement/extinguishment gains/losses, restructuring/write-offs and temporary cuts to advertising/R&D/maintenance are evidence items, not automatic manipulation findings.
 3. **Operating leverage × debt bridge:** Phase-6B historical DOL is displayed beside the Chapter-5 shared Net Debt, Debt/EBITDA and interest-coverage context. No distress score is computed.
-4. **Asset replacement register:** Net/Gross PP&E is a diagnostic only and must be interpreted with asset class, land/non-depreciable items, remaining life, replacement timing and depreciation-method comparability.
+4. **Asset replacement register:** Net/Gross PP&E is a diagnostic only and must be interpreted with asset class, land/non-depreciable items, remaining life, replacement timing and depreciation-method comparability. Net PP&E must come from an explicit PP&E field; broad fixed/non-current assets are not accepted substitutes.
 5. **Distribution → valuation bridge:** narrow distributions may support a point-estimate review; wide distributions prefer analyst-owned Bear/Base/Bull scenarios. No scenario assumption, probability, fair value, MOS or recommendation is auto-generated.
 
 The final Completion Gate is a source/research-completion control only. It does not set Research Gate or BUY/HOLD/SELL.

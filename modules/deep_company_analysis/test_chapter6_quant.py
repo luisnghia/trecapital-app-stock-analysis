@@ -134,6 +134,27 @@ def test_q32_uses_total_capex_magnitude_but_never_imports_maintenance_proxy():
     assert "does NOT import Module-1 maintenance_capex_bil" in ctx["q32_summary"]["maintenance_capex_guardrail"]
 
 
+def test_q32_never_relabels_generic_fixed_assets_as_net_ppe():
+    df = _sample_rows()
+    # The fixture deliberately contains fixed_assets_bil.  Q32 must not treat it as Net PP&E.
+    ctx = build_chapter6_quant_context("AAA", "Alpha", df, industry="Industrials")
+    capex = ctx["q32_capex_history"]
+    assert capex["Net PP&E (tỷ)"].isna().all()
+    assert capex["Net/Gross PP&E (%)"].isna().all()
+    assert any("Net PP&E unavailable from explicit PP&E fields" in warning for warning in ctx["coverage_warnings"])
+    assert "fixed_assets_bil" in ctx["q32_summary"]["net_ppe_guardrail"]
+
+    # Explicit canonical PP&E fields remain valid and should feed the diagnostic.
+    df["net_ppe_bil"] = pd.Series([400.0 + i * 10.0 for i in range(len(df))], index=df.index)
+    df["gross_ppe_bil"] = pd.Series([800.0 + i * 20.0 for i in range(len(df))], index=df.index)
+    explicit_ctx = build_chapter6_quant_context("AAA", "Alpha", df, industry="Industrials")
+    explicit_capex = explicit_ctx["q32_capex_history"]
+    assert explicit_capex["Net PP&E (tỷ)"].notna().all()
+    assert explicit_capex["Gross PP&E (tỷ)"].notna().all()
+    assert explicit_capex["Net/Gross PP&E (%)"].notna().all()
+    assert not any("Net PP&E unavailable from explicit PP&E fields" in warning for warning in explicit_ctx["coverage_warnings"])
+
+
 def test_provenance_fields_are_present():
     ctx = build_chapter6_quant_context("AAA", "Alpha", _sample_rows(), industry="Industrials")
     prov = ctx["provenance"]

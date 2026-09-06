@@ -27,6 +27,21 @@ FINANCIAL_INDUSTRY_TOKENS = (
     "tài chính",
 )
 
+# Q32 asset-age diagnostics must use explicit PP&E concepts only.  Generic
+# fixed/non-current asset fields may include land-use rights, construction in
+# progress, investment property, intangibles or other long-term assets and must
+# never be silently relabelled as Net/Gross PP&E.
+NET_PPE_EXPLICIT_FIELDS = (
+    "net_ppe_bil",
+    "ppe_net_bil",
+    "property_plant_equipment_net_bil",
+)
+GROSS_PPE_EXPLICIT_FIELDS = (
+    "gross_ppe_bil",
+    "ppe_gross_bil",
+    "property_plant_equipment_gross_bil",
+)
+
 
 @dataclass(frozen=True)
 class QuantProvenance:
@@ -499,8 +514,8 @@ def build_q32_capex(
         fcf = _pick(row, "free_cash_flow_bil", "fcf_bil")
         if fcf is None and cfo is not None and capex is not None:
             fcf = cfo - capex
-        net_ppe = _pick(row, "net_ppe_bil", "ppe_net_bil", "property_plant_equipment_net_bil", "fixed_assets_bil")
-        gross_ppe = _pick(row, "gross_ppe_bil", "ppe_gross_bil", "property_plant_equipment_gross_bil")
+        net_ppe = _pick(row, *NET_PPE_EXPLICIT_FIELDS)
+        gross_ppe = _pick(row, *GROSS_PPE_EXPLICIT_FIELDS)
         out.append({
             "Kỳ": _period(row),
             "Doanh thu (tỷ)": revenue,
@@ -529,6 +544,11 @@ def build_q32_capex(
         "maintenance_capex_guardrail": (
             "Phase 6B deliberately does NOT import Module-1 maintenance_capex_bil because that field may be a generic Owner-Earnings proxy. "
             "Chapter 6 maintenance capex remains company-disclosed / analyst-estimated / explicitly selected D&A rough proxy / Unknown."
+        ),
+        "net_ppe_guardrail": (
+            "Net PP&E accepts only explicit canonical PP&E fields: net_ppe_bil, ppe_net_bil, or "
+            "property_plant_equipment_net_bil. fixed_assets_bil and broader fixed/non-current asset fields are never substituted; "
+            "missing explicit PP&E remains N/A / Unknown."
         ),
     }
 
@@ -578,8 +598,12 @@ def _provenance_table(prov: QuantProvenance) -> pd.DataFrame:
         {
             "Question": "Q32",
             "Metrics": "Total Capex intensity; Capex/D&A; FCF; Net/Gross PP&E",
-            "Source Field(s)": "capex_bil; depreciation_bil; cfo_bil; free_cash_flow_bil; PP&E fields",
-            "Formula / Boundary": "No silent maintenance-capex import or inference",
+            "Source Field(s)": (
+                "capex_bil; depreciation_bil; cfo_bil; free_cash_flow_bil; "
+                "net_ppe_bil/ppe_net_bil/property_plant_equipment_net_bil; "
+                "gross_ppe_bil/ppe_gross_bil/property_plant_equipment_gross_bil"
+            ),
+            "Formula / Boundary": "No silent maintenance-capex import; no broad fixed/non-current asset substitution for PP&E",
             "Source Module": prov.source_module,
             "Data Origin": prov.data_origin,
         },
@@ -638,8 +662,13 @@ def build_chapter6_quant_context(
         warnings.append("Q30: fewer than 3 valid historical DOL observations; do not rely on a summary DOL.")
     if q32.empty:
         warnings.append("Q32: canonical data does not contain usable capex history.")
-    elif "Gross PP&E (tỷ)" in q32.columns and pd.to_numeric(q32["Gross PP&E (tỷ)"], errors="coerce").notna().sum() == 0:
-        warnings.append("Q32: Gross PP&E unavailable; asset-age Net/Gross PP&E diagnostic remains N/A.")
+    else:
+        if "Net PP&E (tỷ)" in q32.columns and pd.to_numeric(q32["Net PP&E (tỷ)"], errors="coerce").notna().sum() == 0:
+            warnings.append(
+                "Q32: Net PP&E unavailable from explicit PP&E fields; fixed_assets_bil and broader fixed/non-current assets are not substituted."
+            )
+        if "Gross PP&E (tỷ)" in q32.columns and pd.to_numeric(q32["Gross PP&E (tỷ)"], errors="coerce").notna().sum() == 0:
+            warnings.append("Q32: Gross PP&E unavailable; asset-age Net/Gross PP&E diagnostic remains N/A.")
 
     return {
         "ticker": prov.ticker,
