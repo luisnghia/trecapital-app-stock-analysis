@@ -112,11 +112,16 @@ def test_phase8d_ui_contract_exposes_research_promote_sources_save_and_snapshot(
 
 def test_phase8d_route_and_sidebar_are_wired():
     root = Path(__file__).resolve().parents[2]
-    page = root / "pages" / "09_Phan_tich_chuyen_sau_Chuong_8.py"
+    unified_page = root / "pages" / "07_Phan_tich_chuyen_sau_doanh_nghiep.py"
+    standalone_page = root / "pages" / "09_Phan_tich_chuyen_sau_Chuong_8.py"
     sidebar = root / "tre_sidebar_nav.py"
-    assert page.exists()
-    assert "render_chapter8_tab" in page.read_text(encoding="utf-8")
-    assert "09_Phan_tich_chuyen_sau_Chuong_8.py" in sidebar.read_text(encoding="utf-8")
+    page_text = unified_page.read_text(encoding="utf-8")
+    sidebar_text = sidebar.read_text(encoding="utf-8")
+    assert unified_page.exists()
+    assert "render_chapter8_tab" in page_text
+    assert "🧭 Chương 8 — Năng lực vận hành" in page_text
+    assert not standalone_page.exists()
+    assert "09_Phan_tich_chuyen_sau_Chuong_8.py" not in sidebar_text
 
 
 def test_ui_does_not_replace_source_locked_five_capital_allocation_actions():
