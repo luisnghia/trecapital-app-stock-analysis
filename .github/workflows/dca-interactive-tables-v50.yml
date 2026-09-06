@@ -8,6 +8,7 @@ on:
       - '.github/workflows/dca-interactive-tables-v50.yml'
       - 'scripts/apply_dca_interactive_v50.py'
       - 'scripts/apply_dca_v50_followup.py'
+      - 'scripts/apply_dca_phase8e_compat_v50.py'
   workflow_dispatch:
 
 permissions:
@@ -46,19 +47,22 @@ jobs:
             python scripts/apply_dca_interactive_v50.py
           fi
           python scripts/apply_dca_v50_followup.py
+          python scripts/apply_dca_phase8e_compat_v50.py
           git diff -- modules/deep_company_analysis/table_format.py \
             modules/deep_company_analysis/test_sortable_table_v32.py \
-            pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+            pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
+            scripts/apply_chapter8_phase8e_v46.py
 
       - name: Commit V50 migration
         run: |
           set -euo pipefail
-          if ! git diff --quiet -- modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py; then
+          if ! git diff --quiet -- modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py scripts/apply_chapter8_phase8e_v46.py; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add modules/deep_company_analysis/table_format.py \
               modules/deep_company_analysis/test_sortable_table_v32.py \
-              pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+              pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
+              scripts/apply_chapter8_phase8e_v46.py
             git commit -m "fix(dca): finalize stable V50 interactive runtime"
             git push origin HEAD:feature/deep-company-analysis-interactive-table-v50
           else
@@ -73,6 +77,8 @@ jobs:
           python -m py_compile scripts/qa_dca_dgc_interactive_v50.py
           python -m py_compile scripts/apply_dca_interactive_v50.py
           python -m py_compile scripts/apply_dca_v50_followup.py
+          python -m py_compile scripts/apply_dca_phase8e_compat_v50.py
+          python -m py_compile scripts/apply_chapter8_phase8e_v46.py
 
       - name: V50 interactive and format contracts
         run: |
