@@ -1,0 +1,45 @@
+name: DGC V38 Chapter 7 Rerun
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-sort-ttm-v38
+    paths:
+      - '.github/workflows/test-dgc-v38-ch7-rerun.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  dgc-ch7:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-sort-ttm-v38
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+      - name: Chapter 7 — DGC management discovery / evidence trial
+        shell: bash
+        run: |
+          PYTHONPATH=. python scripts/qa_chapter7_v37_1_dgc.py 2>&1 | tee reports/DGC_CH7_V38_RERUN.log
+      - name: Upload Chapter 7 diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DGC_V38_CHAPTER7_RERUN
+          path: |
+            reports/DGC_CH7_V38_RERUN.log
+            reports/DGC_V37_1_*.json
+            reports/DGC_V37_1_*.md
+            reports/DGC_V37_1_*.csv
+          if-no-files-found: warn
+          retention-days: 30
