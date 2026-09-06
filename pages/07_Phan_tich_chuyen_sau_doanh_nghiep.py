@@ -6,6 +6,13 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+st.set_page_config(
+    page_title="Phân tích chuyên sâu doanh nghiệp | Trecapital",
+    page_icon="🔬",
+    layout="wide",
+)
+
+
 import module1_dashboard as m1
 from module1_engine import append_ttm_row
 from modules.deep_company_analysis.chapter1 import load_inventory, load_record, render_chapter1
@@ -32,12 +39,6 @@ APP_DIR = Path(__file__).resolve().parents[1]
 ASSUMPTIONS_PATH = APP_DIR / "configs" / "valuation_assumptions.json"
 FRESH_QUOTE_HOURS = 6.0
 
-
-st.set_page_config(
-    page_title="Phân tích chuyên sâu doanh nghiệp | Trecapital",
-    page_icon="🔬",
-    layout="wide",
-)
 
 inject_oaktree_theme()
 
