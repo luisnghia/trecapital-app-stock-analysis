@@ -50,7 +50,7 @@ def _annual_rows(df: pd.DataFrame) -> list[dict[str, Any]]:
         if not annual.empty:
             work = annual
     if "period" in work.columns:
-        work = work[~work["period"].astype(str).str.upper().str.contains("TTM|T12M", regex=True, na=False)]
+        work = work[~work["period"].astype(str).str.upper().str.contains("TTM|T12M", regex=True, na=False)].copy()
     if work.empty:
         return []
     if "year" in work.columns:

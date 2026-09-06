@@ -158,10 +158,10 @@ def career_coverage_audit(payload: dict[str, Any]) -> pd.DataFrame:
     return pd.DataFrame([
         {"Metric": "Senior managers with career records", "Value": f"{len(managers)}/5" if len(managers) <= 5 else str(len(managers)), "Boundary": "Coverage only"},
         {"Metric": "Historical years covered", "Value": "—" if years_covered is None else f"{years_covered:.1f}", "Boundary": "No fake dates"},
-        {"Metric": "Known role episodes", "Value": len(rows), "Boundary": "Source chronology"},
-        {"Metric": "Functional categories observed", "Value": len(functions), "Boundary": "Research cue only"},
-        {"Metric": "Potential career gaps", "Value": potential_gaps, "Boundary": "Potential gap ≠ unemployment/problem"},
-        {"Metric": "Unresolved career gaps", "Value": unresolved_gaps, "Boundary": "Unknown if source does not explain"},
+        {"Metric": "Known role episodes", "Value": str(len(rows)), "Boundary": "Source chronology"},
+        {"Metric": "Functional categories observed", "Value": str(len(functions)), "Boundary": "Research cue only"},
+        {"Metric": "Potential career gaps", "Value": str(potential_gaps), "Boundary": "Potential gap ≠ unemployment/problem"},
+        {"Metric": "Unresolved career gaps", "Value": str(unresolved_gaps), "Boundary": "Unknown if source does not explain"},
         {"Metric": "Oldest verified career date", "Value": min(dates).strftime("%d/%m/%Y") if dates else "—", "Boundary": "As disclosed"},
         {"Metric": "Latest verified career date", "Value": max(dates).strftime("%d/%m/%Y") if dates else "—", "Boundary": "As disclosed"},
     ])
