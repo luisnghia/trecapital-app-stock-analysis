@@ -45,7 +45,7 @@ jobs:
         run: pytest -q modules/deep_company_analysis/test_chapter7*.py
 
       - name: DGC Round 3 — production path live acceptance
-        run: python scripts/qa_chapter7_v37_1_dgc.py
+        run: PYTHONPATH=. python scripts/qa_chapter7_v37_1_dgc.py
 
       - name: Streamlit smoke after hotfix
         shell: bash
