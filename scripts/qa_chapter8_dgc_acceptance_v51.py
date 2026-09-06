@@ -3,8 +3,8 @@ from __future__ import annotations
 """V51 live DGC Chapter 8 evidence-coverage acceptance.
 
 This acceptance does not auto-promote research candidates and does not close Q39-Q47.
-It combines live DGC canonical data, Chapter 7 management discovery, and Chapter 8
-research to show the analyst exactly where candidate coverage exists and where evidence
+It combines live DGC canonical data, bounded Chapter 7 management discovery, and
+Chapter 8 research to show exactly where candidate coverage exists and where evidence
 or source-quality gaps remain.
 """
 
@@ -18,7 +18,7 @@ import module1_dashboard as m1
 from module1_engine import append_ttm_row
 import modules.deep_company_analysis.chapter8 as ch8
 from modules.deep_company_analysis.chapter4_peer_auto import refresh_peer_canonical_bundle
-from modules.deep_company_analysis.chapter7_research import Chapter7ResearchAgent
+from modules.deep_company_analysis.chapter7_management_discovery import discover_management_candidates
 from modules.deep_company_analysis.chapter8_completion import build_completion_gate
 from modules.deep_company_analysis.chapter8_data_bridge import build_phase8b_context
 from modules.deep_company_analysis.chapter8_research import Chapter8ResearchAgent
@@ -29,20 +29,14 @@ REPORTS.mkdir(parents=True, exist_ok=True)
 
 
 def _text(value: Any) -> str:
-    if value is None:
-        return ""
-    return str(value).strip()
+    return "" if value is None else str(value).strip()
 
 
 def _chapter7_discovery_payload(manager_candidates: pd.DataFrame) -> tuple[dict[str, Any], pd.DataFrame]:
-    """Build a transient Chapter-7-shaped reference from Chapter 7 discovery only.
-
-    Manager IDs are deliberately left blank. This is research scoping, not a replacement
-    for analyst-confirmed Chapter 7 management profiles.
-    """
+    """Transient Chapter-7-shaped reference; Manager IDs are never fabricated."""
+    columns = ["Manager ID", "Manager", "Current Role", "As-of Date", "Source URL / File", "Research Status"]
     if not isinstance(manager_candidates, pd.DataFrame) or manager_candidates.empty:
-        empty = pd.DataFrame(columns=["Manager ID", "Manager", "Current Role", "As-of Date", "Source URL / File", "Research Status"])
-        return {"management_profiles": []}, empty
+        return {"management_profiles": []}, pd.DataFrame(columns=columns)
 
     rows: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
@@ -55,31 +49,26 @@ def _chapter7_discovery_payload(manager_candidates: pd.DataFrame) -> tuple[dict[
         if key in seen:
             continue
         seen.add(key)
-        rows.append(
-            {
-                "Manager ID": "",  # never fabricate an analyst manager ID
-                "Manager": name,
-                "Current Role": role,
-                "As-of Date": _text(source.get("As-of Date")),
-                "Source URL / File": _text(source.get("Source URL / File")),
-                "Research Status": "Chapter 7 discovered candidate — analyst verify",
-            }
-        )
+        rows.append({
+            "Manager ID": "",
+            "Manager": name,
+            "Current Role": role,
+            "As-of Date": _text(source.get("As-of Date")),
+            "Source URL / File": _text(source.get("Source URL / File")),
+            "Research Status": "Chapter 7 discovered candidate — analyst verify",
+        })
 
-    frame = pd.DataFrame(rows)
-    payload = {
-        "management_profiles": [
-            {
-                "Manager ID": row["Manager ID"],
-                "Manager": row["Manager"],
-                "Current Role": row["Current Role"],
-                "Analyst Classification": "Unknown",
-                "Confidence": "Unknown",
-            }
-            for row in rows
-        ]
-    }
-    return payload, frame
+    payload = {"management_profiles": [
+        {
+            "Manager ID": "",
+            "Manager": row["Manager"],
+            "Current Role": row["Current Role"],
+            "Analyst Classification": "Unknown",
+            "Confidence": "Unknown",
+        }
+        for row in rows
+    ]}
+    return payload, pd.DataFrame(rows, columns=columns)
 
 
 def _structured_state(question: str, bridge: dict[str, Any]) -> str:
@@ -97,10 +86,13 @@ def _structured_state(question: str, bridge: dict[str, Any]) -> str:
 
 def _q47_explicit_buyback(bridge: dict[str, Any]) -> bool:
     frame = bridge.get("q47_buyback_context")
-    if not isinstance(frame, pd.DataFrame) or frame.empty:
-        return False
     col = "Explicit buyback field available?"
-    return bool(col in frame.columns and frame[col].astype(str).str.casefold().eq("yes").any())
+    return bool(
+        isinstance(frame, pd.DataFrame)
+        and not frame.empty
+        and col in frame.columns
+        and frame[col].astype(str).str.casefold().eq("yes").any()
+    )
 
 
 def _gap_action(gaps: pd.DataFrame, question: str) -> tuple[int, str, str]:
@@ -124,45 +116,38 @@ def _coverage_table(research: Any, bridge: dict[str, Any]) -> pd.DataFrame:
         directions = sub.get("Direction", pd.Series(dtype="object")).fillna("").astype(str)
         managers = sub.get("Manager", pd.Series(dtype="object")).fillna("").astype(str)
         a_count = int(grades.str.startswith("A —").sum())
-        b_count = int(grades.str.startswith("B —").sum())
-        c_count = int(grades.str.startswith("C —").sum())
         count = int(len(sub))
         gap_count, gap_status, next_action = _gap_action(gaps, question)
-        if count == 0:
-            coverage = "Evidence gap"
-        elif a_count == 0:
-            coverage = "Candidate coverage — source-quality gap"
-        else:
-            coverage = "Candidate coverage — analyst verify"
-
+        coverage = (
+            "Evidence gap" if count == 0
+            else "Candidate coverage — source-quality gap" if a_count == 0
+            else "Candidate coverage — analyst verify"
+        )
         top_source = ""
         if not sub.empty:
             preferred = sub[grades.str.startswith("A —")]
             chosen = preferred.iloc[0] if not preferred.empty else sub.iloc[0]
             top_source = _text(chosen.get("Source URL / File"))
-
-        rows.append(
-            {
-                "Question": question,
-                "Source-Locked Question": ch8.QUESTION_TITLES[question],
-                "Coverage State": coverage,
-                "Candidates": count,
-                "A — Official": a_count,
-                "B — Independent": b_count,
-                "C — Secondary": c_count,
-                "Manager-Scoped Candidates": int(managers.str.strip().ne("").sum()) if not managers.empty else 0,
-                "Supporting Cues": int(directions.str.startswith("Supporting").sum()) if not directions.empty else 0,
-                "Counter-evidence Cues": int(directions.str.startswith("Counter").sum()) if not directions.empty else 0,
-                "Mixed Cues": int(directions.str.startswith("Mixed").sum()) if not directions.empty else 0,
-                "Neutral / Context Cues": int(directions.str.startswith("Neutral").sum()) if not directions.empty else 0,
-                "Structured Context": _structured_state(question, bridge),
-                "Open Research Gaps": gap_count,
-                "Gap Status": gap_status,
-                "Next Evidence Action": next_action,
-                "Top Candidate Source": top_source,
-                "Analyst Closure": "OPEN — analyst verification/promotion required",
-            }
-        )
+        rows.append({
+            "Question": question,
+            "Source-Locked Question": ch8.QUESTION_TITLES[question],
+            "Coverage State": coverage,
+            "Candidates": count,
+            "A — Official": a_count,
+            "B — Independent": int(grades.str.startswith("B —").sum()),
+            "C — Secondary": int(grades.str.startswith("C —").sum()),
+            "Manager-Scoped Candidates": int(managers.str.strip().ne("").sum()) if not managers.empty else 0,
+            "Supporting Cues": int(directions.str.startswith("Supporting").sum()),
+            "Counter-evidence Cues": int(directions.str.startswith("Counter").sum()),
+            "Mixed Cues": int(directions.str.startswith("Mixed").sum()),
+            "Neutral / Context Cues": int(directions.str.startswith("Neutral").sum()),
+            "Structured Context": _structured_state(question, bridge),
+            "Open Research Gaps": gap_count,
+            "Gap Status": gap_status,
+            "Next Evidence Action": next_action,
+            "Top Candidate Source": top_source,
+            "Analyst Closure": "OPEN — analyst verification/promotion required",
+        })
     return pd.DataFrame(rows)
 
 
@@ -178,42 +163,33 @@ def main() -> int:
     annual = append_ttm_row(annual_raw, quarterly)
     assert isinstance(annual, pd.DataFrame) and not annual.empty
 
-    # 1) Live Chapter 7 discovery is used only to scope manager-targeted Chapter 8 research.
-    ch7 = Chapter7ResearchAgent("data_cache/chapter8_dgc_acceptance_v51/ch7").search(
+    # Bounded live Chapter 7 discovery only; no need to rerun all Q33-Q38 research for Chapter 8 scoping.
+    ch7_discovery = discover_management_candidates(
         ticker,
         company_name,
-        managers=[],
-        max_results_per_query=2,
+        max_documents=8,
+        max_targets=5,
+        timeout_seconds=6.0,
     )
-    manager_candidates = ch7.manager_candidates.copy() if isinstance(ch7.manager_candidates, pd.DataFrame) else pd.DataFrame()
+    manager_candidates = ch7_discovery.managers.copy() if isinstance(ch7_discovery.managers, pd.DataFrame) else pd.DataFrame()
     chapter7_payload, managers = _chapter7_discovery_payload(manager_candidates)
     assert managers.get("Manager ID", pd.Series(dtype="object")).fillna("").astype(str).eq("").all(), "V51 must never fabricate Manager IDs"
 
-    # 2) Canonical financial context + Chapter 7-discovered manager names.
-    bridge = build_phase8b_context(
-        ticker,
-        annual,
-        chapter7_payload=chapter7_payload,
-        guidance_rows=None,
-    )
+    bridge = build_phase8b_context(ticker, annual, chapter7_payload=chapter7_payload, guidance_rows=None)
     assert bridge["financial_ssot"] == "Trecapital canonical financial data / Module 1"
     assert bridge["manager_ssot"] == "Chapter 7 manager master"
-    assert tuple(ch8.CAPITAL_ALLOCATION_ACTIONS) == (
-        "Reinvest in business / new projects",
-        "Hold cash",
-        "Pay dividends",
-        "Buy back stock",
-        "Make acquisitions",
-    )
     assert len(ch8.EMPLOYEE_RELATION_DIMENSIONS) == 14
+    assert tuple(ch8.CAPITAL_ALLOCATION_ACTIONS) == (
+        "Reinvest in business / new projects", "Hold cash", "Pay dividends", "Buy back stock", "Make acquisitions"
+    )
 
-    # 3) Live Chapter 8 research. Candidates remain candidates — no auto promotion.
+    # V44 proved one-result/12-document bounded research yields useful official-source coverage while staying finite.
     research = Chapter8ResearchAgent("data_cache/chapter8_dgc_acceptance_v51/ch8").search(
         ticker,
         company_name,
         chapter7_payload=chapter7_payload,
-        max_results_per_query=2,
-        max_official_documents=18,
+        max_results_per_query=1,
+        max_official_documents=12,
     )
     candidates = research.candidates.copy()
     gaps = research.gaps.copy()
@@ -226,7 +202,7 @@ def main() -> int:
     coverage = _coverage_table(research, bridge)
     assert list(coverage["Question"].astype(str)) == list(ch8.QUESTION_KEYS)
 
-    # 4) The live acceptance does not pretend an analyst has closed anything.
+    # No real analyst decisions are synthesized during acceptance.
     live_payload = ch8.empty_payload(ticker, company_name)
     gate = build_completion_gate(live_payload, structured_context=bridge, chapter7_payload=chapter7_payload)
     assert gate["ready_for_chapter_close"] is False
@@ -234,17 +210,13 @@ def main() -> int:
     assert gate["automatic_management_score"] is False
     assert gate["automatic_investment_signal"] is False
 
-    # Q47 source semantics: share-count change can never substitute for an explicit buyback field.
     explicit_buyback = _q47_explicit_buyback(bridge)
     q47_row = coverage.loc[coverage["Question"].eq("Q47")].iloc[0]
     assert "analyst verification" in str(q47_row["Analyst Closure"]).casefold()
 
-    latest_period = ""
     q46 = bridge.get("q46_capital_allocation_context")
-    if isinstance(q46, pd.DataFrame) and not q46.empty:
-        latest_period = _text(q46.iloc[-1].get("Kỳ"))
+    latest_period = _text(q46.iloc[-1].get("Kỳ")) if isinstance(q46, pd.DataFrame) and not q46.empty else ""
 
-    # Persist only reports, never analyst workspace state.
     managers.to_csv(REPORTS / "CH8_DGC_MANAGERS_FROM_CH7_V51.csv", index=False, encoding="utf-8-sig")
     candidates.to_csv(REPORTS / "CH8_DGC_CANDIDATES_V51.csv", index=False, encoding="utf-8-sig")
     gaps.to_csv(REPORTS / "CH8_DGC_RESEARCH_GAPS_V51.csv", index=False, encoding="utf-8-sig")
@@ -277,6 +249,7 @@ def main() -> int:
         "latest_period": latest_period,
         "financial_ssot": bridge["financial_ssot"],
         "manager_ssot": bridge["manager_ssot"],
+        "chapter7_discovery_note": ch7_discovery.note,
         "chapter7_discovered_manager_candidates": int(len(manager_candidates)),
         "chapter7_unique_manager_reference_rows": int(len(managers)),
         "chapter7_reference_mode": "Transient live Chapter 7 discovery for research scoping; not an analyst-confirmed replacement manager master; Manager IDs intentionally blank.",
@@ -298,35 +271,27 @@ def main() -> int:
     }
     (REPORTS / "CH8_DGC_ACCEPTANCE_V51.json").write_text(json.dumps(result, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
 
-    md_lines = [
-        "# DGC — Chapter 8 Q39–Q47 Live Evidence Acceptance V51",
-        "",
-        f"- Company: **{company_name}**",
-        f"- Canonical: **PASS** — {canonical_note}",
+    lines = [
+        "# DGC — Chapter 8 Q39–Q47 Live Evidence Acceptance V51", "",
+        f"- Company: **{company_name}**", f"- Canonical: **PASS** — {canonical_note}",
         f"- Latest period: **{latest_period or 'Unknown'}**",
         f"- Chapter 7 discovered manager reference rows: **{len(managers)}** (Manager IDs intentionally blank)",
-        f"- Chapter 8 candidates: **{len(candidates)}**",
-        f"- Research gaps: **{len(gaps)}**",
-        f"- Completion gate: **{'READY' if gate['ready_for_chapter_close'] else 'OPEN'}**",
-        "",
-        "> This acceptance never promotes evidence or writes analyst conclusions. Candidate coverage is not a management-quality rating.",
-        "",
+        f"- Chapter 8 candidates: **{len(candidates)}**", f"- Research gaps: **{len(gaps)}**",
+        f"- Completion gate: **{'READY' if gate['ready_for_chapter_close'] else 'OPEN'}**", "",
+        "> This acceptance never promotes evidence or writes analyst conclusions. Candidate coverage is not a management-quality rating.", "",
         "| Q | Coverage | Candidates | A-official | Manager-scoped | Structured | Gaps |",
         "|---|---|---:|---:|---:|---|---:|",
     ]
     for _, row in coverage.iterrows():
-        md_lines.append(
+        lines.append(
             f"| {row['Question']} | {row['Coverage State']} | {int(row['Candidates'])} | {int(row['A — Official'])} | "
             f"{int(row['Manager-Scoped Candidates'])} | {row['Structured Context']} | {int(row['Open Research Gaps'])} |"
         )
-    md_lines += ["", "## Exact next evidence actions", ""]
+    lines += ["", "## Exact next evidence actions", ""]
     for _, row in coverage.iterrows():
         action = str(row["Next Evidence Action"] or "No machine-detected gap; analyst still verifies candidates before closure.")
-        md_lines.append(f"- **{row['Question']}** — {action}")
-    md_lines += [
-        "",
-        "## Boundaries",
-        "",
+        lines.append(f"- **{row['Question']}** — {action}")
+    lines += ["", "## Boundaries", "",
         "- Financial SSOT: Trecapital canonical financial data / Module 1.",
         "- Manager identity SSOT: Chapter 7. Live discovered names here are research targets, not replacement analyst IDs.",
         "- Q43 remains exactly 14 employee-relation dimensions.",
@@ -334,7 +299,7 @@ def main() -> int:
         "- Q47 requires explicit buyback evidence; share-count decline alone is not proof.",
         "- No automatic management score, MOS/Research Gate mutation or BUY/HOLD/SELL.",
     ]
-    (REPORTS / "CH8_DGC_ACCEPTANCE_V51.md").write_text("\n".join(md_lines), encoding="utf-8")
+    (REPORTS / "CH8_DGC_ACCEPTANCE_V51.md").write_text("\n".join(lines), encoding="utf-8")
 
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
     return 0
