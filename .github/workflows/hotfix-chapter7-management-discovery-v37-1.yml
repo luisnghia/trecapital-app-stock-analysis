@@ -1,4 +1,4 @@
-name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5P
+name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5Q
 
 on:
   push:
@@ -31,6 +31,7 @@ jobs:
           python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5n.py
           python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5o.py
           python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5p.py
+          python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5q.py
 
       - name: Install dependencies
         run: |
@@ -50,7 +51,7 @@ jobs:
       - name: QA 2 — Full Chapter 7 regression
         run: pytest -q modules/deep_company_analysis/test_chapter7*.py
 
-      - name: DGC Round 5P — strict production path live acceptance
+      - name: DGC Round 5Q — strict production path live acceptance
         run: PYTHONPATH=. python scripts/qa_chapter7_v37_1_dgc.py
 
       - name: Streamlit smoke after hotfix
@@ -76,10 +77,10 @@ jobs:
 
           - Official-company discovery remains candidate-only and analyst-verification required.
           - Current Chairman/CEO/Vice-Chairman identities must be reachable from official management/report/search-result paths.
-          - URL token normalization, direct-content priority and targeted-search child priority are enabled.
+          - URL token normalization, direct-content priority, targeted-search child priority, and role-intent crawl scheduling are enabled.
           - Personnel event roles/dates remain occurrence- and clause-local; ended roles are not silently treated as current.
           - No automatic OO/LT/HH, Lion/Hyena, Management Quality, insider Buy/Sell, MOS or Research Gate conclusion.
-          - DGC Round 5P strict production-path live acceptance passed.
+          - DGC Round 5Q strict production-path live acceptance passed.
           - Unified Streamlit smoke passed.
           EOF
 
@@ -93,15 +94,15 @@ jobs:
           git add scripts/qa_chapter7_v37_1_dgc.py
           git add docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
           if ! git diff --cached --quiet; then
-            git commit -m "fix(ch7): finalize management discovery V37.1 round5p"
+            git commit -m "fix(ch7): finalize management discovery V37.1 round5q"
             git push origin HEAD:feature/deep-company-analysis-chapter7
           fi
 
-      - name: Upload DGC Round 5P diagnostic artifact
+      - name: Upload DGC Round 5Q diagnostic artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DGC_V37_1_ROUND5P_REPORT
+          name: DGC_V37_1_ROUND5Q_REPORT
           path: |
             reports/DGC_V37_1_ROUND3.json
             reports/DGC_V37_1_ROUND3.md
