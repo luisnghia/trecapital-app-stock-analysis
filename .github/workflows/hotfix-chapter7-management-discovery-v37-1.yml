@@ -1,4 +1,4 @@
-name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5AA
+name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5AB
 
 on:
   push:
@@ -60,7 +60,7 @@ jobs:
       - name: QA 2 — Full Chapter 7 regression
         run: pytest -q modules/deep_company_analysis/test_chapter7*.py
 
-      - name: DGC Round 5AA — strict production path live acceptance
+      - name: DGC Round 5AB — strict production path live acceptance
         run: PYTHONPATH=. python scripts/qa_chapter7_v37_1_dgc.py
 
       - name: Streamlit smoke after hotfix
@@ -96,7 +96,7 @@ jobs:
           - Tight board-signature blocks remain supported without making plain `Chủ tịch` a global role alias; Vice Chairman remains separately classified.
           - Personnel event roles/dates remain occurrence- and clause-local; ended roles are not silently treated as current.
           - No automatic OO/LT/HH, Lion/Hyena, Management Quality, insider Buy/Sell, MOS or Research Gate conclusion.
-          - DGC Round 5AA strict production-path live acceptance passed.
+          - DGC Round 5AB strict production-path live acceptance passed.
           - Unified Streamlit smoke passed.
           EOF
 
@@ -112,15 +112,15 @@ jobs:
           git add scripts/qa_chapter7_v37_1_dgc.py
           git add docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
           if ! git diff --cached --quiet; then
-            git commit -m "fix(ch7): finalize management discovery V37.1 round5aa"
+            git commit -m "fix(ch7): finalize management discovery V37.1 round5ab"
             git push origin HEAD:feature/deep-company-analysis-chapter7
           fi
 
-      - name: Upload DGC Round 5AA diagnostic artifact
+      - name: Upload DGC Round 5AB diagnostic artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DGC_V37_1_ROUND5AA_REPORT
+          name: DGC_V37_1_ROUND5AB_REPORT
           path: |
             reports/DGC_V37_1_ROUND3.json
             reports/DGC_V37_1_ROUND3.md
