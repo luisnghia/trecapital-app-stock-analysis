@@ -1,0 +1,183 @@
+name: Deep Company Analysis Stable Interactive Tables V50
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-interactive-table-v50
+    paths:
+      - '.github/workflows/dca-interactive-tables-v50.yml'
+      - 'scripts/apply_dca_interactive_v50.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  interactive-dgc:
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: .
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install pinned dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Apply V50 stable editor and lazy chapter migration
+        run: |
+          set -euo pipefail
+          if grep -q "Only the selected chapter is executed" pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py; then
+            echo "V50 migration already applied."
+          else
+            python scripts/apply_dca_interactive_v50.py
+          fi
+          git diff -- modules/deep_company_analysis/table_format.py \
+            modules/deep_company_analysis/test_sortable_table_v32.py \
+            pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+
+      - name: Commit V50 migration
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet -- modules/deep_company_analysis pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add modules/deep_company_analysis/table_format.py \
+              modules/deep_company_analysis/test_sortable_table_v32.py \
+              pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+            git commit -m "fix(dca): stabilize editors, lazy-render chapters, heatmap and latest-first"
+            git push origin HEAD:feature/deep-company-analysis-interactive-table-v50
+          else
+            echo "No V50 migration diff to commit."
+          fi
+
+      - name: Compile Deep Company Analysis
+        run: |
+          set -euo pipefail
+          python -m compileall -q modules/deep_company_analysis
+          python -m py_compile pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+          python -m py_compile scripts/qa_dca_dgc_interactive_v50.py
+          python -m py_compile scripts/apply_dca_interactive_v50.py
+
+      - name: V50 interactive and format contracts
+        run: |
+          set -euo pipefail
+          pytest -q \
+            modules/deep_company_analysis/test_interactive_table_v50.py \
+            modules/deep_company_analysis/test_sortable_table_v32.py \
+            modules/deep_company_analysis/test_table_format.py \
+            modules/deep_company_analysis/test_format_contract_v49.py \
+            modules/deep_company_analysis/test_dca_streamlit_compat_v48.py \
+            2>&1 | tee reports/DCA_INTERACTIVE_CONTRACT_V50.log
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/DCA_FULL_REGRESSION_V50.log
+
+      - name: Live DGC Chapter 1-8 lazy acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_dca_dgc_interactive_v50.py \
+            2>&1 | tee reports/DCA_DGC_INTERACTIVE_V50.log
+          if grep -qi "Tried to use SessionInfo before it was initialized" reports/DCA_DGC_INTERACTIVE_V50.log; then
+            echo "SessionInfo initialization race remains"
+            exit 1
+          fi
+          if grep -qi "Bad message format" reports/DCA_DGC_INTERACTIVE_V50.log; then
+            echo "Bad message format remains"
+            exit 1
+          fi
+          if grep -q "SettingWithCopyWarning" reports/DCA_DGC_INTERACTIVE_V50.log; then
+            echo "Unexpected SettingWithCopyWarning remains"
+            exit 1
+          fi
+          if grep -q "Serialization of dataframe to Arrow table was unsuccessful" reports/DCA_DGC_INTERACTIVE_V50.log; then
+            echo "Unexpected Arrow mixed-type warning remains"
+            exit 1
+          fi
+
+      - name: Production server health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8522 \
+            > reports/DCA_STREAMLIT_SERVER_V50.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8522/_stcore/health \
+              | tee reports/DCA_STREAMLIT_HEALTH_V50.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/DCA_STREAMLIT_SERVER_V50.log
+          exit 1
+
+      - name: Source-wide V50 runtime and table audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/DCA_SOURCE_AUDIT_V50.log
+          import inspect
+          from pathlib import Path
+          import modules.deep_company_analysis.table_format as tf
+
+          root = Path('modules/deep_company_analysis')
+          page = Path('pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py').read_text(encoding='utf-8')
+          dynamic = inspect.getsource(tf._dynamic_editor)
+
+          assert 'st.tabs(' not in page
+          assert 'active_chapter = st.radio(' in page
+          assert page.count('if active_chapter == CHAPTER_OPTIONS[') == 8
+          assert 'st.form(' in dynamic
+          assert 'num_rows="dynamic"' in dynamic
+          assert 'st.rerun(' not in dynamic
+          assert '__add_row' not in dynamic and '__delete_rows' not in dynamic
+          assert tf.prefer_ttm_latest([{'Kỳ':'2024'}, {'Kỳ':'TTM'}, {'Kỳ':'2025'}])['Kỳ'].tolist() == ['TTM','2025','2024']
+
+          offenders = []
+          for path in root.glob('chapter*.py'):
+              if path.name.startswith('test_') or path.name == 'chapter6_format.py':
+                  continue
+              text = path.read_text(encoding='utf-8')
+              if any(token in text for token in ('st.dataframe(', 'st.table(', 'st.data_editor(')):
+                  offenders.append(path.name)
+          assert offenders == [], offenders
+          print('PASS: V50 lazy chapter execution, form-batched native dynamic rows, latest-first display and shared table routing are locked.')
+          PY
+
+      - name: Build offline package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Stable Interactive Tables V50\nBranch: feature/deep-company-analysis-interactive-table-v50\nCommit: %s\nStreamlit: 1.40.2\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_DCA_V50.txt
+          zip -qr Trecapital_Deep_Analysis_Interactive_V50.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Interactive_V50.zip | tail -n 3
+
+      - name: Upload V50 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Interactive_V50
+          retention-days: 90
+          path: |
+            reports/DCA_DGC_INTERACTIVE_V50_ACCEPTANCE.json
+            reports/DCA_DGC_INTERACTIVE_V50.log
+            reports/DCA_INTERACTIVE_CONTRACT_V50.log
+            reports/DCA_FULL_REGRESSION_V50.log
+            reports/DCA_SOURCE_AUDIT_V50.log
+            reports/DCA_STREAMLIT_SERVER_V50.log
+            reports/DCA_STREAMLIT_HEALTH_V50.txt
+            Trecapital_Deep_Analysis_Interactive_V50.zip
