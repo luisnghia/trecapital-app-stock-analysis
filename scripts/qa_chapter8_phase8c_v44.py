@@ -28,9 +28,8 @@ def main() -> int:
     overview_path, annual_path, quarter_path = paths
     company = m1._load_overview_cached(str(overview_path), ticker)
     company_name = str(
-        company.get("company_name")
-        or company.get("name")
-        or company.get("company")
+        getattr(company, "company_name", "")
+        or getattr(company, "name", "")
         or "CTCP Tập đoàn Hóa chất Đức Giang"
     )
     annual_raw = m1._load_timeseries_cached(str(annual_path), ticker, "Y", 11)
