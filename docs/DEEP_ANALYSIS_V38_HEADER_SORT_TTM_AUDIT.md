@@ -52,16 +52,23 @@ The shared table layer no longer contains or exports:
 
 Canonical TTM remains upstream-owned through the Trecapital data layer / `append_ttm_row()`.
 
-## QA gates
+## QA result
 
-V38 verification must pass all of the following:
+Target workflow: **Deep Analysis V38 — Header Sort Everywhere + TTM Latest**  
+Run ID: **34023498982**  
+Result: **PASS**
 
-1. Header-sort contract tests.
-2. TTM coverage/source-safety tests.
-3. Full `modules/deep_company_analysis/test_*.py` regression.
-4. Static audit for old sort controls/symbols and direct unwrapped Streamlit table calls.
-5. Streamlit page smoke test.
+Passed gates:
 
-Status is only changed to PASS after the branch workflow succeeds.
+1. `QA 1 — Header-sort contract` — PASS.
+2. `QA 2 — TTM coverage and no fabrication` — PASS.
+3. `QA 3 — Full Deep Company Analysis regression` — PASS.
+4. `Static audit — old sort implementation is gone` — PASS.
+5. `Static audit — every Streamlit table goes through the shared renderer` — PASS.
+6. `Audit possible HTML table renderers` — completed successfully.
+7. `Audit period selectors` — completed successfully.
+8. `Streamlit smoke` — PASS.
 
-**Status: PENDING QA**
+The workflow also uploaded the Streamlit smoke log artifact for traceability.
+
+**Status: PASS — V38 verified on `feature/deep-company-analysis-sort-ttm-v38`.**
