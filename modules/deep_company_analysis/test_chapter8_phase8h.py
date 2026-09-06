@@ -113,13 +113,20 @@ def test_q47_share_count_decline_is_not_convertible_to_explicit_buyback_target()
 
 
 def test_gap_directed_agent_can_close_only_the_targeted_dimension_without_auto_promotion(monkeypatch):
+    # With an empty baseline, the deterministic planner sorts Q39 by dimension key, so
+    # `business_partners` is the first source-locked target. The fixture deliberately
+    # matches that target rather than assuming `customers` is first.
+    planned = gdr.build_gap_targets(pd.DataFrame(), pd.DataFrame(), max_targets=1)
+    assert planned.iloc[0]["Question"] == "Q39"
+    assert planned.iloc[0]["Dimension Key"] == "business_partners"
+
     def fake_search(self, ticker: str, company_name: str = "", max_results_per_query: int = 5):  # noqa: ARG001
         table = pd.DataFrame([
             {
-                "Tiêu đề": "DGC customer commitment",
-                "Nguồn/URL": "https://ducgiangchem.vn/customer-commitment",
+                "Tiêu đề": "DGC business partner commitment",
+                "Nguồn/URL": "https://ducgiangchem.vn/business-partner-commitment",
                 "Tên miền": "ducgiangchem.vn",
-                "Trích yếu": "DGC described customer service and khách hàng commitments in its 2026 disclosure.",
+                "Trích yếu": "DGC described long-term business partner and đối tác commitments in its 2026 disclosure.",
                 "Trạng thái": "Tìm thấy",
                 "Truy vấn": "fixture",
             },
@@ -140,6 +147,7 @@ def test_gap_directed_agent_can_close_only_the_targeted_dimension_without_auto_p
     before_open = int((before["Source Locked"].eq("Yes") & ~before["Coverage Status"].eq("Candidate coverage — analyst verify")).sum())
     after_open = int((result.after_coverage["Source Locked"].eq("Yes") & ~result.after_coverage["Coverage Status"].eq("Candidate coverage — analyst verify")).sum())
     assert len(result.new_candidates) == 1
+    assert result.new_candidates.iloc[0]["Subtopic"] == "Business partners"
     assert before_open - after_open == 1
     assert result.new_candidates["Status"].eq("Candidate — analyst verify").all()
     assert result.new_candidates["Select"].eq(False).all()
