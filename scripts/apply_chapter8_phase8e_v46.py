@@ -22,6 +22,18 @@ def _replace_once(text: str, old: str, new: str, label: str) -> str:
 
 
 def patch_dca_page(text: str) -> str:
+    # V50 replaced eager st.tabs with lazy chapter selection. If Chapter 8 is already
+    # integrated in that architecture, Phase 8E is complete and this legacy migrator
+    # must be a no-op rather than trying to recreate the obsolete tab anchors.
+    if (
+        "CHAPTER_OPTIONS = (" in text
+        and "active_chapter = st.radio(" in text
+        and "render_chapter8_tab(chapter8_ticker)" in text
+        and "from modules.deep_company_analysis.chapter8_page_support import render_chapter8_tab" in text
+        and "from modules.deep_company_analysis.chapter8_integration import build_chapter8_summary" in text
+        and "from modules.deep_company_analysis.chapter8_store import load_record as load_chapter8_record" in text
+    ):
+        return text
     text = _replace_once(
         text,
         "from modules.deep_company_analysis.chapter7_page_support import render_chapter7_tab\n",
