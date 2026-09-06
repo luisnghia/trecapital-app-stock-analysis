@@ -47,25 +47,23 @@ def test_no_direct_dataframe_editor_or_table_remains_in_production_deep_analysis
     assert "st.data_editor(" in source
 
 
-def test_dynamic_editors_keep_header_sorting_enabled():
+def test_dynamic_editors_are_form_batched_without_forced_rerun():
     source = inspect.getsource(table_format._dynamic_editor)
-    # Streamlit 1.40 disables header sorting when num_rows='dynamic'. The shared wrapper must
-    # therefore keep the actual editor fixed-row and manage add/delete externally.
-    assert 'num_rows="fixed"' in source
-    assert 'num_rows="dynamic"' not in source
-    wrapper_source = inspect.getsource(table_format.sortable_data_editor)
-    assert 'requested_num_rows == "dynamic"' in wrapper_source
-    assert "_dynamic_editor(" in wrapper_source
-
+    assert "st.form(" in source
+    assert 'num_rows="dynamic"' in source
+    assert "st.form_submit_button(" in source
+    assert "st.rerun(" not in source
+    assert "__add_row" not in source
+    assert "__delete_rows" not in source
 
 def test_ttm_is_default_latest_period_without_fabrication():
     frame = pd.DataFrame({"Kỳ": ["TTM", "2024", "2025"], "CFO (tỷ)": [130, 90, 110]})
     out = prefer_ttm_latest(frame)
-    assert out["Kỳ"].tolist() == ["2024", "2025", "TTM"]
+    assert out["Kỳ"].tolist() == ["TTM", "2025", "2024"]
 
     no_ttm = pd.DataFrame({"Kỳ": ["2024", "2025"], "CFO (tỷ)": [90, 110]})
     out2 = prefer_ttm_latest(no_ttm)
-    assert out2["Kỳ"].tolist() == ["2024", "2025"]
+    assert out2["Kỳ"].tolist() == ["2025", "2024"]
 
     options = ["2023", "2024", "2025", "TTM"]
     assert default_latest_period_index(options) == 3

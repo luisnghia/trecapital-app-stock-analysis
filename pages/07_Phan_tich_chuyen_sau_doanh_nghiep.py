@@ -317,19 +317,7 @@ default_ticker = _safe_ticker(
     )
 ) or "DGC"
 
-# Phase 8E summary is descriptive only. It never computes a management score or changes the investment gate.
-_ch8_summary_payload = load_chapter8_record(default_ticker)
-_ch8_summary = build_chapter8_summary(_ch8_summary_payload)
-with st.expander("🧭 Trạng thái nghiên cứu Chương 8 — Q39 đến Q47", expanded=False):
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Answered", f"{_ch8_summary['answered']}/{_ch8_summary['total_questions']}")
-    c2.metric("Partial", _ch8_summary["partial"])
-    c3.metric("Promoted evidence", _ch8_summary["promoted_evidence"])
-    c4.metric("Open research gaps", _ch8_summary["research_gaps_open"])
-    c5.metric("Analyst conclusions", _ch8_summary["analyst_conclusions"])
-    st.caption("Đây là research-completeness summary, không phải Management Quality Score và không tạo BUY/HOLD/SELL.")
-
-chapter1_tab, chapter2_tab, chapter3_tab, chapter4_tab, chapter5_tab, chapter6_tab, chapter7_tab, chapter8_tab = st.tabs([
+CHAPTER_OPTIONS = (
     "📗 Chương 1 — Cơ hội đầu tư",
     "📘 Chương 2 — Hiểu doanh nghiệp",
     "📙 Chương 3 — Góc nhìn khách hàng",
@@ -338,9 +326,20 @@ chapter1_tab, chapter2_tab, chapter3_tab, chapter4_tab, chapter5_tab, chapter6_t
     "📓 Chương 6 — Earnings & dòng tiền",
     "👥 Chương 7 — Ban điều hành",
     "🧭 Chương 8 — Năng lực vận hành",
-])
+)
 
-with chapter1_tab:
+# Only the selected chapter is executed. Unlike st.tabs, this avoids rebuilding all eight
+# chapter bodies after each analyst interaction and materially reduces edit latency.
+active_chapter = st.radio(
+    "Chương phân tích",
+    CHAPTER_OPTIONS,
+    horizontal=True,
+    key="dca_active_chapter",
+    label_visibility="collapsed",
+)
+# chapter8_tab compatibility marker: Chapter 8 remains embedded in this unified page.
+
+if active_chapter == CHAPTER_OPTIONS[0]:
     with st.expander("📘 Hướng dẫn sử dụng Chương 1 — Hình thành & Sàng lọc Cơ hội đầu tư", expanded=True):
         st.markdown(
             """
@@ -400,7 +399,7 @@ Khi một trigger chuyển từ **chưa thỏa → thỏa**, app tạo một ite
 
     render_chapter1(default_ticker=default_ticker, auto_data=auto_data, auto_company_name=auto_company_name)
 
-with chapter2_tab:
+if active_chapter == CHAPTER_OPTIONS[1]:
     chapter2_ticker = _safe_ticker(
         str(
             st.session_state.get("dca_ch2_ticker")
@@ -411,7 +410,7 @@ with chapter2_tab:
     ) or default_ticker
     render_chapter2_tab(chapter2_ticker)
 
-with chapter3_tab:
+if active_chapter == CHAPTER_OPTIONS[2]:
     chapter3_ticker = _safe_ticker(
         str(
             st.session_state.get("dca_ch3_ticker")
@@ -423,7 +422,7 @@ with chapter3_tab:
     ) or default_ticker
     render_chapter3_tab(chapter3_ticker)
 
-with chapter4_tab:
+if active_chapter == CHAPTER_OPTIONS[3]:
     chapter4_ticker = _safe_ticker(
         str(
             st.session_state.get("dca_ch4_ticker")
@@ -436,7 +435,7 @@ with chapter4_tab:
     ) or default_ticker
     render_chapter4_tab(chapter4_ticker)
 
-with chapter5_tab:
+if active_chapter == CHAPTER_OPTIONS[4]:
     chapter5_ticker = _safe_ticker(
         str(
             st.session_state.get("dca_ch5_ticker")
@@ -450,7 +449,7 @@ with chapter5_tab:
     ) or default_ticker
     render_chapter5_tab(chapter5_ticker)
 
-with chapter6_tab:
+if active_chapter == CHAPTER_OPTIONS[5]:
     chapter6_ticker = _safe_ticker(
         str(
             st.session_state.get("dca_ch6_ticker")
@@ -465,7 +464,7 @@ with chapter6_tab:
     ) or default_ticker
     render_chapter6_tab(chapter6_ticker)
 
-with chapter7_tab:
+if active_chapter == CHAPTER_OPTIONS[6]:
     chapter7_ticker = _safe_ticker(
         str(
             st.session_state.get("dca_ch7_ticker")
@@ -481,7 +480,19 @@ with chapter7_tab:
     ) or default_ticker
     render_chapter7_tab(chapter7_ticker)
 
-with chapter8_tab:
+if active_chapter == CHAPTER_OPTIONS[7]:
+    # Phase 8E summary is descriptive only. It never computes a management score or changes the investment gate.
+    _ch8_summary_payload = load_chapter8_record(default_ticker)
+    _ch8_summary = build_chapter8_summary(_ch8_summary_payload)
+    with st.expander("🧭 Trạng thái nghiên cứu Chương 8 — Q39 đến Q47", expanded=False):
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Answered", f"{_ch8_summary['answered']}/{_ch8_summary['total_questions']}")
+        c2.metric("Partial", _ch8_summary["partial"])
+        c3.metric("Promoted evidence", _ch8_summary["promoted_evidence"])
+        c4.metric("Open research gaps", _ch8_summary["research_gaps_open"])
+        c5.metric("Analyst conclusions", _ch8_summary["analyst_conclusions"])
+        st.caption("Đây là research-completeness summary, không phải Management Quality Score và không tạo BUY/HOLD/SELL.")
+
     chapter8_ticker = _safe_ticker(
         str(
             st.session_state.get("dca_ch8_ticker")

@@ -65,14 +65,14 @@ def format_numeric(value: Any, kind: str) -> str:
 
 
 def _heat_eligible(column: str) -> bool:
-    low = str(column or "").casefold()
-    tokens = (
-        "tăng trưởng", "growth", "change", "delta", "Δ", "margin", "roic",
-        "cfo", "fcf", "ebit", "profit", "lợi nhuận", "cash flow", "dòng tiền",
-        "headroom", "impact", "drawdown",
-    )
-    return any(token.casefold() in low for token in tokens)
+    """Apply sign/intensity heat to every explicitly financial numeric column.
 
+    The heat is a visual sign/magnitude aid only: red means negative and emerald means
+    positive. It is deliberately *not* a good/bad investment judgement.
+    """
+    return infer_numeric_kind(str(column)) in {
+        "amount_bil", "percent", "ratio", "days", "shares", "number"
+    }
 
 def _heat_style(value: Any, max_abs: float) -> str:
     try:
@@ -138,11 +138,38 @@ def default_latest_period(options: Any) -> Any:
     return values[default_latest_period_index(values)]
 
 
-def prefer_ttm_latest(value: Any) -> pd.DataFrame:
-    """Keep a valid TTM row as the latest/default period without fabricating one.
+def _period_sort_rank(value: Any) -> tuple[int, float]:
+    """Return a display-only recency rank; it never fabricates a financial period."""
+    import re
 
-    The relative order of all non-TTM rows is preserved. This only controls the initial/default
-    order; after rendering, the user can sort the grid directly by clicking any column header.
+    label = str(value or "").strip()
+    upper = label.upper()
+    if _is_ttm_label(label):
+        return 3, float("inf")
+
+    q1 = re.search(r"(20\d{2})\D*Q([1-4])", upper)
+    q2 = re.search(r"Q([1-4])\D*(20\d{2})", upper)
+    if q1:
+        return 2, float(int(q1.group(1)) * 10 + int(q1.group(2)))
+    if q2:
+        return 2, float(int(q2.group(2)) * 10 + int(q2.group(1)))
+
+    year = re.search(r"(?<!\d)(20\d{2})(?!\d)", upper)
+    if year:
+        return 1, float(int(year.group(1)) * 10)
+
+    parsed = pd.to_datetime(label, errors="coerce", dayfirst=True)
+    if not pd.isna(parsed):
+        return 1, float(pd.Timestamp(parsed).timestamp())
+    return 0, float("-inf")
+
+
+def prefer_ttm_latest(value: Any) -> pd.DataFrame:
+    """Default display order: real TTM first, then newest recognised period to oldest.
+
+    This function changes only presentation order. It never creates a TTM row or alters
+    the underlying financial calculations. Unrecognised period labels remain after known
+    periods in their original relative order.
     """
     frame = _coerce_frame(value)
     if frame.empty:
@@ -150,11 +177,22 @@ def prefer_ttm_latest(value: Any) -> pd.DataFrame:
     period_col = _period_column(frame)
     if period_col is None:
         return frame
-    is_ttm = frame[period_col].map(_is_ttm_label)
-    if not bool(is_ttm.any()):
-        return frame
-    return pd.concat([frame.loc[~is_ttm], frame.loc[is_ttm]], ignore_index=True)
 
+    work = frame.copy().reset_index(drop=True)
+    ranks = work[period_col].map(_period_sort_rank)
+    work["__tre_period_group"] = [item[0] for item in ranks]
+    work["__tre_period_rank"] = [item[1] for item in ranks]
+    work["__tre_original_order"] = range(len(work))
+    work = work.sort_values(
+        ["__tre_period_group", "__tre_period_rank", "__tre_original_order"],
+        ascending=[False, False, True],
+        kind="stable",
+        na_position="last",
+    )
+    return work.drop(
+        columns=["__tre_period_group", "__tre_period_rank", "__tre_original_order"],
+        errors="ignore",
+    ).reset_index(drop=True)
 
 def static_table_html(value: Any, *, height: int | None = None) -> str:
     """Legacy export/preview HTML formatter.
@@ -246,11 +284,13 @@ def _frame_signature(frame: pd.DataFrame) -> str:
 
 
 def _dynamic_editor(value: pd.DataFrame, *, key: str, kwargs: dict[str, Any]) -> pd.DataFrame:
-    """Editable grid with native header sorting plus explicit add/delete row controls.
+    """Stable dynamic editor with native add/delete and form-batched reruns.
 
-    Streamlit disables header sorting when st.data_editor uses num_rows='dynamic'. To preserve both
-    row management and click-on-header sorting, this wrapper always renders the underlying editor
-    with fixed rows and manages add/delete operations outside the grid.
+    Streamlit reruns a script on normal widget changes. A large eight-chapter research page
+    therefore becomes slow if every cell edit immediately causes a full rerun. The editor is
+    placed inside a form: analysts can edit/add/delete several rows locally, then commit once
+    with the submit button. Native ``num_rows='dynamic'`` removes the previous custom
+    add/delete + widget-generation + ``st.rerun()`` race.
     """
     source = prefer_ttm_latest(value).reset_index(drop=True)
     rows_key = f"{key}__rows"
@@ -269,66 +309,44 @@ def _dynamic_editor(value: pd.DataFrame, *, key: str, kwargs: dict[str, Any]) ->
             working[column] = None
     working = working[list(source.columns)] if len(source.columns) else working
 
-    display = working.copy()
-    display[_DELETE_COLUMN] = False
-
     provided_config = kwargs.pop("column_config", None)
     column_config = _default_editor_column_config(working)
     if isinstance(provided_config, dict):
         column_config.update(provided_config)
-    column_config[_DELETE_COLUMN] = st.column_config.CheckboxColumn(
-        "Xóa",
-        help="Đánh dấu dòng cần xóa, sau đó bấm “Xóa dòng đã chọn”.",
-        default=False,
-    )
 
     generation = int(st.session_state.get(generation_key, 0))
-    edited = st.data_editor(
-        display,
-        num_rows="fixed",
-        key=f"{key}__grid_{generation}",
-        column_config=column_config,
-        **kwargs,
-    )
-    edited = _coerce_frame(edited)
-    selected = edited.get(_DELETE_COLUMN, pd.Series(False, index=edited.index)).fillna(False).astype(bool)
-    user_columns = [column for column in edited.columns if column != _DELETE_COLUMN]
-    edited_user = edited[user_columns].copy().reset_index(drop=True)
-    st.session_state[rows_key] = edited_user.copy()
-
-    add_col, delete_col, note_col = st.columns([1, 1, 3])
-    with add_col:
-        add_row = st.button("➕ Thêm dòng", key=f"{key}__add_row", use_container_width=True)
-    with delete_col:
-        delete_rows = st.button(
-            "🗑 Xóa dòng đã chọn",
-            key=f"{key}__delete_rows",
-            use_container_width=True,
-            disabled=not bool(selected.any()),
+    disabled = kwargs.get("disabled", False)
+    with st.form(f"{key}__form_{generation}", clear_on_submit=False, border=False):
+        edited = st.data_editor(
+            working,
+            num_rows="dynamic",
+            key=f"{key}__grid_{generation}",
+            column_config=column_config or None,
+            **kwargs,
         )
-    with note_col:
-        st.caption("Sắp xếp: nhấn trực tiếp tiêu đề cột. Nhấn lại để đổi chiều sắp xếp.")
+        submitted = st.form_submit_button(
+            "✅ Áp dụng thay đổi bảng",
+            use_container_width=True,
+            disabled=bool(disabled) if isinstance(disabled, bool) else False,
+            help="Có thể nhập/thêm/xóa nhiều dòng trước; app chỉ xử lý lại khi bấm nút này.",
+        )
 
-    if add_row:
-        blank = pd.DataFrame([{column: None for column in edited_user.columns}])
-        st.session_state[rows_key] = pd.concat([edited_user, blank], ignore_index=True)
-        st.session_state[generation_key] = generation + 1
-        st.rerun()
+    if submitted:
+        committed = _coerce_frame(edited).reset_index(drop=True)
+        st.session_state[rows_key] = committed.copy()
 
-    if delete_rows:
-        st.session_state[rows_key] = edited_user.loc[~selected.to_numpy()].reset_index(drop=True)
-        st.session_state[generation_key] = generation + 1
-        st.rerun()
-
-    return edited_user
-
+    committed = _coerce_frame(st.session_state.get(rows_key)).reset_index(drop=True)
+    if any(infer_numeric_kind(str(column)) != "text" for column in committed.columns) and not committed.empty:
+        with st.expander("🌡️ Xem format số liệu / heatmap", expanded=False):
+            render_static_table(committed, use_container_width=True, hide_index=True)
+    return committed
 
 def sortable_data_editor(value: Any, **kwargs: Any):
     """Editable table whose column headers are the only sorting controls.
 
-    The old external sort selectors are gone. For tables that previously requested dynamic rows,
-    add/delete is provided by the wrapper while the underlying Streamlit editor stays fixed-row so
-    native header sorting remains enabled on Streamlit 1.40.x.
+    The old external sort selectors are gone. Dynamic analyst-input tables use Streamlit's native
+    add/delete rows inside a form to avoid a rerun on every cell edit. Read-only tables retain
+    native click-on-header sorting; dynamic editors prioritise stable row management.
     """
     frame = prefer_ttm_latest(value)
     requested_num_rows = str(kwargs.pop("num_rows", "fixed") or "fixed").strip().lower()
