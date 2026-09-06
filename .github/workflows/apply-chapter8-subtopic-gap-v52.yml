@@ -1,0 +1,38 @@
+name: Apply Chapter 8 Subtopic Gap V52
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter8-subtopic-gap-v52
+    paths:
+      - scripts/apply_chapter8_subtopic_gap_v52.py
+      - modules/deep_company_analysis/chapter8_gap_engine.py
+      - modules/deep_company_analysis/chapter8_research_v52.py
+      - .github/workflows/apply-chapter8-subtopic-gap-v52.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Apply narrow UI wiring
+        run: python scripts/apply_chapter8_subtopic_gap_v52.py
+      - name: Commit wiring if changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- modules/deep_company_analysis/chapter8_page_support.py; then
+            echo "No UI wiring change required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add modules/deep_company_analysis/chapter8_page_support.py
+          git commit -m "feat(dca): wire V52 dimension-gap engine into Chapter 8 UI"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
