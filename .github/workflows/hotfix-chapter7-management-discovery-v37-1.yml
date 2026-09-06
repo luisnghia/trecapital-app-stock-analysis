@@ -1,4 +1,4 @@
-name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5W
+name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5X
 
 on:
   push:
@@ -37,7 +37,7 @@ jobs:
           python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5t.py
           python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5u.py
           python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5v.py
-          python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5w.py
+          python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5x.py
 
       - name: Install dependencies
         run: |
@@ -57,7 +57,7 @@ jobs:
       - name: QA 2 — Full Chapter 7 regression
         run: pytest -q modules/deep_company_analysis/test_chapter7*.py
 
-      - name: DGC Round 5W — strict production path live acceptance
+      - name: DGC Round 5X — strict production path live acceptance
         run: PYTHONPATH=. python scripts/qa_chapter7_v37_1_dgc.py
 
       - name: Streamlit smoke after hotfix
@@ -90,7 +90,7 @@ jobs:
           - Role coverage remains same-domain and source-text-only; no identity or office is inferred from a title, URL, or missing evidence.
           - Personnel event roles/dates remain occurrence- and clause-local; ended roles are not silently treated as current.
           - No automatic OO/LT/HH, Lion/Hyena, Management Quality, insider Buy/Sell, MOS or Research Gate conclusion.
-          - DGC Round 5W strict production-path live acceptance passed.
+          - DGC Round 5X strict production-path live acceptance passed.
           - Unified Streamlit smoke passed.
           EOF
 
@@ -104,15 +104,15 @@ jobs:
           git add scripts/qa_chapter7_v37_1_dgc.py
           git add docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
           if ! git diff --cached --quiet; then
-            git commit -m "fix(ch7): finalize management discovery V37.1 round5w"
+            git commit -m "fix(ch7): finalize management discovery V37.1 round5x"
             git push origin HEAD:feature/deep-company-analysis-chapter7
           fi
 
-      - name: Upload DGC Round 5W diagnostic artifact
+      - name: Upload DGC Round 5X diagnostic artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DGC_V37_1_ROUND5W_REPORT
+          name: DGC_V37_1_ROUND5X_REPORT
           path: |
             reports/DGC_V37_1_ROUND3.json
             reports/DGC_V37_1_ROUND3.md
