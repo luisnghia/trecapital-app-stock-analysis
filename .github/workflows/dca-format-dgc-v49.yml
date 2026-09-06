@@ -1,0 +1,154 @@
+name: Deep Company Analysis Format + DGC Ch1-Ch8 V49
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-format-dgc-v49
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  format-dgc:
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: .
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install pinned dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Apply V49 numeric format migration
+        run: |
+          set -euo pipefail
+          python scripts/apply_dca_format_v49.py
+          git diff -- modules/deep_company_analysis/table_format.py \
+            modules/deep_company_analysis/chapter6_format.py \
+            modules/deep_company_analysis/chapter6_page_support.py \
+            modules/deep_company_analysis/test_table_format.py \
+            modules/deep_company_analysis/test_chapter6_format.py \
+            modules/deep_company_analysis/test_sortable_table_v32.py
+
+      - name: Commit V49 migration
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet -- modules/deep_company_analysis; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add modules/deep_company_analysis/table_format.py \
+              modules/deep_company_analysis/chapter6_format.py \
+              modules/deep_company_analysis/chapter6_page_support.py \
+              modules/deep_company_analysis/test_table_format.py \
+              modules/deep_company_analysis/test_chapter6_format.py \
+              modules/deep_company_analysis/test_sortable_table_v32.py
+            git commit -m "fix(dca): standardize Vietnamese numeric table formatting"
+            git push origin HEAD:feature/deep-company-analysis-format-dgc-v49
+          else
+            echo "V49 numeric migration already applied."
+          fi
+
+      - name: Compile Deep Company Analysis
+        run: |
+          set -euo pipefail
+          python -m compileall -q modules/deep_company_analysis
+          python -m py_compile pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+          python -m py_compile scripts/qa_dca_dgc_ch1_ch8_v49.py
+
+      - name: Numeric format contract
+        run: |
+          set -euo pipefail
+          pytest -q \
+            modules/deep_company_analysis/test_table_format.py \
+            modules/deep_company_analysis/test_chapter6_format.py \
+            modules/deep_company_analysis/test_sortable_table_v32.py \
+            modules/deep_company_analysis/test_format_contract_v49.py \
+            2>&1 | tee reports/DCA_FORMAT_CONTRACT_V49.log
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/DCA_FULL_REGRESSION_V49.log
+
+      - name: Live DGC Chapters 1-8 acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_dca_dgc_ch1_ch8_v49.py \
+            2>&1 | tee reports/DCA_DGC_CH1_CH8_V49.log
+
+      - name: Production server health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8521 \
+            > reports/DCA_STREAMLIT_SERVER_V49.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8521/_stcore/health \
+              | tee reports/DCA_STREAMLIT_HEALTH_V49.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/DCA_STREAMLIT_SERVER_V49.log
+          exit 1
+
+      - name: Source-wide table-format audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/DCA_FORMAT_AUDIT_V49.log
+          from pathlib import Path
+          root = Path('modules/deep_company_analysis')
+          fmt = (root / 'table_format.py').read_text(encoding='utf-8')
+          ch6 = (root / 'chapter6_format.py').read_text(encoding='utf-8')
+          assert '_format_vi_number' in fmt
+          assert 'from modules.deep_company_analysis.table_format import format_numeric, infer_numeric_kind' in ch6
+          assert 'column_config = provided if isinstance(provided, dict) else None' in fmt
+          offenders = []
+          for path in root.glob('chapter*.py'):
+              if path.name.startswith('test_') or path.name == 'chapter6_format.py':
+                  continue
+              text = path.read_text(encoding='utf-8')
+              if any(token in text for token in ('st.dataframe(', 'st.table(', 'st.data_editor(')):
+                  offenders.append(path.name)
+          assert offenders == [], offenders
+          print('PASS: Ch1-Ch8 tables route through shared wrappers; Vietnamese display precision/separators are source-locked.')
+          PY
+
+      - name: Build offline package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Format + DGC Ch1-Ch8 V49\nBranch: feature/deep-company-analysis-format-dgc-v49\nCommit: %s\nStreamlit: 1.40.2\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_DCA_V49.txt
+          zip -qr Trecapital_Deep_Analysis_Format_DGC_V49.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Format_DGC_V49.zip | tail -n 3
+
+      - name: Upload V49 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Format_DGC_V49
+          retention-days: 90
+          path: |
+            reports/DCA_DGC_CH1_CH8_V49_ACCEPTANCE.json
+            reports/DCA_DGC_CH1_CH8_V49.log
+            reports/DCA_FORMAT_CONTRACT_V49.log
+            reports/DCA_FULL_REGRESSION_V49.log
+            reports/DCA_FORMAT_AUDIT_V49.log
+            reports/DCA_STREAMLIT_SERVER_V49.log
+            reports/DCA_STREAMLIT_HEALTH_V49.txt
+            Trecapital_Deep_Analysis_Format_DGC_V49.zip
