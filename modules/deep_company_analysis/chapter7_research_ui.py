@@ -55,6 +55,7 @@ def render_chapter7_research_assistant(ticker: str, payload: dict[str, Any]) -> 
     safe = _safe_ticker(ticker)
     managers = _manager_names(payload)
     candidates_key = f"ch7c_candidates_{safe}"
+    discovered_key = f"ch7c_discovered_managers_{safe}"
     note_key = f"ch7c_note_{safe}"
     raw_key = f"ch7c_raw_{safe}"
 
@@ -68,7 +69,7 @@ def render_chapter7_research_assistant(ticker: str, payload: dict[str, Any]) -> 
     if managers:
         st.success("Manager targets: " + ", ".join(managers))
     else:
-        st.warning("Management Profile đang trống. Research vẫn chạy theo ticker/doanh nghiệp, nhưng Q36 top-5 chronology sẽ bị gắn identity gap.")
+        st.warning("Management Profile đang trống. Hệ thống sẽ thử auto-discover candidate manager targets từ nguồn doanh nghiệp/IR chính thức trước khi research; các identity này vẫn cần analyst xác nhận.")
 
     c1, c2 = st.columns([3, 1])
     with c1:
@@ -86,10 +87,22 @@ def render_chapter7_research_assistant(ticker: str, payload: dict[str, Any]) -> 
                 max_results_per_query=int(max_results),
             )
         st.session_state[candidates_key] = result.candidates.to_dict("records")
+        discovered = result.manager_candidates if isinstance(result.manager_candidates, pd.DataFrame) else pd.DataFrame()
+        st.session_state[discovered_key] = discovered.to_dict("records")
         st.session_state[note_key] = result.note
         st.session_state[raw_key] = result.raw_paths
 
     candidates = _candidate_frame(st.session_state.get(candidates_key))
+    discovered = pd.DataFrame(st.session_state.get(discovered_key) or [])
+    research_managers = list(managers)
+    if not research_managers and not discovered.empty and "Manager" in discovered.columns:
+        research_managers = list(dict.fromkeys(" ".join(str(x).split()) for x in discovered["Manager"].tolist() if str(x).strip()))[:5]
+
+    if not discovered.empty:
+        st.markdown("### Candidate management targets — auto-discovered")
+        render_static_table(discovered, height=min(360, 120 + 30 * len(discovered)), sort_key=f"ch7c_discovered_{safe}")
+        st.info("Các tên/chức vụ trên chỉ là research targets từ nguồn chính thức. App không tự ghi vào Management Profile và không tự xác nhận Q33/Q36.")
+
     if not candidates.empty:
         st.markdown("### Evidence coverage — A/B/C")
         render_static_table(evidence_quality_summary(candidates), height=300, sort_key=f"ch7c_quality_{safe}")
@@ -120,7 +133,7 @@ def render_chapter7_research_assistant(ticker: str, payload: dict[str, Any]) -> 
         with c1:
             if st.button("📄 Trích sâu PDF/HTML đã chọn", use_container_width=True, key=f"ch7c_deep_{safe}", disabled=not bool(selected_ids)):
                 with st.spinner("Đang tải và trích text từ nguồn đã chọn (không OCR)..."):
-                    deep = deep_extract_candidates(candidates, selected_ids, managers=managers)
+                    deep = deep_extract_candidates(candidates, selected_ids, managers=research_managers)
                 if deep.empty:
                     st.warning("Không trích được text usable từ nguồn đã chọn. Nguồn có thể chặn truy cập, là trang động hoặc PDF scan cần OCR.")
                 else:

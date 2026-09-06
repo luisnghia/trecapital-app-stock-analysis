@@ -23,6 +23,10 @@ from bs4 import BeautifulSoup
 from pypdf import PdfReader
 
 from adapters.module2_web_research import HEADERS, KNOWN_COMPANY_DOMAINS, WebEvidenceAgent
+from modules.deep_company_analysis.chapter7_management_discovery import (
+    MANAGER_CANDIDATE_COLUMNS,
+    discover_management_candidates,
+)
 
 
 QUESTION_ORDER = ("Q33", "Q34", "Q35", "Q36", "Q37", "Q38")
@@ -157,6 +161,7 @@ class Chapter7ResearchResult:
     candidates: pd.DataFrame
     raw_paths: list[str]
     note: str
+    manager_candidates: pd.DataFrame | None = None
 
 
 def _safe_text(value: Any) -> str:
@@ -233,12 +238,12 @@ class _FocusedManagementAgent(WebEvidenceAgent):
     def _build_queries(self, ticker: str, company_name: str) -> list[str]:
         clean = self._clean_company_name(company_name)
         name = clean or company_name or ticker
-        manager = self.managers[0] if self.managers else ""
+        manager_clause = " ".join(f'"{manager}"' for manager in self.managers[:3])
         vi, en = QUERY_TERMS[self.focus]
-        manager_vi = f' "{manager}"' if manager else ""
+        manager_part = f" {manager_clause}" if manager_clause else ""
         return [
-            f'"{ticker}" "{name}"{manager_vi} {vi}',
-            f'"{ticker}" "{name}"{manager_vi} {en}',
+            f'"{ticker}" "{name}"{manager_part} {vi}',
+            f'"{ticker}" "{name}"{manager_part} {en}',
         ]
 
 
@@ -294,6 +299,62 @@ def classify_search_rows(raw: pd.DataFrame, ticker: str, focus: str, managers: l
     return frame.drop_duplicates(subset=["Question", "Manager", "Source URL / File", "Evidence Text / Reference"], keep="first").reset_index(drop=True)
 
 
+def official_documents_to_candidates(
+    documents: list[dict[str, Any]],
+    ticker: str,
+    managers: list[str] | None = None,
+) -> pd.DataFrame:
+    """Convert directly crawled company documents into factual Q33-Q38 evidence candidates.
+
+    This is evidence extraction only. It never confirms a manager identity or produces a management
+    classification/conclusion. Q37/Q38 require their own explicit focus terms; a manager name alone
+    is not enough to manufacture compensation/insider evidence.
+    """
+    manager_names = [_safe_text(x) for x in (managers or []) if _safe_text(x)]
+    rows: list[dict[str, Any]] = []
+    for document in documents:
+        text = _safe_text(document.get("text"))
+        if not text:
+            continue
+        url = _safe_text(document.get("url"))
+        title = _safe_text(document.get("title")) or url
+        method = _safe_text(document.get("method")) or "Official source extraction"
+        low = text.casefold()
+        for question in QUESTION_ORDER:
+            focus_hit = any(term.casefold() in low for term in FOCUS_TERMS[question])
+            if not focus_hit:
+                continue
+            windows = _relevant_windows(text, question, manager_names, max_windows=3)
+            for idx, snippet in enumerate(windows):
+                snippet_low = snippet.casefold()
+                if question in {"Q37", "Q38"} and not any(term.casefold() in snippet_low for term in FOCUS_TERMS[question]):
+                    continue
+                manager = _manager_from_text(snippet, manager_names)
+                cid = _candidate_id(question, manager, url, snippet, "official-discovery", idx)
+                rows.append({
+                    "Select": False,
+                    "Candidate ID": cid,
+                    "Question": question,
+                    "Manager": manager,
+                    "Subtopic": _subtopic(question, snippet),
+                    "Direction": direction_cue(question, snippet),
+                    "Source Grade": "A — Company/Official disclosure",
+                    "Explicitness": "Extracted official source text — analyst verify",
+                    "Source Title": title[:240],
+                    "Source URL / File": url,
+                    "Source Date": "",
+                    "As-of Date": _year_candidate(f"{title} {url} {snippet}"),
+                    "Evidence Text / Reference": snippet[:900],
+                    "Source Method": f"Phase 7C official management discovery — {method}",
+                    "Data Origin": "Direct company/official source text — analyst verification required",
+                    "Status": "Candidate — analyst verify",
+                })
+    frame = pd.DataFrame(rows, columns=CANDIDATE_COLUMNS)
+    if frame.empty:
+        return frame
+    return frame.drop_duplicates(subset=["Candidate ID"], keep="first").reset_index(drop=True)
+
+
 class Chapter7ResearchAgent:
     def __init__(self, raw_dir: str | Path):
         self.raw_dir = Path(raw_dir)
@@ -310,6 +371,22 @@ class Chapter7ResearchAgent:
         raw_paths: list[str] = []
         notes: list[str] = []
         manager_names = [_safe_text(x) for x in (managers or []) if _safe_text(x)]
+        manager_candidates = pd.DataFrame(columns=MANAGER_CANDIDATE_COLUMNS)
+
+        # V37.1: discover candidate senior-manager identities from official company/IR sources before
+        # generic evidence search when analyst profile is empty. Targets remain unconfirmed.
+        if not manager_names:
+            try:
+                discovery = discover_management_candidates(ticker, company_name, max_documents=36, max_targets=5)
+                manager_candidates = discovery.managers.copy()
+                manager_names = list(discovery.target_names)
+                direct_candidates = official_documents_to_candidates(discovery.documents, ticker, manager_names)
+                if not direct_candidates.empty:
+                    pieces.append(direct_candidates)
+                notes.append("Management target discovery: " + discovery.note)
+            except Exception as exc:
+                notes.append(f"Management target discovery failed safely: {exc}")
+
         for focus in QUESTION_ORDER:
             agent = _FocusedManagementAgent(self.raw_dir, focus, manager_names)
             result = agent.search(ticker, company_name, max_results_per_query=max_results_per_query)
@@ -323,7 +400,7 @@ class Chapter7ResearchAgent:
         frame = pd.concat(pieces, ignore_index=True) if pieces else pd.DataFrame(columns=CANDIDATE_COLUMNS)
         if not frame.empty:
             frame = frame.drop_duplicates(subset=["Candidate ID"], keep="first").reset_index(drop=True)
-        return Chapter7ResearchResult(frame, raw_paths, " | ".join(notes))
+        return Chapter7ResearchResult(frame, raw_paths, " | ".join(notes), manager_candidates)
 
 
 def evidence_quality_summary(candidates: pd.DataFrame) -> pd.DataFrame:

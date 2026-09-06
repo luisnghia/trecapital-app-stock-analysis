@@ -11,7 +11,7 @@ insider conviction, MOS or BUY/HOLD/SELL.
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Any
-from urllib.parse import urljoin, urlparse, quote_plus
+from urllib.parse import urljoin, urlparse, quote_plus, urldefrag
 import re
 
 import httpx
@@ -29,15 +29,15 @@ MANAGER_CANDIDATE_COLUMNS = [
 ]
 
 ROLE_RULES: tuple[tuple[str, tuple[str, ...], int], ...] = (
-    ("Chairman", ("chủ tịch hđqt", "chủ tịch hội đồng quản trị", "chairman"), 100),
-    ("CEO", ("tổng giám đốc", "chief executive officer", " ceo "), 98),
-    ("Vice Chairman", ("phó chủ tịch", "vice chairman"), 94),
+    ("Chairman", ("chủ tịch hđqt", "chủ tịch hội đồng quản trị", "ct hđqt", "ct hdqt", "chairman"), 100),
+    ("CEO", ("tổng giám đốc", "tgđ", "tgd", "chief executive officer", " ceo "), 98),
+    ("Vice Chairman", ("phó chủ tịch hđqt", "phó chủ tịch hội đồng quản trị", "phó chủ tịch", "vice chairman"), 94),
     ("CFO", ("giám đốc tài chính", "chief financial officer", " cfo "), 90),
     ("COO", ("giám đốc vận hành", "chief operating officer", " coo "), 89),
-    ("Deputy CEO", ("phó tổng giám đốc", "deputy general director", "deputy ceo"), 86),
+    ("Deputy CEO", ("phó tổng giám đốc", "p. tgđ", "p tgđ", "ptgđ", "deputy general director", "deputy ceo"), 86),
     ("Chief Accountant", ("kế toán trưởng", "chief accountant"), 82),
-    ("Independent Director", ("thành viên hđqt độc lập", "thành viên hội đồng quản trị độc lập", "independent director"), 78),
-    ("Board Director", ("thành viên hđqt", "ủy viên hđqt", "thành viên hội đồng quản trị", "board member", "director"), 72),
+    ("Independent Director", ("thành viên hđqt độc lập", "thành viên hội đồng quản trị độc lập", "tv hđqt độc lập", "tv hdqt doc lap", "independent director"), 78),
+    ("Board Director", ("thành viên hđqt", "ủy viên hđqt", "thành viên hội đồng quản trị", "tv hđqt", "tv hdqt", "board member", "director"), 72),
 )
 
 LINK_TERMS = (
@@ -58,23 +58,33 @@ MANAGEMENT_PRIORITY_TERMS = (
 
 REPORT_PRIORITY_TERMS = (
     "báo cáo thường niên", "bao cao thuong nien", "annual report", "bctn",
-    "báo cáo quản trị", "bao cao quan tri", "corporate governance",
+    "báo cáo quản trị", "bao cao quan tri", "tình hình quản trị", "tinh hinh quan tri", "corporate governance",
+    "báo cáo tài chính", "bao cao tai chinh", "financial statement", "financial report", "bctc",
+    "quý 4", "quy 4", "quarter 4", "kiểm toán", "kiem toan", "audited",
 )
 
 # Name extraction intentionally does not require the role to be adjacent. Official PDF table extraction
 # often returns a column of names followed by a column of roles. Role is therefore a separately verified field.
 PERSON_NAME_PATTERN = re.compile(
-    r"(?<![A-Za-zÀ-ỹĐđ])(?:Ông|Bà|Mr\.?|Ms\.?)\s+"
+    r"(?<![A-Za-zÀ-ỹĐđ])(?i:Ông|Bà|Mr\.?|Ms\.?)\s+"
     r"([A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\.-]+"
-    r"(?:\s+[A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\.-]+){1,5})",
-    flags=re.IGNORECASE,
+    r"(?:\s+[A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\.-]+){1,5})"
 )
+
+# Official governance/financial PDFs often render table cells without an honorific, e.g.
+# `Đào Hữu Huyền    Chủ tịch HĐQT`. Bare names are therefore considered only when a
+# role is present in the same/adjacent preserved-layout line; they are never accepted globally.
+BARE_NAME_PATTERN = re.compile(
+    r"(?<![A-Za-zÀ-ỹĐđ])([A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\.-]+"
+    r"(?:\s+[A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\.-]+){1,5})"
+)
+
 
 NOISE_NAME_TOKENS = {
     "báo", "thay", "đổi", "nhân", "sự", "qua", "bầu", "nghị", "quyết", "thông", "tin", "công", "bố",
     "xem", "thêm", "họp", "đại", "hội", "đồng", "quản", "trị", "ty", "tập", "đoàn", "chủ", "tịch",
     "tổng", "giám", "đốc", "phó", "thành", "viên", "kế", "toán", "trưởng", "điều", "lệ", "bổ", "nhiệm",
-    "ông", "bà", "mr", "ms", "ủy", "uỷ", "ban", "kiểm", "soát",
+    "ông", "bà", "mr", "ms", "ủy", "uỷ", "ban", "kiểm", "soát", "giữ", "chức", "vụ", "được", "đảm", "sinh",
 }
 
 
@@ -115,21 +125,33 @@ def _year(text: str) -> str:
 
 def _role_from_context(context: str) -> tuple[str, str, int]:
     low = f" {_clean_text(context).casefold()} "
+    # Match specificity must outrank seniority priority so compound titles do not collapse:
+    # "Phó Tổng Giám đốc" -> Deputy CEO, not CEO; "Phó Chủ tịch HĐQT" -> Vice Chairman,
+    # not Chairman; "Thành viên HĐQT độc lập" -> Independent Director, not Board Director.
     best = ("", "", 0)
+    best_key = (0, 0)
     for normalized, terms, priority in ROLE_RULES:
         for term in terms:
             needle = term.casefold().strip()
-            if needle and needle in low and priority > best[2]:
+            if not needle or needle not in low:
+                continue
+            key = (len(needle), priority)
+            if key > best_key:
                 best = (term.strip(), normalized, priority)
+                best_key = key
     return best
 
 
 def _candidate_name(raw_name: str) -> str:
     tokens = [t.strip(" ,.;:()-") for t in _clean_text(raw_name).split() if t.strip(" ,.;:()-")]
+    forbidden = {
+        "cbtt", "biên", "bản", "giấy", "đề", "cử", "tiếng", "english",
+        "board", "management", "directors", "director", "report", "annual",
+    }
     kept: list[str] = []
     for token in tokens:
         folded = token.casefold().rstrip(".")
-        if folded in NOISE_NAME_TOKENS:
+        if folded in NOISE_NAME_TOKENS or folded in forbidden:
             break
         if not re.fullmatch(r"[A-Za-zÀ-ỹĐđ'\.-]+", token):
             break
@@ -139,6 +161,12 @@ def _candidate_name(raw_name: str) -> str:
     if not (2 <= len(kept) <= 5):
         return ""
     name = " ".join(kept)
+    low = name.casefold()
+    if any(phrase in low for phrase in (
+        "board of management", "board of directors", "tiếng việt", "cbtt ",
+        "giấy đề cử", "biên bản", "nghị quyết", "công bố thông tin",
+    )):
+        return ""
     if all(t.isupper() for t in kept) and any(t.casefold() in NOISE_NAME_TOKENS for t in kept):
         return ""
     return name
@@ -161,24 +189,176 @@ def _nearest_role(raw_text: str, start: int, end: int) -> tuple[str, str, int]:
     return _role_from_context(before_raw)
 
 
+def _role_span_in_line(line: str) -> tuple[tuple[str, str, int], int, int]:
+    clean = _clean_text(line)
+    low = clean.casefold()
+    best_role = ("", "", 0)
+    best_span = (-1, -1)
+    best_key = (0, 0)
+    for normalized, terms, priority in ROLE_RULES:
+        for term in terms:
+            needle = term.casefold().strip()
+            if not needle:
+                continue
+            pos = low.find(needle)
+            if pos < 0:
+                continue
+            key = (len(needle), priority)
+            if key > best_key:
+                best_role = (term.strip(), normalized, priority)
+                best_span = (pos, pos + len(needle))
+                best_key = key
+    return best_role, best_span[0], best_span[1]
+
+
 def _line_role_candidates(raw_text: str) -> dict[str, tuple[str, str, int]]:
-    """Use preserved HTML/PDF line layout for common `person | role` and two-line patterns."""
+    """Map honorific person segments to roles without crossing into the next person.
+
+    Official HTML often flattens several management rows into one long text line. Therefore a
+    physical line is not a safe role boundary. Each Ông/Bà/Mr/Ms marker defines its own segment;
+    the role is resolved only inside that segment, with a narrow two-line continuation fallback.
+    """
     lines = [line for line in _preserve_lines(raw_text).split("\n") if line]
     mapping: dict[str, tuple[str, str, int]] = {}
+    honorific_marker = re.compile(r"(?<![A-Za-zÀ-ỹĐđ])(?i:Ông|Bà|Mr\.?|Ms\.?)\s+")
+
     for idx, line in enumerate(lines):
-        for match in PERSON_NAME_PATTERN.finditer(line):
+        clean_line = _clean_text(line)
+        markers = list(honorific_marker.finditer(clean_line))
+        for pos, marker in enumerate(markers):
+            seg_end = markers[pos + 1].start() if pos + 1 < len(markers) else len(clean_line)
+            segment = clean_line[marker.start():seg_end]
+            role, role_start, _ = _role_span_in_line(segment)
+            prefix = segment[:role_start] if role_start >= 0 else segment
+            person_match = PERSON_NAME_PATTERN.search(prefix)
+            if not person_match:
+                continue
+            manager = _candidate_name(person_match.group(1))
+            if not manager:
+                continue
+
+            local_role = role
+            if not local_role[1] and pos + 1 == len(markers):
+                # Only the final person segment on a physical line can continue to the next line.
+                for j in range(idx + 1, min(len(lines), idx + 3)):
+                    next_line = _clean_text(lines[j])
+                    next_role, next_role_start, _ = _role_span_in_line(next_line)
+                    next_prefix = next_line[:next_role_start] if next_role_start >= 0 else next_line
+                    if honorific_marker.search(next_prefix):
+                        break
+                    next_bare = any(
+                        _candidate_name(m.group(1))
+                        for m in BARE_NAME_PATTERN.finditer(next_prefix)
+                    )
+                    if next_bare:
+                        break
+                    if next_role[1]:
+                        local_role = next_role
+                        break
+
+            if local_role[1] and local_role[2] > mapping.get(manager, ("", "", 0))[2]:
+                mapping[manager] = local_role
+    return mapping
+
+
+def _bare_line_role_candidates(raw_text: str) -> list[tuple[str, tuple[str, str, int], str]]:
+    """Extract bare names only from the portion of a row preceding a locally recognized role."""
+    lines = [line for line in _preserve_lines(raw_text).split("\n") if line]
+    out: list[tuple[str, tuple[str, str, int], str]] = []
+    for idx, line in enumerate(lines):
+        clean_line = _clean_text(line)
+        role, role_start, _ = _role_span_in_line(clean_line)
+        prefix = clean_line[:role_start] if role_start >= 0 else clean_line
+
+        bare_people: list[str] = []
+        for match in BARE_NAME_PATTERN.finditer(prefix):
             manager = _candidate_name(match.group(1))
             if not manager:
                 continue
-            candidates = [line[match.end():]]
-            for j in range(idx + 1, min(len(lines), idx + 3)):
-                if re.search(r"(?<![A-Za-zÀ-ỹĐđ])(?:Ông|Bà|Mr\.?|Ms\.?)\s+", lines[j], flags=re.I):
-                    break
-                candidates.append(lines[j])
-            role = _role_from_context(" ".join(candidates))
-            if role[1] and role[2] > mapping.get(manager, ("", "", 0))[2]:
-                mapping[manager] = role
-    return mapping
+            before = prefix[max(0, match.start() - 8):match.start()].casefold().rstrip()
+            if any(before.endswith(x) for x in ("ông", "bà", "mr", "mr.", "ms", "ms.")):
+                continue
+            bare_people.append(manager)
+
+        if not bare_people:
+            continue
+
+        local_role = role
+        context = clean_line
+        if not local_role[1] and idx + 1 < len(lines):
+            next_line = _clean_text(lines[idx + 1])
+            next_role, next_role_start, _ = _role_span_in_line(next_line)
+            next_prefix = next_line[:next_role_start] if next_role_start >= 0 else next_line
+            next_honorific = bool(PERSON_NAME_PATTERN.search(next_prefix))
+            next_bare = any(
+                _candidate_name(m.group(1))
+                for m in BARE_NAME_PATTERN.finditer(next_prefix)
+            )
+            if next_role[1] and not next_honorific and not next_bare:
+                local_role = next_role
+                context = f"{clean_line} {next_line}"
+
+        if not local_role[1]:
+            continue
+        for manager in bare_people:
+            out.append((manager, local_role, _clean_text(context)[:900]))
+
+    deduped: list[tuple[str, tuple[str, str, int], str]] = []
+    seen: set[tuple[str, str]] = set()
+    for manager, role, context in out:
+        key = (manager.casefold(), role[1])
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append((manager, role, context))
+    return deduped
+
+
+def _role_then_name_candidates(raw_text: str) -> list[tuple[str, tuple[str, str, int], str]]:
+    """Extract signature/table layouts where a recognized role precedes the person's name.
+
+    Examples from official filings include `CHỦ TỊCH HĐQT` on one line and the signatory name on
+    the next line. The fallback is deliberately local: same line after the role, or exactly one
+    following line when that line has no competing role.
+    """
+    lines = [line for line in _preserve_lines(raw_text).split("\n") if line]
+    out: list[tuple[str, tuple[str, str, int], str]] = []
+    for idx, line in enumerate(lines):
+        clean_line = _clean_text(line)
+        role, role_start, role_end = _role_span_in_line(clean_line)
+        if not role[1] or role_start < 0:
+            continue
+
+        candidates: list[tuple[str, str]] = []
+        suffix = clean_line[role_end:].strip()
+        for match in BARE_NAME_PATTERN.finditer(suffix):
+            manager = _candidate_name(match.group(1))
+            if manager:
+                candidates.append((manager, clean_line))
+                break
+
+        if not candidates and idx + 1 < len(lines):
+            next_line = _clean_text(lines[idx + 1])
+            next_role, _, _ = _role_span_in_line(next_line)
+            if not next_role[1]:
+                for match in BARE_NAME_PATTERN.finditer(next_line):
+                    manager = _candidate_name(match.group(1))
+                    if manager:
+                        candidates.append((manager, f"{clean_line} {next_line}"))
+                        break
+
+        for manager, context in candidates:
+            out.append((manager, role, _clean_text(context)[:900]))
+
+    deduped: list[tuple[str, tuple[str, str, int], str]] = []
+    seen: set[tuple[str, str]] = set()
+    for manager, role, context in out:
+        key = (manager.casefold(), role[1])
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append((manager, role, context))
+    return deduped
 
 
 def extract_management_candidates_from_documents(documents: list[dict[str, Any]], max_targets: int = 5) -> pd.DataFrame:
@@ -207,6 +387,34 @@ def extract_management_candidates_from_documents(documents: list[dict[str, Any]]
             if not role_norm:
                 role_raw, role_norm, priority = "", "Unknown", 1
             context = _clean_text(plain[max(0, match.start() - 140):min(len(plain), match.end() + 240)])
+            rows.append({
+                "Select": False,
+                "Manager": manager,
+                "Role Raw": role_raw,
+                "Role Normalized": role_norm,
+                "As-of Date": as_of,
+                "Source Title": source_title[:240],
+                "Source URL / File": source_url,
+                "Source Grade": "A — Company/Official disclosure",
+                "Evidence Text / Reference": context[:900],
+                "Status": "Discovered candidate — analyst verify",
+                "_priority": priority,
+            })
+        for manager, (role_raw, role_norm, priority), context in _bare_line_role_candidates(raw_text):
+            rows.append({
+                "Select": False,
+                "Manager": manager,
+                "Role Raw": role_raw,
+                "Role Normalized": role_norm,
+                "As-of Date": as_of,
+                "Source Title": source_title[:240],
+                "Source URL / File": source_url,
+                "Source Grade": "A — Company/Official disclosure",
+                "Evidence Text / Reference": context[:900],
+                "Status": "Discovered candidate — analyst verify",
+                "_priority": priority,
+            })
+        for manager, (role_raw, role_norm, priority), context in _role_then_name_candidates(raw_text):
             rows.append({
                 "Select": False,
                 "Manager": manager,
@@ -278,7 +486,7 @@ def _fetch_text(client: httpx.Client, url: str, max_pages: int = 120, max_chars:
         tag.decompose()
     links: list[tuple[str, str]] = []
     for anchor in soup.find_all("a", href=True):
-        href = urljoin(final_url, anchor.get("href", ""))
+        href = urldefrag(urljoin(final_url, anchor.get("href", "")))[0]
         label = _clean_text(anchor.get_text(" ", strip=True))
         if href.startswith(("http://", "https://")):
             links.append((label, href))
@@ -294,7 +502,15 @@ def _link_score(label: str, url: str) -> int:
     if year:
         score += max(0, int(year) - 2020) * 2
     if url.lower().split("?")[0].endswith(".pdf"):
-        score += 15
+        score += 65
+        # Personnel resolutions, governance reports and signed appointment PDFs should outrank
+        # generic IR category pages because they carry the actual named management evidence.
+        if any(token in text for token in (
+            "hdqt", "tgd", "nhan-su", "nhân sự", "bo-nhiem", "bổ nhiệm",
+            "mien-nhiem", "miễn nhiệm", "chu-tich", "chủ tịch", "tong-giam-doc",
+            "báo cáo quản trị", "bao-cao-quan-tri",
+        )):
+            score += 120
     if "/category/" not in url.lower() and len(urlparse(url).path.strip("/").split("/")) >= 2:
         score += 5
     return score
@@ -309,8 +525,10 @@ def _document_has_management_signal(text: str) -> bool:
     low = _clean_text(text).casefold()
     role_hit = any(term.strip().casefold() in low for _, terms, _ in ROLE_RULES for term in terms if term.strip())
     person_hit = bool(PERSON_NAME_PATTERN.search(_clean_text(text)))
+    bare_role_hit = bool(_bare_line_role_candidates(text))
+    role_then_name_hit = bool(_role_then_name_candidates(text))
     compensation_hit = any(x in low for x in ("thù lao", "remuneration", "esop", "cổ phần nắm giữ", "ownership", "người nội bộ", "giao dịch"))
-    return (role_hit and person_hit) or compensation_hit
+    return (role_hit and (person_hit or bare_role_hit or role_then_name_hit)) or compensation_hit
 
 
 def _wordpress_search_urls(seed: str) -> list[str]:
@@ -318,7 +536,7 @@ def _wordpress_search_urls(seed: str) -> list[str]:
     if not parsed.scheme or not parsed.netloc:
         return []
     root = f"{parsed.scheme}://{parsed.netloc}/"
-    terms = ("nhân sự", "tổng giám đốc", "chủ tịch", "báo cáo thường niên", "báo cáo quản trị")
+    terms = ("nhân sự", "tổng giám đốc", "chủ tịch HĐQT", "hội đồng quản trị", "ban tổng giám đốc", "báo cáo thường niên", "báo cáo quản trị", "tình hình quản trị", "báo cáo tài chính quý 4", "thông tin về doanh nghiệp")
     return [root + "?s=" + quote_plus(term) for term in terms]
 
 
@@ -347,6 +565,7 @@ def discover_management_candidates(
         bases = [
             root + "category/quan-he-co-dong/",
             root + "category/quan-he-co-dong/bao-cao-thuong-nien/",
+            root + "category/quan-he-co-dong/bao-cao-quan-tri/",
             root + "category/quan-he-co-dong/bao-cao-tai-chinh/",
             root + "category/quan-he-co-dong/thong-bao/",
         ]
@@ -356,6 +575,10 @@ def discover_management_candidates(
             expanded_seeds.append(root + f"category/quan-he-co-dong/thong-bao/page/{page}/")
         for page in range(2, 4):
             expanded_seeds.append(root + f"category/quan-he-co-dong/bao-cao-thuong-nien/page/{page}/")
+            expanded_seeds.append(root + f"category/quan-he-co-dong/bao-cao-quan-tri/page/{page}/")
+        # Some IR themes paginate the top-level shareholder archive with a query parameter rather than /page/N/.
+        for page in range(1, 4):
+            expanded_seeds.append(root + f"category/quan-he-co-dong/?page_number_0={page}")
     seeds = list(dict.fromkeys(expanded_seeds))
     if not seeds:
         return ManagementDiscoveryResult(
@@ -369,7 +592,7 @@ def discover_management_candidates(
     queue: list[tuple[int, int, str, str, str]] = []
     errors: list[str] = []
     fetch_count = 0
-    max_fetches = max(60, max_documents * 10)
+    max_fetches = max(80, max_documents * 12)
 
     with httpx.Client(headers=HEADERS, timeout=httpx.Timeout(timeout_seconds, connect=min(3.0, timeout_seconds)), follow_redirects=True) as client:
         for seed in seeds:
