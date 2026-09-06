@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from modules.deep_company_analysis.table_format import format_numeric, infer_numeric_kind, sort_frame, static_table_html
+from modules.deep_company_analysis.table_format import format_numeric, infer_numeric_kind, prefer_ttm_latest, sort_frame, static_table_html
 
 
 def test_raw_numeric_sort_is_stable_and_does_not_mutate_input():
@@ -39,7 +39,32 @@ def test_no_direct_data_editor_or_dataframe_remains_in_production_deep_analysis(
         assert "st.dataframe(" not in text, path.name
     table_format = (root / "table_format.py").read_text(encoding="utf-8")
     assert "def sortable_data_editor" in table_format
-    assert "def interactive_sort_frame" in table_format
-    assert "Sort theo cột" in table_format
+    assert "def interactive_sort_frame" in table_format  # compatibility shim only
+    assert '"Sort theo cột"' not in table_format
+    assert '"Thứ tự"' not in table_format
+    assert "st.dataframe(" in table_format
+    assert "return st.data_editor(frame, **kwargs)" in table_format
     chapter1 = (root / "chapter1.py").read_text(encoding="utf-8")
-    assert "interactive_sort_frame(subset" in chapter1
+    assert "interactive_sort_frame" not in chapter1
+    assert "render_static_table(" in chapter1
+
+
+def test_ttm_is_default_latest_period_without_fabrication():
+    frame = pd.DataFrame({"Kỳ": ["TTM", "2024", "2025"], "CFO (tỷ)": [130, 90, 110]})
+    out = prefer_ttm_latest(frame)
+    assert out["Kỳ"].tolist() == ["2024", "2025", "TTM"]
+    no_ttm = pd.DataFrame({"Kỳ": ["2024", "2025"], "CFO (tỷ)": [90, 110]})
+    out2 = prefer_ttm_latest(no_ttm)
+    assert out2["Kỳ"].tolist() == ["2024", "2025"]
+
+
+def test_no_visible_legacy_sort_controls_anywhere_in_deep_analysis():
+    root = Path(__file__).resolve().parent
+    for path in root.glob("*.py"):
+        if path.name.startswith("test_"):
+            continue
+        text = path.read_text(encoding="utf-8")
+        assert '"Sort theo cột"' not in text, path.name
+        assert '"Thứ tự"' not in text, path.name
+        if path.name != "table_format.py":
+            assert "interactive_sort_frame(" not in text, path.name

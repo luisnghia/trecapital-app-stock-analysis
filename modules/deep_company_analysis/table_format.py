@@ -131,31 +131,33 @@ def _stable_widget_key(frame: pd.DataFrame, explicit: str | None, prefix: str) -
     return f"tre_{prefix}_{digest}"
 
 
-def interactive_sort_frame(value: Any, *, key: str | None = None) -> pd.DataFrame:
-    """Render explicit selectable sort controls and return the sorted raw frame."""
+def prefer_ttm_latest(value: Any) -> pd.DataFrame:
+    """Keep a valid TTM row as the latest/default period without fabricating one.
+
+    The relative order of all non-TTM rows is preserved. This is a display/default-order helper;
+    it never creates or recalculates TTM data.
+    """
     frame = _coerce_frame(value)
-    if frame.empty or len(frame.columns) == 0:
+    if frame.empty:
         return frame
-    base = _stable_widget_key(frame, key, "sort")
-    cols = [str(c) for c in frame.columns]
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        sort_by = st.selectbox(
-            "Sort theo cột",
-            [ORIGINAL_ORDER_LABEL] + cols,
-            index=0,
-            key=f"{base}_column",
-        )
-    with c2:
-        direction = st.selectbox(
-            "Thứ tự",
-            [ASC_LABEL, DESC_LABEL],
-            index=0,
-            key=f"{base}_direction",
-        )
-    if sort_by == ORIGINAL_ORDER_LABEL:
+    period_col = next((c for c in ("Kỳ", "Period", "period", "Kỳ dữ liệu") if c in frame.columns), None)
+    if period_col is None:
         return frame
-    return sort_frame(frame, sort_by, ascending=direction == ASC_LABEL)
+    labels = frame[period_col].fillna("").astype(str).str.strip().str.upper()
+    is_ttm = labels.eq("TTM")
+    if not bool(is_ttm.any()):
+        return frame
+    return pd.concat([frame.loc[~is_ttm], frame.loc[is_ttm]], ignore_index=True)
+
+
+def interactive_sort_frame(value: Any, *, key: str | None = None) -> pd.DataFrame:
+    """Legacy compatibility shim. No visible sort controls are rendered.
+
+    Sorting is handled natively by clicking a table column header. New production callers should use
+    render_static_table / sortable_data_editor directly.
+    """
+    del key
+    return prefer_ttm_latest(value)
 
 
 def static_table_html(value: Any, *, height: int | None = None) -> str:
@@ -218,32 +220,62 @@ def _default_editor_column_config(frame: pd.DataFrame) -> dict[str, Any]:
 
 
 def sortable_data_editor(value: Any, **kwargs: Any):
-    """Editable table with explicit sort selector plus Trecapital numeric formatting."""
-    frame = _coerce_frame(value)
-    editor_key = kwargs.get("key")
-    sorted_frame = interactive_sort_frame(frame, key=f"editor_{editor_key}" if editor_key else None)
-    defaults = _default_editor_column_config(sorted_frame)
+    """Editable table using Streamlit's native click-on-header sorting.
+
+    No separate sort selector is rendered. Dynamic-row editors retain their edit/add/delete behavior;
+    native sorting availability follows Streamlit's editor capabilities.
+    """
+    frame = prefer_ttm_latest(value)
+    defaults = _default_editor_column_config(frame)
     provided = kwargs.get("column_config")
     if isinstance(provided, dict):
         defaults.update(provided)
     if defaults:
         kwargs["column_config"] = defaults
-    return st.data_editor(sorted_frame, **kwargs)
+    return st.data_editor(frame, **kwargs)
+
+
+def _native_table_styler(frame: pd.DataFrame):
+    styler = frame.style
+    for column in frame.columns:
+        if not _heat_eligible(str(column)):
+            continue
+        numeric = pd.to_numeric(frame[column], errors="coerce").abs().dropna()
+        max_abs = float(numeric.max()) if not numeric.empty else 0.0
+        styler = styler.map(lambda value, m=max_abs: _heat_style(value, m), subset=[column])
+    return styler
 
 
 def render_static_table(value: Any, **kwargs: Any) -> None:
-    """Read-only table with explicit user-selectable sort and locked display format."""
-    frame = _coerce_frame(value)
+    """Read-only native grid: click a column header to sort ascending/descending.
+
+    The old separate 'Sort theo cột / Thứ tự' controls are intentionally removed.
+    """
+    frame = prefer_ttm_latest(value)
     if frame.empty:
         st.caption("Chưa có dữ liệu.")
         return
-    sort_key = kwargs.pop("sort_key", None) or kwargs.pop("key", None)
-    frame = interactive_sort_frame(frame, key=f"static_{sort_key}" if sort_key else None)
-    height = kwargs.get("height")
-    st.html(static_table_html(frame, height=int(height) if height else None))
+    kwargs.pop("sort_key", None)
+    kwargs.pop("key", None)
+    height = kwargs.pop("height", None)
+    hide_index = kwargs.pop("hide_index", True)
+    use_container_width = kwargs.pop("use_container_width", True)
+    provided = kwargs.pop("column_config", None)
+    column_config = _default_editor_column_config(frame)
+    if isinstance(provided, dict):
+        column_config.update(provided)
+    st.dataframe(
+        _native_table_styler(frame),
+        use_container_width=use_container_width,
+        hide_index=hide_index,
+        height=int(height) if height else None,
+        column_config=column_config or None,
+        row_height=42,
+        **kwargs,
+    )
 
 
 __all__ = [
-    "format_numeric", "infer_numeric_kind", "interactive_sort_frame", "render_static_table",
+    "format_numeric", "infer_numeric_kind", "interactive_sort_frame", "prefer_ttm_latest", "render_static_table",
     "sort_frame", "sortable_data_editor", "static_table_html",
 ]

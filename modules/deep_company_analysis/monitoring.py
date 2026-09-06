@@ -15,7 +15,7 @@ from typing import Any, Optional
 import pandas as pd
 import streamlit as st
 
-from modules.deep_company_analysis.table_format import interactive_sort_frame
+from modules.deep_company_analysis.table_format import render_static_table
 
 APP_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = APP_ROOT / "data_cache" / "deep_company_analysis_chapter1.db"
@@ -548,12 +548,7 @@ def render_monitoring_panel(current_ticker: str, evaluation_results: list[dict[s
 
     queue = load_review_queue(open_only=True)
     display = queue.drop(columns=["ID", "Trạng thái"], errors="ignore")
-    if not display.empty:
-        display = interactive_sort_frame(display, key=f"dca_review_queue_table_{current_ticker}")
-    if hasattr(st, "html"):
-        st.html(_html_table(display))
-    else:
-        st.markdown(_html_table(display), unsafe_allow_html=True)
+    render_static_table(display, use_container_width=True, hide_index=True, height=340)
 
     if not queue.empty:
         options = queue["ID"].astype(int).tolist()

@@ -10,7 +10,7 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from modules.deep_company_analysis.table_format import interactive_sort_frame
+from modules.deep_company_analysis.table_format import render_static_table
 
 from modules.deep_company_analysis.monitoring import evaluate_and_persist, render_monitoring_panel
 from modules.deep_company_analysis.structured_triggers import render_structured_trigger_builder
@@ -428,16 +428,12 @@ def _render_inventory() -> None:
             subset = pd.DataFrame()
         else:
             subset = inventory[inventory["gate_key"] == gate_key].drop(columns=["gate_key"], errors="ignore").copy()
-            if not subset.empty:
-                subset = interactive_sort_frame(subset, key=f"ch1_inventory_{gate_key}")
-                for col in ["Giá", "Target"]:
-                    subset[col] = subset[col].map(lambda x: _fmt_number(x, 0))
-                for col in ["MOS %", "FCF Yield %"]:
-                    subset[col] = subset[col].map(lambda x: _fmt_number(x, 1, "%"))
-        if hasattr(st, "html"):
-            st.html(_html_table(subset))
-        else:
-            st.markdown(_html_table(subset), unsafe_allow_html=True)
+        render_static_table(
+            subset,
+            use_container_width=True,
+            hide_index=True,
+            height=min(420, 78 + 38 * max(1, len(subset))),
+        )
 
 
 def render_chapter1(default_ticker: str = "", auto_data: dict[str, Any] | None = None, auto_company_name: str = "") -> None:
@@ -780,9 +776,4 @@ def render_chapter1(default_ticker: str = "", auto_data: dict[str, Any] | None =
 
     history = load_gate_history(ticker)
     st.subheader(f"Gate History — {ticker}")
-    if not history.empty:
-        history = interactive_sort_frame(history, key=f"ch1_gate_history_{ticker}")
-    if hasattr(st, "html"):
-        st.html(_html_table(history))
-    else:
-        st.markdown(_html_table(history), unsafe_allow_html=True)
+    render_static_table(history, use_container_width=True, hide_index=True, height=300)
