@@ -82,10 +82,10 @@ jobs:
           set -euo pipefail
           python scripts/qa_dca_streamlit_compat_v48.py 2>&1 | tee reports/DCA_APPTEST_V48.log
 
-      - name: Unified page server health
+      - name: Production multipage server health
         run: |
           set -euo pipefail
-          streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
+          streamlit run app.py \
             --server.headless true --server.port 8520 > reports/DCA_STREAMLIT_SERVER_V48.log 2>&1 &
           APP_PID=$!
           trap 'kill $APP_PID || true' EXIT
@@ -106,13 +106,25 @@ jobs:
           page = Path('pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py').read_text(encoding='utf-8')
           sidebar = Path('tre_sidebar_nav.py').read_text(encoding='utf-8')
           table = Path('modules/deep_company_analysis/table_format.py').read_text(encoding='utf-8')
+          labels = [
+              '📗 Chương 1 — Cơ hội đầu tư',
+              '📘 Chương 2 — Hiểu doanh nghiệp',
+              '📙 Chương 3 — Góc nhìn khách hàng',
+              '📕 Chương 4 — Lợi thế & ngành',
+              '📒 Chương 5 — Hoạt động & tài chính',
+              '📓 Chương 6 — Earnings & dòng tiền',
+              '👥 Chương 7 — Ban điều hành',
+              '🧭 Chương 8 — Năng lực vận hành',
+          ]
+          for label in labels:
+              assert label in page, label
           assert 'render_chapter8_tab' in page
-          assert '🧭 Chương 8 — Năng lực vận hành' in page
+          assert 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py' in sidebar
           assert '09_Phan_tich_chuyen_sau_Chuong_8.py' not in sidebar
           assert not Path('pages/09_Phan_tich_chuyen_sau_Chuong_8.py').exists()
           assert 'row_height=' not in table
           assert page.index('st.set_page_config(') < page.index('import module1_dashboard as m1')
-          print('PASS: Chapter 8 is a unified-page tab only; page config is first; shared tables support Streamlit 1.40.2.')
+          print('PASS: Ch1-Ch8 unified tabs present; Ch8 standalone removed; Streamlit 1.40 shared-table API is compatible.')
           PY
 
       - name: Build offline package
