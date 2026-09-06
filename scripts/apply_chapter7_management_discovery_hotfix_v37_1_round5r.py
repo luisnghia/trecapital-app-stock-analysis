@@ -94,7 +94,7 @@ def patch_discovery() -> None:
                     if not _document_has_management_signal(text):
                         continue
                     out.append({
-                        "title": _source_label(label, final_url, f"Official {role} coverage fallback"),
+                        "title": (_clean_text(label) or f"Official {role} coverage fallback")[:240],
                         "url": final_url,
                         "text": text,
                         "method": f"{method}; role-coverage fallback",
