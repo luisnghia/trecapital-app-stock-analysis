@@ -372,7 +372,6 @@ def render_static_table(value: Any, **kwargs: Any) -> None:
         hide_index=hide_index,
         height=int(height) if height else None,
         column_config=column_config or None,
-        row_height=42,
         **kwargs,
     )
 
