@@ -11,7 +11,9 @@ test must follow the approved embedded-tab architecture rather than requiring a 
 page/sidebar route.
 
 Finally, ``st.set_page_config`` is moved immediately after ``import streamlit as st`` so it
-is guaranteed to be the first Streamlit command, including under Streamlit's AppTest runtime.
+is guaranteed to be the first Streamlit command. Chapter 6's shared editor preview also uses
+a bordered container instead of an expander because the editor is frequently rendered from
+inside a question expander, and Streamlit 1.40.x forbids nested expanders.
 """
 
 from pathlib import Path
@@ -21,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TABLE_FORMAT = ROOT / "modules" / "deep_company_analysis" / "table_format.py"
 PHASE8D_TEST = ROOT / "modules" / "deep_company_analysis" / "test_chapter8_phase8d.py"
 UNIFIED_PAGE = ROOT / "pages" / "07_Phan_tich_chuyen_sau_doanh_nghiep.py"
+CHAPTER6_PAGE = ROOT / "modules" / "deep_company_analysis" / "chapter6_page_support.py"
 
 
 OLD_ROUTE_TEST = '''def test_phase8d_route_and_sidebar_are_wired():
@@ -52,6 +55,27 @@ PAGE_CONFIG_BLOCK = '''st.set_page_config(
     layout="wide",
 )
 
+'''
+
+OLD_CH6_PREVIEW = '''    if has_financial_numeric_columns(columns) and isinstance(edited, pd.DataFrame) and not edited.empty:
+        with st.expander(f"🔎 Preview format số liệu — {label}", expanded=False):
+            st.caption(
+                "Quy chuẩn: tỷ đồng 0 số lẻ; % và hệ số 1 số lẻ; số âm đỏ, số dương xanh ngọc; "
+                "cường độ màu tăng theo độ lớn tuyệt đối."
+            )
+            render_static_table(edited, height=min(360, 90 + 30 * len(edited)), sort_key=f"{key}_formatted_preview")
+'''
+
+NEW_CH6_PREVIEW = '''    if has_financial_numeric_columns(columns) and isinstance(edited, pd.DataFrame) and not edited.empty:
+        # _editor is commonly called from inside a question expander. Streamlit 1.40.x forbids
+        # nested expanders, so the formatted preview uses a plain bordered container.
+        with st.container(border=True):
+            st.caption(f"🔎 Preview format số liệu — {label}")
+            st.caption(
+                "Quy chuẩn: tỷ đồng 0 số lẻ; % và hệ số 1 số lẻ; số âm đỏ, số dương xanh ngọc; "
+                "cường độ màu tăng theo độ lớn tuyệt đối."
+            )
+            render_static_table(edited, height=min(360, 90 + 30 * len(edited)), sort_key=f"{key}_formatted_preview")
 '''
 
 
@@ -98,10 +122,23 @@ def patch_page_config_order() -> bool:
     return True
 
 
+def patch_chapter6_nested_preview() -> bool:
+    text = CHAPTER6_PAGE.read_text(encoding="utf-8")
+    if OLD_CH6_PREVIEW in text:
+        CHAPTER6_PAGE.write_text(text.replace(OLD_CH6_PREVIEW, NEW_CH6_PREVIEW, 1), encoding="utf-8")
+        print("Patched Chapter 6 editor preview: nested expander replaced by bordered container.")
+        return True
+    if NEW_CH6_PREVIEW in text:
+        print("Chapter 6 nested-preview compatibility patch already applied.")
+        return False
+    raise SystemExit("Chapter 6 editor preview did not match expected old/new block; refusing blind edit.")
+
+
 def main() -> None:
     patch_table_format()
     patch_phase8d_route_contract()
     patch_page_config_order()
+    patch_chapter6_nested_preview()
 
 
 if __name__ == "__main__":
