@@ -116,7 +116,7 @@ def _q47_explicit_buyback_available(structured_context: dict[str, Any] | None) -
     if frame.empty:
         return False
     if "Explicit buyback field available?" in frame.columns:
-        return frame["Explicit buyback field available?"].astype(str).str.casefold().eq("yes").any()
+        return bool(frame["Explicit buyback field available?"].astype(str).str.casefold().eq("yes").any())
     return False
 
 
