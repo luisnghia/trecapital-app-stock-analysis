@@ -39,4 +39,29 @@ V41 chỉ là nhánh **merge-ready**, không tự động merge vào `main`. N�
 
 ## Kết quả CI
 
-_Pending — sẽ cập nhật sau khi workflow `Deep Company Analysis V41 — Merge Readiness` hoàn tất._
+Workflow `Deep Company Analysis V41 — Merge Readiness` đã hoàn tất thành công trên commit code/CI `de5271ec7a9d13ca7ca606a5d6e371f4738f92ae`.
+
+- Run ID: `34027847617`
+- Job ID: `101471904948`
+- Kết luận: **PASS**
+- Strict failure semantics: **True** — bất kỳ gate bắt buộc nào lỗi đều làm workflow thất bại.
+- Branch ancestry tại thời điểm chạy:
+  - `main`: V41 ahead `693`, behind `0`
+  - `feature/investment-checklist-phase1c`: V41 ahead `456`, behind `0`
+  - V38: V41 ahead `3`, behind `0`
+  - V40: V41 ahead `1`, behind `0`
+- Conflict-marker / route integrity: **PASS**
+- Compile production integration surface: **PASS**
+- Deep Company Analysis regression: **298 passed**
+- Investment Checklist regression với PostgreSQL 16: **212 passed, 84 warnings, 0 failed**
+- Streamlit main app health smoke: **PASS (`ok`)**
+- Streamlit Deep Company Analysis health smoke: **PASS (`ok`)**
+- Streamlit Investment Checklist health smoke: **PASS (`ok`)**
+- Acceptance marker: `DEEP_ANALYSIS_MERGE_READINESS_V41.json` = `acceptance: PASS`
+- Artifact: `DEEP_ANALYSIS_MERGE_READINESS_V41`, artifact ID `9987646440`
+
+84 warning của Investment Checklist là warning kỹ thuật không làm sai acceptance: chủ yếu là deprecation của `pyparsing/matplotlib` và `FutureWarning` của pandas trong `module1_engine.py`; không có test failure. Đây là technical debt nên xử lý riêng, không phải blocker cho merge-readiness.
+
+## Kết luận V41
+
+**READY FOR CONTROLLED PR.** Deep Company Analysis Chapter 1–7 đã vượt qua regression độc lập, regression tích hợp với Investment Checklist/PostgreSQL và ba Streamlit production smoke tests. Nhánh chưa tự động merge vào `main`; bước kế tiếp là mở Pull Request có kiểm soát để review và tích hợp.
