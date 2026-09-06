@@ -1,4 +1,4 @@
-name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5I
+name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5J
 
 on:
   push:
@@ -27,6 +27,9 @@ jobs:
       - name: Apply Round 5I event/date/provenance fix
         run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5i.py
 
+      - name: Apply Round 5J local-event anchoring fix
+        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5j.py
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -45,7 +48,7 @@ jobs:
       - name: QA 2 — Full Chapter 7 regression
         run: pytest -q modules/deep_company_analysis/test_chapter7*.py
 
-      - name: DGC Round 5I — strict production path live acceptance
+      - name: DGC Round 5J — strict production path live acceptance
         run: PYTHONPATH=. python scripts/qa_chapter7_v37_1_dgc.py
 
       - name: Streamlit smoke after hotfix
@@ -73,16 +76,17 @@ jobs:
             '- Candidate identity filtering rejects organization, navigation, document-heading and place fragments before they enter the manager dataset.' \
             '- Related-person wording is recognized only when the relationship label immediately follows the name.' \
             '- Research-target selection explicitly covers strongest available Chairman and CEO candidates before filling the remaining top-five queue.' \
-            '- Personnel-change disclosures are resolved per manager occurrence: dismissal of an old role is not retained as a current-role candidate when a new appointment is separately disclosed.' \
+            '- Roster/table rows use row-local role mapping; personnel-change prose uses occurrence-local role resolution.' \
+            '- A dismissal of an old role is not retained as a current-role candidate when a separate new appointment is disclosed.' \
+            '- Repeated occurrences of the same manager in one document are anchored to the occurrence nearest the current extraction context, preventing the earlier dismissal sentence from suppressing the later appointment sentence.' \
             '- Candidate As-of Date uses manager-local event/reporting year before source-level fallback; unrelated later page years cannot silently make a candidate look newer.' \
             '- Generic navigation labels such as Tiếng Việt/English/Home are replaced with a usable official-disclosure source label derived from the URL.' \
-            '- Official table rows without Ông/Bà remain accepted only when a recognized management role is locally supported.' \
-            '- Signed official disclosures where a role precedes the manager name remain supported.' \
-            '- Compound titles remain specificity-first: Deputy CEO/Vice Chairman/Independent Director do not collapse into generic embedded titles.' \
             '- DGC strict acceptance requires Lưu Bách Đạt CEO 2025+ and Đào Hữu Duy Anh Vice Chairman 2025+, and rejects a dismissed Duy Anh CEO row as current.' \
+            '- Official table rows without Ông/Bà and signed role-before-name disclosures remain supported.' \
+            '- Compound titles remain specificity-first.' \
             '- Discovered identities remain analyst-verification candidates and never overwrite Management Profile.' \
             '- No automatic OO/LT/HH, Lion/Hyena, Management Quality, insider Buy/Sell, MOS or Research Gate conclusion.' \
-            '- DGC Round 5I strict production-path live acceptance passed.' \
+            '- DGC Round 5J strict production-path live acceptance passed.' \
             '- Unified Streamlit smoke passed.' \
             > docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
 
@@ -96,15 +100,15 @@ jobs:
           git add scripts/qa_chapter7_v37_1_dgc.py
           git add docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
           if ! git diff --cached --quiet; then
-            git commit -m "fix(ch7): finalize management discovery V37.1 round5i"
+            git commit -m "fix(ch7): finalize management discovery V37.1 round5j"
             git push origin HEAD:feature/deep-company-analysis-chapter7
           fi
 
-      - name: Upload DGC Round 5I diagnostic artifact
+      - name: Upload DGC Round 5J diagnostic artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DGC_V37_1_ROUND5I_REPORT
+          name: DGC_V37_1_ROUND5J_REPORT
           path: |
             reports/DGC_V37_1_ROUND3.json
             reports/DGC_V37_1_ROUND3.md
