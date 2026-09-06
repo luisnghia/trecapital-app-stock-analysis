@@ -204,7 +204,10 @@ def _editor(
         key=key,
     )
     if has_financial_numeric_columns(columns) and isinstance(edited, pd.DataFrame) and not edited.empty:
-        with st.expander(f"🔎 Preview format số liệu — {label}", expanded=False):
+        # _editor is commonly called from inside a question expander. Streamlit 1.40.x forbids
+        # nested expanders, so the formatted preview uses a plain bordered container.
+        with st.container(border=True):
+            st.caption(f"🔎 Preview format số liệu — {label}")
             st.caption(
                 "Quy chuẩn: tỷ đồng 0 số lẻ; % và hệ số 1 số lẻ; số âm đỏ, số dương xanh ngọc; "
                 "cường độ màu tăng theo độ lớn tuyệt đối."
