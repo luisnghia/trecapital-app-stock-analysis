@@ -1,4 +1,4 @@
-name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5M
+name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5N
 
 on:
   push:
@@ -39,6 +39,9 @@ jobs:
       - name: Apply Round 5M disclosure-boundary anchoring fix
         run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5m.py
 
+      - name: Apply Round 5N URL-token link discovery fix
+        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5n.py
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -57,7 +60,7 @@ jobs:
       - name: QA 2 — Full Chapter 7 regression
         run: pytest -q modules/deep_company_analysis/test_chapter7*.py
 
-      - name: DGC Round 5M — strict production path live acceptance
+      - name: DGC Round 5N — strict production path live acceptance
         run: PYTHONPATH=. python scripts/qa_chapter7_v37_1_dgc.py
 
       - name: Streamlit smoke after hotfix
@@ -92,12 +95,13 @@ jobs:
             '- Generic navigation labels such as Tiếng Việt/English/Home are replaced with a usable official-disclosure source label derived from the URL.' \
             '- Final role-specific event cleanup is clause-local: it suppresses only a role explicitly ended for that manager in that event clause, preserving a later different-role appointment and preserving historical roles from separate earlier sources.' \
             '- Flattened multi-resolution disclosures use Nghị quyết/date event starters as hard boundaries, preventing an earlier dismissal from leaking into a later appointment clause for the same manager.' \
+            '- Hyphenated/underscored IR slugs are normalized before term scoring so generic anchors such as Xem thêm can still lead the crawler to personnel, governance and annual-report documents.' \
             '- DGC strict acceptance requires Lưu Bách Đạt CEO 2025+ and Đào Hữu Duy Anh Vice Chairman 2025+, and rejects the dismissed Duy Anh CEO 2025 row as current.' \
             '- Official genuinely bare table rows and signed role-before-name disclosures remain supported.' \
             '- Compound titles remain specificity-first.' \
             '- Discovered identities remain analyst-verification candidates and never overwrite Management Profile.' \
             '- No automatic OO/LT/HH, Lion/Hyena, Management Quality, insider Buy/Sell, MOS or Research Gate conclusion.' \
-            '- DGC Round 5M strict production-path live acceptance passed.' \
+            '- DGC Round 5N strict production-path live acceptance passed.' \
             '- Unified Streamlit smoke passed.' \
             > docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
 
@@ -111,15 +115,15 @@ jobs:
           git add scripts/qa_chapter7_v37_1_dgc.py
           git add docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
           if ! git diff --cached --quiet; then
-            git commit -m "fix(ch7): finalize management discovery V37.1 round5m"
+            git commit -m "fix(ch7): finalize management discovery V37.1 round5n"
             git push origin HEAD:feature/deep-company-analysis-chapter7
           fi
 
-      - name: Upload DGC Round 5M diagnostic artifact
+      - name: Upload DGC Round 5N diagnostic artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DGC_V37_1_ROUND5M_REPORT
+          name: DGC_V37_1_ROUND5N_REPORT
           path: |
             reports/DGC_V37_1_ROUND3.json
             reports/DGC_V37_1_ROUND3.md
