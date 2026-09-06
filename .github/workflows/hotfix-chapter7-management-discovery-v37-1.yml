@@ -1,4 +1,4 @@
-name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5H
+name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5I
 
 on:
   push:
@@ -24,11 +24,8 @@ jobs:
           python-version: '3.11'
           cache: pip
 
-      - name: Apply Round 5G candidate-quality and target-coverage fix
-        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5g.py
-
-      - name: Apply Round 5H immediate relation-cue fix
-        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5h.py
+      - name: Apply Round 5I event/date/provenance fix
+        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5i.py
 
       - name: Install dependencies
         run: |
@@ -48,7 +45,7 @@ jobs:
       - name: QA 2 — Full Chapter 7 regression
         run: pytest -q modules/deep_company_analysis/test_chapter7*.py
 
-      - name: DGC Round 5H — production path live acceptance
+      - name: DGC Round 5I — strict production path live acceptance
         run: PYTHONPATH=. python scripts/qa_chapter7_v37_1_dgc.py
 
       - name: Streamlit smoke after hotfix
@@ -74,17 +71,18 @@ jobs:
             '' \
             '- Empty Management Profile triggers candidate-manager discovery from company/IR sources.' \
             '- Candidate identity filtering rejects organization, navigation, document-heading and place fragments before they enter the manager dataset.' \
-            '- Related-person wording is recognized only when the relationship label immediately follows the name, so a later manager name cannot create a false relation match.' \
-            '- Related-person wording does not borrow a nearby board/executive role.' \
-            '- Research-target selection is candidate-only and explicitly covers strongest available Chairman and CEO candidates before filling the remaining top-five queue.' \
+            '- Related-person wording is recognized only when the relationship label immediately follows the name.' \
+            '- Research-target selection explicitly covers strongest available Chairman and CEO candidates before filling the remaining top-five queue.' \
+            '- Personnel-change disclosures are resolved per manager occurrence: dismissal of an old role is not retained as a current-role candidate when a new appointment is separately disclosed.' \
+            '- Candidate As-of Date uses manager-local event/reporting year before source-level fallback; unrelated later page years cannot silently make a candidate look newer.' \
+            '- Generic navigation labels such as Tiếng Việt/English/Home are replaced with a usable official-disclosure source label derived from the URL.' \
             '- Official table rows without Ông/Bà remain accepted only when a recognized management role is locally supported.' \
             '- Signed official disclosures where a role precedes the manager name remain supported.' \
             '- Compound titles remain specificity-first: Deputy CEO/Vice Chairman/Independent Director do not collapse into generic embedded titles.' \
-            '- Management-related official PDFs remain prioritized ahead of generic IR category pages.' \
-            '- Future tenure-end years are capped for ranking and are not treated as future source dates.' \
+            '- DGC strict acceptance requires Lưu Bách Đạt CEO 2025+ and Đào Hữu Duy Anh Vice Chairman 2025+, and rejects a dismissed Duy Anh CEO row as current.' \
             '- Discovered identities remain analyst-verification candidates and never overwrite Management Profile.' \
             '- No automatic OO/LT/HH, Lion/Hyena, Management Quality, insider Buy/Sell, MOS or Research Gate conclusion.' \
-            '- DGC Round 5H strict production-path live acceptance passed with no noise identity in the manager dataset or research-target queue.' \
+            '- DGC Round 5I strict production-path live acceptance passed.' \
             '- Unified Streamlit smoke passed.' \
             > docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
 
@@ -98,15 +96,15 @@ jobs:
           git add scripts/qa_chapter7_v37_1_dgc.py
           git add docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
           if ! git diff --cached --quiet; then
-            git commit -m "fix(ch7): finalize management discovery V37.1 round5h"
+            git commit -m "fix(ch7): finalize management discovery V37.1 round5i"
             git push origin HEAD:feature/deep-company-analysis-chapter7
           fi
 
-      - name: Upload DGC Round 5H diagnostic artifact
+      - name: Upload DGC Round 5I diagnostic artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DGC_V37_1_ROUND5H_REPORT
+          name: DGC_V37_1_ROUND5I_REPORT
           path: |
             reports/DGC_V37_1_ROUND3.json
             reports/DGC_V37_1_ROUND3.md
