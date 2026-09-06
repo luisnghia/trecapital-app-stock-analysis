@@ -1,0 +1,225 @@
+name: Deep Company Analysis V41 — Merge Readiness
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/deep-company-analysis-merge-ready-v41
+    paths:
+      - '.github/workflows/verify-deep-analysis-merge-ready-v41.yml'
+      - 'app.py'
+      - 'module1_*.py'
+      - 'module2_*.py'
+      - 'financial_sign_policy.py'
+      - 'tre_sidebar_nav.py'
+      - 'modules/deep_company_analysis/**'
+      - 'modules/investment_checklist/**'
+      - 'pages/05_Investment_Checklist.py'
+      - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
+      - 'pages/08_Phan_tich_chuyen_sau_Chuong_2.py'
+      - 'requirements.txt'
+
+permissions:
+  contents: read
+
+jobs:
+  merge-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trecapital
+          POSTGRES_PASSWORD: trecapital_ci
+          POSTGRES_DB: trecapital_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U trecapital -d trecapital_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      PYTHONPATH: .
+      TEST_DATABASE_URL: postgresql://trecapital:trecapital_ci@localhost:5432/trecapital_test
+      TREC_CHECKLIST_DATABASE_URL: postgresql://trecapital:trecapital_ci@localhost:5432/trecapital_test
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Branch ancestry and drift audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin \
+            main \
+            feature/investment-checklist-phase1c \
+            feature/deep-company-analysis-sort-ttm-v38 \
+            feature/deep-company-analysis-dgc-acceptance-v40
+
+          git merge-base --is-ancestor origin/main HEAD
+          git merge-base --is-ancestor origin/feature/investment-checklist-phase1c HEAD
+          git merge-base --is-ancestor origin/feature/deep-company-analysis-sort-ttm-v38 HEAD
+          git merge-base --is-ancestor origin/feature/deep-company-analysis-dgc-acceptance-v40 HEAD
+
+          {
+            echo "HEAD=$(git rev-parse HEAD)"
+            echo "main=$(git rev-parse origin/main)"
+            echo "phase1c=$(git rev-parse origin/feature/investment-checklist-phase1c)"
+            echo "v38=$(git rev-parse origin/feature/deep-company-analysis-sort-ttm-v38)"
+            echo "v40=$(git rev-parse origin/feature/deep-company-analysis-dgc-acceptance-v40)"
+            echo "main_ahead=$(git rev-list --count origin/main..HEAD)"
+            echo "main_behind=$(git rev-list --count HEAD..origin/main)"
+            echo "phase1c_ahead=$(git rev-list --count origin/feature/investment-checklist-phase1c..HEAD)"
+            echo "phase1c_behind=$(git rev-list --count HEAD..origin/feature/investment-checklist-phase1c)"
+            echo "v38_ahead=$(git rev-list --count origin/feature/deep-company-analysis-sort-ttm-v38..HEAD)"
+            echo "v38_behind=$(git rev-list --count HEAD..origin/feature/deep-company-analysis-sort-ttm-v38)"
+            echo "v40_ahead=$(git rev-list --count origin/feature/deep-company-analysis-dgc-acceptance-v40..HEAD)"
+            echo "v40_behind=$(git rev-list --count HEAD..origin/feature/deep-company-analysis-dgc-acceptance-v40)"
+          } | tee reports/V41_BRANCH_ANCESTRY.txt
+
+      - name: Conflict-marker and route integrity audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -n -E '^(<<<<<<< |=======|>>>>>>> )' -- '*.py' '*.yml' '*.yaml'; then
+            echo 'Unresolved merge-conflict marker found.' >&2
+            exit 1
+          fi
+          test -f pages/05_Investment_Checklist.py
+          test -f pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+          test -f pages/08_Phan_tich_chuyen_sau_Chuong_2.py
+          test -f modules/deep_company_analysis/chapter7.py
+          test -f modules/investment_checklist/services/integration_service.py
+          grep -q 'Phan_tich_chuyen_sau' tre_sidebar_nav.py
+          echo 'PASS: no conflict markers; DCA/checklist routes and core files are present.' | tee reports/V41_ROUTE_AUDIT.txt
+
+      - name: Compile production integration surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q \
+            app.py \
+            module1_dashboard.py module1_engine.py \
+            module2_dashboard.py module2_engine.py \
+            financial_sign_policy.py tre_sidebar_nav.py \
+            modules/deep_company_analysis \
+            modules/investment_checklist \
+            pages/05_Investment_Checklist.py \
+            pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
+            pages/08_Phan_tich_chuyen_sau_Chuong_2.py
+
+      - name: Deep Company Analysis full regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py 2>&1 | tee reports/V41_DCA_REGRESSION.log
+
+      - name: Investment Checklist SQLite + PostgreSQL regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          pytest -q modules/investment_checklist/tests 2>&1 | tee reports/V41_CHECKLIST_REGRESSION.log
+
+      - name: Main Trecapital Streamlit health smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run app.py \
+            --server.headless true --server.port 8510 > reports/V41_STREAMLIT_MAIN.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8510/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then cat reports/V41_STREAMLIT_MAIN.log; kill "$PID" 2>/dev/null || true; exit 1; fi
+          curl -fsS http://127.0.0.1:8510/_stcore/health | tee reports/V41_STREAMLIT_MAIN_HEALTH.txt
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+
+      - name: Deep Analysis Streamlit page smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
+            --server.headless true --server.port 8511 > reports/V41_STREAMLIT_DCA.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8511/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then cat reports/V41_STREAMLIT_DCA.log; kill "$PID" 2>/dev/null || true; exit 1; fi
+          curl -fsS http://127.0.0.1:8511/_stcore/health | tee reports/V41_STREAMLIT_DCA_HEALTH.txt
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+
+      - name: Investment Checklist Streamlit page smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m streamlit run pages/05_Investment_Checklist.py \
+            --server.headless true --server.port 8512 > reports/V41_STREAMLIT_CHECKLIST.log 2>&1 &
+          PID=$!
+          OK=0
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8512/_stcore/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          if [ "$OK" -ne 1 ]; then cat reports/V41_STREAMLIT_CHECKLIST.log; kill "$PID" 2>/dev/null || true; exit 1; fi
+          curl -fsS http://127.0.0.1:8512/_stcore/health | tee reports/V41_STREAMLIT_CHECKLIST_HEALTH.txt
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+
+      - name: Write V41 merge-readiness marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+          result = {
+              'scope': 'Trecapital Deep Company Analysis merge readiness',
+              'branch': 'feature/deep-company-analysis-merge-ready-v41',
+              'acceptance': 'PASS',
+              'dca_regression': 'PASS',
+              'investment_checklist_regression': 'PASS',
+              'streamlit_main': 'PASS',
+              'streamlit_dca': 'PASS',
+              'streamlit_checklist': 'PASS',
+              'strict_failure_semantics': True,
+              'timestamp_utc': datetime.now(timezone.utc).isoformat(),
+          }
+          Path('reports/DEEP_ANALYSIS_MERGE_READINESS_V41.json').write_text(
+              json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8'
+          )
+          print(json.dumps(result, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Upload V41 merge-readiness artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEEP_ANALYSIS_MERGE_READINESS_V41
+          path: |
+            reports/V41_*
+            reports/DEEP_ANALYSIS_MERGE_READINESS_V41.json
+          if-no-files-found: warn
+          retention-days: 30
