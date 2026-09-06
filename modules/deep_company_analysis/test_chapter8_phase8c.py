@@ -136,7 +136,10 @@ def test_research_gaps_keep_unknown_and_manager_identity_gap_without_fabrication
     assert set(ch8.RESEARCH_GAP_COLUMNS) == set(gaps.columns)
     assert set(ch8.QUESTION_KEYS) <= set(gaps["Question"])
     assert any(gaps["Status"].eq("Open — manager identity gap"))
-    text = " ".join(gaps["Research Gap"].astype(str)).casefold()
+    text = " ".join(
+        gaps["Research Gap"].astype(str).tolist()
+        + gaps["Next Action"].astype(str).tolist()
+    ).casefold()
     assert "replacement manager ids" in text
     assert "good management" not in text
     assert "bad management" not in text
