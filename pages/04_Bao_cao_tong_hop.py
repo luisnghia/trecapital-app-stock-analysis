@@ -17,7 +17,10 @@ from module2_engine import (
     load_assumptions,
 )
 from report_exporter import build_report_package, render_report_package_as_app_page
+from modules.deep_company_analysis.chapter7 import load_record as load_chapter7_record
 from modules.deep_company_analysis.chapter8_store import load_record as load_chapter8_record
+from modules.deep_company_analysis.chapter8_data_bridge import build_phase8b_context
+from modules.deep_company_analysis.chapter8_completion import build_completion_gate, completion_gate_text
 from modules.deep_company_analysis.chapter8_integration import build_chapter8_report_frames, build_chapter8_summary
 from modules.deep_company_analysis.table_format import render_static_table
 
@@ -134,6 +137,18 @@ def render_consolidated_report_page() -> None:
     ch8_payload = load_chapter8_record(ticker, ch8_company_name)
     ch8_summary = build_chapter8_summary(ch8_payload)
     ch8_frames = build_chapter8_report_frames(ch8_payload)
+    ch8_chapter7_payload = load_chapter7_record(ticker)
+    ch8_structured = build_phase8b_context(
+        ticker,
+        annual_df if isinstance(annual_df, pd.DataFrame) else pd.DataFrame(),
+        chapter7_payload=ch8_chapter7_payload,
+        guidance_rows=ch8_payload.get("q41_guidance_history"),
+    )
+    ch8_gate = build_completion_gate(
+        ch8_payload,
+        structured_context=ch8_structured,
+        chapter7_payload=ch8_chapter7_payload,
+    )
 
     st.markdown("## 🧭 Deep Company Analysis — Chương 8: Năng lực vận hành Ban điều hành")
     st.caption("Q39–Q47 theo The Investment Checklist. Phần này trình bày trạng thái nghiên cứu và kết luận analyst; không phải Management Quality Score.")
@@ -143,6 +158,14 @@ def render_consolidated_report_page() -> None:
     m3.metric("Evidence đã promote", ch8_summary["promoted_evidence"])
     m4.metric("Research gaps mở", ch8_summary["research_gaps_open"])
     m5.metric("Kết luận analyst", ch8_summary["analyst_conclusions"])
+
+    st.markdown("### Final Research Completion Gate")
+    if ch8_gate["ready_for_chapter_close"]:
+        st.success(completion_gate_text(ch8_gate))
+    else:
+        st.warning(completion_gate_text(ch8_gate))
+    render_static_table(ch8_gate["table"], height=470)
+    st.caption(ch8_gate["gate_boundary"])
 
     render_static_table(ch8_frames["status"], height=430)
     if not ch8_frames["evidence"].empty:

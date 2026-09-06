@@ -17,6 +17,7 @@ from module1_engine import append_ttm_row
 import modules.deep_company_analysis.chapter8 as ch8
 from modules.deep_company_analysis.chapter7 import load_record as load_chapter7_record
 from modules.deep_company_analysis.chapter8_data_bridge import build_phase8b_context
+from modules.deep_company_analysis.chapter8_completion import build_completion_gate, completion_gate_text
 from modules.deep_company_analysis.chapter8_research import CANDIDATE_COLUMNS, Chapter8ResearchAgent
 from modules.deep_company_analysis.chapter8_store import create_snapshot, list_snapshots, load_record, save_record
 from modules.deep_company_analysis.chapter8_workspace import merge_research_gaps, promote_selected_candidates
@@ -326,7 +327,7 @@ def render_chapter8_tab(default_ticker: str = "DGC") -> None:
     payload["ticker"] = ticker
 
     st.title("🧭 Chương 8 — Năng lực vận hành của Ban điều hành")
-    st.caption("Management Competence: How Management Operates the Business | Phase 8A + 8B + 8C + 8D UI")
+    st.caption("Management Competence: How Management Operates the Business | Phase 8A–8F | final research-completion gate")
     _render_source_lock()
 
     c1, c2 = st.columns([3, 1])
@@ -361,6 +362,32 @@ def render_chapter8_tab(default_ticker: str = "DGC") -> None:
         _render_source_tables(ticker, payload)
     with st.container(border=True):
         _render_evidence_gap_events(ticker, payload)
+
+    completion_context = build_phase8b_context(
+        ticker,
+        annual,
+        chapter7_payload=chapter7_payload,
+        guidance_rows=payload.get("q41_guidance_history"),
+    )
+    completion_gate = build_completion_gate(
+        payload,
+        structured_context=completion_context,
+        chapter7_payload=chapter7_payload,
+    )
+    with st.container(border=True):
+        st.markdown("### ✅ Final Research Completion Gate — Q39–Q47")
+        gate_text = completion_gate_text(completion_gate)
+        if completion_gate["ready_for_chapter_close"]:
+            st.success(gate_text)
+        else:
+            st.warning(gate_text)
+        g1, g2, g3, g4 = st.columns(4)
+        g1.metric("Closed questions", f"{completion_gate['closed_count']}/{completion_gate['total_questions']}")
+        g2.metric("Open questions", len(completion_gate["open_questions"]))
+        g3.metric("Q43 dimensions evidenced", f"{completion_gate['q43_dimensions_evidenced']}/{completion_gate['q43_dimensions_total']}")
+        g4.metric("Q46 source lock", "PASS" if completion_gate["q46_source_lock_ok"] else "FAIL")
+        render_static_table(completion_gate["table"], height=470, sort_key=f"dca8_{ticker}_completion_gate")
+        st.caption(completion_gate["gate_boundary"])
 
     warnings = ch8.research_gap_warnings(payload)
     if warnings:
