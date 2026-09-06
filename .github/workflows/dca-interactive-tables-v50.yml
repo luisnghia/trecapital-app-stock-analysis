@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/dca-interactive-tables-v50.yml'
       - 'scripts/apply_dca_interactive_v50.py'
+      - 'scripts/apply_dca_v50_followup.py'
   workflow_dispatch:
 
 permissions:
@@ -40,10 +41,11 @@ jobs:
         run: |
           set -euo pipefail
           if grep -q "Only the selected chapter is executed" pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py; then
-            echo "V50 migration already applied."
+            echo "V50 primary migration already applied."
           else
             python scripts/apply_dca_interactive_v50.py
           fi
+          python scripts/apply_dca_v50_followup.py
           git diff -- modules/deep_company_analysis/table_format.py \
             modules/deep_company_analysis/test_sortable_table_v32.py \
             pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
@@ -57,7 +59,7 @@ jobs:
             git add modules/deep_company_analysis/table_format.py \
               modules/deep_company_analysis/test_sortable_table_v32.py \
               pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
-            git commit -m "fix(dca): stabilize editors, lazy-render chapters, heatmap and latest-first"
+            git commit -m "fix(dca): finalize stable V50 interactive runtime"
             git push origin HEAD:feature/deep-company-analysis-interactive-table-v50
           else
             echo "No V50 migration diff to commit."
@@ -70,6 +72,7 @@ jobs:
           python -m py_compile pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
           python -m py_compile scripts/qa_dca_dgc_interactive_v50.py
           python -m py_compile scripts/apply_dca_interactive_v50.py
+          python -m py_compile scripts/apply_dca_v50_followup.py
 
       - name: V50 interactive and format contracts
         run: |
