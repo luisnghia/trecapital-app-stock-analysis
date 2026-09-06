@@ -172,6 +172,83 @@ def _candidate_name(raw_name: str) -> str:
     return name
 
 
+COMMON_VN_SURNAMES = {
+    "nguyễn", "trần", "lê", "phạm", "hoàng", "huỳnh", "phan", "vũ", "võ", "đặng", "bùi", "đỗ", "hồ", "ngô",
+    "dương", "lý", "đào", "đinh", "lưu", "mai", "trịnh", "cao", "lâm", "tạ", "tô", "tăng", "thái", "quách",
+    "châu", "chu", "hà", "kiều", "la", "mạc", "ninh", "tôn", "trương", "vương", "lại", "doãn", "thân", "thạch",
+}
+
+NON_PERSON_NAME_TOKENS = {
+    "dgc", "ctcp", "tnhh", "cp", "jsc", "group", "joint", "stock", "company", "corporation", "chemical", "chemicals",
+    "phòng", "ban", "stt", "họ", "cbtt", "report", "annual", "board", "management", "directors", "director",
+    "mua", "bán", "cổ", "phiếu", "giấy", "đề", "cử", "biên", "bản", "nghị", "quyết", "tiếng", "english",
+    "thời", "gian", "còn", "lại", "ứng", "viên", "thông", "tin", "công", "bố", "hoá", "hóa", "chất",
+}
+
+NON_PERSON_NAME_PHRASES = {
+    "board of management", "board of directors", "duc giang chemicals", "dgc cho thời gian", "mua cổ phiếu của",
+    "giấy đề cử", "biên bản", "nghị quyết", "công bố thông tin", "hóa chất đức giang", "hoá chất đức giang",
+    "việt nam", "viöt nam", "bình dương", "lào cai", "đà nẵng", "miền nam", "phòng phòng phòng",
+}
+
+RELATED_PERSON_CUES = (
+    "mẹ", "cha", "bố", "vợ", "chồng", "con", "anh", "chị", "em", "người liên quan", "related person",
+)
+
+
+def _has_honorific_reference(name: str, evidence: str) -> bool:
+    safe = re.escape(_clean_text(name)).replace(r"\ ", r"\s+")
+    return bool(re.search(rf"(?<![A-Za-zÀ-ỹĐđ])(?i:Ông|Bà|Mr\.?|Ms\.?)\s+{safe}(?![A-Za-zÀ-ỹĐđ])", str(evidence or "")))
+
+
+def _relation_cue_after_name(name: str, evidence: str) -> bool:
+    """Reject a related-person row only when the relationship label immediately follows the name.
+
+    Do not scan an arbitrary trailing window: the next manager may legitimately contain words such
+    as `Anh` in their own name, which must not be mistaken for a relationship cue.
+    """
+    low = _clean_text(evidence).casefold()
+    needle = _clean_text(name).casefold()
+    pos = low.find(needle)
+    if pos < 0:
+        return False
+    tail = low[pos + len(needle):].lstrip(" -–—,:;()[]")
+    tail = re.sub(r"^(?:là|la)\s+", "", tail)
+    for cue in RELATED_PERSON_CUES:
+        if re.match(rf"^{re.escape(cue.casefold())}(?:\s|[-–—,:;()])", tail):
+            return True
+    return False
+
+
+def _plausible_manager_candidate(name: str, evidence: str = "", company_name: str = "") -> bool:
+    """Conservative identity filter for candidate research targets, never a manager conclusion.
+
+    A Vietnamese-domain bare name must look like a person (typically a common surname) unless the
+    source explicitly uses an honorific. Organization/navigation/place fragments are rejected.
+    """
+    clean = _clean_text(name)
+    tokens = [t.casefold().strip(".,;:()[]{}") for t in clean.split() if t.strip(".,;:()[]{}")]
+    if not (2 <= len(tokens) <= 5):
+        return False
+    low = " ".join(tokens)
+    if any(token in NON_PERSON_NAME_TOKENS for token in tokens):
+        return False
+    if any(phrase in low for phrase in NON_PERSON_NAME_PHRASES):
+        return False
+    if _relation_cue_after_name(clean, evidence):
+        return False
+
+    honorific = _has_honorific_reference(clean, evidence)
+    if honorific:
+        return True
+
+    company_low = _clean_text(company_name).casefold()
+    if company_low and low in company_low:
+        return False
+
+    return tokens[0] in COMMON_VN_SURNAMES
+
+
 def _nearest_role(raw_text: str, start: int, end: int) -> tuple[str, str, int]:
     """Find a role only in the same local person segment; do not cross into another person row."""
     after_raw = raw_text[end:min(len(raw_text), end + 180)]
@@ -361,7 +438,7 @@ def _role_then_name_candidates(raw_text: str) -> list[tuple[str, tuple[str, str,
     return deduped
 
 
-def extract_management_candidates_from_documents(documents: list[dict[str, Any]], max_targets: int = 5) -> pd.DataFrame:
+def extract_management_candidates_from_documents(documents: list[dict[str, Any]], max_targets: int = 5, company_name: str = "") -> pd.DataFrame:
     """Extract candidate identities and, when locally supported, roles from official text.
 
     `Unknown` role is deliberately allowed: a reliably named manager from a management document is
@@ -431,28 +508,82 @@ def extract_management_candidates_from_documents(documents: list[dict[str, Any]]
     if not rows:
         return pd.DataFrame(columns=MANAGER_CANDIDATE_COLUMNS)
     frame = pd.DataFrame(rows)
+    plausible = frame.apply(
+        lambda row: _plausible_manager_candidate(
+            row.get("Manager", ""), row.get("Evidence Text / Reference", ""), company_name
+        ),
+        axis=1,
+    )
+    frame = frame[plausible].copy()
+    if frame.empty:
+        return pd.DataFrame(columns=MANAGER_CANDIDATE_COLUMNS)
+
+    # If the same source/role contains both a full name and a shorter suffix fragment, retain the
+    # longest candidate. This handles table extraction such as `TRẦN THỊ XUÂN` plus `THỊ XUÂN`.
+    drop_idx: set[int] = set()
+    for _, group in frame.groupby(["Source URL / File", "Role Normalized", "As-of Date"], dropna=False):
+        entries = [(idx, _clean_text(row["Manager"]).casefold()) for idx, row in group.iterrows()]
+        for idx, short in entries:
+            for other_idx, long_name in entries:
+                if idx == other_idx:
+                    continue
+                if len(long_name.split()) > len(short.split()) and (long_name.endswith(" " + short) or long_name.startswith(short + " ")):
+                    drop_idx.add(idx)
+                    break
+    if drop_idx:
+        frame = frame.drop(index=list(drop_idx))
+
     frame["_year_num"] = pd.to_numeric(frame["As-of Date"], errors="coerce").fillna(0)
+    current_year = pd.Timestamp.utcnow().year
+    frame["_year_num"] = frame["_year_num"].clip(upper=current_year)
     frame = frame.sort_values(["_year_num", "_priority"], ascending=[False, False])
     frame = frame.drop_duplicates(subset=["Manager", "Role Normalized", "As-of Date", "Source URL / File"], keep="first")
     return frame[MANAGER_CANDIDATE_COLUMNS].reset_index(drop=True)
 
 
-def choose_research_targets(managers: pd.DataFrame, max_targets: int = 5) -> list[str]:
+def choose_research_targets(managers: pd.DataFrame, max_targets: int = 5, company_name: str = "") -> list[str]:
     if not isinstance(managers, pd.DataFrame) or managers.empty:
         return []
     ranked = managers.copy()
+    ranked = ranked[
+        ranked.apply(
+            lambda row: _plausible_manager_candidate(
+                row.get("Manager", ""), row.get("Evidence Text / Reference", ""), company_name
+            ),
+            axis=1,
+        )
+    ].copy()
+    if ranked.empty:
+        return []
+
     priority_map = {normalized: priority for normalized, _, priority in ROLE_RULES}
     ranked["_priority"] = ranked["Role Normalized"].map(priority_map).fillna(1)
     ranked["_year"] = pd.to_numeric(ranked["As-of Date"], errors="coerce").fillna(0)
-    ranked = ranked.sort_values(["_year", "_priority"], ascending=[False, False])
+    current_year = pd.Timestamp.utcnow().year
+    ranked["_year"] = ranked["_year"].clip(upper=current_year)
+    ranked["_source_count"] = ranked.groupby("Manager")["Source URL / File"].transform("nunique")
+    ranked = ranked.sort_values(["_year", "_priority", "_source_count"], ascending=[False, False, False])
+
     names: list[str] = []
+    # Always seed the research queue with the strongest Chairman and CEO candidates when available;
+    # this is target coverage, not confirmation of office or management quality.
+    for required_role in ("Chairman", "CEO"):
+        role_rows = ranked[ranked["Role Normalized"].eq(required_role)]
+        for value in role_rows["Manager"].astype(str):
+            name = _clean_text(value)
+            if name and name not in names:
+                names.append(name)
+                break
+        if len(names) >= max_targets:
+            return names[:max_targets]
+
     for value in ranked["Manager"].astype(str):
         name = _clean_text(value)
         if name and name not in names:
             names.append(name)
         if len(names) >= max_targets:
             break
-    return names
+    return names[:max_targets]
 
 
 def _fetch_text(client: httpx.Client, url: str, max_pages: int = 120, max_chars: int = 420_000) -> tuple[str, str, str, list[tuple[str, str]]]:
@@ -640,8 +771,8 @@ def discover_management_candidates(
                     queue.append((child_score, depth + 1, child_label, child_href, root_domain))
                     queued.add(child_href)
 
-    managers = extract_management_candidates_from_documents(documents, max_targets=max_targets)
-    targets = choose_research_targets(managers, max_targets=max_targets)
+    managers = extract_management_candidates_from_documents(documents, max_targets=max_targets, company_name=company_name)
+    targets = choose_research_targets(managers, max_targets=max_targets, company_name=company_name)
     note = (
         f"Fetched {fetch_count} official/company URLs; retained {len(documents)} substantive management documents; "
         f"discovered {len(managers)} manager-role candidates; research targets={len(targets)}."

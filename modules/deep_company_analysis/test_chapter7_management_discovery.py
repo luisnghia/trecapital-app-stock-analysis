@@ -216,3 +216,39 @@ def test_role_before_name_signature_and_heading_noise_filter_v37_1_round5f():
     assert "CBTT BIÊN BẢN" not in names
     assert "GIẤY ĐỀ CỬ" not in names
     assert "BOARD OF MANAGEMENT" not in names
+
+
+
+def test_candidate_filter_rejects_org_navigation_places_and_related_person_v37_1_round5g():
+    from modules.deep_company_analysis.chapter7_management_discovery import _plausible_manager_candidate
+
+    assert _plausible_manager_candidate("Đào Hữu Huyền", "CHỦ TỊCH HĐQT Đào Hữu Huyền", "Tập đoàn Hóa chất Đức Giang")
+    assert _plausible_manager_candidate("Lưu Bách Đạt", "Ông Lưu Bách Đạt Tổng Giám đốc", "Tập đoàn Hóa chất Đức Giang")
+    for bad in [
+        "BOARD OF MANAGEMENT", "DGC CHO THỜI GIAN CÒN", "DUC GIANG CHEMICALS GROUP JOINT",
+        "MUA CỔ PHIẾU CỦA", "Phòng Kinh", "STT Họ", "Việt Nam", "Bình Dương", "Lào Cai", "Đức Giang",
+    ]:
+        assert not _plausible_manager_candidate(bad, f"{bad} Chủ tịch HĐQT", "Tập đoàn Hóa chất Đức Giang")
+    assert not _plausible_manager_candidate(
+        "Trần Thị Xuân", "Bà Trần Thị Xuân - mẹ TV HĐQT độc lập", "Tập đoàn Hóa chất Đức Giang"
+    )
+
+
+def test_research_targets_cover_chairman_ceo_and_exclude_noise_v37_1_round5g():
+    frame = extract_management_candidates_from_documents(_docs(), company_name="Tập đoàn Hóa chất Đức Giang")
+    targets = choose_research_targets(frame, max_targets=5, company_name="Tập đoàn Hóa chất Đức Giang")
+    assert "Đào Hữu Huyền" in targets
+    assert "Lưu Bách Đạt" in targets
+    assert not any("BOARD" in name.upper() or "DGC CHO" in name.upper() for name in targets)
+
+
+
+def test_relation_filter_is_immediate_and_does_not_reject_next_manager_named_anh_v37_1_round5h():
+    from modules.deep_company_analysis.chapter7_management_discovery import _plausible_manager_candidate
+
+    evidence = "Ông Lưu Bách Đạt Tổng Giám đốc. Ông Đào Hữu Duy Anh Phó Chủ tịch HĐQT."
+    assert _plausible_manager_candidate("Lưu Bách Đạt", evidence, "Tập đoàn Hóa chất Đức Giang")
+    assert _plausible_manager_candidate("Đào Hữu Duy Anh", evidence, "Tập đoàn Hóa chất Đức Giang")
+    assert not _plausible_manager_candidate(
+        "Trần Thị Xuân", "Bà Trần Thị Xuân - mẹ TV HĐQT độc lập", "Tập đoàn Hóa chất Đức Giang"
+    )

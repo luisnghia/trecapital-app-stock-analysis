@@ -30,7 +30,7 @@ def main() -> None:
     )
     candidates = research.candidates.copy()
     quality = evidence_quality_summary(candidates)
-    research_targets = choose_research_targets(managers, max_targets=5)
+    research_targets = choose_research_targets(managers, max_targets=5, company_name=company_name)
 
     if candidates.empty:
         extracted = pd.DataFrame()
@@ -92,15 +92,20 @@ def main() -> None:
         )
 
     noisy = {
-        "báo", "thay", "đổi", "nhân", "sự", "qua", "bầu", "nghị",
-        "quyết", "thông", "tin", "công", "bố", "xem", "thêm", "giữ",
-        "chức", "vụ", "được", "đảm",
+        "báo", "thay", "đổi", "nhân", "sự", "qua", "bầu", "nghị", "quyết", "thông", "tin", "công", "bố",
+        "xem", "thêm", "giữ", "chức", "vụ", "được", "đảm", "dgc", "group", "joint", "chemical", "chemicals",
+        "phòng", "stt", "tnhh", "cp", "mua", "cổ", "phiếu", "thời", "gian", "còn", "tiếng", "board", "management",
+        "giấy", "đề", "cử",
     }
     for name in unique_names:
-        if any(token.casefold() in noisy for token in str(name).split()):
-            critical.append(
-                f"Noise/action heading was misidentified as a manager: {name}"
-            )
+        if any(token.casefold().strip(".,;:()") in noisy for token in str(name).split()):
+            critical.append(f"Noise/org/navigation fragment was misidentified as a manager: {name}")
+
+    target_rows = managers[managers["Manager"].astype(str).isin(research_targets)] if not managers.empty else pd.DataFrame()
+    if target_rows.empty or "Chairman" not in set(target_rows.get("Role Normalized", pd.Series(dtype="object")).astype(str)):
+        critical.append("Research target queue does not include a Chairman candidate.")
+    if target_rows.empty or "CEO" not in set(target_rows.get("Role Normalized", pd.Series(dtype="object")).astype(str)):
+        critical.append("Research target queue does not include a CEO candidate.")
 
     if len(extracted) < 3:
         critical.append(
