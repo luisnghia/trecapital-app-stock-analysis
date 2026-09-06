@@ -209,8 +209,8 @@ def _editor(
         with st.container(border=True):
             st.caption(f"🔎 Preview format số liệu — {label}")
             st.caption(
-                "Quy chuẩn: tỷ đồng 0 số lẻ; % và hệ số 1 số lẻ; số âm đỏ, số dương xanh ngọc; "
-                "cường độ màu tăng theo độ lớn tuyệt đối."
+                "Quy chuẩn: tỷ đồng 0 số lẻ; % và hệ số 1 số lẻ; dấu chấm ngăn cách hàng nghìn, "
+                "dấu phẩy thập phân; số âm đỏ, số dương xanh ngọc; cường độ màu tăng theo độ lớn tuyệt đối."
             )
             render_static_table(edited, height=min(360, 90 + 30 * len(edited)), sort_key=f"{key}_formatted_preview")
     return _rows(edited)

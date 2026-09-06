@@ -19,10 +19,10 @@ def test_locked_formats_remain_exact_after_header_sort_upgrade():
     assert infer_numeric_kind("EBIT Margin (%)") == "percent"
     assert infer_numeric_kind("CFO/NI (x)") == "ratio"
     assert infer_numeric_kind("CCC ngày") == "days"
-    assert format_numeric(1234.56, "amount_bil") == "1,235"
-    assert format_numeric(12.345, "percent") == "12.3%"
-    assert format_numeric(2.345, "ratio") == "2.3x"
-    assert format_numeric(45.67, "days") == "45.7"
+    assert format_numeric(1234.56, "amount_bil") == "1.235"
+    assert format_numeric(12.345, "percent") == "12,3%"
+    assert format_numeric(2.345, "ratio") == "2,3x"
+    assert format_numeric(45.67, "days") == "45,7"
     html = static_table_html(pd.DataFrame([{"CFO (tỷ)": -123.6, "EBIT Margin (%)": 10.25}]))
     assert "table-layout:fixed" in html
     assert "white-space:normal" in html

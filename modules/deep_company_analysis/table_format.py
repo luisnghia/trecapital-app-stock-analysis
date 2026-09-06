@@ -33,7 +33,15 @@ def infer_numeric_kind(column: str) -> str:
     )
     if any(token in low for token in pct_tokens):
         return "percent"
+    if any(token in low for token in ("shares", "share count", "share-count", "cổ phiếu", "co phieu")):
+        return "shares"
     return "text"
+
+
+def _format_vi_number(number: float, decimals: int) -> str:
+    """Vietnamese display convention: '.' thousands and ',' decimals."""
+    rendered = f"{float(number):,.{int(decimals)}f}"
+    return rendered.replace(",", "\u0000").replace(".", ",").replace("\u0000", ".")
 
 
 def format_numeric(value: Any, kind: str) -> str:
@@ -44,13 +52,15 @@ def format_numeric(value: Any, kind: str) -> str:
     except Exception:
         return escape(str(value or ""))
     if kind == "amount_bil":
-        return f"{number:,.0f}"
+        return _format_vi_number(number, 0)
     if kind == "percent":
-        return f"{number:,.1f}%"
+        return f"{_format_vi_number(number, 1)}%"
     if kind == "ratio":
-        return f"{number:,.1f}x"
-    if kind == "days":
-        return f"{number:,.1f}"
+        return f"{_format_vi_number(number, 1)}x"
+    if kind in {"days", "shares", "number"}:
+        return _format_vi_number(number, 1)
+    if kind == "integer":
+        return _format_vi_number(number, 0)
     return escape(str(value))
 
 
@@ -208,6 +218,8 @@ def _default_editor_column_config(frame: pd.DataFrame) -> dict[str, Any]:
             config[column] = st.column_config.NumberColumn(str(column), format="%.1f", help="Hệ số; 1 số lẻ.")
         elif kind == "days":
             config[column] = st.column_config.NumberColumn(str(column), format="%.1f", help="Số ngày; 1 số lẻ.")
+        elif kind == "shares":
+            config[column] = st.column_config.NumberColumn(str(column), format="%.1f", help="Số lượng cổ phiếu; hiển thị 1 số lẻ nếu dữ liệu có phần thập phân.")
     return config
 
 
@@ -337,13 +349,20 @@ def sortable_data_editor(value: Any, **kwargs: Any):
 
 
 def _native_table_styler(frame: pd.DataFrame):
+    """Apply the display contract without converting sortable numeric cells to strings."""
     styler = frame.style
+    formatters: dict[str, Any] = {}
     for column in frame.columns:
+        kind = infer_numeric_kind(str(column))
+        if kind != "text":
+            formatters[column] = (lambda value, k=kind: format_numeric(value, k))
         if not _heat_eligible(str(column)):
             continue
         numeric = pd.to_numeric(frame[column], errors="coerce").abs().dropna()
         max_abs = float(numeric.max()) if not numeric.empty else 0.0
         styler = styler.map(lambda value, m=max_abs: _heat_style(value, m), subset=[column])
+    if formatters:
+        styler = styler.format(formatters, na_rep="—")
     return styler
 
 
@@ -363,15 +382,16 @@ def render_static_table(value: Any, **kwargs: Any) -> None:
     hide_index = kwargs.pop("hide_index", True)
     use_container_width = kwargs.pop("use_container_width", True)
     provided = kwargs.pop("column_config", None)
-    column_config = _default_editor_column_config(frame)
-    if isinstance(provided, dict):
-        column_config.update(provided)
+    # Static grids use Pandas Styler for localized display (1.234 / 12,3%). Passing a
+    # Streamlit NumberColumn printf format here would override the localized Styler text.
+    # The underlying frame remains numeric, so native click-on-header sorting still works.
+    column_config = provided if isinstance(provided, dict) else None
     st.dataframe(
         _native_table_styler(frame),
         use_container_width=use_container_width,
         hide_index=hide_index,
         height=int(height) if height else None,
-        column_config=column_config or None,
+        column_config=column_config,
         **kwargs,
     )
 

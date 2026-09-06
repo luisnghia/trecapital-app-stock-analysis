@@ -7,10 +7,10 @@ def test_numeric_contract():
     assert infer_numeric_kind('ROIC canonical %') == 'percent'
     assert infer_numeric_kind('Debt/EBITDA (x)') == 'ratio'
     assert infer_numeric_kind('CCC ngày') == 'days'
-    assert format_numeric(1234.56, 'amount_bil') == '1,235'
-    assert format_numeric(12.345, 'percent') == '12.3%'
-    assert format_numeric(2.345, 'ratio') == '2.3x'
-    assert format_numeric(45.67, 'days') == '45.7'
+    assert format_numeric(1234.56, 'amount_bil') == '1.235'
+    assert format_numeric(12.345, 'percent') == '12,3%'
+    assert format_numeric(2.345, 'ratio') == '2,3x'
+    assert format_numeric(45.67, 'days') == '45,7'
 
 def test_html_contract():
     df = pd.DataFrame([
@@ -24,7 +24,7 @@ def test_html_contract():
     assert 'rgba(185,28,28' in html
     assert 'rgba(4,120,87' in html
     assert '-124' in html and '250' in html
-    assert '10.2%' in html and '-5.4%' in html and '2.3x' in html
+    assert '10,2%' in html and '-5,4%' in html and '2,3x' in html
 
 def test_no_legacy_static_dataframes_ch2_ch5():
     root = Path(__file__).resolve().parent

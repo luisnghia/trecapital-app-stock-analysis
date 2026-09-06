@@ -6,35 +6,7 @@ from typing import Any
 import pandas as pd
 
 
-def infer_numeric_kind(column: str) -> str:
-    name = str(column or "")
-    if "(tỷ)" in name:
-        return "amount_bil"
-    if "(%)" in name:
-        return "percent"
-    if "(x)" in name:
-        return "ratio"
-    if "(ngày)" in name or name in {"DSO", "DIO", "DPO", "CCC"}:
-        return "days"
-    return "text"
-
-
-def format_numeric(value: Any, kind: str) -> str:
-    try:
-        if value is None or pd.isna(value):
-            return "—"
-        number = float(value)
-    except Exception:
-        return escape(str(value or ""))
-    if kind == "amount_bil":
-        return f"{number:,.0f}"
-    if kind == "percent":
-        return f"{number:,.1f}%"
-    if kind == "ratio":
-        return f"{number:,.1f}x"
-    if kind == "days":
-        return f"{number:,.1f}"
-    return f"{number:,.1f}"
+from modules.deep_company_analysis.table_format import format_numeric, infer_numeric_kind
 
 
 def has_financial_numeric_columns(columns: list[str]) -> bool:

@@ -13,9 +13,9 @@ def test_chapter6_numeric_format_rules():
     assert infer_numeric_kind("Amount (tỷ)") == "amount_bil"
     assert infer_numeric_kind("Revenue Share (%)") == "percent"
     assert infer_numeric_kind("Debt / EBITDA (x)") == "ratio"
-    assert format_numeric(1234.56, "amount_bil") == "1,235"
-    assert format_numeric(12.34, "percent") == "12.3%"
-    assert format_numeric(1.234, "ratio") == "1.2x"
+    assert format_numeric(1234.56, "amount_bil") == "1.235"
+    assert format_numeric(12.34, "percent") == "12,3%"
+    assert format_numeric(1.234, "ratio") == "1,2x"
 
 
 def test_chapter6_html_table_wrap_and_heatmap():
@@ -34,8 +34,8 @@ def test_chapter6_html_table_wrap_and_heatmap():
     assert "#047857" in html
     assert "-100" in html
     assert "200" in html
-    assert "-5.2%" in html
-    assert "10.2%" in html
+    assert "-5,2%" in html
+    assert "10,2%" in html
 
 
 def test_chapter6_html_escapes_text():
