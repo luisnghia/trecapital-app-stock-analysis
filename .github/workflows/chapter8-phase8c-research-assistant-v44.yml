@@ -1,0 +1,82 @@
+name: Deep Company Analysis Chapter 8 Phase 8C V44
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter8-phase8c-research-v44
+    paths:
+      - '.github/workflows/chapter8-phase8c-research-assistant-v44.yml'
+      - 'modules/deep_company_analysis/**'
+      - 'scripts/qa_chapter8_phase8c_v44.py'
+      - 'adapters/module2_web_research.py'
+      - 'docs/CHAPTER8_PHASE8C_RESEARCH_ASSISTANT.md'
+
+permissions:
+  contents: read
+
+jobs:
+  phase8c:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PYTHONPATH: .
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Phase 8C
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter8_research.py
+          python -m py_compile modules/deep_company_analysis/test_chapter8_phase8c.py
+          python -m py_compile scripts/qa_chapter8_phase8c_v44.py
+
+      - name: Chapter 8 Phase 8A-8C tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_chapter8_phase8a.py modules/deep_company_analysis/test_chapter8_phase8b.py modules/deep_company_analysis/test_chapter8_phase8c.py 2>&1 | tee reports/CH8_PHASE8C_TESTS_V44.log
+
+      - name: DGC live acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter8_phase8c_v44.py 2>&1 | tee reports/CH8_PHASE8C_DGC_LIVE_V44.log
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py 2>&1 | tee reports/CH8_PHASE8C_FULL_REGRESSION_V44.log
+
+      - name: Build offline package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 8 Phase 8C V44\nBranch: feature/deep-company-analysis-chapter8-phase8c-research-v44\nCommit: %s\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH8_V44.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter8_Phase8C_V44.zip . -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter8_Phase8C_V44.zip | tail -n 3
+
+      - name: Upload acceptance package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter8_Phase8C_V44
+          path: |
+            reports/CHAPTER8_PHASE8C_V44_ACCEPTANCE.json
+            reports/CH8_PHASE8C_DGC_LIVE_V44.json
+            reports/CH8_PHASE8C_TESTS_V44.log
+            reports/CH8_PHASE8C_FULL_REGRESSION_V44.log
+            docs/CHAPTER8_PHASE8C_RESEARCH_ASSISTANT.md
+            Trecapital_Deep_Analysis_Chapter8_Phase8C_V44.zip
+          retention-days: 90
