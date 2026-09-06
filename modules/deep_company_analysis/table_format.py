@@ -336,9 +336,16 @@ def _dynamic_editor(value: pd.DataFrame, *, key: str, kwargs: dict[str, Any]) ->
         st.session_state[rows_key] = committed.copy()
 
     committed = _coerce_frame(st.session_state.get(rows_key)).reset_index(drop=True)
-    if any(infer_numeric_kind(str(column)) != "text" for column in committed.columns) and not committed.empty:
-        with st.expander("🌡️ Xem format số liệu / heatmap", expanded=False):
-            render_static_table(committed, use_container_width=True, hide_index=True)
+    # Some chapter editors already live inside an expander. Streamlit 1.40.x forbids
+    # nested expanders, so show the formatted heatmap preview only after an explicit
+    # table commit and render it directly in the current container.
+    if (
+        submitted
+        and any(infer_numeric_kind(str(column)) != "text" for column in committed.columns)
+        and not committed.empty
+    ):
+        st.caption("🌡️ Format số liệu / heatmap sau khi áp dụng thay đổi")
+        render_static_table(committed, use_container_width=True, hide_index=True)
     return committed
 
 def sortable_data_editor(value: Any, **kwargs: Any):
