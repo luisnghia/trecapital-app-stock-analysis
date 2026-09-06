@@ -22,7 +22,9 @@ jobs:
           cache: pip
 
       - name: Apply V37.2 header-sort + TTM migration
-        run: python scripts/apply_deep_analysis_header_sort_ttm_v37_2.py
+        run: |
+          python scripts/apply_deep_analysis_header_sort_ttm_v37_2.py
+          python scripts/apply_deep_analysis_header_sort_ttm_v37_2b.py
 
       - name: Install dependencies
         run: |
@@ -33,6 +35,7 @@ jobs:
         run: |
           python -m py_compile modules/deep_company_analysis/table_format.py
           python -m py_compile modules/deep_company_analysis/chapter1.py
+          python -m py_compile modules/deep_company_analysis/monitoring.py
 
       - name: QA 1 — Native header-sort contract
         run: pytest -q modules/deep_company_analysis/test_sortable_table_v32.py
@@ -80,7 +83,7 @@ jobs:
           - Removed the visible `Sort theo cột / Thứ tự` controls from the shared table layer.
           - Read-only tables use Streamlit native dataframe grids; users sort by clicking the column header.
           - Editable tables no longer receive a separate sort widget; they use the native Streamlit editor behavior.
-          - Chapter 1 Opportunity Inventory and Gate History migrated from custom static HTML to the shared native grid.
+          - Chapter 1 Opportunity Inventory, Gate History, and Monitoring Review Queue migrated from custom static HTML to the shared native grid.
           - TTM, when already present in canonical data, is kept as the latest/default displayed period.
           - No TTM row is fabricated when canonical TTM is unavailable.
           - Existing numeric units/precision and positive/negative heat rules remain in the shared table layer.
@@ -94,6 +97,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add modules/deep_company_analysis/table_format.py
           git add modules/deep_company_analysis/chapter1.py
+          git add modules/deep_company_analysis/monitoring.py
           git add modules/deep_company_analysis/test_sortable_table_v32.py
           git add docs/DEEP_ANALYSIS_V37_2_HEADER_SORT_TTM_AUDIT.md
           if ! git diff --cached --quiet; then
