@@ -1,19 +1,20 @@
 from pathlib import Path
+import inspect
 
 import pandas as pd
 
-from modules.deep_company_analysis.table_format import format_numeric, infer_numeric_kind, prefer_ttm_latest, sort_frame, static_table_html
+import modules.deep_company_analysis.table_format as table_format
+from modules.deep_company_analysis.table_format import (
+    default_latest_period,
+    default_latest_period_index,
+    format_numeric,
+    infer_numeric_kind,
+    prefer_ttm_latest,
+    static_table_html,
+)
 
 
-def test_raw_numeric_sort_is_stable_and_does_not_mutate_input():
-    original = pd.DataFrame({"Kỳ": ["2025", "2024", "TTM"], "CFO (tỷ)": [100.4, -20.2, 250.6]})
-    before = original.copy(deep=True)
-    out = sort_frame(original, "CFO (tỷ)", ascending=True)
-    assert out["CFO (tỷ)"].tolist() == [-20.2, 100.4, 250.6]
-    pd.testing.assert_frame_equal(original, before)
-
-
-def test_locked_formats_remain_exact_after_sort_upgrade():
+def test_locked_formats_remain_exact_after_header_sort_upgrade():
     assert infer_numeric_kind("CFO (tỷ)") == "amount_bil"
     assert infer_numeric_kind("EBIT Margin (%)") == "percent"
     assert infer_numeric_kind("CFO/NI (x)") == "ratio"
@@ -29,7 +30,7 @@ def test_locked_formats_remain_exact_after_sort_upgrade():
     assert "rgba(185,28,28" in html
 
 
-def test_no_direct_data_editor_or_dataframe_remains_in_production_deep_analysis():
+def test_no_direct_dataframe_editor_or_table_remains_in_production_deep_analysis():
     root = Path(__file__).resolve().parent
     for path in root.glob("*.py"):
         if path.name.startswith("test_") or path.name == "table_format.py":
@@ -37,34 +38,65 @@ def test_no_direct_data_editor_or_dataframe_remains_in_production_deep_analysis(
         text = path.read_text(encoding="utf-8")
         assert "st.data_editor(" not in text, path.name
         assert "st.dataframe(" not in text, path.name
-    table_format = (root / "table_format.py").read_text(encoding="utf-8")
-    assert "def sortable_data_editor" in table_format
-    assert "def interactive_sort_frame" in table_format  # compatibility shim only
-    assert '"Sort theo cột"' not in table_format
-    assert '"Thứ tự"' not in table_format
-    assert "st.dataframe(" in table_format
-    assert "return st.data_editor(frame, **kwargs)" in table_format
-    chapter1 = (root / "chapter1.py").read_text(encoding="utf-8")
-    assert "interactive_sort_frame" not in chapter1
-    assert "render_static_table(" in chapter1
+        assert "st.table(" not in text, path.name
+
+    source = (root / "table_format.py").read_text(encoding="utf-8")
+    assert "def sortable_data_editor" in source
+    assert "def render_static_table" in source
+    assert "st.dataframe(" in source
+    assert "st.data_editor(" in source
+
+
+def test_dynamic_editors_keep_header_sorting_enabled():
+    source = inspect.getsource(table_format._dynamic_editor)
+    # Streamlit 1.40 disables header sorting when num_rows='dynamic'. The shared wrapper must
+    # therefore keep the actual editor fixed-row and manage add/delete externally.
+    assert 'num_rows="fixed"' in source
+    assert 'num_rows="dynamic"' not in source
+    wrapper_source = inspect.getsource(table_format.sortable_data_editor)
+    assert 'requested_num_rows == "dynamic"' in wrapper_source
+    assert "_dynamic_editor(" in wrapper_source
 
 
 def test_ttm_is_default_latest_period_without_fabrication():
     frame = pd.DataFrame({"Kỳ": ["TTM", "2024", "2025"], "CFO (tỷ)": [130, 90, 110]})
     out = prefer_ttm_latest(frame)
     assert out["Kỳ"].tolist() == ["2024", "2025", "TTM"]
+
     no_ttm = pd.DataFrame({"Kỳ": ["2024", "2025"], "CFO (tỷ)": [90, 110]})
     out2 = prefer_ttm_latest(no_ttm)
     assert out2["Kỳ"].tolist() == ["2024", "2025"]
 
+    options = ["2023", "2024", "2025", "TTM"]
+    assert default_latest_period_index(options) == 3
+    assert default_latest_period(options) == "TTM"
+    assert default_latest_period_index(["2024", "2025"]) == 1
+    assert default_latest_period(["2024", "2025"]) == "2025"
+    assert default_latest_period([]) is None
 
-def test_no_visible_legacy_sort_controls_anywhere_in_deep_analysis():
+
+def test_legacy_sort_implementation_is_completely_removed():
     root = Path(__file__).resolve().parent
+    forbidden = (
+        "Sort theo cột",
+        "Thứ tự",
+        "Giữ thứ tự gốc",
+        "ORIGINAL_ORDER_LABEL",
+        "ASC_LABEL",
+        "DESC_LABEL",
+        "interactive_sort_frame",
+        "def sort_frame(",
+    )
     for path in root.glob("*.py"):
         if path.name.startswith("test_"):
             continue
         text = path.read_text(encoding="utf-8")
-        assert '"Sort theo cột"' not in text, path.name
-        assert '"Thứ tự"' not in text, path.name
-        if path.name != "table_format.py":
-            assert "interactive_sort_frame(" not in text, path.name
+        for token in forbidden:
+            assert token not in text, f"{token!r} remains in {path.name}"
+
+
+def test_chapter1_and_shared_tables_use_native_renderers():
+    root = Path(__file__).resolve().parent
+    chapter1 = (root / "chapter1.py").read_text(encoding="utf-8")
+    assert "render_static_table(" in chapter1
+    assert "interactive_sort_frame" not in chapter1
