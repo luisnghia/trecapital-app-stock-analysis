@@ -54,14 +54,18 @@ def patch_tests() -> None:
     if sentinel in text:
         return
 
-    # Add a private-helper import without disturbing the existing public import block.
+    # Add the private-helper import after the future import. Python requires __future__ imports to
+    # remain the first executable statement in the module.
     marker = "from modules.deep_company_analysis.chapter7_management_discovery import ("
     if marker not in text:
         raise RuntimeError("V37.1 Round 5N test import marker not found")
-    # Private helper can be imported separately; this avoids rewriting a potentially evolving tuple import.
     import_line = "from modules.deep_company_analysis.chapter7_management_discovery import _link_score\n"
     if import_line not in text:
-        text = import_line + text
+        future_line = "from __future__ import annotations\n"
+        if future_line in text:
+            text = text.replace(future_line, future_line + "\n" + import_line, 1)
+        else:
+            text = import_line + text
 
     text += r'''
 
