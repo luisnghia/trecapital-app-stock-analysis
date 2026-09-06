@@ -273,7 +273,7 @@ def _refresh_trecapital(ticker: str) -> bool:
 
 
 st.title("Phân tích chuyên sâu doanh nghiệp")
-st.caption("Khung phân tích doanh nghiệp theo The Investment Checklist — mỗi chương là một tab trong cùng workspace, dùng chung dữ liệu Trecapital.")
+st.caption("Khung phân tích doanh nghiệp theo The Investment Checklist — chọn một chương để làm việc trong cùng workspace, dùng chung dữ liệu Trecapital.")
 
 st.markdown(
     """

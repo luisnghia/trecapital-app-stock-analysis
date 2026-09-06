@@ -290,7 +290,7 @@ def _dynamic_editor(value: pd.DataFrame, *, key: str, kwargs: dict[str, Any]) ->
     therefore becomes slow if every cell edit immediately causes a full rerun. The editor is
     placed inside a form: analysts can edit/add/delete several rows locally, then commit once
     with the submit button. Native ``num_rows='dynamic'`` removes the previous custom
-    add/delete + widget-generation + ``st.rerun()`` race.
+    add/delete + widget-generation + forced-rerun race.
     """
     source = prefer_ttm_latest(value).reset_index(drop=True)
     rows_key = f"{key}__rows"
