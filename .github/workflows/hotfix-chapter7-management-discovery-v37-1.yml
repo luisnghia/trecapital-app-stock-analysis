@@ -1,4 +1,4 @@
-name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5C
+name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5D
 
 on:
   push:
@@ -36,6 +36,9 @@ jobs:
       - name: Apply Round 5C row-local role isolation fix
         run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5c.py
 
+      - name: Apply Round 5D role-delimiter parsing fix
+        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5d.py
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -53,7 +56,7 @@ jobs:
       - name: QA 2 — Full Chapter 7 regression
         run: pytest -q modules/deep_company_analysis/test_chapter7*.py
 
-      - name: DGC Round 5C — production path live acceptance
+      - name: DGC Round 5D — production path live acceptance
         run: PYTHONPATH=. python scripts/qa_chapter7_v37_1_dgc.py
 
       - name: Streamlit smoke after hotfix
@@ -80,6 +83,7 @@ jobs:
             '- Empty Management Profile triggers candidate-manager discovery from company/IR sources.' \
             '- Person parsing excludes action phrases such as “giữ chức vụ”.' \
             '- Official table rows without Ông/Bà are accepted only when a recognized management role is local to the same/adjacent layout line.' \
+            '- Role phrases act as deterministic delimiters between manager names and titles even when PDF layout spacing collapses.' \
             '- Role extraction is row-local so adjacent manager rows cannot leak titles into each other.' \
             '- Compound titles use specificity-first matching: Deputy CEO/Vice Chairman/Independent Director do not collapse into generic embedded titles.' \
             '- Chairman/CEO/other senior-role abbreviations are normalized without changing analyst-owned conclusions.' \
@@ -87,7 +91,7 @@ jobs:
             '- URL fragments are de-duplicated before crawl scheduling.' \
             '- Discovered identities remain analyst-verification candidates and never overwrite Management Profile.' \
             '- No automatic OO/LT/HH, Lion/Hyena, Management Quality, insider Buy/Sell, MOS or Research Gate conclusion.' \
-            '- DGC Round 5C production-path live acceptance passed.' \
+            '- DGC Round 5D production-path live acceptance passed.' \
             '- Unified Streamlit smoke passed.' \
             > docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
 
@@ -102,15 +106,15 @@ jobs:
           git add modules/deep_company_analysis/test_chapter7_management_discovery.py
           git add docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
           if ! git diff --cached --quiet; then
-            git commit -m "fix(ch7): finalize management discovery V37.1 round5c"
+            git commit -m "fix(ch7): finalize management discovery V37.1 round5d"
             git push origin HEAD:feature/deep-company-analysis-chapter7
           fi
 
-      - name: Upload DGC Round 5C diagnostic artifact
+      - name: Upload DGC Round 5D diagnostic artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DGC_V37_1_ROUND5C_REPORT
+          name: DGC_V37_1_ROUND5D_REPORT
           path: |
             reports/DGC_V37_1_ROUND3.json
             reports/DGC_V37_1_ROUND3.md
