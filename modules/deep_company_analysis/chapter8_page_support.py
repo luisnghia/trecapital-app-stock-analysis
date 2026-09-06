@@ -21,7 +21,7 @@ from modules.deep_company_analysis.chapter8_research import CANDIDATE_COLUMNS, C
 from modules.deep_company_analysis.chapter8_store import create_snapshot, list_snapshots, load_record, save_record
 from modules.deep_company_analysis.chapter8_workspace import merge_research_gaps, promote_selected_candidates
 from modules.deep_company_analysis.chapter4_peer_auto import refresh_peer_canonical_bundle
-from modules.deep_company_analysis.table_format import render_static_table
+from modules.deep_company_analysis.table_format import render_static_table, sortable_data_editor
 
 
 APP_DIR = Path(__file__).resolve().parents[2]
@@ -57,7 +57,7 @@ def _editor(
 ) -> list[dict[str, Any]]:
     st.markdown(f"**{label}**")
     frame = _rows_frame(rows, columns)
-    edited = st.data_editor(
+    edited = sortable_data_editor(
         frame,
         key=key,
         hide_index=True,
@@ -188,19 +188,20 @@ def _render_research(ticker: str, company_name: str, chapter7_payload: dict[str,
     if not candidates.empty:
         st.markdown("**Evidence Candidates — tick Select sau khi đã mở/đọc nguồn**")
         candidates["Select"] = candidates["Select"].fillna(False).astype(bool)
-        edited = st.data_editor(
+        edited = sortable_data_editor(
             candidates,
             key=f"dca8_{ticker}_candidate_editor",
             hide_index=True,
             use_container_width=True,
             height=500,
+            num_rows="fixed",
             disabled=[c for c in CANDIDATE_COLUMNS if c != "Select"],
             column_config={
                 "Select": st.column_config.CheckboxColumn("Promote?"),
                 "Source URL / File": st.column_config.LinkColumn("Mở nguồn", display_text="Open source"),
             },
         )
-        research["candidates"] = edited.to_dict("records")
+        research["candidates"] = edited.to_dict("records") if isinstance(edited, pd.DataFrame) else candidates.to_dict("records")
         st.session_state[state_key] = research
         if st.button("✅ Promote evidence đã chọn", use_container_width=True, key=f"dca8_{ticker}_promote"):
             payload, added = promote_selected_candidates(payload, edited)
