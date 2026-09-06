@@ -9,9 +9,9 @@ import inspect
 import pandas as pd
 import streamlit as st
 
-ORIGINAL_ORDER_LABEL = "Giữ thứ tự gốc"
-ASC_LABEL = "Tăng dần"
-DESC_LABEL = "Giảm dần"
+
+_PERIOD_COLUMNS = ("Kỳ", "Period", "period", "Kỳ dữ liệu")
+_DELETE_COLUMN = "__trecapital_delete_row__"
 
 
 def infer_numeric_kind(column: str) -> str:
@@ -90,77 +90,69 @@ def _coerce_frame(value: Any) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def sort_frame(value: Any, sort_by: str | None, ascending: bool = True) -> pd.DataFrame:
-    """Stable sort on raw values. The input frame is never mutated."""
-    frame = _coerce_frame(value)
-    if frame.empty or not sort_by or sort_by not in frame.columns:
-        return frame
-    work = frame.copy()
-    series = work[sort_by]
-    non_null = int(series.notna().sum())
-    numeric = pd.to_numeric(series, errors="coerce")
-    numeric_count = int(numeric.notna().sum())
-    temp = "__tre_sort_key__"
-    while temp in work.columns:
-        temp += "_"
-    if non_null > 0 and numeric_count >= max(1, int(non_null * 0.70)):
-        work[temp] = numeric
-    else:
-        work[temp] = series.fillna("").astype(str).str.casefold()
-    work = work.sort_values(temp, ascending=bool(ascending), na_position="last", kind="mergesort")
-    return work.drop(columns=[temp]).reset_index(drop=True)
+def _period_column(frame: pd.DataFrame) -> str | None:
+    return next((column for column in _PERIOD_COLUMNS if column in frame.columns), None)
 
 
-def _stable_widget_key(frame: pd.DataFrame, explicit: str | None, prefix: str) -> str:
-    if explicit:
-        seed = str(explicit)
-    else:
-        caller = "unknown"
-        for info in inspect.stack()[2:]:
-            if Path(info.filename).resolve() != Path(__file__).resolve():
-                caller = f"{info.filename}:{info.lineno}"
-                break
-        sample = ""
-        if not frame.empty:
-            try:
-                sample = "|".join(str(x) for x in frame.iloc[0].tolist()[:3])
-            except Exception:
-                sample = ""
-        seed = f"{caller}|{list(frame.columns)}|{frame.shape}|{sample}"
-    digest = hashlib.sha1(seed.encode("utf-8", errors="ignore")).hexdigest()[:14]
-    return f"tre_{prefix}_{digest}"
+def _is_ttm_label(value: Any) -> bool:
+    label = str(value or "").strip().upper()
+    return label == "TTM" or label.startswith("TTM ") or label.endswith(" TTM")
+
+
+def default_latest_period_index(options: Any) -> int:
+    """Return the default index for a period selector.
+
+    TTM is always preferred when it is actually present. If canonical data does not contain TTM,
+    the last available period is used. No TTM value is ever fabricated.
+    """
+    try:
+        values = list(options)
+    except Exception:
+        values = []
+    if not values:
+        return 0
+    for index in range(len(values) - 1, -1, -1):
+        if _is_ttm_label(values[index]):
+            return index
+    return len(values) - 1
+
+
+def default_latest_period(options: Any) -> Any:
+    """Return the actual default period value, preferring a real TTM value."""
+    try:
+        values = list(options)
+    except Exception:
+        values = []
+    if not values:
+        return None
+    return values[default_latest_period_index(values)]
 
 
 def prefer_ttm_latest(value: Any) -> pd.DataFrame:
     """Keep a valid TTM row as the latest/default period without fabricating one.
 
-    The relative order of all non-TTM rows is preserved. This is a display/default-order helper;
-    it never creates or recalculates TTM data.
+    The relative order of all non-TTM rows is preserved. This only controls the initial/default
+    order; after rendering, the user can sort the grid directly by clicking any column header.
     """
     frame = _coerce_frame(value)
     if frame.empty:
         return frame
-    period_col = next((c for c in ("Kỳ", "Period", "period", "Kỳ dữ liệu") if c in frame.columns), None)
+    period_col = _period_column(frame)
     if period_col is None:
         return frame
-    labels = frame[period_col].fillna("").astype(str).str.strip().str.upper()
-    is_ttm = labels.eq("TTM")
+    is_ttm = frame[period_col].map(_is_ttm_label)
     if not bool(is_ttm.any()):
         return frame
     return pd.concat([frame.loc[~is_ttm], frame.loc[is_ttm]], ignore_index=True)
 
 
-def interactive_sort_frame(value: Any, *, key: str | None = None) -> pd.DataFrame:
-    """Legacy compatibility shim. No visible sort controls are rendered.
-
-    Sorting is handled natively by clicking a table column header. New production callers should use
-    render_static_table / sortable_data_editor directly.
-    """
-    del key
-    return prefer_ttm_latest(value)
-
-
 def static_table_html(value: Any, *, height: int | None = None) -> str:
+    """Legacy export/preview HTML formatter.
+
+    Production interactive tables must be rendered with render_static_table/sortable_data_editor so
+    the header itself is the sort control. This formatter is retained only for non-interactive
+    export/preview compatibility.
+    """
     frame = _coerce_frame(value)
     if frame.empty:
         return ""
@@ -219,20 +211,129 @@ def _default_editor_column_config(frame: pd.DataFrame) -> dict[str, Any]:
     return config
 
 
-def sortable_data_editor(value: Any, **kwargs: Any):
-    """Editable table using Streamlit's native click-on-header sorting.
+def _stable_editor_key(frame: pd.DataFrame, explicit: str | None) -> str:
+    """Build a rerun-stable editor key when a caller did not provide one."""
+    if explicit:
+        return str(explicit)
+    caller = "unknown"
+    for info in inspect.stack()[2:]:
+        if Path(info.filename).resolve() != Path(__file__).resolve():
+            caller = f"{info.filename}:{info.lineno}"
+            break
+    seed = f"{caller}|{list(frame.columns)}"
+    digest = hashlib.sha1(seed.encode("utf-8", errors="ignore")).hexdigest()[:14]
+    return f"tre_editor_{digest}"
 
-    No separate sort selector is rendered. Dynamic-row editors retain their edit/add/delete behavior;
-    native sorting availability follows Streamlit's editor capabilities.
+
+def _frame_signature(frame: pd.DataFrame) -> str:
+    try:
+        payload = frame.to_json(orient="split", date_format="iso", default_handler=str)
+    except Exception:
+        payload = repr((list(frame.columns), frame.shape, frame.astype(str).values.tolist()))
+    return hashlib.sha1(payload.encode("utf-8", errors="ignore")).hexdigest()
+
+
+def _dynamic_editor(value: pd.DataFrame, *, key: str, kwargs: dict[str, Any]) -> pd.DataFrame:
+    """Editable grid with native header sorting plus explicit add/delete row controls.
+
+    Streamlit disables header sorting when st.data_editor uses num_rows='dynamic'. To preserve both
+    row management and click-on-header sorting, this wrapper always renders the underlying editor
+    with fixed rows and manages add/delete operations outside the grid.
+    """
+    source = prefer_ttm_latest(value).reset_index(drop=True)
+    rows_key = f"{key}__rows"
+    source_key = f"{key}__source_signature"
+    generation_key = f"{key}__generation"
+    source_signature = _frame_signature(source)
+
+    if st.session_state.get(source_key) != source_signature or rows_key not in st.session_state:
+        st.session_state[rows_key] = source.copy()
+        st.session_state[source_key] = source_signature
+        st.session_state[generation_key] = int(st.session_state.get(generation_key, 0)) + 1
+
+    working = _coerce_frame(st.session_state.get(rows_key)).reset_index(drop=True)
+    for column in source.columns:
+        if column not in working.columns:
+            working[column] = None
+    working = working[list(source.columns)] if len(source.columns) else working
+
+    display = working.copy()
+    display[_DELETE_COLUMN] = False
+
+    provided_config = kwargs.pop("column_config", None)
+    column_config = _default_editor_column_config(working)
+    if isinstance(provided_config, dict):
+        column_config.update(provided_config)
+    column_config[_DELETE_COLUMN] = st.column_config.CheckboxColumn(
+        "Xóa",
+        help="Đánh dấu dòng cần xóa, sau đó bấm “Xóa dòng đã chọn”.",
+        default=False,
+    )
+
+    generation = int(st.session_state.get(generation_key, 0))
+    edited = st.data_editor(
+        display,
+        num_rows="fixed",
+        key=f"{key}__grid_{generation}",
+        column_config=column_config,
+        **kwargs,
+    )
+    edited = _coerce_frame(edited)
+    selected = edited.get(_DELETE_COLUMN, pd.Series(False, index=edited.index)).fillna(False).astype(bool)
+    user_columns = [column for column in edited.columns if column != _DELETE_COLUMN]
+    edited_user = edited[user_columns].copy().reset_index(drop=True)
+    st.session_state[rows_key] = edited_user.copy()
+
+    add_col, delete_col, note_col = st.columns([1, 1, 3])
+    with add_col:
+        add_row = st.button("➕ Thêm dòng", key=f"{key}__add_row", use_container_width=True)
+    with delete_col:
+        delete_rows = st.button(
+            "🗑 Xóa dòng đã chọn",
+            key=f"{key}__delete_rows",
+            use_container_width=True,
+            disabled=not bool(selected.any()),
+        )
+    with note_col:
+        st.caption("Sắp xếp: nhấn trực tiếp tiêu đề cột. Nhấn lại để đổi chiều sắp xếp.")
+
+    if add_row:
+        blank = pd.DataFrame([{column: None for column in edited_user.columns}])
+        st.session_state[rows_key] = pd.concat([edited_user, blank], ignore_index=True)
+        st.session_state[generation_key] = generation + 1
+        st.rerun()
+
+    if delete_rows:
+        st.session_state[rows_key] = edited_user.loc[~selected.to_numpy()].reset_index(drop=True)
+        st.session_state[generation_key] = generation + 1
+        st.rerun()
+
+    return edited_user
+
+
+def sortable_data_editor(value: Any, **kwargs: Any):
+    """Editable table whose column headers are the only sorting controls.
+
+    The old external sort selectors are gone. For tables that previously requested dynamic rows,
+    add/delete is provided by the wrapper while the underlying Streamlit editor stays fixed-row so
+    native header sorting remains enabled on Streamlit 1.40.x.
     """
     frame = prefer_ttm_latest(value)
+    requested_num_rows = str(kwargs.pop("num_rows", "fixed") or "fixed").strip().lower()
+    explicit_key = kwargs.pop("key", None)
+
+    if requested_num_rows == "dynamic":
+        return _dynamic_editor(frame, key=_stable_editor_key(frame, explicit_key), kwargs=kwargs)
+
     defaults = _default_editor_column_config(frame)
     provided = kwargs.get("column_config")
     if isinstance(provided, dict):
         defaults.update(provided)
     if defaults:
         kwargs["column_config"] = defaults
-    return st.data_editor(frame, **kwargs)
+    if explicit_key is not None:
+        kwargs["key"] = explicit_key
+    return st.data_editor(frame, num_rows="fixed", **kwargs)
 
 
 def _native_table_styler(frame: pd.DataFrame):
@@ -249,7 +350,8 @@ def _native_table_styler(frame: pd.DataFrame):
 def render_static_table(value: Any, **kwargs: Any) -> None:
     """Read-only native grid: click a column header to sort ascending/descending.
 
-    The old separate 'Sort theo cột / Thứ tự' controls are intentionally removed.
+    No separate sort function/control exists. If TTM is present, its initial/default position is the
+    latest row; users remain free to sort any column directly from its header.
     """
     frame = prefer_ttm_latest(value)
     if frame.empty:
@@ -276,6 +378,6 @@ def render_static_table(value: Any, **kwargs: Any) -> None:
 
 
 __all__ = [
-    "format_numeric", "infer_numeric_kind", "interactive_sort_frame", "prefer_ttm_latest", "render_static_table",
-    "sort_frame", "sortable_data_editor", "static_table_html",
+    "default_latest_period", "default_latest_period_index", "format_numeric", "infer_numeric_kind",
+    "prefer_ttm_latest", "render_static_table", "sortable_data_editor", "static_table_html",
 ]
