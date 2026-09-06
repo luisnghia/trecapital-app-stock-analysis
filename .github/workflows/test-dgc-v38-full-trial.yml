@@ -1,0 +1,236 @@
+name: DGC V38 Full Chapters 1-7 Trial
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-sort-ttm-v38
+    paths:
+      - '.github/workflows/test-dgc-v38-full-trial.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  dgc-full-trial:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/deep-company-analysis-sort-ttm-v38
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Chapter 1 — live canonical bridge + DGC trial gate
+        shell: bash
+        run: |
+          set +e
+          python - <<'PY' 2>&1 | tee reports/DGC_CH1_V38.log
+          import json
+          from pathlib import Path
+          import pandas as pd
+          import module1_dashboard as m1
+          from module1_engine import append_ttm_row
+          from modules.deep_company_analysis.chapter1 import load_dgc_trial_payload, _quality_score
+          from modules.deep_company_analysis.chapter4_peer_auto import refresh_peer_canonical_bundle
+
+          ticker='DGC'
+          payload=load_dgc_trial_payload()
+          yes, unknown = _quality_score(payload.get('quality', {}))
+          out={
+              'ticker': ticker,
+              'trial_as_of': payload.get('trial_meta', {}).get('as_of'),
+              'gate': payload.get('gate'),
+              'gate_reason': payload.get('gate_reason'),
+              'quality_yes': yes,
+              'quality_unknown': unknown,
+              'quality_total': len(payload.get('quality', {})),
+              'initial_thesis': payload.get('initial_thesis'),
+              'research_gaps': payload.get('research_gaps'),
+              'canonical_refresh_ok': False,
+              'canonical_note': '',
+              'latest_period': '',
+              'latest_metrics': {},
+              'error': '',
+          }
+          try:
+              ok, paths, note = refresh_peer_canonical_bundle(ticker)
+              out['canonical_refresh_ok']=bool(ok and paths)
+              out['canonical_note']=str(note)
+              if ok and paths:
+                  overview_path, annual_path, quarter_path = paths
+                  company = m1._load_overview_cached(str(overview_path), ticker)
+                  annual_raw = m1._load_timeseries_cached(str(annual_path), ticker, 'Y', 11)
+                  quarterly = m1._load_timeseries_cached(str(quarter_path), ticker, 'Q', 20)
+                  annual = append_ttm_row(annual_raw, quarterly)
+                  if isinstance(annual, pd.DataFrame) and not annual.empty:
+                      ttm = annual[annual.get('period', pd.Series(index=annual.index, dtype='object')).astype(str).str.upper().str.contains('TTM|T12M', regex=True, na=False)] if 'period' in annual.columns else pd.DataFrame()
+                      row = (ttm.iloc[-1] if not ttm.empty else annual.iloc[-1]).to_dict()
+                      out['latest_period']=str(row.get('period') or row.get('year') or '')
+                      keys=[
+                          'revenue_bil','net_profit_bil','net_income_bil','cfo_bil','free_cash_flow_bil','fcf_bil',
+                          'owner_earnings_bil','roe_pct','roic_pct','gross_margin_pct','operating_margin_pct',
+                          'core_operating_margin_pct','cash_equivalents_bil','short_term_investments_bil',
+                          'total_debt_bil','net_debt_bil','capex_bil','debt_to_equity','debt_ebitda'
+                      ]
+                      out['latest_metrics']={k: row.get(k) for k in keys if k in row and pd.notna(row.get(k))}
+          except Exception as exc:
+              out['error']=str(exc)
+          Path('reports/DGC_CH1_V38.json').write_text(json.dumps(out, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
+          print('DGC_CH1_V38_JSON_START')
+          print(json.dumps(out, ensure_ascii=False, indent=2, default=str))
+          print('DGC_CH1_V38_JSON_END')
+          PY
+          echo ${PIPESTATUS[0]} > reports/DGC_CH1_V38.exit
+          exit 0
+
+      - name: Chapter 2 — business / industry evidence E2E
+        shell: bash
+        run: |
+          set +e
+          python tools/dgc_chapter2_e2e.py 2>&1 | tee reports/DGC_CH2_V38.log
+          echo ${PIPESTATUS[0]} > reports/DGC_CH2_V38.exit
+          exit 0
+
+      - name: Chapter 3 — customer evidence E2E
+        shell: bash
+        run: |
+          set +e
+          python tools/dgc_chapter3_e2e.py 2>&1 | tee reports/DGC_CH3_V38.log
+          echo ${PIPESTATUS[0]} > reports/DGC_CH3_V38.exit
+          exit 0
+
+      - name: Chapter 4 — supplier / competition evidence lock trial
+        shell: bash
+        run: |
+          set +e
+          python tools/dgc_chapter4_phase4d_lock.py 2>&1 | tee reports/DGC_CH4_V38.log
+          echo ${PIPESTATUS[0]} > reports/DGC_CH4_V38.exit
+          exit 0
+
+      - name: Chapter 5 — product economics / ROIC E2E
+        shell: bash
+        run: |
+          set +e
+          python tools/dgc_chapter5_phase5d_lock.py 2>&1 | tee reports/DGC_CH5_V38.log
+          echo ${PIPESTATUS[0]} > reports/DGC_CH5_V38.exit
+          exit 0
+
+      - name: Chapter 6 — financial health live quantitative trial
+        shell: bash
+        run: |
+          set +e
+          python - <<'PY' 2>&1 | tee reports/DGC_CH6_V38.log
+          import json
+          from pathlib import Path
+          import pandas as pd
+          import module1_dashboard as m1
+          from module1_engine import append_ttm_row
+          from modules.deep_company_analysis.chapter4_peer_auto import refresh_peer_canonical_bundle
+          from modules.deep_company_analysis.chapter6_quant import build_chapter6_quant_context
+
+          ticker='DGC'
+          out={'ticker':ticker,'refresh_ok':False,'latest_period':'','summaries':{},'latest_rows':{},'warnings':[],'error':''}
+          try:
+              ok, paths, note = refresh_peer_canonical_bundle(ticker)
+              out['refresh_ok']=bool(ok and paths)
+              out['refresh_note']=str(note)
+              if not ok or not paths:
+                  raise RuntimeError('DGC canonical refresh failed')
+              overview_path, annual_path, quarter_path = paths
+              company = m1._load_overview_cached(str(overview_path), ticker)
+              annual_raw = m1._load_timeseries_cached(str(annual_path), ticker, 'Y', 11)
+              quarterly = m1._load_timeseries_cached(str(quarter_path), ticker, 'Q', 20)
+              annual = append_ttm_row(annual_raw, quarterly)
+              company_name = str(getattr(company,'company_name','') or getattr(company,'name','') or '')
+              industry = str(getattr(company,'industry','') or getattr(company,'industry_name','') or '')
+              sub_industry = str(getattr(company,'sub_industry','') or getattr(company,'sub_industry_name','') or '')
+              ctx = build_chapter6_quant_context(ticker, company_name, annual, industry=industry, sub_industry=sub_industry, source_label='DGC V38 live canonical')
+              out['company_name']=company_name
+              out['industry']=industry
+              out['sub_industry']=sub_industry
+              out['latest_period']=ctx.get('latest_period','')
+              out['summaries']={
+                  'q27': ctx.get('q27_summary',{}),
+                  'q30': ctx.get('q30_summary',{}),
+                  'q31': ctx.get('q31_summary',{}),
+                  'q32': ctx.get('q32_summary',{}),
+              }
+              out['warnings']=ctx.get('coverage_warnings',[])
+              for name in ['q27_accounting_quality','q29_cycle_history','q30_dol_history','q31_working_capital','q32_capex_history']:
+                  df=ctx.get(name)
+                  if isinstance(df,pd.DataFrame) and not df.empty:
+                      out['latest_rows'][name]=df.tail(3).to_dict('records')
+          except Exception as exc:
+              out['error']=str(exc)
+          Path('reports/DGC_CH6_V38.json').write_text(json.dumps(out, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
+          print('DGC_CH6_V38_JSON_START')
+          print(json.dumps(out, ensure_ascii=False, indent=2, default=str))
+          print('DGC_CH6_V38_JSON_END')
+          PY
+          echo ${PIPESTATUS[0]} > reports/DGC_CH6_V38.exit
+          exit 0
+
+      - name: Chapter 7 — management discovery / evidence trial
+        shell: bash
+        run: |
+          set +e
+          python scripts/qa_chapter7_v37_1_dgc.py 2>&1 | tee reports/DGC_CH7_V38.log
+          echo ${PIPESTATUS[0]} > reports/DGC_CH7_V38.exit
+          exit 0
+
+      - name: Full Deep Company Analysis regression
+        shell: bash
+        run: |
+          set +e
+          pytest -q modules/deep_company_analysis/test_*.py 2>&1 | tee reports/DGC_FULL_REGRESSION_V38.log
+          echo ${PIPESTATUS[0]} > reports/DGC_FULL_REGRESSION_V38.exit
+          exit 0
+
+      - name: Consolidate trial status
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          rows=[]
+          for chapter in range(1,8):
+              p=Path(f'reports/DGC_CH{chapter}_V38.exit')
+              code=int(p.read_text().strip()) if p.exists() else 999
+              rows.append({'chapter':chapter,'exit_code':code,'technical_status':'PASS' if code==0 else 'GAP/FAIL'})
+          rp=Path('reports/DGC_FULL_REGRESSION_V38.exit')
+          regression=int(rp.read_text().strip()) if rp.exists() else 999
+          summary={'ticker':'DGC','chapters':rows,'full_regression_exit_code':regression,'full_regression_status':'PASS' if regression==0 else 'FAIL'}
+          Path('reports/DGC_FULL_V38_STATUS.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding='utf-8')
+          print(json.dumps(summary,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Upload DGC V38 full trial artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DGC_V38_FULL_CHAPTERS_1_7_TRIAL
+          path: |
+            reports/DGC_CH1_V38.*
+            reports/DGC_CH2_V38.*
+            reports/DGC_CH3_V38.*
+            reports/DGC_CH4_V38.*
+            reports/DGC_CH5_V38.*
+            reports/DGC_CH6_V38.*
+            reports/DGC_CH7_V38.*
+            reports/DGC_V37_1_*.json
+            reports/DGC_V37_1_*.md
+            reports/DGC_V37_1_*.csv
+            reports/DGC_FULL_REGRESSION_V38.*
+            reports/DGC_FULL_V38_STATUS.json
+          if-no-files-found: warn
+          retention-days: 30
