@@ -17,6 +17,9 @@ from module2_engine import (
     load_assumptions,
 )
 from report_exporter import build_report_package, render_report_package_as_app_page
+from modules.deep_company_analysis.chapter8_store import load_record as load_chapter8_record
+from modules.deep_company_analysis.chapter8_integration import build_chapter8_report_frames, build_chapter8_summary
+from modules.deep_company_analysis.table_format import render_static_table
 
 
 APP_VERSION = "secure-ui-current"
@@ -124,6 +127,38 @@ def render_consolidated_report_page() -> None:
 
     max_rows = None if table_mode == "Đầy đủ" else 40
     render_report_package_as_app_page(package, show_export_hint=True, table_height=420, max_rows_per_table=max_rows)
+
+    # Deep Company Analysis Chapter 8 is appended to the printable long report without altering
+    # the existing valuation/report package or analyst-owned investment conclusions.
+    ch8_company_name = str(getattr(company, "company_name", "") or getattr(company, "name", "") or "")
+    ch8_payload = load_chapter8_record(ticker, ch8_company_name)
+    ch8_summary = build_chapter8_summary(ch8_payload)
+    ch8_frames = build_chapter8_report_frames(ch8_payload)
+
+    st.markdown("## 🧭 Deep Company Analysis — Chương 8: Năng lực vận hành Ban điều hành")
+    st.caption("Q39–Q47 theo The Investment Checklist. Phần này trình bày trạng thái nghiên cứu và kết luận analyst; không phải Management Quality Score.")
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("Answered", f"{ch8_summary['answered']}/{ch8_summary['total_questions']}")
+    m2.metric("Partial", ch8_summary["partial"])
+    m3.metric("Evidence đã promote", ch8_summary["promoted_evidence"])
+    m4.metric("Research gaps mở", ch8_summary["research_gaps_open"])
+    m5.metric("Kết luận analyst", ch8_summary["analyst_conclusions"])
+
+    render_static_table(ch8_frames["status"], height=430)
+    if not ch8_frames["evidence"].empty:
+        st.markdown("### Evidence Matrix — analyst đã promote / nhập thủ công")
+        render_static_table(ch8_frames["evidence"], height=430)
+    if not ch8_frames["research_gaps"].empty:
+        st.markdown("### Research Gaps")
+        render_static_table(ch8_frames["research_gaps"], height=360)
+    if not ch8_frames["capital_allocation"].empty:
+        st.markdown("### Q46 — Capital Allocation Decision Register")
+        render_static_table(ch8_frames["capital_allocation"], height=390)
+    if not ch8_frames["buybacks"].empty:
+        st.markdown("### Q47 — Explicit Buyback History")
+        render_static_table(ch8_frames["buybacks"], height=390)
+
+    st.caption("AI/Data = Research Assistant; Analyst = người kết luận. Chapter 8 không tự thay đổi MOS, Research Gate hoặc BUY/HOLD/SELL.")
 
 
 render_consolidated_report_page()
