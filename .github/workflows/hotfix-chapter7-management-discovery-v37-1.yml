@@ -1,4 +1,4 @@
-name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5F
+name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5G
 
 on:
   push:
@@ -24,26 +24,8 @@ jobs:
           python-version: '3.11'
           cache: pip
 
-      - name: Apply approved V37.1 base hotfix
-        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1.py
-
-      - name: Apply Round 5 narrow bare-name table fallback
-        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5.py
-
-      - name: Apply Round 5B compound-role specificity fix
-        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5b.py
-
-      - name: Apply Round 5C row-local role isolation fix
-        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5c.py
-
-      - name: Apply Round 5D role-delimiter parsing fix
-        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5d.py
-
-      - name: Apply Round 5E honorific-segment isolation fix
-        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5e.py
-
-      - name: Apply Round 5F signature/noise/PDF-priority fix
-        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5f.py
+      - name: Apply Round 5G candidate-quality and target-coverage fix
+        run: python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5g.py
 
       - name: Install dependencies
         run: |
@@ -55,6 +37,7 @@ jobs:
           python -m py_compile modules/deep_company_analysis/chapter7_management_discovery.py
           python -m py_compile modules/deep_company_analysis/chapter7_research.py
           python -m py_compile modules/deep_company_analysis/chapter7_research_ui.py
+          python -m py_compile scripts/qa_chapter7_v37_1_dgc.py
 
       - name: QA 1 — Management discovery unit and analyst boundary
         run: pytest -q modules/deep_company_analysis/test_chapter7_management_discovery.py
@@ -62,7 +45,7 @@ jobs:
       - name: QA 2 — Full Chapter 7 regression
         run: pytest -q modules/deep_company_analysis/test_chapter7*.py
 
-      - name: DGC Round 5F — production path live acceptance
+      - name: DGC Round 5G — production path live acceptance
         run: PYTHONPATH=. python scripts/qa_chapter7_v37_1_dgc.py
 
       - name: Streamlit smoke after hotfix
@@ -87,21 +70,17 @@ jobs:
             'Status: PASS' \
             '' \
             '- Empty Management Profile triggers candidate-manager discovery from company/IR sources.' \
-            '- Person parsing excludes action phrases such as “giữ chức vụ”.' \
-            '- Heading/navigation strings such as CBTT, BIÊN BẢN, GIẤY ĐỀ CỬ, Tiếng Việt and BOARD OF MANAGEMENT cannot enter manager research targets.' \
-            '- Official table rows without Ông/Bà are accepted only when a recognized management role is local to the same/adjacent layout line.' \
-            '- Signed official disclosures where a role precedes the manager name are supported with a narrow local parser.' \
-            '- Role phrases act as deterministic delimiters between manager names and titles even when PDF layout spacing collapses.' \
-            '- Flattened HTML with multiple Ông/Bà manager rows is segmented per person before role resolution.' \
-            '- Role extraction is row-local so adjacent manager rows cannot leak titles into each other.' \
-            '- Compound titles use specificity-first matching: Deputy CEO/Vice Chairman/Independent Director do not collapse into generic embedded titles.' \
-            '- Management-related official PDFs are prioritized ahead of generic IR category pages.' \
-            '- Chairman/CEO/other senior-role abbreviations are normalized without changing analyst-owned conclusions.' \
-            '- Current official governance, financial, annual-report and personnel disclosures are prioritized.' \
-            '- URL fragments are de-duplicated before crawl scheduling.' \
+            '- Candidate identity filtering rejects organization, navigation, document-heading and place fragments before they enter the manager dataset.' \
+            '- Related-person wording does not borrow a nearby board/executive role.' \
+            '- Research-target selection is candidate-only and explicitly covers strongest available Chairman and CEO candidates before filling the remaining top-five queue.' \
+            '- Official table rows without Ông/Bà remain accepted only when a recognized management role is locally supported.' \
+            '- Signed official disclosures where a role precedes the manager name remain supported.' \
+            '- Compound titles remain specificity-first: Deputy CEO/Vice Chairman/Independent Director do not collapse into generic embedded titles.' \
+            '- Management-related official PDFs remain prioritized ahead of generic IR category pages.' \
+            '- Future tenure-end years are capped for ranking and are not treated as future source dates.' \
             '- Discovered identities remain analyst-verification candidates and never overwrite Management Profile.' \
             '- No automatic OO/LT/HH, Lion/Hyena, Management Quality, insider Buy/Sell, MOS or Research Gate conclusion.' \
-            '- DGC Round 5F production-path live acceptance passed.' \
+            '- DGC Round 5G strict production-path live acceptance passed with no noise identity in the manager dataset or research-target queue.' \
             '- Unified Streamlit smoke passed.' \
             > docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
 
@@ -111,20 +90,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add modules/deep_company_analysis/chapter7_management_discovery.py
-          git add modules/deep_company_analysis/chapter7_research.py
-          git add modules/deep_company_analysis/chapter7_research_ui.py
           git add modules/deep_company_analysis/test_chapter7_management_discovery.py
+          git add scripts/qa_chapter7_v37_1_dgc.py
           git add docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
           if ! git diff --cached --quiet; then
-            git commit -m "fix(ch7): finalize management discovery V37.1 round5f"
+            git commit -m "fix(ch7): finalize management discovery V37.1 round5g"
             git push origin HEAD:feature/deep-company-analysis-chapter7
           fi
 
-      - name: Upload DGC Round 5F diagnostic artifact
+      - name: Upload DGC Round 5G diagnostic artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DGC_V37_1_ROUND5F_REPORT
+          name: DGC_V37_1_ROUND5G_REPORT
           path: |
             reports/DGC_V37_1_ROUND3.json
             reports/DGC_V37_1_ROUND3.md
