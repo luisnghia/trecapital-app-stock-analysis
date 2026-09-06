@@ -1,0 +1,300 @@
+name: DGC Chapter 1-7 Strict Acceptance V40
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/deep-company-analysis-dgc-acceptance-v40
+    paths:
+      - '.github/workflows/test-dgc-ch1-7-acceptance-v40.yml'
+      - 'modules/deep_company_analysis/**'
+      - 'adapters/module2_web_research.py'
+      - 'tools/dgc_chapter*_e2e.py'
+      - 'tools/dgc_chapter*_lock.py'
+      - 'scripts/qa_chapter7_v37_1_dgc.py'
+
+permissions:
+  contents: read
+
+jobs:
+  strict-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONPATH: .
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Acceptance policy guards — PP&E, DGC official source, analyst boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import inspect
+          from adapters.module2_web_research import KNOWN_COMPANY_DOMAINS
+          from modules.deep_company_analysis import chapter6_quant as q6
+          from modules.deep_company_analysis import chapter7_management_discovery as ch7
+
+          dgc_sources = [str(x).lower() for x in KNOWN_COMPANY_DOMAINS.get('DGC', [])]
+          assert any('ducgiangchem.vn' in x for x in dgc_sources), (
+              'DGC official-company source is not registered in KNOWN_COMPANY_DOMAINS'
+          )
+
+          forbidden_ppe = {
+              'fixed_assets_bil',
+              'non_current_assets_bil',
+              'total_non_current_assets_bil',
+              'long_term_assets_bil',
+              'total_long_term_assets_bil',
+          }
+          net_fields = set(getattr(q6, 'NET_PPE_EXPLICIT_FIELDS', ()))
+          gross_fields = set(getattr(q6, 'GROSS_PPE_EXPLICIT_FIELDS', ()))
+          assert net_fields, 'NET_PPE_EXPLICIT_FIELDS is missing/empty'
+          assert gross_fields, 'GROSS_PPE_EXPLICIT_FIELDS is missing/empty'
+          assert not (net_fields & forbidden_ppe), f'Forbidden Net PP&E fallback(s): {net_fields & forbidden_ppe}'
+          assert not (gross_fields & forbidden_ppe), f'Forbidden Gross PP&E fallback(s): {gross_fields & forbidden_ppe}'
+
+          q6_source = inspect.getsource(q6)
+          assert 'Generic' in q6_source and 'must' in q6_source, 'Q32 PP&E guardrail comment/implementation contract missing'
+
+          ch7_doc = (inspect.getdoc(ch7) or '').casefold()
+          for required in ('never writes analyst', 'never classifies', 'buy/hold/sell'):
+              assert required in ch7_doc, f'Chapter 7 analyst-boundary contract missing: {required}'
+
+          print('PASS: policy guards')
+          print('DGC official sources:', dgc_sources)
+          print('Net PP&E explicit fields:', sorted(net_fields))
+          print('Gross PP&E explicit fields:', sorted(gross_fields))
+          PY
+
+      - name: Chapter 1 — core + final acceptance + canonical/TTM contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          pytest -q \
+            modules/deep_company_analysis/test_chapter1.py \
+            modules/deep_company_analysis/test_chapter1_final_acceptance.py \
+            modules/deep_company_analysis/test_trecapital_auto.py \
+            modules/deep_company_analysis/test_ttm_coverage_v32.py \
+            2>&1 | tee reports/DGC_CH1_V40.log
+
+      - name: Chapter 1 — DGC live canonical bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/DGC_CH1_LIVE_V40.log
+          import json
+          from pathlib import Path
+          import pandas as pd
+          import module1_dashboard as m1
+          from module1_engine import append_ttm_row
+          from modules.deep_company_analysis.chapter1 import load_dgc_trial_payload, _quality_score
+          from modules.deep_company_analysis.chapter4_peer_auto import refresh_peer_canonical_bundle
+
+          ticker = 'DGC'
+          payload = load_dgc_trial_payload()
+          yes, unknown = _quality_score(payload.get('quality', {}))
+          ok, paths, note = refresh_peer_canonical_bundle(ticker)
+          assert ok and paths, f'DGC canonical refresh failed: {note}'
+
+          overview_path, annual_path, quarter_path = paths
+          company = m1._load_overview_cached(str(overview_path), ticker)
+          annual_raw = m1._load_timeseries_cached(str(annual_path), ticker, 'Y', 11)
+          quarterly = m1._load_timeseries_cached(str(quarter_path), ticker, 'Q', 20)
+          annual = append_ttm_row(annual_raw, quarterly)
+          assert isinstance(annual, pd.DataFrame) and not annual.empty, 'DGC annual canonical dataset is empty'
+          assert 'period' in annual.columns, 'Canonical dataset has no period column'
+
+          ttm_mask = annual['period'].astype(str).str.upper().str.contains('TTM|T12M', regex=True, na=False)
+          assert ttm_mask.any(), 'DGC canonical dataset has no TTM/T12M row after append_ttm_row'
+          row = annual[ttm_mask].iloc[-1].to_dict()
+
+          out = {
+              'ticker': ticker,
+              'canonical_refresh_ok': True,
+              'canonical_note': str(note),
+              'latest_period': str(row.get('period') or ''),
+              'quality_yes': yes,
+              'quality_unknown': unknown,
+              'quality_total': len(payload.get('quality', {})),
+          }
+          Path('reports/DGC_CH1_LIVE_V40.json').write_text(
+              json.dumps(out, ensure_ascii=False, indent=2, default=str), encoding='utf-8'
+          )
+          print(json.dumps(out, ensure_ascii=False, indent=2, default=str))
+          PY
+
+      - name: Chapter 2 — DGC business / industry evidence E2E
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/dgc_chapter2_e2e.py 2>&1 | tee reports/DGC_CH2_V40.log
+
+      - name: Chapter 3 — DGC customer evidence E2E
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/dgc_chapter3_e2e.py 2>&1 | tee reports/DGC_CH3_V40.log
+
+      - name: Chapter 4 — DGC supplier / competition lock E2E
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/dgc_chapter4_phase4d_lock.py 2>&1 | tee reports/DGC_CH4_V40.log
+
+      - name: Chapter 5 — DGC product economics / ROIC lock E2E
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/dgc_chapter5_phase5d_lock.py 2>&1 | tee reports/DGC_CH5_V40.log
+
+      - name: Chapter 6 — deterministic quantitative / source / closure tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          pytest -q \
+            modules/deep_company_analysis/test_chapter6.py \
+            modules/deep_company_analysis/test_chapter6_quant.py \
+            modules/deep_company_analysis/test_chapter6_phase6b_integration.py \
+            modules/deep_company_analysis/test_chapter6_phase6c.py \
+            modules/deep_company_analysis/test_chapter6_phase6d.py \
+            2>&1 | tee reports/DGC_CH6_TESTS_V40.log
+
+      - name: Chapter 6 — DGC live canonical quantitative gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/DGC_CH6_LIVE_V40.log
+          import json
+          from pathlib import Path
+          import pandas as pd
+          import module1_dashboard as m1
+          from module1_engine import append_ttm_row
+          from modules.deep_company_analysis.chapter4_peer_auto import refresh_peer_canonical_bundle
+          from modules.deep_company_analysis.chapter6_quant import build_chapter6_quant_context
+
+          ticker = 'DGC'
+          ok, paths, note = refresh_peer_canonical_bundle(ticker)
+          assert ok and paths, f'DGC canonical refresh failed: {note}'
+
+          overview_path, annual_path, quarter_path = paths
+          company = m1._load_overview_cached(str(overview_path), ticker)
+          annual_raw = m1._load_timeseries_cached(str(annual_path), ticker, 'Y', 11)
+          quarterly = m1._load_timeseries_cached(str(quarter_path), ticker, 'Q', 20)
+          annual = append_ttm_row(annual_raw, quarterly)
+          assert isinstance(annual, pd.DataFrame) and not annual.empty, 'DGC annual canonical dataset is empty'
+
+          company_name = str(getattr(company, 'company_name', '') or getattr(company, 'name', '') or '')
+          industry = str(getattr(company, 'industry', '') or getattr(company, 'industry_name', '') or '')
+          sub_industry = str(getattr(company, 'sub_industry', '') or getattr(company, 'sub_industry_name', '') or '')
+          ctx = build_chapter6_quant_context(
+              ticker, company_name, annual,
+              industry=industry,
+              sub_industry=sub_industry,
+              source_label='DGC V40 strict live canonical',
+          )
+          assert ctx.get('latest_period'), 'Chapter 6 context has no latest_period'
+          for key in ('q27_accounting_quality', 'q29_cycle_history', 'q30_dol_history', 'q31_working_capital', 'q32_capex_history'):
+              value = ctx.get(key)
+              assert isinstance(value, pd.DataFrame), f'{key} is not a DataFrame'
+
+          q32 = ctx.get('q32_capex_history')
+          if isinstance(q32, pd.DataFrame) and not q32.empty:
+              source_cols = [c for c in q32.columns if 'source' in str(c).casefold() or 'field' in str(c).casefold()]
+              serialized = ' '.join(q32[source_cols].astype(str).fillna('').values.ravel()).casefold() if source_cols else ''
+              for forbidden in ('fixed_assets_bil', 'non_current_assets_bil', 'long_term_assets_bil', 'total_long_term_assets_bil'):
+                  assert forbidden not in serialized, f'Q32 emitted forbidden PP&E fallback: {forbidden}'
+
+          out = {
+              'ticker': ticker,
+              'refresh_ok': True,
+              'latest_period': ctx.get('latest_period', ''),
+              'company_name': company_name,
+              'industry': industry,
+              'sub_industry': sub_industry,
+              'coverage_warnings': ctx.get('coverage_warnings', []),
+              'q32_rows': int(len(q32)) if isinstance(q32, pd.DataFrame) else 0,
+          }
+          Path('reports/DGC_CH6_LIVE_V40.json').write_text(
+              json.dumps(out, ensure_ascii=False, indent=2, default=str), encoding='utf-8'
+          )
+          print(json.dumps(out, ensure_ascii=False, indent=2, default=str))
+          PY
+
+      - name: Chapter 7 — deterministic management / research / closure tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          pytest -q \
+            modules/deep_company_analysis/test_chapter7.py \
+            modules/deep_company_analysis/test_chapter7_management_discovery.py \
+            modules/deep_company_analysis/test_chapter7_phase7a_integration.py \
+            modules/deep_company_analysis/test_chapter7_phase7b.py \
+            modules/deep_company_analysis/test_chapter7_phase7c.py \
+            modules/deep_company_analysis/test_chapter7_phase7d.py \
+            2>&1 | tee reports/DGC_CH7_TESTS_V40.log
+
+      - name: Chapter 7 — DGC live management discovery / evidence gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python scripts/qa_chapter7_v37_1_dgc.py 2>&1 | tee reports/DGC_CH7_LIVE_V40.log
+
+      - name: Full Deep Company Analysis regression — strict
+        shell: bash
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py 2>&1 | tee reports/DGC_FULL_REGRESSION_V40.log
+
+      - name: Write strict acceptance marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+          result = {
+              'ticker': 'DGC',
+              'scope': 'Deep Company Analysis Chapters 1-7',
+              'acceptance': 'PASS',
+              'strict_failure_semantics': True,
+              'timestamp_utc': datetime.now(timezone.utc).isoformat(),
+          }
+          Path('reports/DGC_CH1_7_STRICT_ACCEPTANCE_V40.json').write_text(
+              json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8'
+          )
+          print(json.dumps(result, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Upload DGC V40 strict acceptance artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DGC_CH1_7_STRICT_ACCEPTANCE_V40
+          path: |
+            reports/DGC_CH*_V40.*
+            reports/DGC_CH*_LIVE_V40.*
+            reports/DGC_CH*_TESTS_V40.*
+            reports/DGC_V37_1_*.json
+            reports/DGC_V37_1_*.md
+            reports/DGC_V37_1_*.csv
+            reports/DGC_FULL_REGRESSION_V40.*
+            reports/DGC_CH1_7_STRICT_ACCEPTANCE_V40.json
+          if-no-files-found: warn
+          retention-days: 30
