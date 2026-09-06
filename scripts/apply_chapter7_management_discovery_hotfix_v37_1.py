@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RESEARCH = ROOT / "modules" / "deep_company_analysis" / "chapter7_research.py"
 UI = ROOT / "modules" / "deep_company_analysis" / "chapter7_research_ui.py"
 DISCOVERY = ROOT / "modules" / "deep_company_analysis" / "chapter7_management_discovery.py"
+TEST_DISCOVERY = ROOT / "modules" / "deep_company_analysis" / "test_chapter7_management_discovery.py"
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -18,9 +19,44 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 def patch_discovery() -> None:
     text = DISCOVERY.read_text(encoding="utf-8")
-    old = '''    seeds = list(KNOWN_COMPANY_DOMAINS.get(safe, []))\n    if not seeds:\n'''
-    new = '''    seeds = list(KNOWN_COMPANY_DOMAINS.get(safe, []))\n    # Vietnamese listed-company IR sites frequently expose a short friendly /quan-he-co-dong/\n    # URL while the actual current disclosures live under WordPress category paths. Add common\n    # category seeds generically; they are still same-domain official sources and remain candidates.\n    expanded_seeds = list(seeds)\n    for seed in list(seeds):\n        parsed = urlparse(seed)\n        if "quan-he-co-dong" not in parsed.path.casefold():\n            continue\n        root = f"{parsed.scheme}://{parsed.netloc}/"\n        expanded_seeds.extend([\n            root + "category/quan-he-co-dong/",\n            root + "category/quan-he-co-dong/bao-cao-thuong-nien/",\n            root + "category/quan-he-co-dong/bao-cao-tai-chinh/",\n            root + "category/quan-he-co-dong/thong-bao/",\n        ])\n    seeds = list(dict.fromkeys(expanded_seeds))\n    if not seeds:\n'''
-    text = replace_once(text, old, new, "common IR category seeds")
+
+    old_pattern = '''PERSON_NAME_PATTERN = re.compile(
+    r"(?<![A-Za-zÀ-ỹĐđ])(?:Ông|Bà|Mr\\.?|Ms\\.?)\\s+"
+    r"([A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\\.-]+"
+    r"(?:\\s+[A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\\.-]+){1,5})",
+    flags=re.IGNORECASE,
+)'''
+    new_pattern = '''PERSON_NAME_PATTERN = re.compile(
+    r"(?<![A-Za-zÀ-ỹĐđ])(?i:Ông|Bà|Mr\\.?|Ms\\.?)\\s+"
+    r"([A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\\.-]+"
+    r"(?:\\s+[A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\\.-]+){1,5})"
+)'''
+    text = replace_once(text, old_pattern, new_pattern, "capitalization-sensitive person parser")
+
+    old_noise = '    "ông", "bà", "mr", "ms", "ủy", "uỷ", "ban", "kiểm", "soát",\n}'
+    new_noise = '    "ông", "bà", "mr", "ms", "ủy", "uỷ", "ban", "kiểm", "soát", "giữ", "chức", "vụ", "được", "đảm", "sinh",\n}'
+    text = replace_once(text, old_noise, new_noise, "action-word name filter")
+
+    old_report = '''REPORT_PRIORITY_TERMS = (
+    "báo cáo thường niên", "bao cao thuong nien", "annual report", "bctn",
+    "báo cáo quản trị", "bao cao quan tri", "corporate governance",
+)'''
+    new_report = '''REPORT_PRIORITY_TERMS = (
+    "báo cáo thường niên", "bao cao thuong nien", "annual report", "bctn",
+    "báo cáo quản trị", "bao cao quan tri", "corporate governance",
+    "báo cáo tài chính", "bao cao tai chinh", "financial statement", "financial report", "bctc",
+    "quý 4", "quy 4", "quarter 4", "kiểm toán", "kiem toan", "audited",
+)'''
+    text = replace_once(text, old_report, new_report, "current financial-report priority")
+
+    old_search = '    terms = ("nhân sự", "tổng giám đốc", "chủ tịch", "báo cáo thường niên", "báo cáo quản trị")\n'
+    new_search = '    terms = ("nhân sự", "tổng giám đốc", "chủ tịch HĐQT", "hội đồng quản trị", "ban tổng giám đốc", "báo cáo thường niên", "báo cáo quản trị", "báo cáo tài chính quý 4", "thông tin về doanh nghiệp")\n'
+    text = replace_once(text, old_search, new_search, "official-site search coverage")
+
+    old_fetches = '    max_fetches = max(60, max_documents * 10)\n'
+    new_fetches = '    max_fetches = max(80, max_documents * 12)\n'
+    text = replace_once(text, old_fetches, new_fetches, "crawl ceiling")
+
     DISCOVERY.write_text(text, encoding="utf-8")
 
 
@@ -48,12 +84,98 @@ def patch_research() -> None:
         '        manager_clause = " ".join(f\'"{manager}"\' for manager in self.managers[:3])\n        vi, en = QUERY_TERMS[self.focus]\n        manager_part = f" {manager_clause}" if manager_clause else ""\n        return [\n            f\'"{ticker}" "{name}"{manager_part} {vi}\',\n            f\'"{ticker}" "{name}"{manager_part} {en}\',\n        ]\n',
         "multi-manager query scope",
     )
+
     marker = "\n\nclass Chapter7ResearchAgent:\n"
-    addition = '''\n\ndef official_documents_to_candidates(\n    documents: list[dict[str, Any]],\n    ticker: str,\n    managers: list[str] | None = None,\n) -> pd.DataFrame:\n    """Convert directly crawled company documents into factual Q33-Q38 evidence candidates.\n\n    This is evidence extraction only. It never confirms a manager identity or produces a management\n    classification/conclusion. Q37/Q38 require their own explicit focus terms; a manager name alone\n    is not enough to manufacture compensation/insider evidence.\n    """\n    manager_names = [_safe_text(x) for x in (managers or []) if _safe_text(x)]\n    rows: list[dict[str, Any]] = []\n    for document in documents:\n        text = _safe_text(document.get("text"))\n        if not text:\n            continue\n        url = _safe_text(document.get("url"))\n        title = _safe_text(document.get("title")) or url\n        method = _safe_text(document.get("method")) or "Official source extraction"\n        low = text.casefold()\n        for question in QUESTION_ORDER:\n            focus_hit = any(term.casefold() in low for term in FOCUS_TERMS[question])\n            if not focus_hit:\n                continue\n            windows = _relevant_windows(text, question, manager_names, max_windows=3)\n            for idx, snippet in enumerate(windows):\n                snippet_low = snippet.casefold()\n                if question in {"Q37", "Q38"} and not any(term.casefold() in snippet_low for term in FOCUS_TERMS[question]):\n                    continue\n                manager = _manager_from_text(snippet, manager_names)\n                cid = _candidate_id(question, manager, url, snippet, "official-discovery", idx)\n                rows.append({\n                    "Select": False,\n                    "Candidate ID": cid,\n                    "Question": question,\n                    "Manager": manager,\n                    "Subtopic": _subtopic(question, snippet),\n                    "Direction": direction_cue(question, snippet),\n                    "Source Grade": "A — Company/Official disclosure",\n                    "Explicitness": "Extracted official source text — analyst verify",\n                    "Source Title": title[:240],\n                    "Source URL / File": url,\n                    "Source Date": "",\n                    "As-of Date": _year_candidate(f"{title} {url} {snippet}"),\n                    "Evidence Text / Reference": snippet[:900],\n                    "Source Method": f"Phase 7C official management discovery — {method}",\n                    "Data Origin": "Direct company/official source text — analyst verification required",\n                    "Status": "Candidate — analyst verify",\n                })\n    frame = pd.DataFrame(rows, columns=CANDIDATE_COLUMNS)\n    if frame.empty:\n        return frame\n    return frame.drop_duplicates(subset=["Candidate ID"], keep="first").reset_index(drop=True)\n\n\nclass Chapter7ResearchAgent:\n'''
+    addition = '''
+
+def official_documents_to_candidates(
+    documents: list[dict[str, Any]],
+    ticker: str,
+    managers: list[str] | None = None,
+) -> pd.DataFrame:
+    """Convert directly crawled company documents into factual Q33-Q38 evidence candidates.
+
+    This is evidence extraction only. It never confirms a manager identity or produces a management
+    classification/conclusion. Q37/Q38 require their own explicit focus terms; a manager name alone
+    is not enough to manufacture compensation/insider evidence.
+    """
+    manager_names = [_safe_text(x) for x in (managers or []) if _safe_text(x)]
+    rows: list[dict[str, Any]] = []
+    for document in documents:
+        text = _safe_text(document.get("text"))
+        if not text:
+            continue
+        url = _safe_text(document.get("url"))
+        title = _safe_text(document.get("title")) or url
+        method = _safe_text(document.get("method")) or "Official source extraction"
+        low = text.casefold()
+        for question in QUESTION_ORDER:
+            focus_hit = any(term.casefold() in low for term in FOCUS_TERMS[question])
+            if not focus_hit:
+                continue
+            windows = _relevant_windows(text, question, manager_names, max_windows=3)
+            for idx, snippet in enumerate(windows):
+                snippet_low = snippet.casefold()
+                if question in {"Q37", "Q38"} and not any(term.casefold() in snippet_low for term in FOCUS_TERMS[question]):
+                    continue
+                manager = _manager_from_text(snippet, manager_names)
+                cid = _candidate_id(question, manager, url, snippet, "official-discovery", idx)
+                rows.append({
+                    "Select": False,
+                    "Candidate ID": cid,
+                    "Question": question,
+                    "Manager": manager,
+                    "Subtopic": _subtopic(question, snippet),
+                    "Direction": direction_cue(question, snippet),
+                    "Source Grade": "A — Company/Official disclosure",
+                    "Explicitness": "Extracted official source text — analyst verify",
+                    "Source Title": title[:240],
+                    "Source URL / File": url,
+                    "Source Date": "",
+                    "As-of Date": _year_candidate(f"{title} {url} {snippet}"),
+                    "Evidence Text / Reference": snippet[:900],
+                    "Source Method": f"Phase 7C official management discovery — {method}",
+                    "Data Origin": "Direct company/official source text — analyst verification required",
+                    "Status": "Candidate — analyst verify",
+                })
+    frame = pd.DataFrame(rows, columns=CANDIDATE_COLUMNS)
+    if frame.empty:
+        return frame
+    return frame.drop_duplicates(subset=["Candidate ID"], keep="first").reset_index(drop=True)
+
+
+class Chapter7ResearchAgent:
+'''
     text = replace_once(text, marker, addition, "official document evidence converter")
 
-    old = '''        pieces: list[pd.DataFrame] = []\n        raw_paths: list[str] = []\n        notes: list[str] = []\n        manager_names = [_safe_text(x) for x in (managers or []) if _safe_text(x)]\n        for focus in QUESTION_ORDER:\n'''
-    new = '''        pieces: list[pd.DataFrame] = []\n        raw_paths: list[str] = []\n        notes: list[str] = []\n        manager_names = [_safe_text(x) for x in (managers or []) if _safe_text(x)]\n        manager_candidates = pd.DataFrame(columns=MANAGER_CANDIDATE_COLUMNS)\n\n        # V37.1: discover candidate senior-manager identities from official company/IR sources before\n        # generic evidence search when analyst profile is empty. Targets remain unconfirmed.\n        if not manager_names:\n            try:\n                discovery = discover_management_candidates(ticker, company_name, max_documents=10, max_targets=5)\n                manager_candidates = discovery.managers.copy()\n                manager_names = list(discovery.target_names)\n                direct_candidates = official_documents_to_candidates(discovery.documents, ticker, manager_names)\n                if not direct_candidates.empty:\n                    pieces.append(direct_candidates)\n                notes.append("Management target discovery: " + discovery.note)\n            except Exception as exc:\n                notes.append(f"Management target discovery failed safely: {exc}")\n\n        for focus in QUESTION_ORDER:\n'''
+    old = '''        pieces: list[pd.DataFrame] = []
+        raw_paths: list[str] = []
+        notes: list[str] = []
+        manager_names = [_safe_text(x) for x in (managers or []) if _safe_text(x)]
+        for focus in QUESTION_ORDER:
+'''
+    new = '''        pieces: list[pd.DataFrame] = []
+        raw_paths: list[str] = []
+        notes: list[str] = []
+        manager_names = [_safe_text(x) for x in (managers or []) if _safe_text(x)]
+        manager_candidates = pd.DataFrame(columns=MANAGER_CANDIDATE_COLUMNS)
+
+        # V37.1: discover candidate senior-manager identities from official company/IR sources before
+        # generic evidence search when analyst profile is empty. Targets remain unconfirmed.
+        if not manager_names:
+            try:
+                discovery = discover_management_candidates(ticker, company_name, max_documents=24, max_targets=5)
+                manager_candidates = discovery.managers.copy()
+                manager_names = list(discovery.target_names)
+                direct_candidates = official_documents_to_candidates(discovery.documents, ticker, manager_names)
+                if not direct_candidates.empty:
+                    pieces.append(direct_candidates)
+                notes.append("Management target discovery: " + discovery.note)
+            except Exception as exc:
+                notes.append(f"Management target discovery failed safely: {exc}")
+
+        for focus in QUESTION_ORDER:
+'''
     text = replace_once(text, old, new, "search manager discovery")
     text = replace_once(
         text,
@@ -72,11 +194,40 @@ def patch_ui() -> None:
         '        st.warning("Management Profile đang trống. Hệ thống sẽ thử auto-discover candidate manager targets từ nguồn doanh nghiệp/IR chính thức trước khi research; các identity này vẫn cần analyst xác nhận.")\n',
         "empty profile discovery warning",
     )
-    old_keys = '''    candidates_key = f"ch7c_candidates_{safe}"\n    note_key = f"ch7c_note_{safe}"\n    raw_key = f"ch7c_raw_{safe}"\n'''
-    new_keys = '''    candidates_key = f"ch7c_candidates_{safe}"\n    discovered_key = f"ch7c_discovered_managers_{safe}"\n    note_key = f"ch7c_note_{safe}"\n    raw_key = f"ch7c_raw_{safe}"\n'''
+    old_keys = '''    candidates_key = f"ch7c_candidates_{safe}"
+    note_key = f"ch7c_note_{safe}"
+    raw_key = f"ch7c_raw_{safe}"
+'''
+    new_keys = '''    candidates_key = f"ch7c_candidates_{safe}"
+    discovered_key = f"ch7c_discovered_managers_{safe}"
+    note_key = f"ch7c_note_{safe}"
+    raw_key = f"ch7c_raw_{safe}"
+'''
     text = replace_once(text, old_keys, new_keys, "discovered managers session key")
-    old_store = '''        st.session_state[candidates_key] = result.candidates.to_dict("records")\n        st.session_state[note_key] = result.note\n        st.session_state[raw_key] = result.raw_paths\n\n    candidates = _candidate_frame(st.session_state.get(candidates_key))\n'''
-    new_store = '''        st.session_state[candidates_key] = result.candidates.to_dict("records")\n        discovered = result.manager_candidates if isinstance(result.manager_candidates, pd.DataFrame) else pd.DataFrame()\n        st.session_state[discovered_key] = discovered.to_dict("records")\n        st.session_state[note_key] = result.note\n        st.session_state[raw_key] = result.raw_paths\n\n    candidates = _candidate_frame(st.session_state.get(candidates_key))\n    discovered = pd.DataFrame(st.session_state.get(discovered_key) or [])\n    research_managers = list(managers)\n    if not research_managers and not discovered.empty and "Manager" in discovered.columns:\n        research_managers = list(dict.fromkeys(" ".join(str(x).split()) for x in discovered["Manager"].tolist() if str(x).strip()))[:5]\n\n    if not discovered.empty:\n        st.markdown("### Candidate management targets — auto-discovered")\n        render_static_table(discovered, height=min(360, 120 + 30 * len(discovered)), sort_key=f"ch7c_discovered_{safe}")\n        st.info("Các tên/chức vụ trên chỉ là research targets từ nguồn chính thức. App không tự ghi vào Management Profile và không tự xác nhận Q33/Q36.")\n\n'''
+    old_store = '''        st.session_state[candidates_key] = result.candidates.to_dict("records")
+        st.session_state[note_key] = result.note
+        st.session_state[raw_key] = result.raw_paths
+
+    candidates = _candidate_frame(st.session_state.get(candidates_key))
+'''
+    new_store = '''        st.session_state[candidates_key] = result.candidates.to_dict("records")
+        discovered = result.manager_candidates if isinstance(result.manager_candidates, pd.DataFrame) else pd.DataFrame()
+        st.session_state[discovered_key] = discovered.to_dict("records")
+        st.session_state[note_key] = result.note
+        st.session_state[raw_key] = result.raw_paths
+
+    candidates = _candidate_frame(st.session_state.get(candidates_key))
+    discovered = pd.DataFrame(st.session_state.get(discovered_key) or [])
+    research_managers = list(managers)
+    if not research_managers and not discovered.empty and "Manager" in discovered.columns:
+        research_managers = list(dict.fromkeys(" ".join(str(x).split()) for x in discovered["Manager"].tolist() if str(x).strip()))[:5]
+
+    if not discovered.empty:
+        st.markdown("### Candidate management targets — auto-discovered")
+        render_static_table(discovered, height=min(360, 120 + 30 * len(discovered)), sort_key=f"ch7c_discovered_{safe}")
+        st.info("Các tên/chức vụ trên chỉ là research targets từ nguồn chính thức. App không tự ghi vào Management Profile và không tự xác nhận Q33/Q36.")
+
+'''
     text = replace_once(text, old_store, new_store, "store/display discovered managers")
     text = text.replace(
         "deep = deep_extract_candidates(candidates, selected_ids, managers=managers)",
@@ -85,11 +236,50 @@ def patch_ui() -> None:
     UI.write_text(text, encoding="utf-8")
 
 
+def patch_tests() -> None:
+    text = TEST_DISCOVERY.read_text(encoding="utf-8")
+    sentinel = "def test_action_words_are_not_captured_as_manager_name_v37_1_round3():"
+    if sentinel in text:
+        return
+    text += '''
+
+
+def test_action_words_are_not_captured_as_manager_name_v37_1_round3():
+    docs = [{
+        "title": "Official personnel disclosure 2025",
+        "url": "https://example.com/official-personnel",
+        "text": "Nghị quyết bổ nhiệm ông Lưu Bách Đạt giữ chức vụ Tổng Giám đốc. Nghị quyết bổ nhiệm ông Đào Hữu Duy Anh giữ chức vụ Phó Chủ tịch HĐQT.",
+        "method": "HTML text extraction",
+    }]
+    frame = extract_management_candidates_from_documents(docs)
+    names = set(frame["Manager"].astype(str))
+    assert "Lưu Bách Đạt" in names
+    assert "Đào Hữu Duy Anh" in names
+    assert not any("giữ" in name.casefold() or "chức" in name.casefold() for name in names)
+
+
+def test_official_roster_extracts_chairman_ceo_and_third_manager_v37_1_round3():
+    docs = [{
+        "title": "Official financial statement 2025",
+        "url": "https://example.com/official-financial-statement.pdf",
+        "text": "Ông Đào Hữu Huyền — Chủ tịch HĐQT\\nÔng Lưu Bách Đạt — Tổng Giám đốc\\nÔng Phạm Văn Hùng — Phó Tổng Giám đốc",
+        "method": "PDF text extraction (no OCR)",
+    }]
+    frame = extract_management_candidates_from_documents(docs)
+    assert {"Đào Hữu Huyền", "Lưu Bách Đạt", "Phạm Văn Hùng"}.issubset(set(frame["Manager"].astype(str)))
+    roles = set(frame["Role Normalized"].astype(str))
+    assert "Chairman" in roles
+    assert "CEO" in roles
+'''
+    TEST_DISCOVERY.write_text(text, encoding="utf-8")
+
+
 def main() -> None:
     patch_discovery()
     patch_research()
     patch_ui()
-    print("Chapter 7 V37.1 management discovery hotfix applied")
+    patch_tests()
+    print("Chapter 7 V37.1 management discovery hotfix Round 3 applied")
 
 
 if __name__ == "__main__":
