@@ -42,10 +42,21 @@ class Chapter8ResearchAgent(_BaseChapter8ResearchAgent):
         result.gaps = enhanced_research_gaps(result.candidates, result.manager_reference)
         summary = build_question_coverage_summary(result.candidates, result.manager_reference)
         open_dimensions = int(summary["Dimensions Open"].sum()) if not summary.empty else 0
-        manager_open = int(summary["Status"].astype(str).str.contains("manager", case=False).sum()) if not summary.empty else 0
+        if not result.gaps.empty and "Status" in result.gaps.columns:
+            manager_open = int(
+                result.gaps["Status"]
+                .fillna("")
+                .astype(str)
+                .str.contains("manager", case=False)
+                .groupby(result.gaps["Question"].astype(str))
+                .any()
+                .sum()
+            )
+        else:
+            manager_open = 0
         suffix = (
             f"V52 coverage audit: {open_dimensions} source-locked dimensions remain open; "
-            f"{manager_open} question(s) still have manager-scope coverage gaps. "
+            f"{manager_open} question(s) still have manager identity/scope gaps. "
             "Counts are research coverage only, not a management score."
         )
         result.note = f"{result.note} | {suffix}" if result.note else suffix
