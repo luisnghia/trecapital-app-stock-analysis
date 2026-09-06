@@ -20,6 +20,13 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 def patch_discovery() -> None:
     text = DISCOVERY.read_text(encoding="utf-8")
 
+    text = replace_once(
+        text,
+        "from urllib.parse import urljoin, urlparse, quote_plus\n",
+        "from urllib.parse import urljoin, urlparse, quote_plus, urldefrag\n",
+        "URL fragment normalizer import",
+    )
+
     old_pattern = '''PERSON_NAME_PATTERN = re.compile(
     r"(?<![A-Za-zÀ-ỹĐđ])(?:Ông|Bà|Mr\\.?|Ms\\.?)\\s+"
     r"([A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\\.-]+"
@@ -43,15 +50,52 @@ def patch_discovery() -> None:
 )'''
     new_report = '''REPORT_PRIORITY_TERMS = (
     "báo cáo thường niên", "bao cao thuong nien", "annual report", "bctn",
-    "báo cáo quản trị", "bao cao quan tri", "corporate governance",
+    "báo cáo quản trị", "bao cao quan tri", "tình hình quản trị", "tinh hinh quan tri", "corporate governance",
     "báo cáo tài chính", "bao cao tai chinh", "financial statement", "financial report", "bctc",
     "quý 4", "quy 4", "quarter 4", "kiểm toán", "kiem toan", "audited",
 )'''
-    text = replace_once(text, old_report, new_report, "current financial-report priority")
+    text = replace_once(text, old_report, new_report, "current governance/financial-report priority")
 
     old_search = '    terms = ("nhân sự", "tổng giám đốc", "chủ tịch", "báo cáo thường niên", "báo cáo quản trị")\n'
-    new_search = '    terms = ("nhân sự", "tổng giám đốc", "chủ tịch HĐQT", "hội đồng quản trị", "ban tổng giám đốc", "báo cáo thường niên", "báo cáo quản trị", "báo cáo tài chính quý 4", "thông tin về doanh nghiệp")\n'
+    new_search = '    terms = ("nhân sự", "tổng giám đốc", "chủ tịch HĐQT", "hội đồng quản trị", "ban tổng giám đốc", "báo cáo thường niên", "báo cáo quản trị", "tình hình quản trị", "báo cáo tài chính quý 4", "thông tin về doanh nghiệp")\n'
     text = replace_once(text, old_search, new_search, "official-site search coverage")
+
+    old_bases = '''        bases = [
+            root + "category/quan-he-co-dong/",
+            root + "category/quan-he-co-dong/bao-cao-thuong-nien/",
+            root + "category/quan-he-co-dong/bao-cao-tai-chinh/",
+            root + "category/quan-he-co-dong/thong-bao/",
+        ]
+        expanded_seeds.extend(bases)
+        # Personnel changes often move off page 1 quickly. Crawl only a shallow recent history.
+        for page in range(2, 7):
+            expanded_seeds.append(root + f"category/quan-he-co-dong/thong-bao/page/{page}/")
+        for page in range(2, 4):
+            expanded_seeds.append(root + f"category/quan-he-co-dong/bao-cao-thuong-nien/page/{page}/")
+'''
+    new_bases = '''        bases = [
+            root + "category/quan-he-co-dong/",
+            root + "category/quan-he-co-dong/bao-cao-thuong-nien/",
+            root + "category/quan-he-co-dong/bao-cao-quan-tri/",
+            root + "category/quan-he-co-dong/bao-cao-tai-chinh/",
+            root + "category/quan-he-co-dong/thong-bao/",
+        ]
+        expanded_seeds.extend(bases)
+        # Personnel changes often move off page 1 quickly. Crawl only a shallow recent history.
+        for page in range(2, 7):
+            expanded_seeds.append(root + f"category/quan-he-co-dong/thong-bao/page/{page}/")
+        for page in range(2, 4):
+            expanded_seeds.append(root + f"category/quan-he-co-dong/bao-cao-thuong-nien/page/{page}/")
+            expanded_seeds.append(root + f"category/quan-he-co-dong/bao-cao-quan-tri/page/{page}/")
+        # Some IR themes paginate the top-level shareholder archive with a query parameter rather than /page/N/.
+        for page in range(1, 4):
+            expanded_seeds.append(root + f"category/quan-he-co-dong/?page_number_0={page}")
+'''
+    text = replace_once(text, old_bases, new_bases, "governance and archive pagination seeds")
+
+    old_href = '        href = urljoin(final_url, anchor.get("href", ""))\n'
+    new_href = '        href = urldefrag(urljoin(final_url, anchor.get("href", "")))[0]\n'
+    text = replace_once(text, old_href, new_href, "defragment crawled links")
 
     old_fetches = '    max_fetches = max(60, max_documents * 10)\n'
     new_fetches = '    max_fetches = max(80, max_documents * 12)\n'
@@ -279,7 +323,7 @@ def main() -> None:
     patch_research()
     patch_ui()
     patch_tests()
-    print("Chapter 7 V37.1 management discovery hotfix Round 3 applied")
+    print("Chapter 7 V37.1 management discovery hotfix Round 4 applied")
 
 
 if __name__ == "__main__":
