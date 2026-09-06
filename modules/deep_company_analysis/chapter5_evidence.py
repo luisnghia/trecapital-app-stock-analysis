@@ -31,6 +31,14 @@ from modules.deep_company_analysis.chapter2_evidence import (
     SourceFirstChapter2EvidenceAgent,
     _main_text_from_html,
 )
+from modules.deep_company_analysis.chapter5_source_audit import (
+    annotate_search_frame,
+    failed_source_attempts,
+    official_search_domain,
+    prioritize_candidates,
+    registered_source_catalog,
+    summarize_search_raw_log,
+)
 
 # Chapter 5 keeps the shared Chapter-2 trusted source registry, but adds resilient DGC fallbacks
 # for operating-health research. The 2025 annual-report PDF endpoint can intermittently return an
@@ -144,6 +152,14 @@ POSITIVE_TERMS = (
     "headroom", "thanh khoản tốt", "strong liquidity", "tiết giảm", "cost saving", "expansion completed",
 )
 
+FOCUS_SITE_TERMS = {
+    "Q21_Q22": "sản lượng công suất giá bán operating metrics annual report",
+    "Q23": "rủi ro risk môi trường an toàn annual report",
+    "Q24": "lạm phát nguyên liệu điện năng input cost annual report",
+    "Q25": "nợ vay maturity covenant liquidity financial statements",
+    "Q26": "ROIC capex dự án mở rộng investment annual report",
+}
+
 
 class _FocusedChapter5Agent(WebEvidenceAgent):
     def __init__(self, raw_dir: str | Path, focus: str):
@@ -153,29 +169,40 @@ class _FocusedChapter5Agent(WebEvidenceAgent):
     def _build_queries(self, ticker: str, company_name: str) -> list[str]:  # type: ignore[override]
         name = self._clean_company_name(company_name) or company_name or ticker
         if self.focus == "Q21_Q22":
-            return [
+            broad = [
                 f'"{ticker}" "{name}" sản lượng công suất utilization giá bán ASP unit cost market share operating metrics',
                 f'"{ticker}" "{name}" sản lượng tăng giảm nguyên nhân due to driven by capacity price volume',
             ]
-        if self.focus == "Q23":
-            return [
+        elif self.focus == "Q23":
+            broad = [
                 f'"{ticker}" "{name}" rủi ro risk công suất công nghệ quy định nhà cung cấp đối thủ khách hàng',
                 f'"{ticker}" "{name}" sự cố gián đoạn vi phạm môi trường an toàn litigation regulation risk',
             ]
-        if self.focus == "Q24":
-            return [
+        elif self.focus == "Q24":
+            broad = [
                 f'"{ticker}" "{name}" lạm phát giá nguyên liệu điện năng lượng vận tải tiền lương pass-through',
                 f'"{ticker}" "{name}" tăng giá input cost inflation interest rate fixed floating debt',
             ]
-        if self.focus == "Q25":
-            return [
+        elif self.focus == "Q25":
+            broad = [
                 f'"{ticker}" "{name}" nợ vay đáo hạn maturity covenant secured recourse refinancing liquidity',
                 f'"{ticker}" "{name}" bảo lãnh lease off balance sheet commitments credit facility covenant',
             ]
-        return [
-            f'"{ticker}" "{name}" ROIC tái đầu tư capex dự án mở rộng công suất total investment project return',
-            f'"{ticker}" "{name}" organic growth M&A reinvestment runway IRR NPV payback incremental earnings',
-        ]
+        else:
+            broad = [
+                f'"{ticker}" "{name}" ROIC tái đầu tư capex dự án mở rộng công suất total investment project return',
+                f'"{ticker}" "{name}" organic growth M&A reinvestment runway IRR NPV payback incremental earnings',
+            ]
+
+        # WebEvidenceAgent intentionally executes only the first two queries. Put a registered
+        # first-party domain query first, while retaining one broad discovery query for counter-evidence.
+        domain = official_search_domain(ticker)
+        if domain:
+            official_query = f'site:{domain} "{ticker}" "{name}" {FOCUS_SITE_TERMS.get(self.focus, "annual report")}'
+            return [official_query, broad[0]]
+        # If no company domain is registered, retain the two broad queries rather than pretending
+        # a generic exchange landing page is company-specific evidence.
+        return broad
 
 
 @dataclass
@@ -325,29 +352,60 @@ def _official_topic_rows(ticker: str, title: str, url: str, text: str, method: s
     return rows
 
 
-def _fetch_official_rows(raw_dir: Path, ticker: str) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+def _fetch_official_rows(raw_dir: Path, ticker: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     rows: list[dict[str, Any]] = []
-    audit: list[dict[str, str]] = []
+    audit: list[dict[str, Any]] = []
     helper = SourceFirstChapter2EvidenceAgent(raw_dir)
     with httpx.Client(headers=HEADERS, timeout=httpx.Timeout(8.0, connect=2.0), follow_redirects=True) as client:
         for label, url in CHAPTER5_OFFICIAL_PAGES.get(ticker, ()):
+            attempt: dict[str, Any] = {
+                "channel": "official",
+                "focus": "Q21–Q26",
+                "kind": "Official HTML",
+                "label": label,
+                "url": url,
+                "success": False,
+                "status": "",
+                "rows": 0,
+                "error": "",
+            }
             try:
                 resp = client.get(url)
                 resp.raise_for_status()
                 page_title, text = _main_text_from_html(resp.text)
                 extracted = _official_topic_rows(ticker, label or page_title or "Official page", url, text, "Official HTML direct extraction")
                 rows.extend(extracted)
-                audit.append({"url": url, "status": str(resp.status_code), "rows": str(len(extracted))})
+                attempt.update({"success": True, "status": f"HTTP {resp.status_code}", "rows": len(extracted)})
+                if not extracted:
+                    attempt["error"] = "Retrieved successfully but no Q21–Q26 topic row was extracted"
             except Exception as exc:
-                audit.append({"url": url, "error": str(exc)[:220]})
+                attempt.update({"status": "Retrieval failed", "error": str(exc)[:400]})
+            audit.append(attempt)
+
         for label, url in CHAPTER5_OFFICIAL_PDFS.get(ticker, ()):
+            attempt = {
+                "channel": "official",
+                "focus": "Q21–Q26",
+                "kind": "Official PDF",
+                "label": label,
+                "url": url,
+                "success": False,
+                "status": "",
+                "rows": 0,
+                "error": "",
+            }
             try:
                 text, status = helper._official_pdf_text(ticker, label, url, client)
                 extracted = _official_topic_rows(ticker, label, url, text, "Official PDF/BCTN direct extraction") if text else []
                 rows.extend(extracted)
-                audit.append({"url": url, "status": status, "rows": str(len(extracted))})
+                attempt.update({"success": bool(text), "status": str(status or ""), "rows": len(extracted)})
+                if not text:
+                    attempt["error"] = str(status or "PDF returned no extractable text")[:400]
+                elif not extracted:
+                    attempt["error"] = "PDF text retrieved but no Q21–Q26 topic row was extracted"
             except Exception as exc:
-                audit.append({"url": url, "error": str(exc)[:220]})
+                attempt.update({"status": "Retrieval failed", "error": str(exc)[:400]})
+            audit.append(attempt)
     return rows, audit
 
 
@@ -381,26 +439,41 @@ class Chapter5EvidenceAgent:
         safe = "".join(ch for ch in str(ticker or "").upper().strip() if ch.isalnum() or ch in {".", "-"})[:20]
         frames: list[pd.DataFrame] = []
         raw_paths: list[str] = []
+        source_catalog = registered_source_catalog(safe, CHAPTER5_OFFICIAL_PAGES, CHAPTER5_OFFICIAL_PDFS)
         audit: dict[str, Any] = {
             "ticker": safe,
             "company_name": str(company_name or ""),
             "created_at": datetime.now().isoformat(),
+            "source_catalog": source_catalog.to_dict(orient="records") if not source_catalog.empty else [],
             "search": [],
             "official": [],
+            "attempts": [],
+            "failed_sources": [],
             "cache_fallback": False,
         }
         for focus in FOCUSES:
             result = _FocusedChapter5Agent(self.raw_dir, focus).search(safe, company_name, max_results_per_query=max_results_per_query)
-            frame = result.table.copy()
+            frame = annotate_search_frame(result.table.copy(), safe)
             frame["_Focus"] = focus
-            frame["_SourceMethod"] = frame.get("_SourceMethod", "Search snippet")
+            if "_SourceMethod" not in frame.columns:
+                frame["_SourceMethod"] = "Search snippet"
             frames.append(frame)
             if result.raw_path:
                 raw_paths.append(str(result.raw_path))
-            audit["search"].append({"focus": focus, "rows": len(frame), "raw_path": str(result.raw_path or "")})
+            attempt = summarize_search_raw_log(result.raw_path or "", focus)
+            audit["attempts"].append(attempt)
+            audit["search"].append({
+                "focus": focus,
+                "rows": len(frame),
+                "raw_path": str(result.raw_path or ""),
+                "success": bool(attempt.get("success")),
+                "status": str(attempt.get("status") or ""),
+                "error": str(attempt.get("error") or ""),
+            })
 
         official_rows, official_audit = _fetch_official_rows(self.raw_dir, safe)
         audit["official"] = official_audit
+        audit["attempts"].extend(official_audit)
         if official_rows:
             frames.append(pd.DataFrame(official_rows))
 
@@ -410,13 +483,22 @@ class Chapter5EvidenceAgent:
                 if col not in raw.columns:
                     raw[col] = ""
             raw = raw.drop_duplicates(subset=["_Focus", "Nguồn/URL", "Trích yếu"], keep="first").reset_index(drop=True)
-        candidates = candidate_rows(raw)
+        candidates = prioritize_candidates(candidate_rows(raw))
 
         if candidates.empty:
             cached = _latest_cached_candidates(self.raw_dir, safe)
             if not cached.empty:
-                candidates = cached.copy()
+                candidates = prioritize_candidates(cached.copy())
                 audit["cache_fallback"] = True
+
+        failed = failed_source_attempts(audit)
+        audit["failed_sources"] = failed.to_dict(orient="records") if not failed.empty else []
+        audit["attempt_summary"] = {
+            "total": len(audit["attempts"]),
+            "successful": int(sum(bool(item.get("success")) for item in audit["attempts"] if isinstance(item, dict))),
+            "failed": int(len(failed)),
+            "registered_sources": int(len(source_catalog)),
+        }
 
         path = _cache_path(self.raw_dir, safe)
         payload = {
@@ -430,7 +512,8 @@ class Chapter5EvidenceAgent:
         a_count = int(candidates["Evidence Quality"].astype(str).str.startswith("A —").sum()) if not candidates.empty else 0
         mode = "cache fallback" if audit["cache_fallback"] else "fresh source-first research"
         note = (
-            f"Phase 5C: {len(candidates)} candidate evidence row(s), nguồn A={a_count}; mode={mode}. "
+            f"Phase 5C: {len(candidates)} candidate evidence row(s), nguồn A={a_count}; mode={mode}; "
+            f"source attempts={audit['attempt_summary']['total']}, failed={audit['attempt_summary']['failed']}. "
             "Mọi row vẫn là Candidate — analyst phải xác minh trước khi dùng để kết luận Q21–Q26."
         )
         return Chapter5EvidenceResult(candidates.reset_index(drop=True), raw.reset_index(drop=True), raw_paths, note, audit)
