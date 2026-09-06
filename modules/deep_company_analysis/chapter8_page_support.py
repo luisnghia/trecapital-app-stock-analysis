@@ -18,7 +18,7 @@ import modules.deep_company_analysis.chapter8 as ch8
 from modules.deep_company_analysis.chapter7 import load_record as load_chapter7_record
 from modules.deep_company_analysis.chapter8_data_bridge import build_phase8b_context
 from modules.deep_company_analysis.chapter8_completion import build_completion_gate, completion_gate_text
-from modules.deep_company_analysis.chapter8_research import CANDIDATE_COLUMNS, Chapter8ResearchAgent
+from modules.deep_company_analysis.chapter8_research_v52 import CANDIDATE_COLUMNS, Chapter8ResearchAgent
 from modules.deep_company_analysis.chapter8_store import create_snapshot, list_snapshots, load_record, save_record
 from modules.deep_company_analysis.chapter8_workspace import merge_research_gaps, promote_selected_candidates
 from modules.deep_company_analysis.chapter4_peer_auto import refresh_peer_canonical_bundle
