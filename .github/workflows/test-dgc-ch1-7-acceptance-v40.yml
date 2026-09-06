@@ -72,9 +72,11 @@ jobs:
           q6_source = inspect.getsource(q6)
           assert 'Generic' in q6_source and 'must' in q6_source, 'Q32 PP&E guardrail comment/implementation contract missing'
 
-          ch7_doc = (inspect.getdoc(ch7) or '').casefold()
-          for required in ('never writes analyst', 'never classifies', 'buy/hold/sell'):
-              assert required in ch7_doc, f'Chapter 7 analyst-boundary contract missing: {required}'
+          # This module places the descriptive string after the future import, so __doc__ is None.
+          # Validate the explicit analyst-boundary contract from the source text instead of module __doc__.
+          ch7_source = inspect.getsource(ch7).casefold()
+          for required in ('never writes analyst', 'never classifies oo/lt/hh', 'buy/hold/sell'):
+              assert required in ch7_source, f'Chapter 7 analyst-boundary contract missing: {required}'
 
           print('PASS: policy guards')
           print('DGC official sources:', dgc_sources)
