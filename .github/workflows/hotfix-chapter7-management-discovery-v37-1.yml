@@ -1,4 +1,4 @@
-name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5T
+name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 5U
 
 on:
   push:
@@ -35,6 +35,7 @@ jobs:
           python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5r.py
           python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5s.py
           python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5t.py
+          python scripts/apply_chapter7_management_discovery_hotfix_v37_1_round5u.py
 
       - name: Install dependencies
         run: |
@@ -54,7 +55,7 @@ jobs:
       - name: QA 2 — Full Chapter 7 regression
         run: pytest -q modules/deep_company_analysis/test_chapter7*.py
 
-      - name: DGC Round 5T — strict production path live acceptance
+      - name: DGC Round 5U — strict production path live acceptance
         run: PYTHONPATH=. python scripts/qa_chapter7_v37_1_dgc.py
 
       - name: Streamlit smoke after hotfix
@@ -81,11 +82,12 @@ jobs:
           - Official-company discovery remains candidate-only and analyst-verification required.
           - Current Chairman/CEO/Vice-Chairman identities must be reachable from official management/report/search-result paths.
           - URL token normalization, direct-content priority, targeted-search child priority, role-intent scheduling, isolated role coverage, and two-hop archive→article→PDF discovery are enabled.
-          - Role-specific search and IR archive fallback now use independent crawl budgets, so noisy site-search results cannot starve governance/annual-report PDF discovery.
+          - Role-specific search and IR archive fallback use independent crawl budgets.
+          - Already-retained official HTML/article pages may be revisited only to discover linked official PDFs; duplicate documents are not re-added and already-parsed PDFs are not fetched again.
           - Role coverage remains same-domain and source-text-only; no identity or office is inferred from a title, URL, or missing evidence.
           - Personnel event roles/dates remain occurrence- and clause-local; ended roles are not silently treated as current.
           - No automatic OO/LT/HH, Lion/Hyena, Management Quality, insider Buy/Sell, MOS or Research Gate conclusion.
-          - DGC Round 5T strict production-path live acceptance passed.
+          - DGC Round 5U strict production-path live acceptance passed.
           - Unified Streamlit smoke passed.
           EOF
 
@@ -99,15 +101,15 @@ jobs:
           git add scripts/qa_chapter7_v37_1_dgc.py
           git add docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md
           if ! git diff --cached --quiet; then
-            git commit -m "fix(ch7): finalize management discovery V37.1 round5t"
+            git commit -m "fix(ch7): finalize management discovery V37.1 round5u"
             git push origin HEAD:feature/deep-company-analysis-chapter7
           fi
 
-      - name: Upload DGC Round 5T diagnostic artifact
+      - name: Upload DGC Round 5U diagnostic artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DGC_V37_1_ROUND5T_REPORT
+          name: DGC_V37_1_ROUND5U_REPORT
           path: |
             reports/DGC_V37_1_ROUND3.json
             reports/DGC_V37_1_ROUND3.md
