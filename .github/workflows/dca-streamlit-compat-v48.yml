@@ -1,0 +1,138 @@
+name: Deep Company Analysis Streamlit Compatibility V48
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter8-tab-v48
+    paths:
+      - 'modules/deep_company_analysis/**'
+      - 'pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py'
+      - 'tre_sidebar_nav.py'
+      - 'scripts/apply_dca_streamlit_compat_v48.py'
+      - 'scripts/qa_dca_streamlit_compat_v48.py'
+      - '.github/workflows/dca-streamlit-compat-v48.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  compat:
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: .
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install pinned app dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Apply Streamlit 1.40 compatibility patch
+        run: |
+          set -euo pipefail
+          python scripts/apply_dca_streamlit_compat_v48.py
+          git diff -- modules/deep_company_analysis/table_format.py
+
+      - name: Commit compatibility patch
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet -- modules/deep_company_analysis/table_format.py; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add modules/deep_company_analysis/table_format.py
+            git commit -m "fix(dca): support Streamlit 1.40 dataframe API"
+            git push origin HEAD:feature/deep-company-analysis-chapter8-tab-v48
+          else
+            echo "Compatibility patch already applied."
+          fi
+
+      - name: Compile DCA and page
+        run: |
+          set -euo pipefail
+          python -m compileall -q modules/deep_company_analysis
+          python -m py_compile pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+          python -m py_compile tre_sidebar_nav.py
+          python -m py_compile scripts/qa_dca_streamlit_compat_v48.py
+
+      - name: Streamlit API compatibility guards
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_dca_streamlit_compat_v48.py 2>&1 | tee reports/DCA_STREAMLIT_COMPAT_TESTS_V48.log
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py 2>&1 | tee reports/DCA_FULL_REGRESSION_V48.log
+
+      - name: Unified page runtime AppTest Chapters 1-8
+        run: |
+          set -euo pipefail
+          python scripts/qa_dca_streamlit_compat_v48.py 2>&1 | tee reports/DCA_APPTEST_V48.log
+
+      - name: Unified page server health
+        run: |
+          set -euo pipefail
+          streamlit run pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py \
+            --server.headless true --server.port 8520 > reports/DCA_STREAMLIT_SERVER_V48.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8520/_stcore/health | tee reports/DCA_STREAMLIT_HEALTH_V48.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/DCA_STREAMLIT_SERVER_V48.log
+          exit 1
+
+      - name: UI contract audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/DCA_UI_CONTRACT_V48.log
+          from pathlib import Path
+          page = Path('pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py').read_text(encoding='utf-8')
+          sidebar = Path('tre_sidebar_nav.py').read_text(encoding='utf-8')
+          table = Path('modules/deep_company_analysis/table_format.py').read_text(encoding='utf-8')
+          assert 'render_chapter8_tab' in page
+          assert '🧭 Chương 8 — Năng lực vận hành' in page
+          assert '09_Phan_tich_chuyen_sau_Chuong_8.py' not in sidebar
+          assert not Path('pages/09_Phan_tich_chuyen_sau_Chuong_8.py').exists()
+          assert 'row_height=' not in table
+          print('PASS: Chapter 8 is a unified-page tab only; shared table renderer is compatible with Streamlit 1.40.2.')
+          PY
+
+      - name: Build offline package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Unified Tabs V48\nBranch: feature/deep-company-analysis-chapter8-tab-v48\nCommit: %s\nStreamlit: 1.40.2\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_DCA_V48.txt
+          zip -qr Trecapital_Deep_Analysis_Unified_Tabs_V48.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Unified_Tabs_V48.zip | tail -n 3
+
+      - name: Upload V48 compatibility artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Unified_Tabs_V48
+          retention-days: 90
+          path: |
+            reports/DCA_STREAMLIT_COMPAT_V48_ACCEPTANCE.json
+            reports/DCA_STREAMLIT_COMPAT_TESTS_V48.log
+            reports/DCA_FULL_REGRESSION_V48.log
+            reports/DCA_APPTEST_V48.log
+            reports/DCA_STREAMLIT_SERVER_V48.log
+            reports/DCA_STREAMLIT_HEALTH_V48.txt
+            reports/DCA_UI_CONTRACT_V48.log
+            Trecapital_Deep_Analysis_Unified_Tabs_V48.zip
