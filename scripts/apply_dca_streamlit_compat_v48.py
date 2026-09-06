@@ -9,6 +9,9 @@ chapters, so one unsupported keyword can break every tab during a single Streaml
 V48 also moves Chapter 8 into the unified DCA page only, so the older Phase-8D routing
 test must follow the approved embedded-tab architecture rather than requiring a standalone
 page/sidebar route.
+
+Finally, ``st.set_page_config`` is moved immediately after ``import streamlit as st`` so it
+is guaranteed to be the first Streamlit command, including under Streamlit's AppTest runtime.
 """
 
 from pathlib import Path
@@ -17,6 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TABLE_FORMAT = ROOT / "modules" / "deep_company_analysis" / "table_format.py"
 PHASE8D_TEST = ROOT / "modules" / "deep_company_analysis" / "test_chapter8_phase8d.py"
+UNIFIED_PAGE = ROOT / "pages" / "07_Phan_tich_chuyen_sau_doanh_nghiep.py"
 
 
 OLD_ROUTE_TEST = '''def test_phase8d_route_and_sidebar_are_wired():
@@ -40,6 +44,14 @@ NEW_ROUTE_TEST = '''def test_phase8d_route_and_sidebar_are_wired():
     assert "🧭 Chương 8 — Năng lực vận hành" in page_text
     assert not standalone_page.exists()
     assert "09_Phan_tich_chuyen_sau_Chuong_8.py" not in sidebar_text
+'''
+
+PAGE_CONFIG_BLOCK = '''st.set_page_config(
+    page_title="Phân tích chuyên sâu doanh nghiệp | Trecapital",
+    page_icon="🔬",
+    layout="wide",
+)
+
 '''
 
 
@@ -68,9 +80,28 @@ def patch_phase8d_route_contract() -> bool:
     raise SystemExit("Phase-8D route test did not match expected old/new contract; refusing blind edit.")
 
 
+def patch_page_config_order() -> bool:
+    text = UNIFIED_PAGE.read_text(encoding="utf-8")
+    import_marker = "import streamlit as st\n"
+    desired_marker = import_marker + "\n" + PAGE_CONFIG_BLOCK
+    if desired_marker in text:
+        print("Unified page already sets page config before project imports.")
+        return False
+    if PAGE_CONFIG_BLOCK not in text:
+        raise SystemExit("Unified page set_page_config block not found; refusing blind edit.")
+    if import_marker not in text:
+        raise SystemExit("Unified page Streamlit import not found; refusing blind edit.")
+    text = text.replace(PAGE_CONFIG_BLOCK, "", 1)
+    text = text.replace(import_marker, desired_marker, 1)
+    UNIFIED_PAGE.write_text(text, encoding="utf-8")
+    print("Patched unified page: st.set_page_config is now the first Streamlit command.")
+    return True
+
+
 def main() -> None:
     patch_table_format()
     patch_phase8d_route_contract()
+    patch_page_config_order()
 
 
 if __name__ == "__main__":
