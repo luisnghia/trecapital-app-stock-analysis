@@ -44,15 +44,15 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/apply_dca_streamlit_compat_v48.py
-          git diff -- modules/deep_company_analysis/table_format.py modules/deep_company_analysis/test_chapter8_phase8d.py pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+          git diff -- modules/deep_company_analysis/table_format.py modules/deep_company_analysis/chapter6_page_support.py modules/deep_company_analysis/test_chapter8_phase8d.py pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
 
       - name: Commit compatibility migrations
         run: |
           set -euo pipefail
-          if ! git diff --quiet -- modules/deep_company_analysis/table_format.py modules/deep_company_analysis/test_chapter8_phase8d.py pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py; then
+          if ! git diff --quiet -- modules/deep_company_analysis/table_format.py modules/deep_company_analysis/chapter6_page_support.py modules/deep_company_analysis/test_chapter8_phase8d.py pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add modules/deep_company_analysis/table_format.py modules/deep_company_analysis/test_chapter8_phase8d.py pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+            git add modules/deep_company_analysis/table_format.py modules/deep_company_analysis/chapter6_page_support.py modules/deep_company_analysis/test_chapter8_phase8d.py pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
             git commit -m "fix(dca): align unified tabs with Streamlit 1.40"
             git push origin HEAD:feature/deep-company-analysis-chapter8-tab-v48
           else
@@ -106,6 +106,7 @@ jobs:
           page = Path('pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py').read_text(encoding='utf-8')
           sidebar = Path('tre_sidebar_nav.py').read_text(encoding='utf-8')
           table = Path('modules/deep_company_analysis/table_format.py').read_text(encoding='utf-8')
+          ch6 = Path('modules/deep_company_analysis/chapter6_page_support.py').read_text(encoding='utf-8')
           labels = [
               '📗 Chương 1 — Cơ hội đầu tư',
               '📘 Chương 2 — Hiểu doanh nghiệp',
@@ -123,8 +124,10 @@ jobs:
           assert '09_Phan_tich_chuyen_sau_Chuong_8.py' not in sidebar
           assert not Path('pages/09_Phan_tich_chuyen_sau_Chuong_8.py').exists()
           assert 'row_height=' not in table
+          assert 'with st.expander(f"🔎 Preview format số liệu — {label}"' not in ch6
+          assert 'with st.container(border=True):' in ch6
           assert page.index('st.set_page_config(') < page.index('import module1_dashboard as m1')
-          print('PASS: Ch1-Ch8 unified tabs present; Ch8 standalone removed; Streamlit 1.40 shared-table API is compatible.')
+          print('PASS: Ch1-Ch8 unified tabs present; Ch8 standalone removed; Streamlit 1.40 shared-table and nested-layout APIs are compatible.')
           PY
 
       - name: Build offline package
