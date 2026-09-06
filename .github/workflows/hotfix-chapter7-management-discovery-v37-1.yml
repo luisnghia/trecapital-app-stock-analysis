@@ -1,4 +1,4 @@
-name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 2
+name: Chapter 7 V37.1 — Management Discovery Hotfix + DGC Round 3
 
 on:
   push:
@@ -31,7 +31,115 @@ jobs:
           from scripts.apply_chapter7_management_discovery_hotfix_v37_1 import patch_research, patch_ui
           patch_research()
           patch_ui()
-          print('V37.1 research/UI integration applied; hardened discovery module kept as-is')
+          print('V37.1 research/UI integration applied; hardened discovery module kept as base')
+          PY
+
+      - name: Harden discovery parser and current-report prioritization
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          discovery_path = Path('modules/deep_company_analysis/chapter7_management_discovery.py')
+          research_path = Path('modules/deep_company_analysis/chapter7_research.py')
+          test_path = Path('modules/deep_company_analysis/test_chapter7_management_discovery.py')
+
+          text = discovery_path.read_text(encoding='utf-8')
+
+          old_pattern = '''PERSON_NAME_PATTERN = re.compile(
+              r"(?<![A-Za-zÀ-ỹĐđ])(?:Ông|Bà|Mr\\.?|Ms\\.?)\\s+"
+              r"([A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\\.-]+"
+              r"(?:\\s+[A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\\.-]+){1,5})",
+              flags=re.IGNORECASE,
+          )'''
+          new_pattern = '''PERSON_NAME_PATTERN = re.compile(
+              r"(?<![A-Za-zÀ-ỹĐđ])(?i:Ông|Bà|Mr\\.?|Ms\\.?)\\s+"
+              r"([A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\\.-]+"
+              r"(?:\\s+[A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯẠ-Ỹ][A-Za-zÀ-ỹĐđ'\\.-]+){1,5})"
+          )'''
+          if old_pattern not in text:
+              raise RuntimeError('PERSON_NAME_PATTERN marker not found')
+          text = text.replace(old_pattern, new_pattern, 1)
+
+          old_noise = '    "ông", "bà", "mr", "ms", "ủy", "uỷ", "ban", "kiểm", "soát",\n}'
+          new_noise = '    "ông", "bà", "mr", "ms", "ủy", "uỷ", "ban", "kiểm", "soát", "giữ", "chức", "vụ", "được", "đảm", "sinh",\n}'
+          if old_noise not in text:
+              raise RuntimeError('NOISE_NAME_TOKENS marker not found')
+          text = text.replace(old_noise, new_noise, 1)
+
+          old_report = '''REPORT_PRIORITY_TERMS = (
+              "báo cáo thường niên", "bao cao thuong nien", "annual report", "bctn",
+              "báo cáo quản trị", "bao cao quan tri", "corporate governance",
+          )'''
+          new_report = '''REPORT_PRIORITY_TERMS = (
+              "báo cáo thường niên", "bao cao thuong nien", "annual report", "bctn",
+              "báo cáo quản trị", "bao cao quan tri", "corporate governance",
+              "báo cáo tài chính", "bao cao tai chinh", "financial statement", "financial report", "bctc",
+              "quý 4", "quy 4", "quarter 4", "kiểm toán", "kiem toan", "audited",
+          )'''
+          if old_report not in text:
+              raise RuntimeError('REPORT_PRIORITY_TERMS marker not found')
+          text = text.replace(old_report, new_report, 1)
+
+          old_search = '    terms = ("nhân sự", "tổng giám đốc", "chủ tịch", "báo cáo thường niên", "báo cáo quản trị")\n'
+          new_search = '    terms = ("nhân sự", "tổng giám đốc", "chủ tịch HĐQT", "hội đồng quản trị", "ban tổng giám đốc", "báo cáo thường niên", "báo cáo quản trị", "báo cáo tài chính quý 4", "thông tin về doanh nghiệp")\n'
+          if old_search not in text:
+              raise RuntimeError('_wordpress_search_urls marker not found')
+          text = text.replace(old_search, new_search, 1)
+
+          old_fetches = '    max_fetches = max(60, max_documents * 10)\n'
+          new_fetches = '    max_fetches = max(80, max_documents * 12)\n'
+          if old_fetches not in text:
+              raise RuntimeError('max_fetches marker not found')
+          text = text.replace(old_fetches, new_fetches, 1)
+          discovery_path.write_text(text, encoding='utf-8')
+
+          research = research_path.read_text(encoding='utf-8')
+          old_discovery_call = 'discover_management_candidates(ticker, company_name, max_documents=10, max_targets=5)'
+          new_discovery_call = 'discover_management_candidates(ticker, company_name, max_documents=24, max_targets=5)'
+          if old_discovery_call not in research:
+              raise RuntimeError('research discovery max_documents marker not found')
+          research = research.replace(old_discovery_call, new_discovery_call, 1)
+          research_path.write_text(research, encoding='utf-8')
+
+          tests = test_path.read_text(encoding='utf-8')
+          sentinel = 'def test_action_words_are_not_captured_as_manager_name_v37_1_round3():'
+          if sentinel not in tests:
+              tests += '''\n\n
+def test_action_words_are_not_captured_as_manager_name_v37_1_round3():
+    from modules.deep_company_analysis.chapter7_management_discovery import extract_management_candidates_from_documents
+
+    docs = [{
+        "title": "Official personnel disclosure 2025",
+        "url": "https://example.com/official-personnel",
+        "text": "Nghị quyết bổ nhiệm ông Lưu Bách Đạt giữ chức vụ Tổng Giám đốc. Nghị quyết bổ nhiệm ông Đào Hữu Duy Anh giữ chức vụ Phó Chủ tịch HĐQT.",
+        "method": "HTML text extraction",
+    }]
+    frame = extract_management_candidates_from_documents(docs)
+    names = set(frame["Manager"].astype(str))
+    assert "Lưu Bách Đạt" in names
+    assert "Đào Hữu Duy Anh" in names
+    assert not any("giữ" in name.casefold() or "chức" in name.casefold() for name in names)
+
+
+def test_official_roster_extracts_chairman_ceo_and_third_manager_v37_1_round3():
+    from modules.deep_company_analysis.chapter7_management_discovery import extract_management_candidates_from_documents
+
+    docs = [{
+        "title": "Official financial statement 2025",
+        "url": "https://example.com/official-financial-statement.pdf",
+        "text": "Ông Đào Hữu Huyền — Chủ tịch HĐQT\\nÔng Lưu Bách Đạt — Tổng Giám đốc\\nÔng Phạm Văn Hùng — Phó Tổng Giám đốc",
+        "method": "PDF text extraction (no OCR)",
+    }]
+    frame = extract_management_candidates_from_documents(docs)
+    assert {"Đào Hữu Huyền", "Lưu Bách Đạt", "Phạm Văn Hùng"}.issubset(set(frame["Manager"].astype(str)))
+    roles = set(frame["Role Normalized"].astype(str))
+    assert "Chairman" in roles
+    assert "CEO" in roles
+'''
+              test_path.write_text(tests, encoding='utf-8')
+
+          print('Round 3 discovery hardening applied')
           PY
 
       - name: Install dependencies
@@ -51,7 +159,7 @@ jobs:
       - name: QA 2 — Full Chapter 7 regression
         run: pytest -q modules/deep_company_analysis/test_chapter7*.py
 
-      - name: DGC Round 2 — discover managers + scoped research
+      - name: DGC Round 3 — production-path discovery + scoped research
         shell: bash
         run: |
           mkdir -p reports data_cache/ch7_hotfix_dgc
@@ -59,29 +167,31 @@ jobs:
           import json
           from pathlib import Path
           import pandas as pd
-          from modules.deep_company_analysis.chapter7_management_discovery import discover_management_candidates
+          from modules.deep_company_analysis.chapter7_management_discovery import choose_research_targets
           from modules.deep_company_analysis.chapter7_research import Chapter7ResearchAgent, evidence_quality_summary
 
           ticker = 'DGC'
           company_name = 'Tập đoàn Hóa chất Đức Giang'
-          discovery = discover_management_candidates(ticker, company_name, max_documents=24, max_targets=5, timeout_seconds=8.0)
           research = Chapter7ResearchAgent(Path('data_cache/ch7_hotfix_dgc')).search(
               ticker, company_name, managers=[], max_results_per_query=2
           )
-          managers = discovery.managers.copy()
+          managers = research.manager_candidates.copy() if isinstance(research.manager_candidates, pd.DataFrame) else pd.DataFrame()
           candidates = research.candidates.copy()
           quality = evidence_quality_summary(candidates)
+          research_targets = choose_research_targets(managers, max_targets=5)
 
           extracted = candidates[candidates['Explicitness'].astype(str).str.contains('Extracted official source text', na=False)] if not candidates.empty else pd.DataFrame()
           manager_scoped = candidates[candidates['Manager'].astype(str).str.strip().ne('')] if not candidates.empty else pd.DataFrame()
           roles = set(managers.get('Role Normalized', pd.Series(dtype='object')).astype(str))
           names = set(managers.get('Manager', pd.Series(dtype='object')).astype(str))
+          unique_names = {name.strip() for name in names if name.strip()}
 
           report = {
               'ticker': ticker,
-              'discovery_note': discovery.note,
+              'research_note': research.note,
               'manager_candidate_rows': int(len(managers)),
-              'research_targets': discovery.target_names,
+              'unique_manager_names': sorted(unique_names),
+              'research_targets': research_targets,
               'roles': sorted(roles),
               'names': sorted(names),
               'research_candidate_rows': int(len(candidates)),
@@ -93,16 +203,16 @@ jobs:
               'warnings': [],
           }
 
-          if len(managers) < 3:
-              report['critical_errors'].append(f'Expected >=3 discovered manager-role candidates, got {len(managers)}.')
+          if len(unique_names) < 3:
+              report['critical_errors'].append(f'Expected >=3 unique discovered managers, got {len(unique_names)}.')
           if 'Chairman' not in roles:
               report['critical_errors'].append('Chairman role was not discovered from DGC official/company sources.')
           if 'CEO' not in roles:
               report['critical_errors'].append('CEO role was not discovered from DGC official/company sources.')
-          noisy = {'báo','thay','đổi','nhân','sự','qua','bầu','nghị','quyết','thông','tin','công','bố','xem','thêm'}
-          for name in names:
+          noisy = {'báo','thay','đổi','nhân','sự','qua','bầu','nghị','quyết','thông','tin','công','bố','xem','thêm','giữ','chức','vụ','được','đảm'}
+          for name in unique_names:
               if any(token.casefold() in noisy for token in str(name).split()):
-                  report['critical_errors'].append(f'Noise heading was misidentified as a manager: {name}')
+                  report['critical_errors'].append(f'Noise/action heading was misidentified as a manager: {name}')
           if len(extracted) < 3:
               report['critical_errors'].append(f'Expected >=3 extracted official evidence candidates, got {len(extracted)}.')
           if len(manager_scoped) < 2:
@@ -119,11 +229,12 @@ jobs:
           managers.to_csv('reports/DGC_V37_1_discovered_managers.csv', index=False, encoding='utf-8-sig')
           candidates.to_csv('reports/DGC_V37_1_research_candidates.csv', index=False, encoding='utf-8-sig')
           quality.to_csv('reports/DGC_V37_1_quality.csv', index=False, encoding='utf-8-sig')
-          Path('reports/DGC_V37_1_ROUND2.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
-          Path('reports/DGC_V37_1_ROUND2.md').write_text(
-              '# DGC V37.1 Round 2\n\n' +
-              f"- Manager candidates: {len(managers)}\n" +
-              f"- Research targets: {discovery.target_names}\n" +
+          Path('reports/DGC_V37_1_ROUND3.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+          Path('reports/DGC_V37_1_ROUND3.md').write_text(
+              '# DGC V37.1 Round 3\n\n' +
+              f"- Unique managers: {len(unique_names)}\n" +
+              f"- Manager candidate rows: {len(managers)}\n" +
+              f"- Research targets: {research_targets}\n" +
               f"- Roles: {sorted(roles)}\n" +
               f"- Research candidates: {len(candidates)}\n" +
               f"- Extracted official candidates: {len(extracted)}\n" +
@@ -157,14 +268,15 @@ jobs:
 
           Status: PASS
 
-          - Management Profile empty-state now triggers candidate manager discovery from configured company/IR sources.
-          - Current/recent official IR category pages and shallow disclosure pagination are prioritized before generic site search.
+          - Management Profile empty-state triggers candidate manager discovery from configured company/IR sources.
+          - Current/recent official IR, financial statements, governance, annual-report and personnel disclosures are prioritized before generic site search.
+          - Person-name parsing does not absorb action phrases such as “giữ chức vụ”.
           - Discovered names/roles are research targets only and are never auto-written into analyst Management Profile.
           - Official company HTML/PDF text is converted into factual Q33-Q38 research candidates only when question-specific terms are present.
           - Q37/Q38 require explicit compensation/ownership or insider-transaction terms in the extracted source window; no evidence is fabricated from a manager name alone.
           - Research queries can target up to three discovered/confirmed manager names rather than only the first manager.
           - Existing OO/LT/HH, Lion/Hyena, Management Quality, insider signal, MOS and BUY/HOLD/SELL boundaries remain unchanged.
-          - DGC Round 2 live test and unified Streamlit smoke passed before this audit file was committed.
+          - DGC Round 3 live production-path test and unified Streamlit smoke passed before this audit file was committed.
           EOF
 
       - name: Commit V37.1 production hotfix
@@ -174,18 +286,18 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add modules/deep_company_analysis/chapter7_research.py modules/deep_company_analysis/chapter7_research_ui.py modules/deep_company_analysis/chapter7_management_discovery.py modules/deep_company_analysis/test_chapter7_management_discovery.py docs/DEEP_ANALYSIS_CHAPTER7_V37_1_MANAGEMENT_DISCOVERY_AUDIT.md scripts/apply_chapter7_management_discovery_hotfix_v37_1.py
           if ! git diff --cached --quiet; then
-            git commit -m "fix(ch7): discover management targets before evidence research V37.1"
+            git commit -m "fix(ch7): finalize management discovery V37.1 round3"
             git push origin HEAD:feature/deep-company-analysis-chapter7
           fi
 
-      - name: Upload DGC Round 2 diagnostic artifact
+      - name: Upload DGC Round 3 diagnostic artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DGC_V37_1_ROUND2_REPORT
+          name: DGC_V37_1_ROUND3_REPORT
           path: |
-            reports/DGC_V37_1_ROUND2.json
-            reports/DGC_V37_1_ROUND2.md
+            reports/DGC_V37_1_ROUND3.json
+            reports/DGC_V37_1_ROUND3.md
             reports/DGC_V37_1_discovered_managers.csv
             reports/DGC_V37_1_research_candidates.csv
             reports/DGC_V37_1_quality.csv
