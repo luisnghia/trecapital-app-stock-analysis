@@ -1,0 +1,184 @@
+name: Deep Company Analysis Chapter 9 Phase 9L Synthesis History V73
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter9-phase9l-v73
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  chapter9-phase9l:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Chapter 9 V73
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter7.py
+          python -m py_compile modules/deep_company_analysis/chapter7_closure.py
+          python -m py_compile modules/deep_company_analysis/chapter8.py
+          python -m py_compile modules/deep_company_analysis/chapter8_completion.py
+          python -m py_compile modules/deep_company_analysis/chapter9.py
+          python -m py_compile modules/deep_company_analysis/chapter9_completion.py
+          python -m py_compile modules/deep_company_analysis/chapter9_history.py
+          python -m py_compile modules/deep_company_analysis/chapter9_synthesis.py
+          python -m py_compile modules/deep_company_analysis/chapter9_synthesis_workspace.py
+          python -m py_compile modules/deep_company_analysis/chapter9_synthesis_review.py
+          python -m py_compile modules/deep_company_analysis/chapter9_synthesis_history.py
+          python -m py_compile modules/deep_company_analysis/chapter9_synthesis_store.py
+          python -m py_compile modules/deep_company_analysis/chapter9_synthesis_ui.py
+          python -m py_compile modules/deep_company_analysis/chapter9_synthesis_report.py
+          python -m py_compile modules/deep_company_analysis/chapter9_page_support.py
+          python -m py_compile pages/04_Bao_cao_tong_hop.py
+          python -m py_compile pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+          python -m py_compile scripts/qa_chapter9_synthesis_history_v73.py
+
+      - name: Chapter 9 Phase 9A-9L deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q \
+            modules/deep_company_analysis/test_chapter9_phase9a.py \
+            modules/deep_company_analysis/test_chapter9_phase9b.py \
+            modules/deep_company_analysis/test_chapter9_phase9c.py \
+            modules/deep_company_analysis/test_chapter9_phase9d.py \
+            modules/deep_company_analysis/test_chapter9_phase9e.py \
+            modules/deep_company_analysis/test_chapter9_phase9f.py \
+            modules/deep_company_analysis/test_chapter9_phase9g.py \
+            modules/deep_company_analysis/test_chapter9_phase9g_app_rules.py \
+            modules/deep_company_analysis/test_chapter9_phase9h.py \
+            modules/deep_company_analysis/test_chapter9_phase9i.py \
+            modules/deep_company_analysis/test_chapter9_phase9j.py \
+            modules/deep_company_analysis/test_chapter9_phase9k.py \
+            modules/deep_company_analysis/test_chapter9_phase9l.py \
+            2>&1 | tee reports/CH9_V73_DETERMINISTIC_TESTS.log
+
+      - name: Chapter 9 V73 synthesis history acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter9_synthesis_history_v73.py \
+            2>&1 | tee reports/CH9_V73_SYNTHESIS_HISTORY_ACCEPTANCE.log
+
+      - name: Chapter 9 V73 history lineage and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH9_V73_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import json
+          import modules.deep_company_analysis.chapter9_synthesis_history as history
+
+          history_source = Path('modules/deep_company_analysis/chapter9_synthesis_history.py').read_text(encoding='utf-8')
+          ui = Path('modules/deep_company_analysis/chapter9_synthesis_ui.py').read_text(encoding='utf-8')
+          report_ui = Path('modules/deep_company_analysis/chapter9_synthesis_report.py').read_text(encoding='utf-8')
+          consolidated = Path('pages/04_Bao_cao_tong_hop.py').read_text(encoding='utf-8')
+          store = Path('modules/deep_company_analysis/chapter9_synthesis_store.py').read_text(encoding='utf-8')
+          docs = Path('docs/FORMULA_EXPLANATION_CHAPTER9_PHASE9L_V73.md').read_text(encoding='utf-8')
+          report = json.loads(Path('reports/CH9_PHASE9L_SYNTHESIS_HISTORY_V73.json').read_text(encoding='utf-8'))
+
+          assert 'import streamlit' not in history_source.casefold()
+          assert 'sqlite3' not in history_source.casefold()
+          assert len(history.SYNTHESIS_FIELD_SPECS) == 19
+          assert 'Phase 9L — Analyst Synthesis History & Delta Review' in ui
+          assert 'phase9l_synthesis_delta_view' in ui
+          assert 'static_table_html' in ui and 'st.html(html)' in ui
+          assert 'Phase 9L — Management Synthesis Version Lineage' in report_ui
+          assert 'build_version_lineage' in report_ui
+          assert 'save_workspace' not in report_ui
+          assert 'create_snapshot' not in report_ui
+          assert 'render_saved_management_synthesis_report' in consolidated
+          assert 'SCHEMA_VERSION = 2' in store
+          assert 'no financial valuation formula' in docs.casefold()
+          assert 'no weighted score' in docs.casefold()
+          assert report['source_question_range'] == 'Q33–Q52'
+          assert report['total_questions'] == 20
+          assert report['manager_identity_ssot'] == 'Chapter 7 manager master'
+          assert report['tracked_synthesis_fields'] == 19
+          assert report['historical_source_freshness_reconstructed'] is False
+          assert report['store_schema_version'] == 2
+          assert report['sql_table_shape_unchanged'] is True
+          assert report['ui_history_integrated'] is True
+          assert report['consolidated_report_integrated'] is True
+          assert report['wrapped_read_only_tables'] is True
+          assert report['runtime_log_integrated'] is True
+          assert report['automatic_workspace_status_change'] is False
+          assert report['automatic_confidence_change'] is False
+          assert report['automatic_analyst_text_change'] is False
+          assert report['automatic_management_score'] is False
+          assert report['automatic_character_classification'] is False
+          assert report['automatic_investment_signal'] is False
+          assert report['mos_or_investment_research_gate_changed'] is False
+          assert 'management quality score' in history.SYNTHESIS_HISTORY_BOUNDARY.casefold()
+          assert 'investment research gate' in history.SYNTHESIS_HISTORY_BOUNDARY.casefold()
+          print('PASS: Phase 9L preserves immutable version lineage, analyst ownership and investment boundaries.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/CH9_V73_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8545 \
+            > reports/CH9_V73_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8545/_stcore/health \
+              | tee reports/CH9_V73_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/CH9_V73_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V73 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 9 Phase 9L V73\nBranch: feature/deep-company-analysis-chapter9-phase9l-v73\nCommit: %s\nPurpose: cross-snapshot analyst-synthesis history/delta review and immutable report version lineage; no management score or automatic investment conclusion.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH9_V73.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter9_Phase9L_V73.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter9_Phase9L_V73.zip | tail -n 3
+
+      - name: Upload V73 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter9_Phase9L_V73
+          retention-days: 90
+          path: |
+            docs/CHAPTER9_PHASE9L_SYNTHESIS_HISTORY_V73.md
+            docs/FORMULA_EXPLANATION_CHAPTER9_PHASE9L_V73.md
+            reports/CH9_PHASE9L_SYNTHESIS_HISTORY_V73.json
+            reports/CH9_V73_DETERMINISTIC_TESTS.log
+            reports/CH9_V73_SYNTHESIS_HISTORY_ACCEPTANCE.log
+            reports/CH9_V73_BOUNDARY_AUDIT.log
+            reports/CH9_V73_FULL_DCA_REGRESSION.log
+            reports/CH9_V73_STREAMLIT_SERVER.log
+            reports/CH9_V73_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter9_Phase9L_V73.zip
