@@ -1,0 +1,130 @@
+name: Deep Company Analysis Chapter 9 Phase 9A Source Lock V62
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter9-phase9a-v62
+    paths:
+      - 'modules/deep_company_analysis/**'
+      - 'scripts/qa_chapter9_source_lock_v62.py'
+      - 'docs/CHAPTER9_PHASE9A_SOURCE_LOCK_V62.md'
+      - '.github/workflows/chapter9-phase9a-source-lock-v62.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chapter9-phase9a:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      PYTHONPATH: .
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Chapter 9 V62
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter9.py
+          python -m py_compile scripts/qa_chapter9_source_lock_v62.py
+
+      - name: Chapter 9 Phase 9A deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_chapter9_phase9a.py \
+            2>&1 | tee reports/CH9_V62_DETERMINISTIC_TESTS.log
+
+      - name: Chapter 9 V62 source-lock acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter9_source_lock_v62.py \
+            2>&1 | tee reports/CH9_V62_SOURCE_LOCK_ACCEPTANCE.log
+
+      - name: Chapter 9 source and analyst-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH9_V62_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import json
+          import modules.deep_company_analysis.chapter9 as ch9
+
+          core = Path('modules/deep_company_analysis/chapter9.py').read_text(encoding='utf-8').casefold()
+          acceptance = json.loads(Path('reports/CH9_PHASE9A_SOURCE_LOCK_V62.json').read_text(encoding='utf-8'))
+          assert ch9.QUESTION_KEYS == ('Q48', 'Q49', 'Q50', 'Q51', 'Q52')
+          assert ch9.MANAGER_IDENTITY_SSOT == 'Chapter 7 manager master'
+          assert 'import streamlit' not in core
+          assert 'import httpx' not in core
+          assert 'import requests' not in core
+          assert 'import psycopg' not in core
+          assert acceptance['automatic_management_score'] is False
+          assert acceptance['automatic_investment_signal'] is False
+          assert acceptance['ui_or_db_added'] is False
+          assert acceptance['web_research_added'] is False
+          assert acceptance['financial_bridge_added'] is False
+          assert acceptance['mos_or_research_gate_changed'] is False
+          print('PASS: Chapter 9 Phase 9A is source-locked and analyst-controlled.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/CH9_V62_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8534 \
+            > reports/CH9_V62_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8534/_stcore/health \
+              | tee reports/CH9_V62_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/CH9_V62_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V62 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 9 Phase 9A V62\nBranch: feature/deep-company-analysis-chapter9-phase9a-v62\nCommit: %s\nPurpose: source-lock Michael Shearn Chapter 9 Q48-Q52 while preserving Chapter 7 manager SSOT and analyst judgment.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH9_V62.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter9_Phase9A_V62.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter9_Phase9A_V62.zip | tail -n 3
+
+      - name: Upload V62 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter9_Phase9A_V62
+          retention-days: 90
+          path: |
+            docs/CHAPTER9_PHASE9A_SOURCE_LOCK_V62.md
+            reports/CH9_PHASE9A_SOURCE_LOCK_V62.json
+            reports/CH9_V62_DETERMINISTIC_TESTS.log
+            reports/CH9_V62_SOURCE_LOCK_ACCEPTANCE.log
+            reports/CH9_V62_BOUNDARY_AUDIT.log
+            reports/CH9_V62_FULL_DCA_REGRESSION.log
+            reports/CH9_V62_STREAMLIT_SERVER.log
+            reports/CH9_V62_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter9_Phase9A_V62.zip
