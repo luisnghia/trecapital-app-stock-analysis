@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Chapter 9 Phase 9J — analyst-owned Chapters 7–9 management synthesis workspace.
+"""Chapter 9 Phase 9J–9K — analyst-owned Chapters 7–9 management synthesis workspace.
 
 This layer stores the analyst's own cross-chapter synthesis after the Phase 9I read-only handoff.
 It deliberately does not generate management-quality scores, character classifications, investment
@@ -9,6 +9,7 @@ signals, MOS changes, investment Research Gates, portfolio sizing, or BUY/HOLD/S
 The only derived automation in this module is source fingerprinting. A fingerprint tells the analyst
 whether the saved Q33–Q52 synthesis was based on the same underlying research package as the current
 one. Source drift never rewrites, invalidates, downgrades, or re-classifies the analyst's conclusion.
+Phase 9K adds audit fields for an explicit analyst re-review action; it never auto-accepts source drift.
 """
 
 from copy import deepcopy
@@ -75,7 +76,7 @@ def _digest(value: Any) -> str:
 
 def empty_synthesis_workspace(ticker: str = "", company_name: str = "") -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "ticker": _safe_ticker(ticker),
         "company_name": _text(company_name),
         "workspace_status": "Draft",
@@ -95,6 +96,9 @@ def empty_synthesis_workspace(ticker: str = "", company_name: str = "") -> dict[
         "source_handoff_state": "",
         "source_captured_at": "",
         "analyst_reviewed_at": "",
+        "last_re_review_at": "",
+        "last_re_review_note": "",
+        "last_re_review_sections": [],
         "boundary": SYNTHESIS_WORKSPACE_BOUNDARY,
     }
 
@@ -109,6 +113,7 @@ def normalize_synthesis_workspace(
         for key in base:
             if key in workspace:
                 base[key] = deepcopy(workspace[key])
+    base["schema_version"] = 2
     base["ticker"] = _safe_ticker(ticker or base.get("ticker"))
     if company_name:
         base["company_name"] = _text(company_name)
@@ -122,6 +127,8 @@ def normalize_synthesis_workspace(
         base["source_section_fingerprints"] = {}
     if not isinstance(base.get("source_counts"), dict):
         base["source_counts"] = {}
+    if not isinstance(base.get("last_re_review_sections"), list):
+        base["last_re_review_sections"] = []
     base["boundary"] = SYNTHESIS_WORKSPACE_BOUNDARY
     return base
 
@@ -238,6 +245,8 @@ def synthesis_workspace_summary(
         "source_drift_status": drift["status"] if drift else "Not checked",
         "source_changed": bool(drift and drift["changed"]),
         "changed_sections": list(drift["changed_sections"]) if drift else [],
+        "last_re_review_at": _text(data.get("last_re_review_at")),
+        "last_re_review_note": _text(data.get("last_re_review_note")),
         "automatic_management_score": False,
         "automatic_character_classification": False,
         "automatic_investment_signal": False,
@@ -267,6 +276,8 @@ def build_synthesis_report_frame(
             "Analyst Note": data["analyst_note"],
             "Source Captured At": data["source_captured_at"],
             "Analyst Reviewed At": data["analyst_reviewed_at"],
+            "Last Re-review At": data["last_re_review_at"],
+            "Last Re-review Note": data["last_re_review_note"],
             "Boundary": SYNTHESIS_WORKSPACE_BOUNDARY,
         }
     ])
