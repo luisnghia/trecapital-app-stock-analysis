@@ -80,7 +80,9 @@ def test_q51_keeps_independence_long_term_focus_and_copycat_risk_separate() -> N
         "q51_own_plan_vs_benchmark_copy",
     }
     assert any("short-term" in " ".join(dim.red_flags).casefold() for dim in dims)
-    assert any("copy" in " ".join(dim.red_flags).casefold() for dim in dims)
+    red_flags = " ".join(" ".join(dim.red_flags) for dim in dims).casefold()
+    assert "competitor" in red_flags
+    assert "copies visible" in red_flags or "similar products" in red_flags
 
 
 def test_q52_preserves_exact_six_self_promoter_traits_and_financing_exception() -> None:
