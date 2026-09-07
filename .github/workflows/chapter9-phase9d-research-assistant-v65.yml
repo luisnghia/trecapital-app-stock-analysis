@@ -1,0 +1,147 @@
+name: Deep Company Analysis Chapter 9 Phase 9D Research Assistant V65
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter9-phase9d-v65
+    paths:
+      - 'modules/deep_company_analysis/**'
+      - 'scripts/qa_chapter9_research_assistant_v65.py'
+      - 'docs/CHAPTER9_PHASE9D_RESEARCH_ASSISTANT_V65.md'
+      - '.github/workflows/chapter9-phase9d-research-assistant-v65.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chapter9-phase9d:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PYTHONPATH: .
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Chapter 9 V65
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter9.py
+          python -m py_compile modules/deep_company_analysis/chapter9_source_contract_v63.py
+          python -m py_compile modules/deep_company_analysis/chapter9_data_bridge.py
+          python -m py_compile modules/deep_company_analysis/chapter9_research.py
+          python -m py_compile scripts/qa_chapter9_research_assistant_v65.py
+
+      - name: Chapter 9 Phase 9A-9D deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q \
+            modules/deep_company_analysis/test_chapter9_phase9a.py \
+            modules/deep_company_analysis/test_chapter9_phase9b.py \
+            modules/deep_company_analysis/test_chapter9_phase9c.py \
+            modules/deep_company_analysis/test_chapter9_phase9d.py \
+            2>&1 | tee reports/CH9_V65_DETERMINISTIC_TESTS.log
+
+      - name: Chapter 9 V65 research-assistant acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter9_research_assistant_v65.py \
+            2>&1 | tee reports/CH9_V65_RESEARCH_ASSISTANT_ACCEPTANCE.log
+
+      - name: Chapter 9 V65 source and analyst-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH9_V65_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import json
+          import modules.deep_company_analysis.chapter9 as ch9
+          import modules.deep_company_analysis.chapter9_data_bridge as bridge
+          import modules.deep_company_analysis.chapter9_research as research
+          import modules.deep_company_analysis.chapter9_source_contract_v63 as contract
+
+          core = Path('modules/deep_company_analysis/chapter9_research.py').read_text(encoding='utf-8').casefold()
+          acceptance = json.loads(Path('reports/CH9_PHASE9D_RESEARCH_ASSISTANT_V65.json').read_text(encoding='utf-8'))
+          snapshot = contract.validate_source_contract()
+          assert ch9.QUESTION_KEYS == ('Q48', 'Q49', 'Q50', 'Q51', 'Q52')
+          assert bridge.MANAGER_SOURCE_LABEL == 'Chapter 7 manager master'
+          assert snapshot['dimension_counts'] == {'Q48': 6, 'Q49': 4, 'Q50': 8, 'Q51': 3, 'Q52': 5}
+          assert snapshot['total_dimensions'] == 26
+          assert set(research.DIMENSION_TERMS) == {dim.key for dim in contract.all_dimensions()}
+          assert len(research.evidence_quality_summary(__import__('pandas').DataFrame(columns=research.CANDIDATE_COLUMNS))) == 26
+          for forbidden_import in ('import streamlit', 'from streamlit', 'import psycopg', 'import sqlite3'):
+              assert forbidden_import not in core
+          assert 'analyst_assessment' not in core
+          assert acceptance['candidate_only'] is True
+          assert acceptance['search_snippets_require_original_source_verification'] is True
+          assert acceptance['replacement_manager_ids_created'] is False
+          assert acceptance['database_persistence_added'] is False
+          assert acceptance['ui_added'] is False
+          assert acceptance['automatic_management_score'] is False
+          assert acceptance['automatic_character_classification'] is False
+          assert acceptance['automatic_investment_signal'] is False
+          assert acceptance['mos_or_research_gate_changed'] is False
+          print('PASS: Chapter 9 Phase 9D is candidate-evidence research only and preserves analyst control.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/CH9_V65_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8537 \
+            > reports/CH9_V65_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8537/_stcore/health \
+              | tee reports/CH9_V65_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/CH9_V65_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V65 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 9 Phase 9D V65\nBranch: feature/deep-company-analysis-chapter9-phase9d-v65\nCommit: %s\nPurpose: source-locked candidate evidence research for Chapter 9 Q48-Q52 using Chapter 7 manager SSOT; analyst verification required.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH9_V65.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter9_Phase9D_V65.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter9_Phase9D_V65.zip | tail -n 3
+
+      - name: Upload V65 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter9_Phase9D_V65
+          retention-days: 90
+          path: |
+            docs/CHAPTER9_PHASE9D_RESEARCH_ASSISTANT_V65.md
+            reports/CH9_PHASE9D_RESEARCH_ASSISTANT_V65.json
+            reports/CH9_V65_DETERMINISTIC_TESTS.log
+            reports/CH9_V65_RESEARCH_ASSISTANT_ACCEPTANCE.log
+            reports/CH9_V65_BOUNDARY_AUDIT.log
+            reports/CH9_V65_FULL_DCA_REGRESSION.log
+            reports/CH9_V65_STREAMLIT_SERVER.log
+            reports/CH9_V65_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter9_Phase9D_V65.zip
