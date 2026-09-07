@@ -5,6 +5,9 @@ from __future__ import annotations
 This extends the V57 file-ingestion contract without changing V57 behavior. OCR is attempted only
 when ordinary PDF extraction yields no text and the caller enables it. Every OCR-derived row remains
 ``Candidate — analyst verify`` and carries page markers; nothing is auto-promoted.
+
+V60 may inject a stricter OCR callable through ``ocr_engine``. The default remains the V59 bounded
+OCR implementation, so all Phase 8N behavior and tests remain backward compatible.
 """
 
 from hashlib import sha256
@@ -79,6 +82,7 @@ class OfficialFileIngestionAgentV59:
         ocr_dpi: int = DEFAULT_OCR_DPI,
         ocr_max_pages: int = DEFAULT_OCR_MAX_PAGES,
         ocr_workers: int = DEFAULT_OCR_WORKERS,
+        ocr_engine: Any | None = None,
     ) -> OfficialFileIngestionResult:
         symbol = _safe(ticker).upper()
         before = build_dimension_coverage(existing_candidates)
@@ -90,6 +94,7 @@ class OfficialFileIngestionAgentV59:
         items = [_normalize_file_item(item) for item in list(files or [])[: max(1, min(int(max_files), 30))]]
         ocr_attempted_files = 0
         ocr_successful_files = 0
+        engine = ocr_engine or ocr_pdf_bytes
 
         for item in items:
             name = _safe_filename(item.get("name"))
@@ -140,7 +145,7 @@ class OfficialFileIngestionAgentV59:
             ocr_result: PDFOCRResult | None = None
             if not text and suffix == ".pdf" and enable_ocr:
                 ocr_attempted_files += 1
-                ocr_result = ocr_pdf_bytes(
+                ocr_result = engine(
                     data,
                     languages=ocr_languages,
                     dpi=ocr_dpi,
