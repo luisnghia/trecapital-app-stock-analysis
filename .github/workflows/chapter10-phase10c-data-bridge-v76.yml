@@ -1,0 +1,129 @@
+name: Deep Company Analysis Chapter 10 Phase 10C Data Bridge V76
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter10-phase10c-v76
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  chapter10-phase10c:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Chapter 10 V76
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter10.py
+          python -m py_compile modules/deep_company_analysis/chapter10_data_bridge.py
+          python -m py_compile modules/deep_company_analysis/test_chapter10_phase10c.py
+          python -m py_compile scripts/qa_chapter10_data_bridge_v76.py
+          python -m py_compile app.py
+
+      - name: Chapter 10 Phase 10C deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_chapter10_phase10a.py \
+            modules/deep_company_analysis/test_chapter10_phase10b.py \
+            modules/deep_company_analysis/test_chapter10_phase10c.py \
+            2>&1 | tee reports/CH10_V76_DETERMINISTIC_TESTS.log
+
+      - name: Chapter 10 V76 data-bridge acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter10_data_bridge_v76.py \
+            2>&1 | tee reports/CH10_V76_DATA_BRIDGE_ACCEPTANCE.log
+
+      - name: Chapter 10 V76 SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH10_V76_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import modules.deep_company_analysis.chapter10_data_bridge as bridge
+
+          source = Path('modules/deep_company_analysis/chapter10_data_bridge.py').read_text(encoding='utf-8').casefold()
+          docs = Path('docs/FORMULA_EXPLANATION_CHAPTER10_PHASE10C_V76.md').read_text(encoding='utf-8').casefold()
+          assert 'import streamlit' not in source
+          assert 'sqlite3' not in source
+          assert 'import httpx' not in source
+          assert 'import requests' not in source
+          assert 'fireant' not in source
+          assert 'simplize' not in source
+          assert 'ccc = dio + dso - dpo' not in source
+          assert 'does not recompute ccc' in source
+          assert 'ccc = dio + dso - dpo' in docs
+          assert 'does not calculate ccc' in docs
+          assert bridge.ccc_bridge_state({'metrics': {'dio': 10, 'dso': 20, 'dpo': 5}})['ccc'] is None
+          print('PASS: V76 consumes canonical evidence read-only and preserves CCC/analyst/investment boundaries.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/CH10_V76_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8547 \
+            > reports/CH10_V76_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8547/_stcore/health \
+              | tee reports/CH10_V76_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/CH10_V76_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V76 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 10 Phase 10C V76\nBranch: feature/deep-company-analysis-chapter10-phase10c-v76\nCommit: %s\nPurpose: canonical read-only data bridge for Q53-Q57; no duplicate financial SSOT, CCC recomputation, analyst mutation, growth score/forecast, MOS/Research Gate change, or automatic investment conclusion.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH10_V76.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter10_Phase10C_V76.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter10_Phase10C_V76.zip | tail -n 3
+
+      - name: Upload V76 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter10_Phase10C_V76
+          retention-days: 90
+          path: |
+            docs/CHAPTER10_PHASE10C_DATA_BRIDGE_V76.md
+            docs/FORMULA_EXPLANATION_CHAPTER10_PHASE10C_V76.md
+            reports/CH10_PHASE10C_DATA_BRIDGE_V76.json
+            reports/CH10_V76_DETERMINISTIC_TESTS.log
+            reports/CH10_V76_DATA_BRIDGE_ACCEPTANCE.log
+            reports/CH10_V76_BOUNDARY_AUDIT.log
+            reports/CH10_V76_FULL_DCA_REGRESSION.log
+            reports/CH10_V76_STREAMLIT_SERVER.log
+            reports/CH10_V76_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter10_Phase10C_V76.zip
