@@ -28,6 +28,7 @@ from modules.deep_company_analysis.chapter7_page_support import render_chapter7_
 from modules.deep_company_analysis.chapter8_page_support import render_chapter8_tab
 from modules.deep_company_analysis.chapter8_integration import build_chapter8_summary
 from modules.deep_company_analysis.chapter8_store import load_record as load_chapter8_record
+from modules.deep_company_analysis.chapter9_page_support import render_chapter9_tab
 from modules.investment_checklist.trecapital_bridge import CurrentRepoDataProvider
 from modules.investment_checklist.trecapital_debt_enricher import augment_debt_from_latest_fireant_raw
 from tre_full_width import apply_full_width
@@ -101,8 +102,6 @@ def _active_paths(ticker: str):
         quote_fresh = (not stale_marker) and _bundle_age_hours(resolved) <= FRESH_QUOTE_HOURS
         return resolved, label, quote_fresh
 
-    # Reuse the newest complete process cache for the requested ticker. Statements remain useful
-    # offline, but quote-dependent valuation fields are disabled once the cache is older than 6h.
     candidates = []
     try:
         roots = [path / safe for path in m1.DATA_CACHE_DIR.iterdir() if path.is_dir()]
@@ -124,7 +123,6 @@ def _active_paths(ticker: str):
             label += " | quote đã cũ"
         return candidate, label, quote_fresh
 
-    # Only DCM may use the packaged normalized sample. Never relabel the DCM sample as another ticker.
     if safe == "DCM":
         sample = (m1.DEFAULT_OVERVIEW_CSV, m1.DEFAULT_YEAR_CSV, m1.DEFAULT_QUARTER_CSV)
         if all(Path(path).exists() for path in sample):
@@ -185,8 +183,6 @@ def _prepare_auto_data(ticker: str):
         auto_data["source_label"] = source_label
         auto_data["quote_fresh"] = quote_fresh
         if not quote_fresh:
-            # Keep statement-only ratios and price-history signals, but never present a stale cached
-            # quote as today's price/current valuation percentile.
             valuation = auto_data.get("valuation", {})
             for key in (
                 "current_price",
@@ -225,11 +221,6 @@ def _refresh_event_evidence(ticker: str) -> str:
 
 
 def _scan_review_queue_from_cache() -> tuple[int, int]:
-    """Evaluate saved triggers for every inventory ticker that already has a local Trecapital bundle.
-
-    This scan is deliberately cache-only: it does not fan out network calls across the watchlist.
-    The normal per-ticker refresh remains the place where market/financial data is downloaded.
-    """
     inventory = load_inventory()
     if inventory is None or inventory.empty or "Mã" not in inventory.columns:
         return 0, 0
@@ -308,6 +299,7 @@ default_ticker = _safe_ticker(
         or st.session_state.get("dca_ch4_ticker")
         or st.session_state.get("dca_ch7_ticker")
         or st.session_state.get("dca_ch8_ticker")
+        or st.session_state.get("dca_ch9_ticker")
         or st.session_state.get("dca_ch6_ticker")
         or st.session_state.get("dca_ch5_ticker")
         or st.session_state.get("active_ticker")
@@ -326,9 +318,10 @@ CHAPTER_OPTIONS = (
     "📓 Chương 6 — Earnings & dòng tiền",
     "👥 Chương 7 — Ban điều hành",
     "🧭 Chương 8 — Năng lực vận hành",
+    "🧠 Chương 9 — Phẩm chất quản lý",
 )
 
-# Only the selected chapter is executed. Unlike st.tabs, this avoids rebuilding all eight
+# Only the selected chapter is executed. Unlike st.tabs, this avoids rebuilding all nine
 # chapter bodies after each analyst interaction and materially reduces edit latency.
 active_chapter = st.radio(
     "Chương phân tích",
@@ -337,7 +330,7 @@ active_chapter = st.radio(
     key="dca_active_chapter",
     label_visibility="collapsed",
 )
-# chapter8_tab compatibility marker: Chapter 8 remains embedded in this unified page.
+# chapter8_tab/chapter9_tab compatibility markers: Chapters 8-9 remain embedded in this unified page.
 
 if active_chapter == CHAPTER_OPTIONS[0]:
     with st.expander("📘 Hướng dẫn sử dụng Chương 1 — Hình thành & Sàng lọc Cơ hội đầu tư", expanded=True):
@@ -481,7 +474,6 @@ if active_chapter == CHAPTER_OPTIONS[6]:
     render_chapter7_tab(chapter7_ticker)
 
 if active_chapter == CHAPTER_OPTIONS[7]:
-    # Phase 8E summary is descriptive only. It never computes a management score or changes the investment gate.
     _ch8_summary_payload = load_chapter8_record(default_ticker)
     _ch8_summary = build_chapter8_summary(_ch8_summary_payload)
     with st.expander("🧭 Trạng thái nghiên cứu Chương 8 — Q39 đến Q47", expanded=False):
@@ -508,5 +500,23 @@ if active_chapter == CHAPTER_OPTIONS[7]:
         )
     ) or default_ticker
     render_chapter8_tab(chapter8_ticker)
+
+if active_chapter == CHAPTER_OPTIONS[8]:
+    chapter9_ticker = _safe_ticker(
+        str(
+            st.session_state.get("dca_ch9_ticker")
+            or st.session_state.get("dca_ch8_ticker")
+            or st.session_state.get("dca_ch7_ticker")
+            or st.session_state.get("dca_ch6_ticker")
+            or st.session_state.get("dca_ch5_ticker")
+            or st.session_state.get("dca_ch4_ticker")
+            or st.session_state.get("dca_ch3_ticker")
+            or st.session_state.get("dca_ch2_ticker")
+            or st.session_state.get("dca_ch1_ticker")
+            or st.session_state.get("active_ticker")
+            or default_ticker
+        )
+    ) or default_ticker
+    render_chapter9_tab(chapter9_ticker)
 
 apply_full_width()
