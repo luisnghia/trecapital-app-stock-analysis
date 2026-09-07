@@ -29,6 +29,10 @@ from modules.deep_company_analysis.chapter9_history import (
     build_chapter9_summary,
     compare_chapter9_payloads,
 )
+from modules.deep_company_analysis.chapter9_synthesis import (
+    SYNTHESIS_BOUNDARY,
+    build_management_handoff,
+)
 from modules.deep_company_analysis.chapter9_store import (
     list_snapshots as list_chapter9_snapshots,
     load_record as load_chapter9_record,
@@ -58,7 +62,7 @@ def _default_ticker() -> str:
 
 
 def _render_ch9_html_table(frame: pd.DataFrame, *, height: int) -> None:
-    """Phase 9H read-only report tables follow the app rule: st.html + wrapped table cells."""
+    """Phase 9H+ read-only report tables follow the app rule: st.html + wrapped table cells."""
     if not isinstance(frame, pd.DataFrame) or frame.empty:
         st.caption("Chưa có dữ liệu.")
         return
@@ -369,6 +373,55 @@ def render_consolidated_report_page() -> None:
     _render_chapter9_history_delta(ticker, ch9_payload, ch9_chapter7_payload)
     st.caption(
         "AI/Data = Research Assistant; Analyst = người kết luận. Chapter 9 consolidated report/history không tự thay đổi MOS, investment Research Gate hoặc BUY/HOLD/SELL."
+    )
+
+    # Phase 9I: derived, read-only management synthesis handoff. It reuses the analyst-owned
+    # Chapter 7/8/9 records and never generates a qualitative management conclusion or score.
+    handoff = build_management_handoff(
+        ch9_chapter7_payload,
+        ch8_payload,
+        ch9_payload,
+        chapter8_structured_context=ch8_structured,
+    )
+    st.markdown("## 🧩 Management Synthesis Handoff — Chapters 7–9")
+    st.caption(SYNTHESIS_BOUNDARY)
+    s1, s2, s3, s4, s5 = st.columns(5)
+    s1.metric("Questions", handoff["total_questions"])
+    s2.metric("Managers — Chapter 7 SSOT", handoff["manager_count"])
+    s3.metric("Evidence rows", handoff["evidence_rows"])
+    s4.metric("Open research gaps", handoff["research_gaps_open"])
+    s5.metric("Manager lineage warnings", handoff["lineage_warnings"])
+
+    if handoff["ready_for_analyst_synthesis"]:
+        st.success(handoff["handoff_state"])
+    elif handoff["lineage_warnings"]:
+        st.error(handoff["handoff_state"])
+    else:
+        st.warning(handoff["handoff_state"])
+    st.caption(
+        "Ready chỉ có nghĩa hồ sơ nghiên cứu Chương 7–9 đủ điều kiện bàn giao cho analyst tổng hợp; không phải kết luận ban điều hành tốt/xấu."
+    )
+
+    st.markdown("### Chapter Research / Closure Readiness")
+    _render_ch9_html_table(handoff["chapter_readiness"], height=340)
+    st.markdown("### Chapter 7 Manager Master — cross-chapter identity reference")
+    _render_ch9_html_table(handoff["manager_roster"], height=360)
+    st.markdown("### Q33–Q52 Analyst-Owned Question Ledger")
+    _render_ch9_html_table(handoff["question_ledger"], height=620)
+
+    if not handoff["lineage_warning_table"].empty:
+        st.markdown("### ⚠ Manager Lineage Reconciliation")
+        _render_ch9_html_table(handoff["lineage_warning_table"], height=360)
+    if not handoff["open_research_gaps"].empty:
+        st.markdown("### Open Research Gaps — Chapters 7–9")
+        _render_ch9_html_table(handoff["open_research_gaps"], height=460)
+    with st.expander("Cross-chapter Evidence Lineage — Chapters 7–9", expanded=False):
+        _render_ch9_html_table(handoff["evidence_ledger"], height=620)
+    with st.expander("Full Research Gap Audit Trail — Chapters 7–9", expanded=False):
+        _render_ch9_html_table(handoff["research_gap_ledger"], height=520)
+
+    st.caption(
+        "Phase 9I không sinh Analyst Synthesis, không tạo Management Quality Score/character classification, và không thay đổi MOS, investment Research Gate hoặc BUY/HOLD/SELL."
     )
 
 
