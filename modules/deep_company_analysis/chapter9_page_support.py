@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-"""Chapter 9 Phase 9F — unified Streamlit analyst workspace for Q48-Q52.
+"""Chapter 9 Phase 9G — unified Streamlit analyst workspace for Q48-Q52.
 
-The UI wires the already-tested Phase 9A-9E layers into the existing Deep Company Analysis
-workspace. It preserves the same boundary used in Chapter 8: research creates candidates,
-only the analyst can promote evidence and write conclusions, and saving never creates a
-management score, character classification, MOS/Research Gate change, or BUY/HOLD/SELL.
+The UI wires the tested Phase 9A-9G layers into the existing Deep Company Analysis workspace.
+Research creates candidates; only the analyst can promote evidence, close known-unknown gaps,
+change Research Status/Confidence, and write conclusions. Phase 9G adds research-completion
+readiness only; it never creates a management score, character classification, MOS/Research Gate
+change, or BUY/HOLD/SELL.
 """
 
 from typing import Any
@@ -18,6 +19,13 @@ import modules.deep_company_analysis.chapter9 as ch9
 import modules.deep_company_analysis.chapter9_data_bridge as bridge
 import modules.deep_company_analysis.chapter9_source_contract_v63 as contract
 from modules.deep_company_analysis.chapter7 import load_record as load_chapter7_record
+from modules.deep_company_analysis.chapter9_completion import (
+    RESEARCH_COMPLETION_BOUNDARY,
+    append_completion_log,
+    build_dimension_closure,
+    build_question_completion,
+    completion_snapshot,
+)
 from modules.deep_company_analysis.chapter9_research import CANDIDATE_COLUMNS, Chapter9ResearchAgent
 from modules.deep_company_analysis.chapter9_store import (
     create_snapshot,
@@ -124,6 +132,7 @@ def _render_source_lock() -> None:
 - Phase 9D chỉ tạo **Candidate — analyst verify**. Search snippet không phải fact; original source text được ưu tiên.
 - `Unknown` / `Research Gap` là kết quả hợp lệ khi chưa đủ bằng chứng. Không suy đoán để lấp chỗ trống.
 - Direction cue chỉ giúp sắp xếp research; **không phải kết luận positive/negative trait**.
+- Phase 9G chỉ kiểm tra **research completion/source coverage**; không tự đóng câu hỏi hoặc biến coverage thành Management Quality Score.
 - Chương 9 **không tạo Management Quality Score, character classification, MOS/Research Gate change hoặc BUY/HOLD/SELL**.
             """
         )
@@ -193,7 +202,7 @@ def _render_research(
 
     if run_research:
         with st.spinner(f"Đang nghiên cứu {ticker} — Q48 đến Q52..."):
-            result = Chapter9ResearchAgent(m1.RAW_DIR / "chapter9_phase9f_v67").search(
+            result = Chapter9ResearchAgent(m1.RAW_DIR / "chapter9_phase9g_v68").search(
                 ticker,
                 company_name,
                 chapter7_payload=chapter7_payload,
@@ -210,6 +219,7 @@ def _render_research(
             "raw_paths": list(result.raw_paths),
             "note": result.note,
         }
+        append_completion_log(ticker, "research_run", {"candidate_rows": len(result.candidates), "gap_rows": len(result.gaps)})
 
     research = st.session_state.get(state_key)
     if not isinstance(research, dict):
@@ -265,6 +275,7 @@ def _render_research(
                 chapter7_payload=chapter7_payload,
             )
             save_record(ticker, payload, company_name)
+            append_completion_log(ticker, "promote_candidates", {"selected": len(selected), "added": added, "rejected": len(validation_failures)})
             if added:
                 st.success(
                     f"Đã promote {added} evidence. Analyst Assessment/Confidence/Research Status không bị ghi đè."
@@ -287,6 +298,7 @@ def _render_research(
         ):
             payload, added = merge_research_gaps(payload, gaps)
             save_record(ticker, payload, company_name)
+            append_completion_log(ticker, "merge_research_gaps", {"added": added})
             st.success(f"Đã thêm {added} research gap mới; Analyst Note hiện có được giữ nguyên.")
 
     attempts = pd.DataFrame(research.get("source_attempts") or [])
@@ -385,6 +397,68 @@ def _render_evidence_gaps_events(ticker: str, payload: dict[str, Any]) -> None:
     )
 
 
+def _render_completion_gate(ticker: str, payload: dict[str, Any], chapter7_payload: dict[str, Any]) -> None:
+    st.markdown("### Phase 9G — Research Completion Gate & Source Coverage Closure")
+    st.caption(RESEARCH_COMPLETION_BOUNDARY)
+
+    with st.expander("📖 Giải thích thuật ngữ Phase 9G", expanded=False):
+        st.markdown(
+            """
+- **Research Completion Gate:** trạng thái quy trình cho biết hồ sơ nghiên cứu đã đủ điều kiện để analyst đóng Q48–Q52 hay chưa; **không phải Research Gate đầu tư**.
+- **Source Dimension:** một khía cạnh nghiên cứu bám trực tiếp source contract Chương 9; tổng cộng 26 dimensions.
+- **Source Lineage:** đường dẫn/tệp nguồn đi kèm đoạn evidence/reference đủ để kiểm tra lại bằng chứng.
+- **Verified Evidence:** evidence đã được analyst promote/xác minh; số lượng evidence không tự tạo kết luận.
+- **Known Unknown:** khoảng trống đã nghiên cứu nhưng chưa có bằng chứng đủ tin cậy; analyst có thể chủ động đóng gap và giữ nó trong audit trail thay vì bịa dữ liệu.
+- **Closure Status:** trạng thái hoàn thành nghiên cứu của dimension, không phải đánh giá tích cực/tiêu cực về ban điều hành.
+            """
+        )
+
+    dimensions = build_dimension_closure(payload, chapter7_payload)
+    questions = build_question_completion(payload, chapter7_payload)
+    snap = completion_snapshot(payload, chapter7_payload)
+    gate = snap["research_completion_gate"]
+
+    if gate.startswith("Ready"):
+        st.success(f"🟢 {gate}")
+    elif gate.startswith("Review"):
+        st.warning(f"🟡 {gate}")
+    else:
+        st.error(f"🔴 {gate}")
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Closed dimensions", f"{snap['closed_dimensions']}/{snap['source_dimension_count']}")
+    c2.metric("Review dimensions", snap["review_dimensions"])
+    c3.metric("Open dimensions", snap["open_dimensions"])
+    c4.metric("Blocked dimensions", snap["blocked_dimensions"])
+    c5.metric("Ready questions", f"{snap['ready_questions']}/{len(ch9.QUESTION_KEYS)}")
+    st.caption(
+        "Các số trên chỉ là tally về độ hoàn tất nghiên cứu. 26/26 không có nghĩa management tốt và không phải Buy Signal."
+    )
+
+    st.markdown("**Q48–Q52 completion checks**")
+    render_static_table(questions, height=360, sort_key=f"dca9_{ticker}_question_completion")
+    with st.expander("26 source-dimension closure checks", expanded=False):
+        render_static_table(dimensions, height=620, sort_key=f"dca9_{ticker}_dimension_completion")
+        st.caption(
+            "Một dimension chỉ đóng khi có verified evidence + source lineage, hoặc analyst chủ động đóng research gap như known unknown. Empty search result không tự đóng dimension."
+        )
+
+    if st.button("🔄 Ghi log kiểm tra Research Completion Gate", use_container_width=True, key=f"dca9_{ticker}_completion_log"):
+        append_completion_log(
+            ticker,
+            "completion_gate_check",
+            {
+                "gate": gate,
+                "closed_dimensions": snap["closed_dimensions"],
+                "review_dimensions": snap["review_dimensions"],
+                "open_dimensions": snap["open_dimensions"],
+                "blocked_dimensions": snap["blocked_dimensions"],
+                "ready_questions": snap["ready_questions"],
+            },
+        )
+        st.success("Đã ghi diagnostic log Phase 9G vào data_cache/logs/deep_company_analysis_chapter9.log.")
+
+
 def _render_snapshot_history(ticker: str) -> None:
     snapshots = pd.DataFrame(list_snapshots(ticker, 20))
     if snapshots.empty:
@@ -422,7 +496,7 @@ def render_chapter9_tab(default_ticker: str = "DGC") -> None:
 
     st.title("🧠 Chương 9 — Phẩm chất tích cực & tiêu cực của Ban điều hành")
     st.caption(
-        "Assessing the Quality of Management—Positive and Negative Traits | Q48–Q52 | Phase 9A–9F"
+        "Assessing the Quality of Management—Positive and Negative Traits | Q48–Q52 | Phase 9A–9G"
     )
     _render_source_lock()
 
@@ -444,6 +518,8 @@ def render_chapter9_tab(default_ticker: str = "DGC") -> None:
         _render_source_locked_tables(ticker, payload)
     with st.container(border=True):
         _render_evidence_gaps_events(ticker, payload)
+    with st.container(border=True):
+        _render_completion_gate(ticker, payload, chapter7_payload)
 
     warnings = ch9.research_gap_warnings(payload)
     if warnings:
@@ -453,10 +529,12 @@ def render_chapter9_tab(default_ticker: str = "DGC") -> None:
     with c1:
         if st.button("💾 Lưu Chapter 9 workspace", use_container_width=True, key=f"dca9_{ticker}_save"):
             save_record(ticker, payload, company_name)
+            append_completion_log(ticker, "workspace_save", completion_snapshot(payload, chapter7_payload))
             st.success("Đã lưu Chapter 9. Research Assistant không ghi đè Analyst Assessment.")
     with c2:
         if st.button("📸 Lưu snapshot Chapter 9", use_container_width=True, key=f"dca9_{ticker}_snapshot"):
             snapshot_id = create_snapshot(ticker, payload)
+            append_completion_log(ticker, "snapshot_save", {"snapshot_id": snapshot_id})
             st.success(f"Đã lưu snapshot #{snapshot_id}.")
 
     _render_snapshot_history(ticker)
