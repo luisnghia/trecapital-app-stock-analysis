@@ -1,0 +1,166 @@
+name: Deep Company Analysis Chapter 9 Phase 9J Analyst Synthesis V71
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter9-phase9j-v71
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  chapter9-phase9j:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Chapter 9 V71
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter7.py
+          python -m py_compile modules/deep_company_analysis/chapter7_closure.py
+          python -m py_compile modules/deep_company_analysis/chapter8.py
+          python -m py_compile modules/deep_company_analysis/chapter8_completion.py
+          python -m py_compile modules/deep_company_analysis/chapter9.py
+          python -m py_compile modules/deep_company_analysis/chapter9_completion.py
+          python -m py_compile modules/deep_company_analysis/chapter9_synthesis.py
+          python -m py_compile modules/deep_company_analysis/chapter9_synthesis_workspace.py
+          python -m py_compile modules/deep_company_analysis/chapter9_synthesis_store.py
+          python -m py_compile modules/deep_company_analysis/chapter9_synthesis_ui.py
+          python -m py_compile modules/deep_company_analysis/chapter9_page_support.py
+          python -m py_compile pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+          python -m py_compile scripts/qa_chapter9_analyst_synthesis_v71.py
+
+      - name: Chapter 9 Phase 9A-9J deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q \
+            modules/deep_company_analysis/test_chapter9_phase9a.py \
+            modules/deep_company_analysis/test_chapter9_phase9b.py \
+            modules/deep_company_analysis/test_chapter9_phase9c.py \
+            modules/deep_company_analysis/test_chapter9_phase9d.py \
+            modules/deep_company_analysis/test_chapter9_phase9e.py \
+            modules/deep_company_analysis/test_chapter9_phase9f.py \
+            modules/deep_company_analysis/test_chapter9_phase9g.py \
+            modules/deep_company_analysis/test_chapter9_phase9g_app_rules.py \
+            modules/deep_company_analysis/test_chapter9_phase9h.py \
+            modules/deep_company_analysis/test_chapter9_phase9i.py \
+            modules/deep_company_analysis/test_chapter9_phase9j.py \
+            2>&1 | tee reports/CH9_V71_DETERMINISTIC_TESTS.log
+
+      - name: Chapter 9 V71 analyst synthesis acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter9_analyst_synthesis_v71.py \
+            2>&1 | tee reports/CH9_V71_ANALYST_SYNTHESIS_ACCEPTANCE.log
+
+      - name: Chapter 9 V71 analyst ownership and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH9_V71_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import json
+          import modules.deep_company_analysis.chapter9_synthesis_workspace as workspace
+
+          engine = Path('modules/deep_company_analysis/chapter9_synthesis_workspace.py').read_text(encoding='utf-8')
+          ui = Path('modules/deep_company_analysis/chapter9_synthesis_ui.py').read_text(encoding='utf-8')
+          page = Path('modules/deep_company_analysis/chapter9_page_support.py').read_text(encoding='utf-8')
+          store = Path('modules/deep_company_analysis/chapter9_synthesis_store.py').read_text(encoding='utf-8')
+          docs = Path('docs/FORMULA_EXPLANATION_CHAPTER9_PHASE9J_V71.md').read_text(encoding='utf-8')
+          report = json.loads(Path('reports/CH9_PHASE9J_ANALYST_SYNTHESIS_V71.json').read_text(encoding='utf-8'))
+
+          assert 'import streamlit' not in engine.casefold()
+          assert 'sqlite3' not in engine.casefold()
+          assert 'Final Analyst Management Synthesis' in ui
+          assert 'render_management_synthesis_workspace' in page
+          assert 'Phase 9A–9J' in page
+          assert 'deep_company_analysis_management_synthesis.db' in store
+          assert 'management_synthesis_snapshots' in store
+          assert 'no financial valuation formula' in docs.casefold()
+          assert report['source_question_range'] == 'Q33–Q52'
+          assert report['total_questions'] == 20
+          assert report['manager_identity_ssot'] == 'Chapter 7 manager master'
+          assert report['source_fingerprint_present'] is True
+          assert report['unchanged_source_detected'] is True
+          assert report['changed_source_detected'] is True
+          assert report['finalized_status_preserved_after_drift'] is True
+          assert report['analyst_text_preserved_after_baseline_capture'] is True
+          assert report['automatic_workspace_status_change'] is False
+          assert report['automatic_analyst_text_change'] is False
+          assert report['automatic_management_score'] is False
+          assert report['automatic_character_classification'] is False
+          assert report['automatic_investment_signal'] is False
+          assert report['mos_or_investment_research_gate_changed'] is False
+          assert 'management quality score' in workspace.SYNTHESIS_WORKSPACE_BOUNDARY.casefold()
+          assert 'investment research gate' in workspace.SYNTHESIS_WORKSPACE_BOUNDARY.casefold()
+          print('PASS: Phase 9J preserves analyst ownership, Chapter 7 manager SSOT, source drift audit and investment boundaries.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/CH9_V71_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8543 \
+            > reports/CH9_V71_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8543/_stcore/health \
+              | tee reports/CH9_V71_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/CH9_V71_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V71 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 9 Phase 9J V71\nBranch: feature/deep-company-analysis-chapter9-phase9j-v71\nCommit: %s\nPurpose: analyst-owned Chapters 7-9 management synthesis workspace, source-drift fingerprint and immutable synthesis snapshots; no management score or investment conclusion.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH9_V71.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter9_Phase9J_V71.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter9_Phase9J_V71.zip | tail -n 3
+
+      - name: Upload V71 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter9_Phase9J_V71
+          retention-days: 90
+          path: |
+            docs/CHAPTER9_PHASE9J_ANALYST_SYNTHESIS_WORKSPACE_V71.md
+            docs/FORMULA_EXPLANATION_CHAPTER9_PHASE9J_V71.md
+            reports/CH9_PHASE9J_ANALYST_SYNTHESIS_V71.json
+            reports/CH9_V71_DETERMINISTIC_TESTS.log
+            reports/CH9_V71_ANALYST_SYNTHESIS_ACCEPTANCE.log
+            reports/CH9_V71_BOUNDARY_AUDIT.log
+            reports/CH9_V71_FULL_DCA_REGRESSION.log
+            reports/CH9_V71_STREAMLIT_SERVER.log
+            reports/CH9_V71_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter9_Phase9J_V71.zip
