@@ -1,0 +1,135 @@
+name: Deep Company Analysis Chapter 10 Phase 10D Research Assistant V77
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter10-phase10d-v77
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  chapter10-phase10d:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Chapter 10 V77
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter10.py
+          python -m py_compile modules/deep_company_analysis/chapter10_data_bridge.py
+          python -m py_compile modules/deep_company_analysis/chapter10_research.py
+          python -m py_compile modules/deep_company_analysis/test_chapter10_phase10d.py
+          python -m py_compile scripts/qa_chapter10_research_v77.py
+          python -m py_compile app.py
+
+      - name: Chapter 10 Phase 10D deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_chapter10_phase10a.py \
+            modules/deep_company_analysis/test_chapter10_phase10b.py \
+            modules/deep_company_analysis/test_chapter10_phase10c.py \
+            modules/deep_company_analysis/test_chapter10_phase10d.py \
+            2>&1 | tee reports/CH10_V77_DETERMINISTIC_TESTS.log
+
+      - name: Chapter 10 V77 research acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter10_research_v77.py \
+            2>&1 | tee reports/CH10_V77_RESEARCH_ACCEPTANCE.log
+
+      - name: Chapter 10 V77 source and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH10_V77_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import modules.deep_company_analysis.chapter10 as ch10
+          import modules.deep_company_analysis.chapter10_research as research
+          source = Path('modules/deep_company_analysis/chapter10_research.py').read_text(encoding='utf-8').casefold()
+          docs = Path('docs/FORMULA_EXPLANATION_CHAPTER10_PHASE10D_V77.md').read_text(encoding='utf-8').casefold()
+          assert ch10.QUESTION_KEYS == ('Q53', 'Q54', 'Q55', 'Q56', 'Q57')
+          assert len(ch10.dimension_ids()) == 34
+          assert len(research.research_plan('TEST')) == 34
+          assert 'import streamlit' not in source
+          assert 'sqlite3' not in source
+          assert 'buy/hold/sell' in source
+          assert 'ccc = dio + dso - dpo' in docs
+          assert 'not calculated by v77' in docs
+          summary = research.phase_summary()
+          assert summary['analyst_promotion_required'] is True
+          assert summary['automatic_growth_score'] is False
+          assert summary['automatic_growth_forecast'] is False
+          assert summary['automatic_investment_signal'] is False
+          assert summary['mos_or_research_gate_changed'] is False
+          assert summary['duplicate_financial_ssot_added'] is False
+          print('PASS: V77 covers all 34 dimensions as research candidates and preserves analyst/SSOT/investment boundaries.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/CH10_V77_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8548 \
+            > reports/CH10_V77_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8548/_stcore/health \
+              | tee reports/CH10_V77_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/CH10_V77_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V77 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 10 Phase 10D V77\nBranch: feature/deep-company-analysis-chapter10-phase10d-v77\nCommit: %s\nPurpose: source research and Research Assistant bridge for Q53-Q57/34 dimensions; analyst verification and explicit promotion required; no duplicate financial SSOT, growth score/forecast, MOS/Research Gate change, or automatic investment conclusion.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH10_V77.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter10_Phase10D_V77.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter10_Phase10D_V77.zip | tail -n 3
+
+      - name: Upload V77 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter10_Phase10D_V77
+          retention-days: 90
+          path: |
+            docs/CHAPTER10_PHASE10D_RESEARCH_V77.md
+            docs/FORMULA_EXPLANATION_CHAPTER10_PHASE10D_V77.md
+            reports/CH10_PHASE10D_RESEARCH_V77.json
+            reports/CH10_V77_DETERMINISTIC_TESTS.log
+            reports/CH10_V77_RESEARCH_ACCEPTANCE.log
+            reports/CH10_V77_BOUNDARY_AUDIT.log
+            reports/CH10_V77_FULL_DCA_REGRESSION.log
+            reports/CH10_V77_STREAMLIT_SERVER.log
+            reports/CH10_V77_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter10_Phase10D_V77.zip
