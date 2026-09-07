@@ -5,7 +5,6 @@ from pathlib import Path
 
 import modules.deep_company_analysis.chapter10 as ch10
 import modules.deep_company_analysis.chapter10_research as research
-import modules.deep_company_analysis.chapter10_store as store
 
 
 def main() -> None:
@@ -14,7 +13,7 @@ def main() -> None:
     source = Path("modules/deep_company_analysis/chapter10_store.py").read_text(encoding="utf-8").casefold()
     ui = Path("modules/deep_company_analysis/chapter10_page_support.py").read_text(encoding="utf-8").casefold()
     assert "chapter10_current" in source
-    assert "canonical financial" in source
+    assert "financial data remains read-only" in source
     assert "promote selected evidence" in ui
     assert "growth score" in ui
     assert "buy/hold/sell" in ui
