@@ -9,16 +9,18 @@ second, evidence-conservative pass:
 1. run a cheap, document-wide sampled OCR pass;
 2. score OCR pages only against the *currently open* Chapter 8 source-locked dimensions;
 3. select a small number of high-value pages plus immediate neighbors;
-4. re-OCR only those pages at higher resolution;
-5. remap every OCR marker back to the original PDF page number;
-6. return candidate text only. Nothing is promoted and no analyst conclusion is written.
+4. if the coarse pass cannot read the active ticker, reserve the first one or two high-resolution
+   pages as an issuer-identity safety anchor rather than weakening ticker validation;
+5. re-OCR only those pages at higher resolution;
+6. remap every OCR marker back to the original PDF page number;
+7. return candidate text only. Nothing is promoted and no analyst conclusion is written.
 
 Chapter 7 remains the manager identity SSOT and Trecapital canonical remains the financial SSOT.
 """
 
 from dataclasses import dataclass
 from io import BytesIO
-from typing import Any
+from typing import Any, Iterable
 import re
 import unicodedata
 
@@ -105,8 +107,6 @@ def score_ocr_pages(coarse: PDFOCRResult, targets: pd.DataFrame) -> pd.DataFrame
                         group_score += 5 if " " in term else 3
                         group_hits.append(term)
                     else:
-                        # Phrase OCR can be noisy. Long individual tokens are a weak fallback,
-                        # but never sufficient to turn OCR text into approved evidence.
                         tokens = [tok for tok in re.findall(r"[a-z0-9]+", term) if len(tok) >= 6]
                         token_hits = sum(1 for token in tokens[:6] if token in text)
                         group_score += min(token_hits, 2)
@@ -158,6 +158,38 @@ def select_high_res_pages(
             if len(selected) >= limit:
                 return tuple(sorted(selected))
     return tuple(sorted(selected))
+
+
+def _identity_missing(text: str, identity_terms: Iterable[str]) -> bool:
+    terms = [_fold(term) for term in identity_terms if _fold(term)]
+    if not terms:
+        return False
+    folded = _fold(text)
+    return not any(term in folded for term in terms)
+
+
+def _with_identity_anchors(
+    selected: tuple[int, ...],
+    *,
+    page_count: int,
+    max_pages: int,
+    coarse_text: str,
+    identity_terms: Iterable[str],
+) -> tuple[int, ...]:
+    limit = max(1, min(int(max_pages), 24))
+    if not _identity_missing(coarse_text, identity_terms):
+        return tuple(sorted(selected[:limit]))
+    anchors = [page for page in (1, 2) if page <= max(0, int(page_count))]
+    ordered: list[int] = []
+    seen: set[int] = set()
+    for page in anchors + list(selected):
+        if page < 1 or page > page_count or page in seen:
+            continue
+        ordered.append(page)
+        seen.add(page)
+        if len(ordered) >= limit:
+            break
+    return tuple(sorted(ordered))
 
 
 def _subset_pdf(data: bytes, pages: tuple[int, ...]) -> tuple[bytes, tuple[int, ...]]:
@@ -239,6 +271,7 @@ def gap_directed_high_res_ocr_pdf_bytes(
     high_res_dpi: int = DEFAULT_HIGHRES_DPI,
     high_res_max_pages: int = DEFAULT_HIGHRES_MAX_PAGES,
     neighbor_radius: int = DEFAULT_NEIGHBOR_RADIUS,
+    identity_terms: Iterable[str] = (),
 ) -> GapDirectedOCRResult:
     """Run a bounded coarse pass, then high-resolution OCR only where open gaps point."""
     target_count = int(len(targets)) if isinstance(targets, pd.DataFrame) else 0
@@ -253,16 +286,23 @@ def gap_directed_high_res_ocr_pdf_bytes(
         time_budget_seconds=180,
     )
     scores = score_ocr_pages(coarse, targets)
-    selected = select_high_res_pages(
+    gap_selected = select_high_res_pages(
         scores,
         coarse.page_count,
         max_pages=high_res_max_pages,
         neighbor_radius=neighbor_radius,
     )
+    selected = _with_identity_anchors(
+        gap_selected,
+        page_count=coarse.page_count,
+        max_pages=high_res_max_pages,
+        coarse_text=coarse.text,
+        identity_terms=identity_terms,
+    )
     if not selected:
         note = (
             f"V60 gap-directed OCR: {target_count} open dimension target(s); coarse OCR produced no "
-            "positive target-page score, so no high-resolution pass was run."
+            "positive target-page score and no issuer-identity anchor was required."
         )
         return GapDirectedOCRResult(coarse, coarse, None, scores, (), target_count, note)
 
@@ -279,10 +319,12 @@ def gap_directed_high_res_ocr_pdf_bytes(
     )
     high = remap_subset_result(high_raw, mapping, coarse.page_count)
     combined = _combine_results(coarse, high)
+    identity_anchor_used = bool(identity_terms) and _identity_missing(coarse.text, identity_terms)
     note = (
         f"V60 gap-directed OCR: {target_count} open dimension target(s); coarse sampled {coarse.attempted_pages} "
         f"page(s), selected {len(selected)} original page(s) for {high_res_dpi}dpi high-resolution OCR; "
-        f"combined pages with text={combined.successful_pages}. OCR remains candidate-only."
+        f"identity anchor used={identity_anchor_used}; combined pages with text={combined.successful_pages}. "
+        "OCR remains candidate-only."
     )
     return GapDirectedOCRResult(combined, coarse, high, scores, selected, target_count, note)
 
