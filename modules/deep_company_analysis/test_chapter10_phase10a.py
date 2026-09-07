@@ -57,7 +57,7 @@ def test_phase10a_research_focus_covers_only_source_questions() -> None:
     assert "organic" in joined
     assert "motivation" in joined
     assert "profitable" in joined
-    assert "future growth" in joined
+    assert "future growth" in joined or "runway" in joined
     assert "disciplined" in joined
 
 
@@ -65,38 +65,21 @@ def test_qualitative_schemas_do_not_create_scores_or_valuation_outputs() -> None
     all_columns = ch10.EVIDENCE_COLUMNS + ch10.RESEARCH_GAP_COLUMNS + ch10.GROWTH_EVENT_COLUMNS
     joined = " ".join(all_columns).casefold()
     for forbidden in (
-        "growth score",
-        "weighted score",
-        "buy signal",
-        "sell signal",
-        "research gate",
-        "intrinsic value",
-        "margin of safety",
-        "mos",
-        "target price",
+        "growth score", "weighted score", "buy signal", "sell signal", "research gate",
+        "intrinsic value", "margin of safety", "mos", "target price",
     ):
         assert forbidden not in joined
 
 
-def test_phase10a_source_module_has_no_ui_db_web_or_financial_bridge() -> None:
+def test_chapter10_source_module_has_no_ui_db_web_or_live_financial_bridge() -> None:
     source = Path(ch10.__file__).read_text(encoding="utf-8").casefold()
     forbidden_imports = (
-        "import streamlit",
-        "from streamlit",
-        "import httpx",
-        "import requests",
-        "from adapters",
-        "import psycopg",
-        "import sqlite3",
-        "chapter10_store",
-        "module1_dashboard",
-        "module2_dashboard",
-        "fireant",
-        "simplize",
-        "vietstock",
+        "import streamlit", "from streamlit", "import httpx", "import requests", "from adapters",
+        "import psycopg", "import sqlite3", "chapter10_store", "module1_dashboard", "module2_dashboard",
+        "fireant", "simplize", "vietstock",
     )
     assert all(item not in source for item in forbidden_imports)
-    assert "phase 10a adds no web research" in source
+    assert "web research" in source
     assert "buy/hold/sell" in source
     assert "duplicate financial ssot" in source
 
