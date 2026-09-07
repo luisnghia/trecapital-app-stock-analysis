@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-"""Chapter 8 V61 research wrapper: V60 plus section-directed official document expansion."""
+"""Chapter 8 V61 research wrapper: V60 plus resilient section-directed official document expansion."""
 
-from pathlib import Path
 from typing import Iterable
 
 import pandas as pd
@@ -10,7 +9,7 @@ import pandas as pd
 from modules.deep_company_analysis.chapter8_research import *  # noqa: F401,F403
 from modules.deep_company_analysis.chapter8_research import Chapter8ResearchResult
 from modules.deep_company_analysis.chapter8_research_v60 import Chapter8ResearchAgent as _V60Chapter8ResearchAgent
-from modules.deep_company_analysis.chapter8_section_directed_retrieval_v61 import SectionDirectedRetrievalAgentV61
+from modules.deep_company_analysis.chapter8_section_directed_retrieval_runtime_v61 import SectionDirectedRetrievalAgentV61Runtime
 
 
 class Chapter8ResearchAgent(_V60Chapter8ResearchAgent):
@@ -30,7 +29,7 @@ class Chapter8ResearchAgent(_V60Chapter8ResearchAgent):
         max_scanned_ocr_docs: int = 2,
         year_floor: int | None = None,
     ):
-        agent = SectionDirectedRetrievalAgentV61(self.raw_dir / "section_retrieval_v61")
+        agent = SectionDirectedRetrievalAgentV61Runtime(self.raw_dir / "section_retrieval_v61")
         result = agent.run(
             ticker,
             existing_candidates=existing_candidates,
