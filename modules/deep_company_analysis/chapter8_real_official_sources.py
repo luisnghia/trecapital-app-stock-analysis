@@ -20,9 +20,11 @@ Important boundaries
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Iterable
+from urllib.parse import urljoin
 
 import httpx
 import pandas as pd
+from bs4 import BeautifulSoup
 
 from adapters.module2_web_research import HEADERS
 from modules.deep_company_analysis.chapter8_official_source_adapters import is_official_url
@@ -89,6 +91,7 @@ DOWNLOAD_COLUMNS = [
     "Published Date",
     "Landing Page",
     "Document URL",
+    "Resolved Document URL",
     "Official URL",
     "Status",
     "Bytes",
@@ -107,6 +110,78 @@ def v54_historical_open_keys() -> set[tuple[str, str]]:
     frame = load_v54_dgc_coverage()
     mask = frame["Source Locked"].eq("Yes") & ~frame["Coverage Status"].eq("Candidate coverage — analyst verify")
     return set(zip(frame.loc[mask, "Question"].astype(str), frame.loc[mask, "Dimension Key"].astype(str)))
+
+
+def _is_pdf_bytes(data: bytes) -> bool:
+    return bool(data and data.lstrip()[:5] == b"%PDF-")
+
+
+def _landing_pdf_candidates(client: httpx.Client, source: RealOfficialSource) -> list[str]:
+    """Prime issuer cookies and resolve PDF hrefs from the official landing page."""
+    candidates: list[str] = [source.document_url]
+    try:
+        response = client.get(source.landing_page, headers={**HEADERS, "Referer": "https://ducgiangchem.vn/"})
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        preferred_name = source.document_url.rsplit("/", 1)[-1].split("?", 1)[0].casefold()
+        discovered: list[tuple[int, str]] = []
+        for anchor in soup.find_all("a", href=True):
+            href = urljoin(str(response.url), str(anchor.get("href") or ""))
+            if ".pdf" not in href.lower().split("?", 1)[0]:
+                continue
+            label = str(anchor.get_text(" ", strip=True) or "").casefold()
+            href_low = href.casefold()
+            score = 0
+            if preferred_name and preferred_name in href_low:
+                score += 100
+            if "dgc" in href_low:
+                score += 20
+            for token in source.title.casefold().split():
+                if len(token) >= 5 and token in label:
+                    score += 1
+            discovered.append((score, href))
+        for _, href in sorted(discovered, key=lambda x: (-x[0], x[1])):
+            if href not in candidates:
+                candidates.append(href)
+    except Exception:
+        pass
+    return candidates
+
+
+def _fetch_pdf_bytes(
+    client: httpx.Client,
+    source: RealOfficialSource,
+    *,
+    max_bytes: int,
+) -> tuple[bytes, str, str]:
+    """Try manifest URL and landing-page-resolved hrefs; only return genuine PDF bytes."""
+    last_error = "no candidate URL"
+    for url in _landing_pdf_candidates(client, source):
+        try:
+            headers = {
+                **HEADERS,
+                "Accept": "application/pdf,application/octet-stream;q=0.9,*/*;q=0.8",
+                "Referer": source.landing_page,
+                "Cache-Control": "no-cache",
+            }
+            with client.stream("GET", url, headers=headers) as response:
+                response.raise_for_status()
+                chunks: list[bytes] = []
+                size = 0
+                for chunk in response.iter_bytes():
+                    size += len(chunk)
+                    if size > max_bytes:
+                        raise ValueError(f"document exceeds max_bytes={max_bytes}")
+                    chunks.append(chunk)
+            data = b"".join(chunks)
+            if _is_pdf_bytes(data):
+                return data, url, "Fetched PDF bytes"
+            content_type = str(response.headers.get("content-type") or "").lower()
+            prefix = data[:80].decode("latin-1", errors="ignore").replace("\n", " ").replace("\r", " ")
+            last_error = f"non-PDF response content-type={content_type}; prefix={prefix!r}"
+        except Exception as exc:
+            last_error = str(exc)
+    return b"", source.document_url, last_error
 
 
 def download_real_official_files(
@@ -137,6 +212,7 @@ def download_real_official_files(
                 "Published Date": source.published_date,
                 "Landing Page": source.landing_page,
                 "Document URL": source.document_url,
+                "Resolved Document URL": source.document_url,
                 "Official URL": "Yes" if official else "No",
                 "Status": "",
                 "Bytes": 0,
@@ -144,37 +220,29 @@ def download_real_official_files(
             if not official:
                 attempts.append({**row, "Status": "Rejected: URL not on official allow-list"})
                 continue
-            try:
-                with client.stream("GET", source.document_url) as response:
-                    response.raise_for_status()
-                    chunks: list[bytes] = []
-                    size = 0
-                    for chunk in response.iter_bytes():
-                        size += len(chunk)
-                        if size > max_bytes:
-                            raise ValueError(f"document exceeds max_bytes={max_bytes}")
-                        chunks.append(chunk)
-                data = b"".join(chunks)
-                content_type = str(response.headers.get("content-type") or "").lower()
-                if not data:
-                    attempts.append({**row, "Status": "Fetch failed: empty body"})
-                    continue
-                if "pdf" not in content_type and not source.document_url.lower().split("?")[0].endswith(".pdf"):
-                    attempts.append({**row, "Status": f"Fetch failed: unexpected content-type {content_type}"})
-                    continue
-                filename = source.document_url.rsplit("/", 1)[-1].split("?", 1)[0] or f"{source.key}.pdf"
-                files.append({
-                    "name": filename,
-                    "bytes": data,
-                    "issuer": source.issuer,
-                    "source_url": source.document_url,
-                    "official_confirmed": True,
-                    "title": source.title,
-                    "manifest_key": source.key,
-                })
-                attempts.append({**row, "Status": "Fetched", "Bytes": len(data)})
-            except Exception as exc:
-                attempts.append({**row, "Status": f"Fetch failed: {exc}"})
+            data, resolved_url, status = _fetch_pdf_bytes(client, source, max_bytes=max_bytes)
+            if not data:
+                attempts.append({**row, "Resolved Document URL": resolved_url, "Status": f"Fetch failed: {status}"})
+                continue
+            if not is_official_url(resolved_url, symbol):
+                attempts.append({**row, "Resolved Document URL": resolved_url, "Status": "Rejected: resolved URL not official"})
+                continue
+            filename = resolved_url.rsplit("/", 1)[-1].split("?", 1)[0] or f"{source.key}.pdf"
+            files.append({
+                "name": filename,
+                "bytes": data,
+                "issuer": source.issuer,
+                "source_url": resolved_url,
+                "official_confirmed": True,
+                "title": source.title,
+                "manifest_key": source.key,
+            })
+            attempts.append({
+                **row,
+                "Resolved Document URL": resolved_url,
+                "Status": "Fetched",
+                "Bytes": len(data),
+            })
     return files, pd.DataFrame(attempts, columns=DOWNLOAD_COLUMNS)
 
 
