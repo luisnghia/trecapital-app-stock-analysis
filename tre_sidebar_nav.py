@@ -13,4 +13,5 @@ def render_tre_sidebar_nav() -> None:
     st.page_link("pages/05_Investment_Checklist.py", label="Investment Checklist", icon="📋")
     st.page_link("pages/06_Phan_tich_TopDown_Nganh.py", label="Fisher Top-Down theo ngành", icon="🧭")
     st.page_link("pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py", label="Phân tích chuyên sâu doanh nghiệp", icon="🔬")
+    st.page_link("pages/08_Phan_tich_tang_truong.py", label="Chương 10 — Growth Opportunities", icon="🌱")
     st.divider()
