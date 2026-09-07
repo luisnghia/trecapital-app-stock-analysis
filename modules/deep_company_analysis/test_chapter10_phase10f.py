@@ -2,6 +2,7 @@ from copy import deepcopy
 
 import modules.deep_company_analysis.chapter10 as ch10
 import modules.deep_company_analysis.chapter10_completion as c10c
+import modules.deep_company_analysis.chapter10_store as store
 
 
 def _complete_payload():
@@ -70,6 +71,18 @@ def test_report_is_neutral_research_summary():
     assert len(report["questions"]) == 5
     assert "Growth Score" in report["boundary_note"]
     assert "BUY/HOLD/SELL" in report["boundary_note"]
+
+
+def test_synthesis_survives_store_round_trip_without_financial_ssot_copy(tmp_path, monkeypatch):
+    monkeypatch.setattr(store, "DB_PATH", tmp_path / "chapter10_v79.db")
+    p = c10c.attach_synthesis(_complete_payload(), {"status": "Final", "final_growth_synthesis": "Analyst-owned final view"})
+    p["canonical_financials"] = {"ccc": 12.3, "revenue": 999}
+    saved = store.save_record("AAA", p)
+    loaded = store.load_record("AAA")
+    assert saved["growth_synthesis"]["status"] == "Final"
+    assert loaded["growth_synthesis"]["final_growth_synthesis"] == "Analyst-owned final view"
+    assert "canonical_financials" not in saved
+    assert "canonical_financials" not in loaded
 
 
 def test_source_lock_and_question_range_unchanged():
