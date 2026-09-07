@@ -137,7 +137,7 @@ def test_v61_download_prefers_text_layer_and_bounds_scanned_ocr() -> None:
 def test_v61_research_wrapper_exposes_section_agent(tmp_path: Path) -> None:
     agent = Chapter8ResearchAgent(tmp_path)
     sentinel = SimpleNamespace(section_plan=pd.DataFrame(), discovery=pd.DataFrame(), downloads=pd.DataFrame())
-    with patch("modules.deep_company_analysis.chapter8_research_v61.SectionDirectedRetrievalAgentV61.run", return_value=sentinel) as mocked:
+    with patch("modules.deep_company_analysis.chapter8_research_v61.SectionDirectedRetrievalAgentV61Runtime.run", return_value=sentinel) as mocked:
         out = agent.retrieve_section_directed_official_documents("DGC", existing_candidates=pd.DataFrame())
     assert out is sentinel
     assert mocked.call_args.kwargs["max_documents"] == 12
