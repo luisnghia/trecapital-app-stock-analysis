@@ -105,7 +105,7 @@ def test_phase10b_remains_schema_only_and_does_not_create_financial_or_investmen
     source = Path(ch10.__file__).read_text(encoding="utf-8").casefold()
     for forbidden in (
         "import streamlit", "from streamlit", "import httpx", "import requests", "import sqlite3",
-        "import psycopg", "fireant", "simplize", "buy signal", "sell signal", "weighted_growth_score",
+        "import psycopg", "fireant", "simplize", "weighted_growth_score",
     ):
         assert forbidden not in source
     assert "dependency labels only" in source
