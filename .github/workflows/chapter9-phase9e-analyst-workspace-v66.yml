@@ -1,0 +1,143 @@
+name: Deep Company Analysis Chapter 9 Phase 9E Analyst Workspace V66
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter9-phase9e-v66
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  chapter9-phase9e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Chapter 9 V66
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter9.py
+          python -m py_compile modules/deep_company_analysis/chapter9_source_contract_v63.py
+          python -m py_compile modules/deep_company_analysis/chapter9_data_bridge.py
+          python -m py_compile modules/deep_company_analysis/chapter9_research.py
+          python -m py_compile modules/deep_company_analysis/chapter9_workspace.py
+          python -m py_compile modules/deep_company_analysis/chapter9_store.py
+          python -m py_compile scripts/qa_chapter9_analyst_workspace_v66.py
+
+      - name: Chapter 9 Phase 9A-9E deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q \
+            modules/deep_company_analysis/test_chapter9_phase9a.py \
+            modules/deep_company_analysis/test_chapter9_phase9b.py \
+            modules/deep_company_analysis/test_chapter9_phase9c.py \
+            modules/deep_company_analysis/test_chapter9_phase9d.py \
+            modules/deep_company_analysis/test_chapter9_phase9e.py \
+            2>&1 | tee reports/CH9_V66_DETERMINISTIC_TESTS.log
+
+      - name: Chapter 9 V66 analyst-workspace acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter9_analyst_workspace_v66.py \
+            2>&1 | tee reports/CH9_V66_ANALYST_WORKSPACE_ACCEPTANCE.log
+
+      - name: Chapter 9 V66 source and analyst-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH9_V66_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import json
+          import modules.deep_company_analysis.chapter9 as ch9
+          import modules.deep_company_analysis.chapter9_workspace as ws
+          import modules.deep_company_analysis.chapter9_source_contract_v63 as contract
+
+          workspace = Path('modules/deep_company_analysis/chapter9_workspace.py').read_text(encoding='utf-8').casefold()
+          report = json.loads(Path('reports/CH9_PHASE9E_ANALYST_WORKSPACE_V66.json').read_text(encoding='utf-8'))
+          source = contract.validate_source_contract()
+          assert ch9.QUESTION_KEYS == ('Q48', 'Q49', 'Q50', 'Q51', 'Q52')
+          assert source['total_dimensions'] == 26
+          assert source['dimension_counts'] == {'Q48': 6, 'Q49': 4, 'Q50': 8, 'Q51': 3, 'Q52': 5}
+          assert 'import streamlit' not in workspace
+          assert 'from streamlit' not in workspace
+          assert report['explicit_analyst_promotion_required'] is True
+          assert report['promotion_preserves_candidate_id'] is True
+          assert report['promotion_preserves_dimension_lineage'] is True
+          assert report['ceo_specific_q48_q52_require_exact_chapter7_ceo_link'] is True
+          assert report['replacement_manager_ids_created'] is False
+          assert report['automatic_management_score'] is False
+          assert report['automatic_character_classification'] is False
+          assert report['automatic_investment_signal'] is False
+          assert report['mos_or_research_gate_changed'] is False
+          assert report['ui_added'] is False
+          assert ws.workspace_snapshot(ch9.empty_payload('DGC'))['source_dimension_count'] == 26
+          print('PASS: Chapter 9 Phase 9E preserves source lock, Chapter 7 manager SSOT and analyst control.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/CH9_V66_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8538 \
+            > reports/CH9_V66_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8538/_stcore/health \
+              | tee reports/CH9_V66_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/CH9_V66_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V66 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 9 Phase 9E V66\nBranch: feature/deep-company-analysis-chapter9-phase9e-v66\nCommit: %s\nPurpose: analyst-owned candidate promotion, evidence lineage persistence and snapshots for Chapter 9 Q48-Q52.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH9_V66.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter9_Phase9E_V66.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter9_Phase9E_V66.zip | tail -n 3
+
+      - name: Upload V66 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter9_Phase9E_V66
+          retention-days: 90
+          path: |
+            docs/CHAPTER9_PHASE9E_ANALYST_WORKSPACE_V66.md
+            reports/CH9_PHASE9E_ANALYST_WORKSPACE_V66.json
+            reports/CH9_V66_DETERMINISTIC_TESTS.log
+            reports/CH9_V66_ANALYST_WORKSPACE_ACCEPTANCE.log
+            reports/CH9_V66_BOUNDARY_AUDIT.log
+            reports/CH9_V66_FULL_DCA_REGRESSION.log
+            reports/CH9_V66_STREAMLIT_SERVER.log
+            reports/CH9_V66_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter9_Phase9E_V66.zip
