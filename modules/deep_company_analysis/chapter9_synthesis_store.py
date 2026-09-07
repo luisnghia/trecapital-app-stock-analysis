@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-"""Persistence for the Phase 9J analyst-owned management synthesis workspace.
+"""Persistence for the analyst-owned management synthesis workspace.
 
 The store is intentionally separate from Chapters 7, 8 and 9 source stores. It saves only the
-analyst's cross-chapter synthesis plus source fingerprints/counts. It never edits source research,
-manager identity, question status, confidence, valuation, MOS, investment Research Gate, or signals.
+analyst's cross-chapter synthesis plus source fingerprints/counts/re-review audit fields. It never
+edits source research, manager identity, question status, confidence, valuation, MOS, investment
+Research Gate, or signals.
 """
 
 from datetime import datetime, timezone
@@ -18,7 +19,7 @@ from modules.deep_company_analysis.chapter9_synthesis_workspace import normalize
 
 APP_DIR = Path(__file__).resolve().parents[2]
 DB_PATH = APP_DIR / "data_cache" / "deep_company_analysis_management_synthesis.db"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _safe_ticker(value: str) -> str:
