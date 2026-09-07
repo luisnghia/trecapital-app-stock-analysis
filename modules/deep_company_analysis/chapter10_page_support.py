@@ -12,6 +12,7 @@ import streamlit as st
 import modules.deep_company_analysis.chapter10 as ch10
 import modules.deep_company_analysis.chapter10_research as research
 from modules.deep_company_analysis.chapter10_store import load_record, save_record, promoted_candidate_ids
+from modules.deep_company_analysis.table_format import render_static_table, sortable_data_editor
 
 
 def _safe_ticker(value: str) -> str:
@@ -45,7 +46,14 @@ def render_chapter10_tab(default_ticker: str = "") -> None:
             for item in ch10.EVIDENCE_DIMENSIONS[q]:
                 dim_id = item["id"]
                 rows.append({"Dimension ID": dim_id, "Dimension": item["label"], "Printed Pages": f"{item['pages'][0]}-{item['pages'][1]}", "Status": payload["dimension_status"].get(dim_id, "Unknown")})
-            edited = st.data_editor(pd.DataFrame(rows), hide_index=True, use_container_width=True, disabled=["Dimension ID","Dimension","Printed Pages"], column_config={"Status": st.column_config.SelectboxColumn(options=list(ch10.DIMENSION_STATUS_OPTIONS))}, key=f"ch10_dims_{ticker}_{q}")
+            edited = sortable_data_editor(
+                pd.DataFrame(rows),
+                hide_index=True,
+                use_container_width=True,
+                disabled=["Dimension ID", "Dimension", "Printed Pages"],
+                column_config={"Status": st.column_config.SelectboxColumn(options=list(ch10.DIMENSION_STATUS_OPTIONS))},
+                key=f"ch10_dims_{ticker}_{q}",
+            )
             for row in edited.to_dict("records"):
                 payload["dimension_status"][str(row["Dimension ID"])] = str(row["Status"])
 
@@ -69,7 +77,13 @@ def render_chapter10_tab(default_ticker: str = "") -> None:
     if not candidates.empty:
         promoted = promoted_candidate_ids(payload)
         candidates["Already Promoted"] = candidates["Candidate ID"].astype(str).isin(promoted)
-        shown = st.data_editor(candidates, hide_index=True, use_container_width=True, disabled=[c for c in candidates.columns if c != "Select"], key=f"ch10_candidates_editor_{ticker}")
+        shown = sortable_data_editor(
+            candidates,
+            hide_index=True,
+            use_container_width=True,
+            disabled=[c for c in candidates.columns if c != "Select"],
+            key=f"ch10_candidates_editor_{ticker}",
+        )
         selected = shown.loc[(shown["Select"] == True) & (~shown["Already Promoted"]), "Candidate ID"].astype(str).tolist()  # noqa: E712
         if st.button("✅ Promote selected evidence", disabled=not selected, key=f"ch10_promote_{ticker}"):
             payload = research.promote_selected_candidates(payload, candidates, selected)
@@ -83,10 +97,10 @@ def render_chapter10_tab(default_ticker: str = "") -> None:
     st.markdown("### Promoted evidence")
     evidence_df = pd.DataFrame(payload.get("evidence", []))
     if not evidence_df.empty:
-        st.dataframe(evidence_df, hide_index=True, use_container_width=True)
+        render_static_table(evidence_df, hide_index=True, use_container_width=True)
     gaps = research.research_gaps(candidates if not candidates.empty else None)
     st.markdown("### Open research gaps")
-    st.dataframe(gaps, hide_index=True, use_container_width=True)
+    render_static_table(gaps, hide_index=True, use_container_width=True)
 
     st.session_state[payload_key] = payload
     if st.button("💾 Save Chapter 10 workspace", type="primary", use_container_width=True, key=f"ch10_save_{ticker}"):
