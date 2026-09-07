@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-"""Chapter 10 Phase 10E — persistent analyst-owned growth workspace.
+"""Chapter 10 persistent analyst-owned growth workspace.
 
-Only analyst workspace state and explicitly promoted evidence are persisted. Canonical
-financial data remains read-only in its existing SSOT and is never copied into this database.
+Only analyst workspace state, explicitly promoted evidence and analyst-authored growth
+synthesis are persisted. Canonical financial data remains read-only in its existing SSOT and
+is never copied into this database.
 """
 
 from datetime import datetime, timezone
@@ -32,6 +33,18 @@ def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _preserve_analyst_extensions(normalized: dict[str, Any], source: dict[str, Any] | None) -> dict[str, Any]:
+    """Preserve additive analyst-owned payload extensions without changing Chapter 10 source lock.
+
+    V79 adds ``growth_synthesis``. It intentionally lives in the persistence layer rather than
+    the V74 source-contract normalizer so the immutable Q53-Q57 contract does not become a
+    catch-all schema and canonical financial data cannot leak into the Chapter 10 store.
+    """
+    if isinstance(source, dict) and isinstance(source.get("growth_synthesis"), dict):
+        normalized["growth_synthesis"] = json.loads(json.dumps(source["growth_synthesis"], ensure_ascii=False, default=str))
+    return normalized
 
 
 def init_db() -> None:
@@ -69,12 +82,14 @@ def load_record(ticker: str, company_name: str = "") -> dict[str, Any]:
         stored = json.loads(row["payload_json"] or "{}")
     except Exception:
         stored = {}
-    return ch10.normalize_payload(stored, safe, company_name or str(row["company_name"] or ""))
+    normalized = ch10.normalize_payload(stored, safe, company_name or str(row["company_name"] or ""))
+    return _preserve_analyst_extensions(normalized, stored)
 
 
 def save_record(ticker: str, payload: dict[str, Any], company_name: str = "") -> dict[str, Any]:
     safe = _safe_ticker(ticker)
     p = ch10.normalize_payload(payload or {}, safe, company_name)
+    p = _preserve_analyst_extensions(p, payload)
     p["ticker"] = safe
     p["company_name"] = company_name or str(p.get("company_name") or "")
     now = _now()
