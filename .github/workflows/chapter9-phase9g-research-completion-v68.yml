@@ -60,6 +60,7 @@ jobs:
             modules/deep_company_analysis/test_chapter9_phase9e.py \
             modules/deep_company_analysis/test_chapter9_phase9f.py \
             modules/deep_company_analysis/test_chapter9_phase9g.py \
+            modules/deep_company_analysis/test_chapter9_phase9g_app_rules.py \
             2>&1 | tee reports/CH9_V68_DETERMINISTIC_TESTS.log
 
       - name: Chapter 9 V68 research-completion acceptance
@@ -91,6 +92,9 @@ jobs:
           assert 'Research Completion Gate & Source Coverage Closure' in ui
           assert 'Giải thích thuật ngữ Phase 9G' in ui
           assert 'deep_company_analysis_chapter9.log' in ui
+          assert 'static_table_html' in ui
+          assert 'st.html(questions_html)' in ui
+          assert 'st.html(dimensions_html)' in ui
           assert 'known unknown' in engine.casefold()
           assert 'empty search result' in engine.casefold()
           assert 'no financial valuation formula' in docs.casefold()
@@ -108,7 +112,7 @@ jobs:
           low = engine.casefold()
           assert 'buy/hold/sell' in low
           assert 'weighted score' not in ' '.join(completion.QUESTION_COMPLETION_COLUMNS).casefold()
-          print('PASS: Phase 9G preserves source lock, Chapter 7 SSOT, analyst ownership and research-only completion semantics.')
+          print('PASS: Phase 9G preserves source lock, Chapter 7 SSOT, analyst ownership, st.html table rule and research-only completion semantics.')
           PY
 
       - name: Full Deep Company Analysis regression
