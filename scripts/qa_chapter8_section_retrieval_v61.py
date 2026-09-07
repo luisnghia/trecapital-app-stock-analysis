@@ -73,7 +73,7 @@ def main() -> int:
         max_targets=64,
         max_documents=12,
         max_files=7,
-        max_scanned_ocr_docs=0,
+        max_scanned_ocr_docs=1,
         year_floor=2022,
     )
 
