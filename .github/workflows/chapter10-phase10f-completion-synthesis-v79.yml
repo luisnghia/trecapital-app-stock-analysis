@@ -1,0 +1,92 @@
+name: Deep Company Analysis Chapter 10 Phase 10F Completion Synthesis V79
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter10-phase10f-v79
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chapter10-phase10f:
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: .
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+      - name: Compile Chapter 10 V79
+        run: |
+          python -m py_compile modules/deep_company_analysis/chapter10.py
+          python -m py_compile modules/deep_company_analysis/chapter10_completion.py
+          python -m py_compile modules/deep_company_analysis/test_chapter10_phase10f.py
+      - name: Chapter 10 cumulative deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_chapter10_phase10*.py 2>&1 | tee reports/CH10_V79_DETERMINISTIC_TESTS.log
+      - name: V79 completion and investment boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH10_V79_BOUNDARY_AUDIT.log
+          import modules.deep_company_analysis.chapter10 as ch10
+          import modules.deep_company_analysis.chapter10_completion as c10c
+          p = ch10.empty_payload('TEST')
+          g = c10c.completion_gate(p)
+          assert g['ready'] is False
+          assert g['total_questions'] == 5
+          assert g['total_dimensions'] == 34
+          assert ch10.QUESTION_KEYS == ('Q53','Q54','Q55','Q56','Q57')
+          text = open('modules/deep_company_analysis/chapter10_completion.py', encoding='utf-8').read().casefold()
+          assert 'buy/hold/sell' in text
+          assert 'growth score' in text
+          assert 'intrinsic_value =' not in text
+          print('PASS: V79 is a neutral completion/synthesis layer; no score, forecast, valuation or investment signal.')
+          PY
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py 2>&1 | tee reports/CH10_V79_FULL_DCA_REGRESSION.log
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8549 > reports/CH10_V79_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8549/_stcore/health | tee reports/CH10_V79_STREAMLIT_HEALTH.txt | grep -q ok; then exit 0; fi
+            sleep 1
+          done
+          cat reports/CH10_V79_STREAMLIT_SERVER.log
+          exit 1
+      - name: Build offline V79 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 10 Phase 10F V79\nBranch: feature/deep-company-analysis-chapter10-phase10f-v79\nCommit: %s\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH10_V79.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter10_Phase10F_V79.zip . -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter10_Phase10F_V79.zip | tail -n 3
+      - name: Upload V79 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter10_Phase10F_V79
+          retention-days: 90
+          path: |
+            docs/CHAPTER10_PHASE10F_COMPLETION_SYNTHESIS_V79.md
+            reports/CH10_V79_DETERMINISTIC_TESTS.log
+            reports/CH10_V79_BOUNDARY_AUDIT.log
+            reports/CH10_V79_FULL_DCA_REGRESSION.log
+            reports/CH10_V79_STREAMLIT_SERVER.log
+            reports/CH10_V79_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter10_Phase10F_V79.zip
