@@ -33,6 +33,7 @@ from modules.deep_company_analysis.chapter9_synthesis import (
     SYNTHESIS_BOUNDARY,
     build_management_handoff,
 )
+from modules.deep_company_analysis.chapter9_synthesis_report import render_saved_management_synthesis_report
 from modules.deep_company_analysis.chapter9_store import (
     list_snapshots as list_chapter9_snapshots,
     load_record as load_chapter9_record,
@@ -423,6 +424,10 @@ def render_consolidated_report_page() -> None:
     st.caption(
         "Phase 9I không sinh Analyst Synthesis, không tạo Management Quality Score/character classification, và không thay đổi MOS, investment Research Gate hoặc BUY/HOLD/SELL."
     )
+
+    # Phase 9K: report the analyst-saved synthesis and clearly label whether its reviewed source
+    # baseline is current or needs explicit re-review. The report remains read-only.
+    render_saved_management_synthesis_report(ticker, ch9_company_name, handoff)
 
 
 render_consolidated_report_page()
