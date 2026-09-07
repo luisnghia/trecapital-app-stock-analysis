@@ -94,7 +94,7 @@ def main() -> None:
         "separate_synthesis_database": "deep_company_analysis_management_synthesis.db" in store,
         "immutable_snapshot_table": "management_synthesis_snapshots" in store,
         "unified_chapter9_ui_integrated": "render_management_synthesis_workspace" in page,
-        "source_drift_ui_visible": "source_drift_status" in ui and "Changed — analyst review required" in ui,
+        "source_drift_ui_visible": "source_drift_status" in ui and "changed_sections" in ui,
         "saved_source_records_only": "saved Chapter 7–9 records only" in ui,
         "analyst_owned_final_synthesis_field": "Final Analyst Management Synthesis" in ui,
         "automatic_workspace_status_change": changed["automatic_workspace_status_change"],
