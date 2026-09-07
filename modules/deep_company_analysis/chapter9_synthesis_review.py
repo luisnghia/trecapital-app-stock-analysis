@@ -4,9 +4,10 @@ from __future__ import annotations
 
 This module translates the Phase 9J source fingerprint into a report/workflow state. It never
 rewrites the analyst's text or status automatically. Accepting a new source baseline is an explicit
-analyst action after reviewing the changed source sections. Source freshness is not a Management
-Quality Score, character classification, investment signal, MOS change, investment Research Gate,
-portfolio-sizing input, or BUY/HOLD/SELL recommendation.
+analyst action after reviewing the changed source sections.
+
+Boundary: source freshness is not a Management Quality Score, character classification, investment
+signal, MOS change, investment Research Gate, portfolio-sizing input, or BUY/HOLD/SELL recommendation.
 """
 
 from copy import deepcopy
