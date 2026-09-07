@@ -89,7 +89,7 @@ jobs:
           assert 'discipline_hurdle_context' not in set(targets['Dimension Key'])
           assert 'promote_selected_candidates' not in core
           assert 'save_record' not in core
-          assert 'buy/hold/sell' in core
+          assert 'buy-hold-sell' in core
           print('PASS: V54 deep retrieval targets only open source-locked dimensions and preserves analyst control.')
           PY
 
