@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pandas as pd
@@ -12,7 +13,6 @@ from modules.deep_company_analysis.chapter8_official_deep_retrieval import build
 from modules.deep_company_analysis.chapter8_research import CANDIDATE_COLUMNS
 from modules.deep_company_analysis.chapter8_research_v61 import Chapter8ResearchAgent
 from modules.deep_company_analysis.chapter8_section_directed_retrieval_v61 import (
-    SectionDirectedRetrievalAgentV61,
     build_section_plan,
     discover_section_directed_sources,
     download_section_documents,
@@ -76,7 +76,7 @@ class _Client:
 
 def test_v61_section_plan_is_driven_by_open_question_targets() -> None:
     targets = _all_targets()
-    chosen = filter_targets_to_keys(targets, {("Q43", "training"), ("Q46", "shearn_action_5")})
+    chosen = filter_targets_to_keys(targets, {("Q43", "training_resources"), ("Q46", "shearn_action_5")})
     plan = build_section_plan(chosen)
     assert set(plan["Section"]) == {"People / culture / hiring", "Capital allocation / buyback"}
     assert int(plan["Open Target Count"].sum()) == 2
@@ -84,11 +84,10 @@ def test_v61_section_plan_is_driven_by_open_question_targets() -> None:
 
 def test_v61_target_filter_does_not_add_unrequested_dimensions() -> None:
     targets = _all_targets()
-    keys = {("Q39", "customers"), ("Q45", "cost_reduction")}
+    keys = {("Q39", "customers"), ("Q45", "cost_action")}
     filtered = filter_targets_to_keys(targets, keys)
     actual = set(zip(filtered["Question"].astype(str), filtered["Dimension Key"].astype(str)))
-    assert actual.issubset(keys)
-    assert actual
+    assert actual == keys
 
 
 def test_v61_discovers_official_pdf_via_section_archive_and_landing_page() -> None:
@@ -101,10 +100,10 @@ def test_v61_discovers_official_pdf_via_section_archive_and_landing_page() -> No
         seed: _Resp(seed, text=archive_html),
         landing: _Resp(landing, text=landing_html),
     }
-    targets = filter_targets_to_keys(_all_targets(), {("Q43", "training")})
+    targets = filter_targets_to_keys(_all_targets(), {("Q43", "training_resources")})
     with patch("modules.deep_company_analysis.chapter8_section_directed_retrieval_v61.httpx.Client", return_value=_Client(mapping)):
         out = discover_section_directed_sources(
-            "DGC", targets, seed_urls=[seed], max_index_pages=1, max_landing_pages=4, max_documents=4, year_floor=2023
+            "DGC", targets, seed_urls=[seed], max_index_pages=9, max_landing_pages=4, max_documents=4, year_floor=2023
         )
     assert not out.empty
     assert pdf in set(out["Document URL"])
@@ -137,9 +136,10 @@ def test_v61_download_prefers_text_layer_and_bounds_scanned_ocr() -> None:
 
 def test_v61_research_wrapper_exposes_section_agent(tmp_path: Path) -> None:
     agent = Chapter8ResearchAgent(tmp_path)
-    with patch("modules.deep_company_analysis.chapter8_research_v61.SectionDirectedRetrievalAgentV61.run", return_value="sentinel") as mocked:
+    sentinel = SimpleNamespace(section_plan=pd.DataFrame(), discovery=pd.DataFrame(), downloads=pd.DataFrame())
+    with patch("modules.deep_company_analysis.chapter8_research_v61.SectionDirectedRetrievalAgentV61.run", return_value=sentinel) as mocked:
         out = agent.retrieve_section_directed_official_documents("DGC", existing_candidates=pd.DataFrame())
-    assert out == "sentinel"
+    assert out is sentinel
     assert mocked.call_args.kwargs["max_documents"] == 12
     assert mocked.call_args.kwargs["max_scanned_ocr_docs"] == 2
 
