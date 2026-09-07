@@ -1,0 +1,142 @@
+name: Deep Company Analysis Chapter 10 Phase 10A Source Lock V74
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter10-phase10a-v74
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  chapter10-phase10a:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Chapter 10 V74
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter10.py
+          python -m py_compile modules/deep_company_analysis/test_chapter10_phase10a.py
+          python -m py_compile scripts/qa_chapter10_source_lock_v74.py
+          python -m py_compile app.py
+
+      - name: Chapter 10 Phase 10A deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_chapter10_phase10a.py \
+            2>&1 | tee reports/CH10_V74_DETERMINISTIC_TESTS.log
+
+      - name: Chapter 10 V74 source-lock acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter10_source_lock_v74.py \
+            2>&1 | tee reports/CH10_V74_SOURCE_LOCK_ACCEPTANCE.log
+
+      - name: Chapter 10 V74 source and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH10_V74_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import json
+          import modules.deep_company_analysis.chapter10 as ch10
+
+          source = Path('modules/deep_company_analysis/chapter10.py').read_text(encoding='utf-8').casefold()
+          docs = Path('docs/FORMULA_EXPLANATION_CHAPTER10_PHASE10A_V74.md').read_text(encoding='utf-8').casefold()
+          report = json.loads(Path('reports/CH10_PHASE10A_SOURCE_LOCK_V74.json').read_text(encoding='utf-8'))
+
+          assert ch10.CHAPTER_NUMBER == 10
+          assert ch10.QUESTION_KEYS == ('Q53', 'Q54', 'Q55', 'Q56', 'Q57')
+          assert ch10.QUESTION_SOURCE_PAGES == {'Q53': 281, 'Q54': 282, 'Q55': 283, 'Q56': 284, 'Q57': 296}
+          assert 'Q52' not in ch10.QUESTION_TITLES and 'Q58' not in ch10.QUESTION_TITLES
+          assert 'import streamlit' not in source
+          assert 'sqlite3' not in source
+          assert 'import httpx' not in source
+          assert 'import requests' not in source
+          assert 'fireant' not in source
+          assert 'simplize' not in source
+          assert 'duplicate financial ssot' in source
+          assert 'ccc = dio + dso - dpo' in docs
+          assert 'does not calculate ccc' in docs
+          assert report['acceptance'] == 'PASS'
+          assert report['exact_question_range'] == 'Q53-Q57'
+          assert report['source_locked_questions'] == 5
+          assert report['unknown_first'] is True
+          assert report['automatic_growth_score'] is False
+          assert report['automatic_growth_forecast'] is False
+          assert report['automatic_investment_signal'] is False
+          assert report['financial_bridge_added'] is False
+          assert report['duplicate_financial_ssot_added'] is False
+          assert report['mos_or_research_gate_changed'] is False
+          print('PASS: Phase 10A preserves Q53-Q57 source lock, analyst ownership and financial/investment boundaries.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/CH10_V74_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8546 \
+            > reports/CH10_V74_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8546/_stcore/health \
+              | tee reports/CH10_V74_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/CH10_V74_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V74 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 10 Phase 10A V74\nBranch: feature/deep-company-analysis-chapter10-phase10a-v74\nCommit: %s\nPurpose: Michael Shearn Chapter 10 Q53-Q57 source lock and Unknown-first analyst contract; no growth score, forecast, duplicate financial SSOT, MOS/Research Gate change, or automatic investment conclusion.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH10_V74.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter10_Phase10A_V74.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter10_Phase10A_V74.zip | tail -n 3
+
+      - name: Upload V74 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter10_Phase10A_V74
+          retention-days: 90
+          path: |
+            docs/CHAPTER10_PHASE10A_SOURCE_LOCK_V74.md
+            docs/FORMULA_EXPLANATION_CHAPTER10_PHASE10A_V74.md
+            reports/CH10_PHASE10A_SOURCE_LOCK_V74.json
+            reports/CH10_V74_DETERMINISTIC_TESTS.log
+            reports/CH10_V74_SOURCE_LOCK_ACCEPTANCE.log
+            reports/CH10_V74_BOUNDARY_AUDIT.log
+            reports/CH10_V74_FULL_DCA_REGRESSION.log
+            reports/CH10_V74_STREAMLIT_SERVER.log
+            reports/CH10_V74_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter10_Phase10A_V74.zip
