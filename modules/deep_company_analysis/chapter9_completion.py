@@ -127,16 +127,19 @@ def _has_source_lineage(row: dict[str, Any]) -> bool:
 
 
 def _manager_scope_status(question: str, context: bridge.Chapter9ContextResult) -> str:
+    if not isinstance(context.manager_reference, pd.DataFrame) or context.manager_reference.empty:
+        return "Blocked — manager identity unavailable"
     scope = context.dimension_scope
     if not isinstance(scope, pd.DataFrame) or scope.empty:
         return "Blocked — manager identity unavailable"
     sub = scope[scope["Question"].eq(question)]
     if sub.empty:
         return "Blocked — manager identity unavailable"
-    if question in bridge.CEO_QUESTIONS:
-        manager_ids = sub.get("Manager ID", pd.Series(dtype="object")).astype(str)
-        if not manager_ids.str.len().gt(0).any():
+    manager_ids = sub.get("Manager ID", pd.Series(dtype="object")).astype(str)
+    if not manager_ids.str.len().gt(0).any():
+        if question in bridge.CEO_QUESTIONS:
             return "Blocked — explicit Chapter 7 CEO required"
+        return "Blocked — manager identity unavailable"
     return "Scoped — Chapter 7 manager master"
 
 
