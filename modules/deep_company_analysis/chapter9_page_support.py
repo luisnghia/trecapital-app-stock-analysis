@@ -41,7 +41,11 @@ from modules.deep_company_analysis.chapter9_workspace import (
     validate_candidate_for_promotion,
     workspace_snapshot,
 )
-from modules.deep_company_analysis.table_format import render_static_table, sortable_data_editor
+from modules.deep_company_analysis.table_format import (
+    render_static_table,
+    sortable_data_editor,
+    static_table_html,
+)
 
 
 RESEARCH_GAP_WORKSPACE_COLUMNS = [
@@ -436,9 +440,13 @@ def _render_completion_gate(ticker: str, payload: dict[str, Any], chapter7_paylo
     )
 
     st.markdown("**Q48–Q52 completion checks**")
-    render_static_table(questions, height=360, sort_key=f"dca9_{ticker}_question_completion")
+    questions_html = static_table_html(questions, height=360)
+    if questions_html:
+        st.html(questions_html)
     with st.expander("26 source-dimension closure checks", expanded=False):
-        render_static_table(dimensions, height=620, sort_key=f"dca9_{ticker}_dimension_completion")
+        dimensions_html = static_table_html(dimensions, height=620)
+        if dimensions_html:
+            st.html(dimensions_html)
         st.caption(
             "Một dimension chỉ đóng khi có verified evidence + source lineage, hoặc analyst chủ động đóng research gap như known unknown. Empty search result không tự đóng dimension."
         )
