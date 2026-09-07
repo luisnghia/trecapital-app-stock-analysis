@@ -73,6 +73,7 @@ class OfficialFileIngestionAgentV60:
                 high_res_dpi=high_res_dpi,
                 high_res_max_pages=high_res_max_pages,
                 neighbor_radius=neighbor_radius,
+                identity_terms=(ticker,),
             )
             diagnostics.append({
                 "File Sequence": len(diagnostics) + 1,
