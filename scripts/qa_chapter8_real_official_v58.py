@@ -66,6 +66,8 @@ def main() -> int:
     download_attempts.to_csv(REPORTS / "CH8_DGC_REAL_OFFICIAL_DOWNLOADS_V58.csv", index=False, encoding="utf-8-sig")
     assert not download_attempts.empty
     assert download_attempts["Official URL"].eq("Yes").all()
+    print("V58 real-source download diagnostics:")
+    print(download_attempts.to_string(index=False))
     fetched = download_attempts[download_attempts["Status"].eq("Fetched")]
     assert not fetched.empty, "At least one real DGC issuer PDF must be retrievable for Phase 8M acceptance"
 
