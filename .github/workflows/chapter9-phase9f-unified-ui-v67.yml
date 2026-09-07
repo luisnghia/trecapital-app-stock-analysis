@@ -1,0 +1,148 @@
+name: Deep Company Analysis Chapter 9 Phase 9F Unified UI V67
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter9-phase9f-v67
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  chapter9-phase9f:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Chapter 9 V67
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter9.py
+          python -m py_compile modules/deep_company_analysis/chapter9_source_contract_v63.py
+          python -m py_compile modules/deep_company_analysis/chapter9_data_bridge.py
+          python -m py_compile modules/deep_company_analysis/chapter9_research.py
+          python -m py_compile modules/deep_company_analysis/chapter9_workspace.py
+          python -m py_compile modules/deep_company_analysis/chapter9_store.py
+          python -m py_compile modules/deep_company_analysis/chapter9_page_support.py
+          python -m py_compile pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+          python -m py_compile scripts/qa_chapter9_unified_ui_v67.py
+
+      - name: Chapter 9 Phase 9A-9F deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q \
+            modules/deep_company_analysis/test_chapter9_phase9a.py \
+            modules/deep_company_analysis/test_chapter9_phase9b.py \
+            modules/deep_company_analysis/test_chapter9_phase9c.py \
+            modules/deep_company_analysis/test_chapter9_phase9d.py \
+            modules/deep_company_analysis/test_chapter9_phase9e.py \
+            modules/deep_company_analysis/test_chapter9_phase9f.py \
+            2>&1 | tee reports/CH9_V67_DETERMINISTIC_TESTS.log
+
+      - name: Chapter 9 V67 unified UI acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter9_unified_ui_v67.py \
+            2>&1 | tee reports/CH9_V67_UNIFIED_UI_ACCEPTANCE.log
+
+      - name: Chapter 9 V67 source and analyst-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH9_V67_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import json
+          import modules.deep_company_analysis.chapter9 as ch9
+          import modules.deep_company_analysis.chapter9_workspace as ws
+          import modules.deep_company_analysis.chapter9_source_contract_v63 as contract
+
+          ui = Path('modules/deep_company_analysis/chapter9_page_support.py').read_text(encoding='utf-8')
+          page = Path('pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py').read_text(encoding='utf-8')
+          report = json.loads(Path('reports/CH9_PHASE9F_UNIFIED_UI_V67.json').read_text(encoding='utf-8'))
+          source = contract.validate_source_contract()
+          assert ch9.QUESTION_KEYS == ('Q48', 'Q49', 'Q50', 'Q51', 'Q52')
+          assert source['total_dimensions'] == 26
+          assert source['dimension_counts'] == {'Q48': 6, 'Q49': 4, 'Q50': 8, 'Q51': 3, 'Q52': 5}
+          assert 'render_chapter9_tab(chapter9_ticker)' in page
+          assert 'Chapter 7 manager master' in ui
+          assert 'Promote evidence đã chọn' in ui
+          assert 'Q52_FINANCING_CONTEXT_EXCEPTION' in ui
+          low = ui.casefold()
+          assert 'management_score =' not in low
+          assert 'character_classification =' not in low
+          assert 'research_gate =' not in low
+          assert report['unified_page_integration'] is True
+          assert report['automatic_management_score'] is False
+          assert report['automatic_character_classification'] is False
+          assert report['automatic_investment_signal'] is False
+          assert report['mos_or_research_gate_changed'] is False
+          assert ws.workspace_snapshot(ch9.empty_payload('DGC'))['source_dimension_count'] == 26
+          print('PASS: Chapter 9 Phase 9F preserves source lock, Chapter 7 manager SSOT and analyst control in the unified UI.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/CH9_V67_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8539 \
+            > reports/CH9_V67_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8539/_stcore/health \
+              | tee reports/CH9_V67_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/CH9_V67_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V67 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 9 Phase 9F V67\nBranch: feature/deep-company-analysis-chapter9-phase9f-v67\nCommit: %s\nPurpose: unified Streamlit analyst workspace UI for Chapter 9 Q48-Q52 using the V66 promotion/store layer.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH9_V67.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter9_Phase9F_V67.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter9_Phase9F_V67.zip | tail -n 3
+
+      - name: Upload V67 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter9_Phase9F_V67
+          retention-days: 90
+          path: |
+            docs/CHAPTER9_PHASE9F_UNIFIED_UI_V67.md
+            reports/CH9_PHASE9F_UNIFIED_UI_V67.json
+            reports/CH9_V67_DETERMINISTIC_TESTS.log
+            reports/CH9_V67_UNIFIED_UI_ACCEPTANCE.log
+            reports/CH9_V67_BOUNDARY_AUDIT.log
+            reports/CH9_V67_FULL_DCA_REGRESSION.log
+            reports/CH9_V67_STREAMLIT_SERVER.log
+            reports/CH9_V67_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter9_Phase9F_V67.zip
