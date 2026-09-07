@@ -14,7 +14,7 @@ from modules.deep_company_analysis.chapter8_data_bridge import build_phase8b_con
 from modules.deep_company_analysis.chapter8_gap_engine import validate_source_locks
 from modules.deep_company_analysis.chapter8_real_official_sources import v54_historical_open_keys
 from modules.deep_company_analysis.chapter8_research import CANDIDATE_COLUMNS
-from modules.deep_company_analysis.chapter8_section_directed_retrieval_v61 import SectionDirectedRetrievalAgentV61
+from modules.deep_company_analysis.chapter8_section_directed_retrieval_runtime_v61 import SectionDirectedRetrievalAgentV61Runtime
 
 
 REPORTS = Path("reports")
@@ -63,7 +63,7 @@ def main() -> int:
     v59_remaining = historical_open - V59_REAL_NEWLY_COVERED
     assert len(v59_remaining) == 39
 
-    agent = SectionDirectedRetrievalAgentV61("data_cache/chapter8_section_retrieval_v61")
+    agent = SectionDirectedRetrievalAgentV61Runtime("data_cache/chapter8_section_retrieval_v61")
     result = agent.run(
         ticker,
         existing_candidates=pd.DataFrame(columns=CANDIDATE_COLUMNS),
@@ -125,6 +125,7 @@ def main() -> int:
 
     q_distribution = result.ingestion.new_candidates.groupby("Question").size().astype(int).to_dict() if not result.ingestion.new_candidates.empty else {}
     section_distribution = result.discovery.groupby("Section").size().astype(int).to_dict() if not result.discovery.empty else {}
+    manifest_rows = int(result.discovery["Discovery Method"].astype(str).str.contains("manifest fallback", case=False, regex=False).sum())
     output = {
         "phase": "Chapter 8 Phase 8P Official Document Expansion + Section-Directed Retrieval V61",
         "acceptance": "PASS",
@@ -138,6 +139,7 @@ def main() -> int:
         "v61_target_dimensions": int(len(result.targets)),
         "v61_section_plan_rows": int(len(result.section_plan)),
         "official_documents_discovered": int(len(result.discovery)),
+        "verified_manifest_fallback_rows": manifest_rows,
         "historical_2022_2024_documents_discovered": int(len(historical_docs)),
         "official_documents_fetched": int(len(fetched)),
         "ticker_validated_documents_accepted": int(len(selected_attempts)),
