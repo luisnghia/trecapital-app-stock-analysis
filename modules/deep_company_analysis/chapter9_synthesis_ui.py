@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Streamlit UI for analyst-owned Chapters 7–9 management synthesis and Phase 9K re-review."""
+"""Streamlit UI for analyst-owned Chapters 7–9 management synthesis, re-review and history."""
 
 from typing import Any
 
@@ -12,6 +12,12 @@ from modules.deep_company_analysis.chapter8_store import load_record as load_cha
 from modules.deep_company_analysis.chapter9_completion import append_completion_log
 from modules.deep_company_analysis.chapter9_store import load_record as load_chapter9_record
 from modules.deep_company_analysis.chapter9_synthesis import build_management_handoff
+from modules.deep_company_analysis.chapter9_synthesis_history import (
+    SYNTHESIS_HISTORY_BOUNDARY,
+    build_version_lineage,
+    compare_synthesis_versions,
+    synthesis_history_summary,
+)
 from modules.deep_company_analysis.chapter9_synthesis_review import (
     accept_current_source_after_re_review,
     build_re_review_checklist,
@@ -50,12 +56,151 @@ def _select(label: str, value: Any, options: tuple[str, ...], key: str) -> str:
     return str(st.selectbox(label, choices, index=choices.index(current) if current in choices else 0, key=key))
 
 
+def _snapshot_records(snapshot_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for row in snapshot_rows:
+        try:
+            snapshot_id = int(row.get("id"))
+        except Exception:
+            continue
+        payload = load_snapshot(snapshot_id)
+        if not isinstance(payload, dict):
+            continue
+        records.append(
+            {
+                "snapshot_id": snapshot_id,
+                "created_at": row.get("created_at", ""),
+                "schema_version": row.get("schema_version", payload.get("schema_version", "")),
+                "payload": payload,
+            }
+        )
+    return records
+
+
+def _render_synthesis_history(
+    ticker: str,
+    current_saved_workspace: dict[str, Any],
+    snapshot_rows: list[dict[str, Any]],
+) -> None:
+    records = _snapshot_records(snapshot_rows)
+    if not records:
+        return
+
+    st.markdown("#### Phase 9L — Analyst Synthesis History & Delta Review")
+    st.caption(SYNTHESIS_HISTORY_BOUNDARY)
+    with st.expander("📖 Giải thích Phase 9L", expanded=False):
+        st.markdown(
+            """
+- **Version Lineage:** chuỗi các immutable Management Synthesis snapshot đã lưu theo thời gian.
+- **Snapshot:** bản chụp bất biến; Phase 9L chỉ đọc để so sánh, không restore hay ghi đè current workspace.
+- **Delta:** thay đổi cấu trúc giữa hai phiên bản analyst-owned: `Added`, `Removed`, `Changed`, `Unchanged`.
+- **Source Baseline:** fingerprint Q33–Q52 đã được lưu trong chính phiên bản đó. Phase 9L không dùng dữ liệu hôm nay để dựng lại source freshness trong quá khứ.
+- **Re-review Lineage:** thời điểm, memo và source sections của lần analyst explicit re-review đã được lưu trong từng version.
+- **Changed không có nghĩa management tốt lên/xấu đi:** đây chỉ là thay đổi của hồ sơ/kết luận analyst theo thời gian.
+            """
+        )
+
+    lineage = build_version_lineage(records)
+    st.markdown("**Immutable Management Synthesis Version Lineage**")
+    _render_table(lineage, 420)
+
+    ids = [int(record["snapshot_id"]) for record in records]
+    left_col, right_col = st.columns(2)
+    with left_col:
+        before_id = int(
+            st.selectbox(
+                "Before version",
+                ids,
+                format_func=lambda value: f"Snapshot #{value}",
+                key=f"dca9l_{ticker}_before",
+            )
+        )
+    after_options = ["Current saved workspace"] + [f"Snapshot #{value}" for value in ids]
+    with right_col:
+        after_choice = str(
+            st.selectbox(
+                "After version",
+                after_options,
+                key=f"dca9l_{ticker}_after",
+            )
+        )
+
+    before_payload = load_snapshot(before_id) or {}
+    before_label = f"Snapshot #{before_id}"
+    if after_choice == "Current saved workspace":
+        after_payload = current_saved_workspace
+        after_label = "Current saved workspace"
+    else:
+        try:
+            after_id = int(after_choice.split("#", 1)[1])
+        except Exception:
+            after_id = before_id
+        after_payload = load_snapshot(after_id) or {}
+        after_label = f"Snapshot #{after_id}"
+
+    delta = compare_synthesis_versions(
+        before_payload,
+        after_payload,
+        before_label=before_label,
+        after_label=after_label,
+    )
+    history = synthesis_history_summary(before_payload, after_payload)
+
+    if history["changed_fields"]:
+        st.warning(
+            f"🟡 {history['changed_fields']}/{history['tracked_fields']} tracked fields changed between the selected versions. This is a record delta, not a management-quality judgment."
+        )
+    else:
+        st.success("🟢 Không có thay đổi trong các tracked analyst-synthesis fields giữa hai version đã chọn.")
+
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("Changed fields", history["changed_fields"])
+    m2.metric("Added", history["added_fields"])
+    m3.metric("Removed", history["removed_fields"])
+    m4.metric("Modified", history["modified_fields"])
+    m5.metric("Source baseline", "Changed" if history["source_baseline_changed"] else "Unchanged")
+
+    changed_only = st.checkbox(
+        "Chỉ hiển thị fields có thay đổi",
+        value=True,
+        key=f"dca9l_{ticker}_changed_only",
+    )
+    display_delta = delta[delta["Delta"] != "Unchanged"].reset_index(drop=True) if changed_only else delta
+    st.markdown("**Analyst Synthesis Field Delta**")
+    _render_table(display_delta, 520)
+    if changed_only and display_delta.empty:
+        st.caption("Không có field thay đổi; bỏ chọn bộ lọc để xem toàn bộ tracked fields.")
+
+    st.caption(
+        "Historical source freshness is not reconstructed. Phase 9L displays only the baseline fingerprint/re-review metadata actually stored in each version."
+    )
+    if st.button(
+        "🧾 Ghi log Synthesis Delta Review",
+        use_container_width=True,
+        key=f"dca9l_{ticker}_log_delta",
+    ):
+        append_completion_log(
+            ticker,
+            "phase9l_synthesis_delta_view",
+            {
+                "before": before_label,
+                "after": after_label,
+                "changed_fields": history["changed_fields"],
+                "source_baseline_changed": history["source_baseline_changed"],
+                "status_changed": history["status_changed"],
+                "confidence_changed": history["confidence_changed"],
+                "final_synthesis_changed": history["final_synthesis_changed"],
+            },
+        )
+        st.success("Đã ghi log Phase 9L delta review. Không thay đổi workspace, snapshot hoặc investment conclusion.")
+
+
 def render_management_synthesis_workspace(ticker: str, company_name: str = "") -> None:
     """Render synthesis against saved Chapter 7–9 records only.
 
     Phase 9K deliberately separates ordinary synthesis saving from accepting a changed source
-    baseline. Once a baseline exists, Save never silently re-baselines Q33–Q52. The analyst must use
-    the explicit re-review confirmation when source drift is detected.
+    baseline. Phase 9L adds a read-only comparison of immutable synthesis versions; it never
+    restores/overwrites a workspace or interprets a text delta as management quality.
     """
     chapter7_payload = load_chapter7_record(ticker)
     chapter8_payload = load_chapter8_record(ticker, company_name)
@@ -66,7 +211,7 @@ def render_management_synthesis_workspace(ticker: str, company_name: str = "") -
     review_state = build_source_review_state(workspace, handoff)
     summary = synthesis_workspace_summary(workspace, handoff)
 
-    st.markdown("### Phase 9J–9K — Analyst-Owned Management Synthesis + Explicit Re-review")
+    st.markdown("### Phase 9J–9L — Analyst-Owned Management Synthesis + Re-review + History")
     st.caption(SYNTHESIS_WORKSPACE_BOUNDARY)
     st.caption(
         "Nguồn dùng để tổng hợp là các Chapter 7–9 workspace đã lưu. Nếu vừa sửa Q33–Q52, hãy lưu chapter tương ứng trước. Khi source drift xuất hiện, nút Save bình thường KHÔNG tự chấp nhận baseline mới."
@@ -257,7 +402,8 @@ def render_management_synthesis_workspace(ticker: str, company_name: str = "") -
             f"Last explicit re-review: {workspace.get('last_re_review_at')} | sections: {', '.join(workspace.get('last_re_review_sections') or []) or 'none'} | note: {workspace.get('last_re_review_note') or ''}"
         )
 
-    snapshots = pd.DataFrame(list_snapshots(ticker, 20))
+    snapshot_rows = list_snapshots(ticker, 50)
+    snapshots = pd.DataFrame(snapshot_rows)
     if snapshots.empty:
         return
     st.markdown("**Management Synthesis Snapshot History**")
@@ -288,6 +434,9 @@ def render_management_synthesis_workspace(ticker: str, company_name: str = "") -
             }
         ])
         _render_table(preview, 380)
+
+    current_saved_workspace = load_workspace(ticker, company_name)
+    _render_synthesis_history(ticker, current_saved_workspace, snapshot_rows)
 
 
 __all__ = ["render_management_synthesis_workspace"]
