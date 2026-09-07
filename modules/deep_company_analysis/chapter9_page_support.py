@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-"""Chapter 9 Phase 9G — unified Streamlit analyst workspace for Q48-Q52.
+"""Chapter 9 unified Streamlit analyst workspace for Q48-Q52 plus Phase 9J synthesis handoff.
 
-The UI wires the tested Phase 9A-9G layers into the existing Deep Company Analysis workspace.
+The UI wires the tested Phase 9A-9J layers into the existing Deep Company Analysis workspace.
 Research creates candidates; only the analyst can promote evidence, close known-unknown gaps,
-change Research Status/Confidence, and write conclusions. Phase 9G adds research-completion
-readiness only; it never creates a management score, character classification, MOS/Research Gate
-change, or BUY/HOLD/SELL.
+change Research Status/Confidence, write conclusions, and write the cross-chapter management
+synthesis. Research-completion readiness and source fingerprints never create a management score,
+character classification, MOS/Research Gate change, or BUY/HOLD/SELL.
 """
 
 from typing import Any
@@ -34,6 +34,7 @@ from modules.deep_company_analysis.chapter9_store import (
     load_snapshot,
     save_record,
 )
+from modules.deep_company_analysis.chapter9_synthesis_ui import render_management_synthesis_workspace
 from modules.deep_company_analysis.chapter9_workspace import (
     WORKSPACE_EVIDENCE_COLUMNS,
     merge_research_gaps,
@@ -137,6 +138,7 @@ def _render_source_lock() -> None:
 - `Unknown` / `Research Gap` là kết quả hợp lệ khi chưa đủ bằng chứng. Không suy đoán để lấp chỗ trống.
 - Direction cue chỉ giúp sắp xếp research; **không phải kết luận positive/negative trait**.
 - Phase 9G chỉ kiểm tra **research completion/source coverage**; không tự đóng câu hỏi hoặc biến coverage thành Management Quality Score.
+- Phase 9J chỉ lưu **analyst-owned cross-chapter synthesis + source fingerprint**; source drift không tự sửa conclusion/status.
 - Chương 9 **không tạo Management Quality Score, character classification, MOS/Research Gate change hoặc BUY/HOLD/SELL**.
             """
         )
@@ -504,7 +506,7 @@ def render_chapter9_tab(default_ticker: str = "DGC") -> None:
 
     st.title("🧠 Chương 9 — Phẩm chất tích cực & tiêu cực của Ban điều hành")
     st.caption(
-        "Assessing the Quality of Management—Positive and Negative Traits | Q48–Q52 | Phase 9A–9G"
+        "Assessing the Quality of Management—Positive and Negative Traits | Q48–Q52 | Phase 9A–9J"
     )
     _render_source_lock()
 
@@ -544,6 +546,9 @@ def render_chapter9_tab(default_ticker: str = "DGC") -> None:
             snapshot_id = create_snapshot(ticker, payload)
             append_completion_log(ticker, "snapshot_save", {"snapshot_id": snapshot_id})
             st.success(f"Đã lưu snapshot #{snapshot_id}.")
+
+    with st.container(border=True):
+        render_management_synthesis_workspace(ticker, company_name)
 
     _render_snapshot_history(ticker)
 
