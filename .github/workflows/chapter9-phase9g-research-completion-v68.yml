@@ -1,0 +1,160 @@
+name: Deep Company Analysis Chapter 9 Phase 9G Research Completion V68
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter9-phase9g-v68
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  chapter9-phase9g:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Chapter 9 V68
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter9.py
+          python -m py_compile modules/deep_company_analysis/chapter9_source_contract_v63.py
+          python -m py_compile modules/deep_company_analysis/chapter9_data_bridge.py
+          python -m py_compile modules/deep_company_analysis/chapter9_research.py
+          python -m py_compile modules/deep_company_analysis/chapter9_workspace.py
+          python -m py_compile modules/deep_company_analysis/chapter9_store.py
+          python -m py_compile modules/deep_company_analysis/chapter9_completion.py
+          python -m py_compile modules/deep_company_analysis/chapter9_page_support.py
+          python -m py_compile pages/07_Phan_tich_chuyen_sau_doanh_nghiep.py
+          python -m py_compile scripts/qa_chapter9_research_completion_v68.py
+
+      - name: Chapter 9 Phase 9A-9G deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q \
+            modules/deep_company_analysis/test_chapter9_phase9a.py \
+            modules/deep_company_analysis/test_chapter9_phase9b.py \
+            modules/deep_company_analysis/test_chapter9_phase9c.py \
+            modules/deep_company_analysis/test_chapter9_phase9d.py \
+            modules/deep_company_analysis/test_chapter9_phase9e.py \
+            modules/deep_company_analysis/test_chapter9_phase9f.py \
+            modules/deep_company_analysis/test_chapter9_phase9g.py \
+            2>&1 | tee reports/CH9_V68_DETERMINISTIC_TESTS.log
+
+      - name: Chapter 9 V68 research-completion acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter9_research_completion_v68.py \
+            2>&1 | tee reports/CH9_V68_RESEARCH_COMPLETION_ACCEPTANCE.log
+
+      - name: Chapter 9 V68 source, analyst and app-rule boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH9_V68_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import json
+          import modules.deep_company_analysis.chapter9 as ch9
+          import modules.deep_company_analysis.chapter9_completion as completion
+          import modules.deep_company_analysis.chapter9_source_contract_v63 as contract
+
+          engine = Path('modules/deep_company_analysis/chapter9_completion.py').read_text(encoding='utf-8')
+          ui = Path('modules/deep_company_analysis/chapter9_page_support.py').read_text(encoding='utf-8')
+          docs = Path('docs/FORMULA_EXPLANATION_CHAPTER9_PHASE9G_V68.md').read_text(encoding='utf-8')
+          report = json.loads(Path('reports/CH9_PHASE9G_RESEARCH_COMPLETION_V68.json').read_text(encoding='utf-8'))
+          source = contract.validate_source_contract()
+
+          assert ch9.QUESTION_KEYS == ('Q48', 'Q49', 'Q50', 'Q51', 'Q52')
+          assert source['total_dimensions'] == 26
+          assert source['dimension_counts'] == {'Q48': 6, 'Q49': 4, 'Q50': 8, 'Q51': 3, 'Q52': 5}
+          assert ch9.MANAGER_IDENTITY_SSOT == 'Chapter 7 manager master'
+          assert 'Research Completion Gate & Source Coverage Closure' in ui
+          assert 'Giải thích thuật ngữ Phase 9G' in ui
+          assert 'deep_company_analysis_chapter9.log' in ui
+          assert 'known unknown' in engine.casefold()
+          assert 'empty search result' in engine.casefold()
+          assert 'no financial valuation formula' in docs.casefold()
+          assert report['completion_is_research_process_only'] is True
+          assert report['empty_search_does_not_close_dimension'] is True
+          assert report['verified_evidence_requires_source_lineage'] is True
+          assert report['missing_chapter7_manager_blocks_closure'] is True
+          assert report['automatic_question_status_change'] is False
+          assert report['automatic_confidence_change'] is False
+          assert report['automatic_analyst_assessment'] is False
+          assert report['automatic_management_score'] is False
+          assert report['automatic_character_classification'] is False
+          assert report['automatic_investment_signal'] is False
+          assert report['mos_or_investment_research_gate_changed'] is False
+          low = engine.casefold()
+          assert 'buy/hold/sell' in low
+          assert 'weighted score' not in ' '.join(completion.QUESTION_COMPLETION_COLUMNS).casefold()
+          print('PASS: Phase 9G preserves source lock, Chapter 7 SSOT, analyst ownership and research-only completion semantics.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/CH9_V68_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8540 \
+            > reports/CH9_V68_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8540/_stcore/health \
+              | tee reports/CH9_V68_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/CH9_V68_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V68 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 9 Phase 9G V68\nBranch: feature/deep-company-analysis-chapter9-phase9g-v68\nCommit: %s\nPurpose: research-completion gate and source-coverage closure for Chapter 9 Q48-Q52; research readiness only, no management score.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH9_V68.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter9_Phase9G_V68.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter9_Phase9G_V68.zip | tail -n 3
+
+      - name: Upload V68 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter9_Phase9G_V68
+          retention-days: 90
+          path: |
+            docs/CHAPTER9_PHASE9G_RESEARCH_COMPLETION_V68.md
+            docs/FORMULA_EXPLANATION_CHAPTER9_PHASE9G_V68.md
+            reports/CH9_PHASE9G_RESEARCH_COMPLETION_V68.json
+            reports/CH9_V68_DETERMINISTIC_TESTS.log
+            reports/CH9_V68_RESEARCH_COMPLETION_ACCEPTANCE.log
+            reports/CH9_V68_BOUNDARY_AUDIT.log
+            reports/CH9_V68_FULL_DCA_REGRESSION.log
+            reports/CH9_V68_STREAMLIT_SERVER.log
+            reports/CH9_V68_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter9_Phase9G_V68.zip
