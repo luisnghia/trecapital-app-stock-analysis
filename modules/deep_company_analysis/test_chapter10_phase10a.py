@@ -56,7 +56,7 @@ def test_phase10a_research_focus_covers_only_source_questions() -> None:
     joined = " ".join(ch10.QUESTION_RESEARCH_FOCUS.values()).casefold()
     assert "growth route" in joined
     assert "motivation" in joined
-    assert "profitable" in joined
+    assert "gross margin" in joined
     assert "runway" in joined
     assert "disciplined" in joined
 
