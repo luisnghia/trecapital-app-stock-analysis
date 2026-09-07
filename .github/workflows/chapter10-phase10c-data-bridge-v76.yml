@@ -72,11 +72,16 @@ jobs:
           assert 'import requests' not in source
           assert 'fireant' not in source
           assert 'simplize' not in source
-          assert 'ccc = dio + dso - dpo' not in source
           assert 'does not recompute ccc' in source
           assert 'ccc = dio + dso - dpo' in docs
           assert 'does not calculate ccc' in docs
-          assert bridge.ccc_bridge_state({'metrics': {'dio': 10, 'dso': 20, 'dpo': 5}})['ccc'] is None
+          component_only = bridge.ccc_bridge_state({'metrics': {'dio': 10, 'dso': 20, 'dpo': 5}})
+          assert component_only['ccc'] is None
+          assert component_only['computed_by_chapter10'] is False
+          assert all(component_only['components_available'].values())
+          canonical_ccc = bridge.ccc_bridge_state({'derived_metrics': {'ccc': 25}})
+          assert canonical_ccc['ccc'] == 25
+          assert canonical_ccc['computed_by_chapter10'] is False
           print('PASS: V76 consumes canonical evidence read-only and preserves CCC/analyst/investment boundaries.')
           PY
 
