@@ -27,6 +27,10 @@ Candidate evidence is not a fact merely because the assistant found it. `promote
 
 V77 adds no weighted Growth Score, no automatic forecast, no BUY/HOLD/SELL, no duplicate financial SSOT, no CCC recomputation, no Streamlit UI/store, and no change to MOS or the Investment Research Gate.
 
+## QA contract
+
+The dedicated V77 workflow compiles the new module, runs cumulative Chapter 10 deterministic tests, executes a source/investment-boundary audit, runs the full Deep Company Analysis regression suite, checks Streamlit health, validates the offline ZIP and uploads the V77 artifact.
+
 ## Next phase
 
 **Phase 10E — analyst workspace/store/UI and research-promotion workflow.** It should expose the V77 research plan/candidates/gaps inside the Chapter 10 workspace while keeping every qualitative conclusion analyst-owned.
