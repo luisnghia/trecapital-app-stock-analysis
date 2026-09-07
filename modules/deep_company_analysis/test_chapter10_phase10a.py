@@ -54,10 +54,10 @@ def test_normalization_cannot_override_source_lock_or_question_range() -> None:
 def test_phase10a_research_focus_covers_only_source_questions() -> None:
     assert tuple(ch10.QUESTION_RESEARCH_FOCUS) == ch10.QUESTION_KEYS
     joined = " ".join(ch10.QUESTION_RESEARCH_FOCUS.values()).casefold()
-    assert "organic" in joined
+    assert "growth route" in joined
     assert "motivation" in joined
     assert "profitable" in joined
-    assert "future growth" in joined or "runway" in joined
+    assert "runway" in joined
     assert "disciplined" in joined
 
 
