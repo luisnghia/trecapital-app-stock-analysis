@@ -1,0 +1,144 @@
+name: Deep Company Analysis Appendix A Phase A Source Lock V90
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-appendix-a-phasea-v90
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  appendix-a-phasea-v90:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Appendix A V90
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/appendix_a.py
+          python -m py_compile modules/deep_company_analysis/test_appendix_a_phasea_v90.py
+          python -m py_compile scripts/qa_appendix_a_source_lock_v90.py
+          python -m py_compile app.py
+
+      - name: Appendix A V90 deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_appendix_a_phasea_v90.py \
+            2>&1 | tee reports/APPENDIX_A_V90_DETERMINISTIC_TESTS.log
+
+      - name: Appendix A V90 source-lock acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_appendix_a_source_lock_v90.py \
+            2>&1 | tee reports/APPENDIX_A_V90_SOURCE_LOCK_ACCEPTANCE.log
+
+      - name: Appendix A V90 source, SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/APPENDIX_A_V90_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import json
+          import modules.deep_company_analysis.appendix_a as appa
+
+          source = Path('modules/deep_company_analysis/appendix_a.py').read_text(encoding='utf-8').casefold()
+          docs = Path('docs/FORMULA_EXPLANATION_APPENDIX_A_PHASEA_V90.md').read_text(encoding='utf-8').casefold()
+          report = json.loads(Path('reports/APPENDIX_A_PHASEA_SOURCE_LOCK_V90.json').read_text(encoding='utf-8'))
+
+          assert appa.APPENDIX_KEY == 'A'
+          assert appa.APPENDIX_TITLE == 'Building a Human Intelligence Network'
+          assert appa.SOURCE_PRINT_PAGES == (323, 330)
+          assert len(appa.SECTION_KEYS) == 4
+          assert appa.SECTION_SOURCE_PAGES == {
+              'evaluating_information_sources': 324,
+              'locating_human_sources': 324,
+              'contacting_human_sources': 328,
+              'interview_database': 329,
+          }
+          assert 'import streamlit' not in source
+          assert 'sqlite3' not in source
+          assert 'import requests' not in source
+          assert 'import httpx' not in source
+          assert 'no new financial formulas' in docs
+          assert report['acceptance'] == 'PASS'
+          assert report['unknown_first'] is True
+          assert report['primary_secondary_distinction'] is True
+          assert report['automatic_human_source_score'] is False
+          assert report['automatic_credibility_score'] is False
+          assert report['automatic_investment_signal'] is False
+          assert report['automatic_mos_change'] is False
+          assert report['automatic_research_gate_change'] is False
+          assert report['duplicate_financial_ssot_added'] is False
+          assert report['web_contact_action_added'] is False
+          print('PASS: Appendix A V90 preserves source lock, analyst ownership, SSOT and investment boundaries.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/APPENDIX_A_V90_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8555 \
+            > reports/APPENDIX_A_V90_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8555/_stcore/health \
+              | tee reports/APPENDIX_A_V90_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/APPENDIX_A_V90_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V90 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Appendix A Phase A V90\nBranch: feature/deep-company-analysis-appendix-a-phasea-v90\nCommit: %s\nPurpose: Michael Shearn Appendix A source lock and human-intelligence research workflow contract; no source score, credibility score, duplicate financial SSOT, MOS/Research Gate change, contact action, or automatic investment conclusion.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_APPENDIX_A_V90.txt
+          zip -qr Trecapital_Deep_Analysis_AppendixA_PhaseA_V90.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_AppendixA_PhaseA_V90.zip | tail -n 3
+
+      - name: Upload V90 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_AppendixA_PhaseA_V90
+          retention-days: 90
+          path: |
+            docs/APPENDIX_A_PHASEA_SOURCE_LOCK_V90.md
+            docs/FORMULA_EXPLANATION_APPENDIX_A_PHASEA_V90.md
+            reports/APPENDIX_A_PHASEA_SOURCE_LOCK_V90.json
+            reports/APPENDIX_A_V90_DETERMINISTIC_TESTS.log
+            reports/APPENDIX_A_V90_SOURCE_LOCK_ACCEPTANCE.log
+            reports/APPENDIX_A_V90_BOUNDARY_AUDIT.log
+            reports/APPENDIX_A_V90_FULL_DCA_REGRESSION.log
+            reports/APPENDIX_A_V90_STREAMLIT_SERVER.log
+            reports/APPENDIX_A_V90_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_AppendixA_PhaseA_V90.zip
