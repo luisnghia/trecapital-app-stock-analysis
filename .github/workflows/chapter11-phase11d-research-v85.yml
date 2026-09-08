@@ -1,0 +1,140 @@
+name: Deep Company Analysis Chapter 11 Phase 11D Research Assistant V85
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter11-phase11d-v85
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  chapter11-phase11d:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Chapter 11 V85
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter11.py
+          python -m py_compile modules/deep_company_analysis/chapter11_data_bridge.py
+          python -m py_compile modules/deep_company_analysis/chapter11_research.py
+          python -m py_compile modules/deep_company_analysis/test_chapter11_phase11d.py
+          python -m py_compile scripts/qa_chapter11_research_v85.py
+          python -m py_compile app.py
+
+      - name: Chapter 11 Phase 11D deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_chapter11_phase11a.py \
+            modules/deep_company_analysis/test_chapter11_phase11b.py \
+            modules/deep_company_analysis/test_chapter11_phase11c.py \
+            modules/deep_company_analysis/test_chapter11_phase11d.py \
+            2>&1 | tee reports/CH11_V85_DETERMINISTIC_TESTS.log
+
+      - name: Chapter 11 V85 research acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter11_research_v85.py \
+            2>&1 | tee reports/CH11_V85_RESEARCH_ACCEPTANCE.log
+
+      - name: Chapter 11 V85 source SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH11_V85_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import modules.deep_company_analysis.chapter11 as ch11
+          import modules.deep_company_analysis.chapter11_research as research
+
+          source = Path('modules/deep_company_analysis/chapter11_research.py').read_text(encoding='utf-8').casefold()
+          docs = Path('docs/FORMULA_EXPLANATION_CHAPTER11_PHASE11D_V85.md').read_text(encoding='utf-8').casefold()
+          assert ch11.QUESTION_KEYS == ('Q58', 'Q59')
+          assert ch11.dimension_count_by_question() == {'Q58': 8, 'Q59': 7}
+          assert len(ch11.dimension_ids()) == 15
+          assert len(research.research_plan('TEST')) == 15
+          assert 'import streamlit' not in source
+          assert 'sqlite3' not in source
+          assert 'import requests' not in source
+          assert 'import httpx' not in source
+          assert 'fireant' not in source
+          assert 'simplize' not in source
+          assert 'not calculated by v85' in docs
+          summary = research.phase_summary()
+          assert summary['analyst_promotion_required'] is True
+          assert summary['automatic_ma_score'] is False
+          assert summary['automatic_acquisition_success_conclusion'] is False
+          assert summary['automatic_synergy_forecast'] is False
+          assert summary['automatic_investment_signal'] is False
+          assert summary['mos_or_research_gate_changed'] is False
+          assert summary['duplicate_financial_ssot_added'] is False
+          print('PASS: V85 covers Q58-Q59/15 source-locked dimensions as candidate research and preserves analyst/SSOT/investment boundaries.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/CH11_V85_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8548 \
+            > reports/CH11_V85_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8548/_stcore/health \
+              | tee reports/CH11_V85_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/CH11_V85_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V85 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 11 Phase 11D V85\nBranch: feature/deep-company-analysis-chapter11-phase11d-v85\nCommit: %s\nPurpose: source research and Research Assistant bridge for Q58-Q59/15 dimensions; analyst verification and explicit promotion required; no duplicate financial SSOT, M&A score, success conclusion, synergy forecast, MOS/Research Gate change, or automatic investment conclusion.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH11_V85.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter11_Phase11D_V85.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter11_Phase11D_V85.zip | tail -n 3
+
+      - name: Upload V85 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter11_Phase11D_V85
+          retention-days: 90
+          path: |
+            docs/CHAPTER11_PHASE11D_RESEARCH_V85.md
+            docs/FORMULA_EXPLANATION_CHAPTER11_PHASE11D_V85.md
+            reports/CH11_PHASE11D_RESEARCH_V85.json
+            reports/CH11_V85_DETERMINISTIC_TESTS.log
+            reports/CH11_V85_RESEARCH_ACCEPTANCE.log
+            reports/CH11_V85_BOUNDARY_AUDIT.log
+            reports/CH11_V85_FULL_DCA_REGRESSION.log
+            reports/CH11_V85_STREAMLIT_SERVER.log
+            reports/CH11_V85_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter11_Phase11D_V85.zip
