@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Chapter 10 Phase 10G / V80 — immutable snapshot history, delta and explicit re-review.
+"""Chapter 10 immutable snapshot history, delta and explicit re-review.
 
 This module compares stored analyst-owned Chapter 10 workspace versions. A delta only means the
 research record changed. It does not mean growth quality improved/worsened and never creates a
@@ -8,7 +8,8 @@ growth score, forecast, valuation conclusion, MOS change, investment Research Ga
 BUY/HOLD/SELL signal.
 
 Historical source freshness is never reconstructed from today's data. Version lineage only shows
-metadata actually persisted with a snapshot/current workspace.
+metadata actually persisted with a snapshot/current workspace. V81 aligns tracked synthesis fields
+with the real analyst synthesis schema used by the Streamlit workspace.
 """
 
 from copy import deepcopy
@@ -26,14 +27,14 @@ HISTORY_BOUNDARY = (
 )
 
 SYNTHESIS_FIELDS: tuple[tuple[str, str], ...] = (
-    ("Growth Route", "growth_route"),
-    ("Historical Growth Profitability", "historical_growth_profitability"),
-    ("Growth Runway", "growth_runway"),
-    ("Growth Pace & Funding", "growth_pace_and_funding"),
-    ("Growth Strengths", "growth_strengths"),
-    ("Growth Concerns", "growth_concerns"),
-    ("Material Growth Unknowns", "growth_unknowns"),
-    ("Evidence That Would Change View", "evidence_that_would_change_view"),
+    ("Synthesis Status", "status"),
+    ("Growth Route Takeaway", "growth_route_takeaway"),
+    ("Historical Growth Profitability Takeaway", "profitability_takeaway"),
+    ("Growth Runway Takeaway", "runway_takeaway"),
+    ("Growth Pace & Funding Takeaway", "pace_and_funding_takeaway"),
+    ("Key Growth Strengths", "key_strengths"),
+    ("Key Growth Concerns", "key_concerns"),
+    ("Material Growth Unknowns", "key_unknowns"),
     ("Final Analyst Growth Synthesis", "final_growth_synthesis"),
     ("Analyst Note", "analyst_note"),
     ("Analyst Reviewed At", "analyst_reviewed_at"),
@@ -109,9 +110,7 @@ def compare_versions(before: dict[str, Any] | None, after: dict[str, Any] | None
     left_raw, right_raw = deepcopy(before or {}), deepcopy(after or {})
     left, right = ch10.normalize_payload(left_raw), ch10.normalize_payload(right_raw)
     left_syn, right_syn = _synthesis(left_raw), _synthesis(right_raw)
-    specs: list[tuple[str, Any, Any]] = [
-        ("Growth Mode", left.get("growth_mode"), right.get("growth_mode")),
-    ]
+    specs: list[tuple[str, Any, Any]] = [("Growth Mode", left.get("growth_mode"), right.get("growth_mode"))]
     for q in ch10.QUESTION_KEYS:
         specs.extend([
             (f"{q} Research Status", left.get("question_status", {}).get(q), right.get("question_status", {}).get(q)),
@@ -122,8 +121,12 @@ def compare_versions(before: dict[str, Any] | None, after: dict[str, Any] | None
         specs.append((label, left_syn.get(key), right_syn.get(key)))
     specs.append(("Source Baseline Fingerprint", source_baseline_fingerprint(left_raw), source_baseline_fingerprint(right_raw)))
     rows = [{
-        "Field": label, "Before Version": _text(before_label) or "Before", "Before": _display(a),
-        "After Version": _text(after_label) or "After", "After": _display(b), "Delta": _change(a, b),
+        "Field": label,
+        "Before Version": _text(before_label) or "Before",
+        "Before": _display(a),
+        "After Version": _text(after_label) or "After",
+        "After": _display(b),
+        "Delta": _change(a, b),
     } for label, a, b in specs]
     return pd.DataFrame(rows, columns=DELTA_COLUMNS)
 
@@ -186,4 +189,13 @@ def history_summary(before: dict[str, Any] | None, after: dict[str, Any] | None)
     }
 
 
-__all__ = ["DELTA_COLUMNS", "HISTORY_BOUNDARY", "LINEAGE_COLUMNS", "build_version_lineage", "compare_versions", "history_summary", "source_baseline_fingerprint"]
+__all__ = [
+    "DELTA_COLUMNS",
+    "HISTORY_BOUNDARY",
+    "LINEAGE_COLUMNS",
+    "SYNTHESIS_FIELDS",
+    "build_version_lineage",
+    "compare_versions",
+    "history_summary",
+    "source_baseline_fingerprint",
+]
