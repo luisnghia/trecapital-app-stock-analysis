@@ -2,6 +2,8 @@
 
 Phase 11B intentionally adds **no new financial formula engine**. The book's quantitative references are represented as dependency labels so later phases can read the existing canonical financial/data SSOT.
 
+**Machine-auditable boundary:** the source-referenced financial fields below are SSOT dependency labels only. Chapter 11 Phase 11B does not calculate or duplicate their canonical values.
+
 ## Source-referenced metrics
 
 - Acquisition consideration: cash, debt and/or equity consideration.
