@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-"""Persistent analyst-owned Chapter 11 M&A workspace for Phase 11E / V86.
+"""Persistent analyst-owned Chapter 11 M&A workspace.
 
-Only Chapter 11 analyst state and explicitly promoted evidence are persisted. Canonical financial
-and market data remain read-only in their existing SSOT and are never copied into this database.
+Only Chapter 11 analyst state, explicitly promoted evidence, and analyst-authored M&A synthesis
+are persisted. Canonical financial/market data remain read-only in their existing SSOT and are
+never copied into this database.
 """
 
 from pathlib import Path
@@ -16,7 +17,7 @@ import modules.deep_company_analysis.chapter11 as ch11
 
 APP_DIR = Path(__file__).resolve().parents[2]
 DB_PATH = APP_DIR / "data_cache" / "deep_company_analysis_chapter11.db"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _safe_ticker(value: str) -> str:
@@ -32,6 +33,12 @@ def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _preserve_analyst_extensions(normalized: dict[str, Any], source: dict[str, Any] | None) -> dict[str, Any]:
+    if isinstance(source, dict) and isinstance(source.get("ma_synthesis"), dict):
+        normalized["ma_synthesis"] = json.loads(json.dumps(source["ma_synthesis"], ensure_ascii=False, default=str))
+    return normalized
 
 
 def init_db() -> None:
@@ -59,6 +66,11 @@ def research_status(payload: dict[str, Any]) -> str:
     return f"{answered}/{len(ch11.QUESTION_KEYS)} Answered | {partial} Partial | {unknown} Unknown | {na} N/A"
 
 
+def _normalize_stored(stored: dict[str, Any], ticker: str, company_name: str = "") -> dict[str, Any]:
+    p = ch11.normalize_payload(stored, ticker, company_name)
+    return _preserve_analyst_extensions(p, stored)
+
+
 def load_record(ticker: str, company_name: str = "") -> dict[str, Any]:
     safe = _safe_ticker(ticker)
     init_db()
@@ -73,12 +85,13 @@ def load_record(ticker: str, company_name: str = "") -> dict[str, Any]:
         stored = json.loads(row["payload_json"] or "{}")
     except Exception:
         stored = {}
-    return ch11.normalize_payload(stored, safe, company_name or str(row["company_name"] or ""))
+    return _normalize_stored(stored, safe, company_name or str(row["company_name"] or ""))
 
 
 def save_record(ticker: str, payload: dict[str, Any], company_name: str = "") -> dict[str, Any]:
     safe = _safe_ticker(ticker)
     p = ch11.normalize_payload(payload or {}, safe, company_name)
+    p = _preserve_analyst_extensions(p, payload)
     p["ticker"] = safe
     p["company_name"] = company_name or str(p.get("company_name") or "")
     now = _now()
