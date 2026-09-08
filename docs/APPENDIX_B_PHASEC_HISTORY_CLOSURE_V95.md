@@ -75,3 +75,7 @@ AI remains a **Research Assistant**. The analyst owns all interpretation and con
 With V93 source lock, V94 operational workspace/persistence and V95 history/closure, Appendix B is **COMPLETE** under the current Deep Company Analysis architecture.
 
 The next source section is **Appendix C — Your Investment Checklist**. Appendix C must be read directly from the book before deciding whether it is a consolidated checklist view, a new persistence surface, or documentation-only mapping. No implementation assumptions are carried forward without source support.
+
+## CI
+
+The dedicated V95 workflow is branch-scoped and validates cumulative Appendix B tests, closure/boundary QA, full Deep Company Analysis regression, production Streamlit health, offline ZIP integrity and artifact upload.
