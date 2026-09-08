@@ -3,8 +3,8 @@ from __future__ import annotations
 """Streamlit analyst workspace for Chapter 10 Q53-Q57.
 
 Research Assistant candidates are suggestions only. Promotion is explicit, and neither
-promotion nor saving changes analyst conclusions automatically. V79 adds a neutral research
-completion gate and analyst-owned growth synthesis/report section.
+promotion nor saving changes analyst conclusions automatically. V81 integrates immutable
+history/version lineage, neutral delta and explicit analyst re-review into the live workflow.
 """
 
 import pandas as pd
@@ -12,6 +12,7 @@ import streamlit as st
 
 import modules.deep_company_analysis.chapter10 as ch10
 import modules.deep_company_analysis.chapter10_completion as completion
+import modules.deep_company_analysis.chapter10_history_ui as history_ui
 import modules.deep_company_analysis.chapter10_research as research
 from modules.deep_company_analysis.chapter10_store import load_record, save_record, promoted_candidate_ids
 from modules.deep_company_analysis.table_format import render_static_table, sortable_data_editor
@@ -31,6 +32,8 @@ def render_chapter10_tab(default_ticker: str = "") -> None:
     if payload_key not in st.session_state:
         st.session_state[payload_key] = load_record(ticker)
     payload = ch10.normalize_payload(st.session_state[payload_key], ticker)
+    if isinstance(st.session_state[payload_key], dict) and isinstance(st.session_state[payload_key].get("growth_synthesis"), dict):
+        payload["growth_synthesis"] = completion.normalize_synthesis(st.session_state[payload_key]["growth_synthesis"])
 
     st.subheader("Chương 10 — Evaluating Growth Opportunities")
     st.caption("Michael Shearn — The Investment Checklist — Q53–Q57, printed pages 281–303. AI/Data = Research Assistant; analyst owns conclusions.")
@@ -128,6 +131,19 @@ def render_chapter10_tab(default_ticker: str = "") -> None:
     if st.button("💾 Save Chapter 10 workspace", type="primary", use_container_width=True, key=f"ch10_save_{ticker}"):
         st.session_state[payload_key] = save_record(ticker, payload)
         st.success("Saved analyst-owned Chapter 10 workspace and synthesis. Canonical financial SSOT was not copied or mutated.")
+
+    history_ui.render_history_panel(ticker, st.session_state[payload_key], payload_session_key=payload_key)
+
+    history_report = history_ui.history_report_section(ticker, st.session_state[payload_key])
+    if history_report["snapshot_count"]:
+        st.markdown("### Chapter 10 Report — Version Lineage")
+        render_static_table(history_report["lineage"], hide_index=True, use_container_width=True)
+        changed = history_report["latest_to_current_delta"]
+        changed = changed[changed["Delta"] != "Unchanged"].reset_index(drop=True)
+        if not changed.empty:
+            st.markdown("#### Latest immutable snapshot → current workspace")
+            render_static_table(changed, hide_index=True, use_container_width=True)
+        st.caption(history_report["boundary_note"])
 
 
 __all__ = ["render_chapter10_tab"]
