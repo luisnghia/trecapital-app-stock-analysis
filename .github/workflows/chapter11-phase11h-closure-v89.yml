@@ -1,0 +1,110 @@
+name: Deep Company Analysis Chapter 11 Phase 11H Closure V89
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter11-phase11h-v89
+  workflow_dispatch:
+
+jobs:
+  chapter11-phase11h:
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: .
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+      - name: Compile Chapter 11 V89
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter11_completion.py
+          python -m py_compile modules/deep_company_analysis/chapter11_history.py
+          python -m py_compile modules/deep_company_analysis/chapter11_history_ui.py
+          python -m py_compile modules/deep_company_analysis/chapter11_page_support.py
+          python -m py_compile modules/deep_company_analysis/test_chapter11_phase11h.py
+          python -m py_compile scripts/qa_chapter11_closure_v89.py
+          python -m py_compile app.py
+      - name: Chapter 11 cumulative deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_chapter11_phase11*.py 2>&1 | tee reports/CH11_V89_DETERMINISTIC_TESTS.log
+      - name: Chapter 11 V89 closure acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter11_closure_v89.py 2>&1 | tee reports/CH11_V89_CLOSURE_ACCEPTANCE.log
+      - name: Chapter 11 V89 source SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH11_V89_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import modules.deep_company_analysis.chapter11 as ch11
+          import modules.deep_company_analysis.chapter11_completion as c
+          import modules.deep_company_analysis.chapter11_history as h
+          import modules.deep_company_analysis.chapter11_store as s
+          src = '\n'.join(Path(p).read_text(encoding='utf-8').casefold() for p in [h.__file__, c.__file__, 'modules/deep_company_analysis/chapter11_history_ui.py'])
+          assert ch11.QUESTION_KEYS == ('Q58','Q59')
+          assert ch11.SOURCE_QUESTION_RANGE == 'Q58-Q59'
+          assert len(ch11.dimension_ids()) == 15
+          assert s.SCHEMA_VERSION == 3
+          assert 'last_re_review_sections' in c.default_synthesis()
+          assert {key for _, key in h.SYNTHESIS_FIELDS}.issubset(set(c.default_synthesis()))
+          assert 'historical source freshness is never reconstructed' in src
+          assert 'ebitda =' not in src
+          assert 'intrinsic_value =' not in src
+          assert 'automatic_ma_score' in src
+          assert 'automatic_acquisition_success_classification' in src
+          assert 'automatic_synergy_forecast' in src
+          assert 'automatic_investment_signal' in src
+          print('PASS: V89 closes Chapter 11 while preserving source lock, analyst ownership, financial SSOT and investment boundaries.')
+          PY
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py 2>&1 | tee reports/CH11_V89_FULL_DCA_REGRESSION.log
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8552 > reports/CH11_V89_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8552/_stcore/health | tee reports/CH11_V89_STREAMLIT_HEALTH.txt | grep -q ok; then exit 0; fi
+            sleep 1
+          done
+          cat reports/CH11_V89_STREAMLIT_SERVER.log
+          exit 1
+      - name: Build offline V89 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 11 Phase 11H V89\nBranch: feature/deep-company-analysis-chapter11-phase11h-v89\nCommit: %s\nPurpose: close Chapter 11 with live immutable history, neutral lineage/delta report and explicit analyst re-review; no M&A score, acquisition-success classification, synergy forecast, duplicate financial SSOT, MOS/Research Gate change, or automatic investment conclusion.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH11_V89.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter11_Phase11H_V89.zip . -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter11_Phase11H_V89.zip | tail -n 3
+      - name: Upload V89 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter11_Phase11H_V89
+          retention-days: 90
+          path: |
+            docs/CHAPTER11_PHASE11H_CLOSURE_V89.md
+            docs/FORMULA_EXPLANATION_CHAPTER11_PHASE11H_V89.md
+            reports/CH11_PHASE11H_CLOSURE_V89.json
+            reports/CH11_V89_DETERMINISTIC_TESTS.log
+            reports/CH11_V89_CLOSURE_ACCEPTANCE.log
+            reports/CH11_V89_BOUNDARY_AUDIT.log
+            reports/CH11_V89_FULL_DCA_REGRESSION.log
+            reports/CH11_V89_STREAMLIT_SERVER.log
+            reports/CH11_V89_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter11_Phase11H_V89.zip
