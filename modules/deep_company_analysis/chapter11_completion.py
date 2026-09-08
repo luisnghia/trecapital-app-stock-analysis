@@ -4,7 +4,8 @@ from __future__ import annotations
 
 The completion gate measures research completeness only. It never scores M&A quality,
 classifies an acquisition as successful/unsuccessful, forecasts synergy, changes valuation/MOS,
-changes the Investment Research Gate, or creates an investment signal.
+changes the Investment Research Gate, or creates an investment signal. V89 also preserves
+explicit analyst re-review metadata across Streamlit reruns and durable save/load cycles.
 """
 
 from copy import deepcopy
@@ -70,6 +71,9 @@ def default_synthesis() -> dict[str, Any]:
         "final_ma_synthesis": "",
         "analyst_note": "",
         "analyst_reviewed_at": "",
+        "last_re_review_at": "",
+        "last_re_review_note": "",
+        "last_re_review_sections": [],
     }
 
 
@@ -77,8 +81,16 @@ def normalize_synthesis(value: dict[str, Any] | None) -> dict[str, Any]:
     out = default_synthesis()
     if isinstance(value, dict):
         for key in out:
-            if key in value:
-                out[key] = str(value[key] or "")
+            if key not in value:
+                continue
+            if key == "last_re_review_sections":
+                raw = value.get(key)
+                if isinstance(raw, (list, tuple)):
+                    out[key] = [str(x).strip() for x in raw if str(x).strip()]
+                elif str(raw or "").strip():
+                    out[key] = [str(raw).strip()]
+            else:
+                out[key] = str(value.get(key) or "")
     if out["status"] not in SYNTHESIS_STATUS_OPTIONS:
         out["status"] = "Unknown"
     return out
