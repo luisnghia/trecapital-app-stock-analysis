@@ -78,7 +78,8 @@ jobs:
           assert 'fireant' not in source
           assert 'simplize' not in source
           assert 'ssot dependency labels only' in docs
-          assert 'does not calculate acquisition irr' in docs
+          assert 'acquisition irr' in docs
+          assert 'does not create a second copy' in docs
           assert report['acceptance'] == 'PASS'
           assert report['q59_seven_source_lenses_locked'] is True
           assert report['unknown_first'] is True
