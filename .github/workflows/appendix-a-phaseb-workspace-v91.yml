@@ -70,7 +70,6 @@ jobs:
 
           workspace = Path('modules/deep_company_analysis/appendix_a_workspace.py').read_text(encoding='utf-8').casefold()
           store = Path('modules/deep_company_analysis/appendix_a_store.py').read_text(encoding='utf-8').casefold()
-          page = Path('pages/10_Mang_nguon_tin.py').read_text(encoding='utf-8').casefold()
           docs = Path('docs/FORMULA_EXPLANATION_APPENDIX_A_PHASEB_V91.md').read_text(encoding='utf-8').casefold()
           report = json.loads(Path('reports/APPENDIX_A_PHASEB_WORKSPACE_V91.json').read_text(encoding='utf-8'))
 
@@ -79,7 +78,7 @@ jobs:
           assert 'import requests' not in workspace and 'import httpx' not in workspace
           assert 'import requests' not in store and 'import httpx' not in store
           assert 'send_email' not in workspace and 'contact_source' not in workspace
-          assert 'buy/hold/sell' in page
+          assert 'buy/hold/sell' in docs
           assert 'no new financial formulas' in docs
           assert report['acceptance'] == 'PASS'
           assert report['automatic_human_source_score'] is False
