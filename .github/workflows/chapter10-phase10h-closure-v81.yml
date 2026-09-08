@@ -1,0 +1,107 @@
+name: Deep Company Analysis Chapter 10 Phase 10H Closure V81
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter10-phase10h-v81
+  workflow_dispatch:
+
+jobs:
+  chapter10-phase10h:
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: .
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+      - name: Compile Chapter 10 V81
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter10_completion.py
+          python -m py_compile modules/deep_company_analysis/chapter10_history.py
+          python -m py_compile modules/deep_company_analysis/chapter10_history_ui.py
+          python -m py_compile modules/deep_company_analysis/chapter10_page_support.py
+          python -m py_compile modules/deep_company_analysis/test_chapter10_phase10h.py
+          python -m py_compile scripts/qa_chapter10_closure_v81.py
+          python -m py_compile app.py
+      - name: Chapter 10 cumulative deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_chapter10_phase10*.py 2>&1 | tee reports/CH10_V81_DETERMINISTIC_TESTS.log
+      - name: Chapter 10 V81 closure acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter10_closure_v81.py 2>&1 | tee reports/CH10_V81_CLOSURE_ACCEPTANCE.log
+      - name: Chapter 10 V81 source SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH10_V81_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import modules.deep_company_analysis.chapter10 as ch10
+          import modules.deep_company_analysis.chapter10_completion as c
+          import modules.deep_company_analysis.chapter10_history as h
+          import modules.deep_company_analysis.chapter10_store as s
+          src = '\n'.join(Path(p).read_text(encoding='utf-8').casefold() for p in [h.__file__, c.__file__, 'modules/deep_company_analysis/chapter10_history_ui.py'])
+          assert ch10.QUESTION_KEYS == ('Q53','Q54','Q55','Q56','Q57')
+          assert ch10.SOURCE_QUESTION_RANGE == 'Q53-Q57'
+          assert len(ch10.dimension_ids()) == 34
+          assert s.SCHEMA_VERSION == 2
+          assert 'growth_route_takeaway' in {key for _, key in h.SYNTHESIS_FIELDS}
+          assert 'last_re_review_sections' in c.default_synthesis()
+          assert 'ccc =' not in src
+          assert 'intrinsic_value' not in src
+          assert 'automatic_growth_score' in src
+          assert 'automatic_investment_signal' in src
+          print('PASS: V81 closes Chapter 10 while preserving source lock, analyst ownership, financial SSOT and investment boundaries.')
+          PY
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py 2>&1 | tee reports/CH10_V81_FULL_DCA_REGRESSION.log
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8551 > reports/CH10_V81_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8551/_stcore/health | tee reports/CH10_V81_STREAMLIT_HEALTH.txt | grep -q ok; then exit 0; fi
+            sleep 1
+          done
+          cat reports/CH10_V81_STREAMLIT_SERVER.log
+          exit 1
+      - name: Build offline V81 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 10 Phase 10H V81\nBranch: feature/deep-company-analysis-chapter10-phase10h-v81\nCommit: %s\nPurpose: close Chapter 10 with live immutable history, neutral lineage/delta report and explicit analyst re-review; no growth score, forecast, duplicate financial SSOT, MOS/Research Gate change, or automatic investment conclusion.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH10_V81.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter10_Phase10H_V81.zip . -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter10_Phase10H_V81.zip | tail -n 3
+      - name: Upload V81 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter10_Phase10H_V81
+          retention-days: 90
+          path: |
+            docs/CHAPTER10_PHASE10H_CLOSURE_V81.md
+            docs/FORMULA_EXPLANATION_CHAPTER10_PHASE10H_V81.md
+            reports/CH10_PHASE10H_CLOSURE_V81.json
+            reports/CH10_V81_DETERMINISTIC_TESTS.log
+            reports/CH10_V81_CLOSURE_ACCEPTANCE.log
+            reports/CH10_V81_BOUNDARY_AUDIT.log
+            reports/CH10_V81_FULL_DCA_REGRESSION.log
+            reports/CH10_V81_STREAMLIT_SERVER.log
+            reports/CH10_V81_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter10_Phase10H_V81.zip
