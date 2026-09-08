@@ -12,7 +12,17 @@ from modules.deep_company_analysis.appendix_a import (
     SECTION_TITLES,
     SOURCE_CLASS_OPTIONS,
 )
-from modules.deep_company_analysis.appendix_a_store import load_appendix_a_workspace, save_appendix_a_workspace
+from modules.deep_company_analysis.appendix_a_history import (
+    build_interview_lineage,
+    build_version_lineage,
+    compare_versions,
+)
+from modules.deep_company_analysis.appendix_a_store import (
+    create_appendix_a_snapshot,
+    list_appendix_a_snapshots,
+    load_appendix_a_workspace,
+    save_appendix_a_workspace,
+)
 from modules.deep_company_analysis.appendix_a_workspace import (
     GAP_STATUS_OPTIONS,
     QUESTION_IDS,
@@ -44,7 +54,7 @@ with st.expander("Source-locked workflow status", expanded=False):
         current = ws["sections"].get(key, "Unknown")
         ws["sections"][key] = st.selectbox(SECTION_TITLES[key], SECTION_STATUS_OPTIONS, index=SECTION_STATUS_OPTIONS.index(current), key=f"appa_section_{key}_{ticker}")
 
-source_tab, interview_tab, gap_tab, synthesis_tab = st.tabs(["Nguồn tin", "Phỏng vấn", "Research gaps", "Analyst synthesis"])
+source_tab, interview_tab, gap_tab, synthesis_tab, history_tab = st.tabs(["Nguồn tin", "Phỏng vấn", "Research gaps", "Analyst synthesis", "History / lineage"])
 
 with source_tab:
     st.subheader("Human source records")
@@ -111,8 +121,37 @@ with gap_tab:
 with synthesis_tab:
     ws["analyst_synthesis"] = st.text_area("Analyst synthesis", value=ws.get("analyst_synthesis", ""), height=220, help="Chỉ analyst viết kết luận; hệ thống không tự suy luận từ nguồn tin.")
 
+with history_tab:
+    st.subheader("Immutable research history")
+    st.caption("Delta chỉ cho biết hồ sơ nghiên cứu thay đổi. Không đánh giá credibility, không tạo score và không thay BUY/HOLD/SELL, MOS hay Research Gate.")
+    lineage = build_interview_lineage(ws)
+    if lineage.empty:
+        st.info("Chưa có interview để hiển thị lineage.")
+    else:
+        st.markdown("**Interview lineage**")
+        st.dataframe(lineage, use_container_width=True, hide_index=True)
+    snapshots = list_appendix_a_snapshots(ticker) if ticker else []
+    if snapshots:
+        st.markdown("**Version lineage**")
+        st.dataframe(build_version_lineage(snapshots), use_container_width=True, hide_index=True)
+        choices = {f"Snapshot #{item['snapshot_id']} — {item['created_at']}": item for item in snapshots}
+        selected_label = st.selectbox("So sánh snapshot với workspace hiện tại", list(choices), key=f"appa_history_compare_{ticker}")
+        selected = choices[selected_label]
+        delta = compare_versions(selected["payload"], ws, before_label=selected_label, after_label="Current workspace")
+        changed_only = st.checkbox("Chỉ hiện thay đổi", value=True, key=f"appa_changed_only_{ticker}")
+        if changed_only:
+            delta = delta[delta["Delta"] != "Unchanged"]
+        st.dataframe(delta, use_container_width=True, hide_index=True)
+    else:
+        st.info("Chưa có snapshot. Lưu workspace rồi tạo snapshot để bắt đầu version lineage.")
+
 st.session_state[state_key] = normalize_workspace(ws, ticker=ticker, company_name=company_name)
-if st.button("Lưu Appendix A workspace", type="primary", disabled=not bool(ticker)):
+button_col1, button_col2 = st.columns(2)
+if button_col1.button("Lưu Appendix A workspace", type="primary", disabled=not bool(ticker)):
     saved = save_appendix_a_workspace(st.session_state[state_key])
     st.session_state[state_key] = saved
     st.success("Đã lưu human-source workspace. Không thay đổi Research Gate/MOS/investment conclusion.")
+if button_col2.button("Tạo immutable snapshot", disabled=not bool(ticker)):
+    saved = save_appendix_a_workspace(st.session_state[state_key])
+    snapshot = create_appendix_a_snapshot(saved)
+    st.success(f"Đã tạo Snapshot #{snapshot['snapshot_id']}. Snapshot chỉ lưu analyst-owned research state.")
