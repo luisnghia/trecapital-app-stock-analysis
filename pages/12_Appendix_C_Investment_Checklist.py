@@ -4,6 +4,8 @@ import pandas as pd
 import streamlit as st
 
 from modules.deep_company_analysis import appendix_c as appc
+from modules.deep_company_analysis import appendix_c_history as hist
+from modules.deep_company_analysis import appendix_c_history_store as hist_store
 from modules.deep_company_analysis import appendix_c_workspace as ws
 
 st.set_page_config(page_title="Appendix C — Investment Checklist", layout="wide")
@@ -68,6 +70,37 @@ qid = st.selectbox("Open research target", [r["question_id"] for r in visible] i
 item = appc.get_item(qid)
 if item:
     st.info(f"{qid} is owned by Chapter {item['owner_chapter']}. Continue research in the existing Chapter {item['owner_chapter']} workspace; Appendix C does not store or overwrite the answer.")
+
+with st.expander("History, lineage & explicit analyst re-review", expanded=False):
+    current_snapshot = hist.build_snapshot_payload(rows)
+    st.caption(f"Current referential fingerprint: {hist.snapshot_fingerprint(current_snapshot)[:16]}…")
+    st.write("Snapshots store only Qxx reference, owner chapter, research-status and confidence labels. They do not copy analyst assessments, evidence, financials, valuation, MOS or Research Gate state.")
+    if st.button("Create immutable checklist snapshot"):
+        sid = hist_store.create_snapshot(ticker, company_name, current_snapshot)
+        st.success(f"Created neutral checklist snapshot #{sid}.")
+
+    snapshots = hist_store.list_snapshots(ticker, company_name)
+    if snapshots:
+        lineage = pd.DataFrame([{
+            "Snapshot": f"#{s['snapshot_id']}",
+            "Created at": s["created_at"],
+            "Fingerprint": s["fingerprint"][:16],
+            "Question refs": len(s["payload"].get("question_refs", [])),
+        } for s in snapshots])
+        st.dataframe(lineage, use_container_width=True, hide_index=True)
+        selected = st.selectbox("Compare snapshot to current", [s["snapshot_id"] for s in snapshots], format_func=lambda x: f"Snapshot #{x}")
+        before = next(s["payload"] for s in snapshots if s["snapshot_id"] == selected)
+        delta = hist.compare_snapshots(before, current_snapshot)
+        st.dataframe(delta, use_container_width=True, hide_index=True)
+        st.caption("Delta vocabulary is neutral: Unchanged / Added / Removed / Changed. It is not an investment-quality judgment.")
+
+    note = st.text_area("Analyst re-review note", value="", help="Explicit metadata only; saving this note does not alter any Qxx answer, confidence, valuation or Research Gate.")
+    if st.button("Record explicit re-review"):
+        rid = hist_store.add_re_review(ticker, company_name, note)
+        st.success(f"Recorded explicit analyst re-review #{rid} without changing owner-chapter state.")
+    reviews = hist_store.list_re_reviews(ticker, company_name)
+    if reviews:
+        st.dataframe(pd.DataFrame(reviews), use_container_width=True, hide_index=True)
 
 with st.expander("Source lock & boundaries"):
     st.write(f"Source: {appc.SOURCE_LOCK}; printed pages {appc.SOURCE_PRINT_PAGES[0]}–{appc.SOURCE_PRINT_PAGES[1]}.")
