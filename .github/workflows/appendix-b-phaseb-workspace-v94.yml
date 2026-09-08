@@ -1,0 +1,152 @@
+name: Deep Company Analysis Appendix B Phase B Workspace V94
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-appendix-b-phaseb-v94
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  appendix-b-phaseb-v94:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Appendix B V94
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/appendix_b.py
+          python -m py_compile modules/deep_company_analysis/appendix_b_workspace.py
+          python -m py_compile modules/deep_company_analysis/appendix_b_store.py
+          python -m py_compile modules/deep_company_analysis/test_appendix_b_phasea_v93.py
+          python -m py_compile modules/deep_company_analysis/test_appendix_b_phaseb_v94.py
+          python -m py_compile scripts/qa_appendix_b_workspace_v94.py
+          python -m py_compile pages/11_Appendix_B_Management_Interview.py
+          python -m py_compile app.py
+
+      - name: Appendix B V93-V94 deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q \
+            modules/deep_company_analysis/test_appendix_b_phasea_v93.py \
+            modules/deep_company_analysis/test_appendix_b_phaseb_v94.py \
+            2>&1 | tee reports/APPENDIX_B_V94_DETERMINISTIC_TESTS.log
+
+      - name: Appendix B V94 workspace acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_appendix_b_workspace_v94.py \
+            2>&1 | tee reports/APPENDIX_B_V94_WORKSPACE_ACCEPTANCE.log
+
+      - name: Appendix B V94 source, SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/APPENDIX_B_V94_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import json
+          import tempfile
+          import modules.deep_company_analysis.appendix_b as appb
+          from modules.deep_company_analysis.appendix_b_workspace import new_session, normalize_session
+          from modules.deep_company_analysis.appendix_b_store import save_session, load_session
+
+          docs = Path('docs/APPENDIX_B_PHASEB_WORKSPACE_V94.md').read_text(encoding='utf-8').casefold()
+          source = Path('modules/deep_company_analysis/appendix_b_workspace.py').read_text(encoding='utf-8').casefold()
+          report = json.loads(Path('reports/APPENDIX_B_PHASEB_WORKSPACE_V94.json').read_text(encoding='utf-8'))
+          assert appb.SOURCE_PRINT_PAGES == (331, 334)
+          assert len(appb.MANAGEMENT_INTERVIEW_TOPICS) == 8
+          assert 'no new financial formulas' in docs
+          assert report['acceptance'] == 'PASS'
+          assert report['automatic_management_score'] is False
+          assert report['automatic_ceo_quality_classifier'] is False
+          assert report['automatic_credibility_or_personality_score'] is False
+          assert report['automatic_investment_signal'] is False
+          assert report['automatic_mos_change'] is False
+          assert report['automatic_research_gate_change'] is False
+          assert report['duplicate_financial_ssot_added'] is False
+          dirty = new_session('QA', 'CEO', '2026-09-08')
+          dirty.update({'research_gate':'PASS','intrinsic_value':999,'management_score':100,'financials':{'revenue':1}})
+          clean = normalize_session(dirty)
+          serialized = json.dumps(clean).casefold()
+          for forbidden in ('research_gate','intrinsic_value','management_score','financials'):
+              assert forbidden not in serialized
+          with tempfile.TemporaryDirectory() as tmp:
+              db = Path(tmp) / 'audit.sqlite'
+              save_session(db, dirty)
+              persisted = json.dumps(load_session(db, 'QA', clean['session_id'])).casefold()
+              for forbidden in ('research_gate','intrinsic_value','management_score','financials'):
+                  assert forbidden not in persisted
+          assert 'requests.' not in source and 'httpx.' not in source
+          print('PASS: V94 stores analyst-owned interview evidence and Q01-Q59 references only.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/APPENDIX_B_V94_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8555 \
+            > reports/APPENDIX_B_V94_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8555/_stcore/health \
+              | tee reports/APPENDIX_B_V94_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/APPENDIX_B_V94_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V94 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Appendix B Phase B V94\nBranch: feature/deep-company-analysis-appendix-b-phaseb-v94\nCommit: %s\nPurpose: source-locked management interview workspace + persistence + reference-only Q01-Q59 linkage; analyst owns conclusions.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_APPENDIX_B_V94.txt
+          zip -qr Trecapital_Deep_Analysis_AppendixB_PhaseB_V94.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_AppendixB_PhaseB_V94.zip | tail -n 3
+          sha256sum Trecapital_Deep_Analysis_AppendixB_PhaseB_V94.zip | tee reports/APPENDIX_B_V94_OFFLINE_ZIP_SHA256.txt
+
+      - name: Upload V94 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_AppendixB_PhaseB_V94
+          retention-days: 90
+          path: |
+            docs/APPENDIX_B_PHASEB_WORKSPACE_V94.md
+            reports/APPENDIX_B_PHASEB_WORKSPACE_V94.json
+            reports/APPENDIX_B_V94_DETERMINISTIC_TESTS.log
+            reports/APPENDIX_B_V94_WORKSPACE_ACCEPTANCE.log
+            reports/APPENDIX_B_V94_BOUNDARY_AUDIT.log
+            reports/APPENDIX_B_V94_FULL_DCA_REGRESSION.log
+            reports/APPENDIX_B_V94_STREAMLIT_SERVER.log
+            reports/APPENDIX_B_V94_STREAMLIT_HEALTH.txt
+            reports/APPENDIX_B_V94_OFFLINE_ZIP_SHA256.txt
+            Trecapital_Deep_Analysis_AppendixB_PhaseB_V94.zip
