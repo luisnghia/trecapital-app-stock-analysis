@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-"""Persistent analyst-owned Chapter 11 M&A workspace.
+"""Persistent analyst-owned Chapter 11 M&A workspace and immutable snapshot history.
 
-Only Chapter 11 analyst state, explicitly promoted evidence, and analyst-authored M&A synthesis
-are persisted. Canonical financial/market data remain read-only in their existing SSOT and are
-never copied into this database.
+Only Chapter 11 analyst state, explicitly promoted evidence, analyst-authored M&A synthesis and
+immutable analyst snapshots are persisted. Canonical financial/market data remain read-only in
+their existing SSOT and are never copied into this database.
 """
 
 from pathlib import Path
@@ -17,7 +17,7 @@ import modules.deep_company_analysis.chapter11 as ch11
 
 APP_DIR = Path(__file__).resolve().parents[2]
 DB_PATH = APP_DIR / "data_cache" / "deep_company_analysis_chapter11.db"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def _safe_ticker(value: str) -> str:
@@ -54,6 +54,20 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS chapter11_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                company_name TEXT NOT NULL DEFAULT '',
+                payload_json TEXT NOT NULL,
+                research_status TEXT NOT NULL DEFAULT '',
+                schema_version INTEGER NOT NULL DEFAULT 3,
+                created_at TEXT NOT NULL,
+                reason TEXT NOT NULL DEFAULT '',
+                UNIQUE(ticker, id)
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ch11_snapshots_ticker_created ON chapter11_snapshots(ticker, created_at)")
 
 
 def research_status(payload: dict[str, Any]) -> str:
@@ -121,6 +135,92 @@ def save_record(ticker: str, payload: dict[str, Any], company_name: str = "") ->
     return p
 
 
+def create_snapshot(ticker: str, payload: dict[str, Any] | None = None, company_name: str = "", reason: str = "") -> dict[str, Any]:
+    """Append an immutable Chapter 11 snapshot; existing snapshots are never updated in place."""
+    safe = _safe_ticker(ticker)
+    p = load_record(safe, company_name) if payload is None else save_record(safe, payload, company_name)
+    now = _now()
+    init_db()
+    with _connect() as conn:
+        cur = conn.execute("""
+            INSERT INTO chapter11_snapshots(ticker,company_name,payload_json,research_status,schema_version,created_at,reason)
+            VALUES(?,?,?,?,?,?,?)
+        """, (
+            safe,
+            str(p.get("company_name") or company_name or ""),
+            json.dumps(p, ensure_ascii=False, default=str),
+            research_status(p),
+            SCHEMA_VERSION,
+            now,
+            str(reason or "").strip(),
+        ))
+        sid = int(cur.lastrowid)
+    return {
+        "snapshot_id": sid, "ticker": safe, "created_at": now, "schema_version": SCHEMA_VERSION,
+        "research_status": research_status(p), "reason": str(reason or "").strip(), "payload": p,
+    }
+
+
+def list_snapshots(ticker: str) -> list[dict[str, Any]]:
+    safe = _safe_ticker(ticker)
+    init_db()
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id,company_name,payload_json,research_status,schema_version,created_at,reason "
+            "FROM chapter11_snapshots WHERE ticker=? ORDER BY created_at,id",
+            (safe,),
+        ).fetchall()
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        try:
+            stored = json.loads(row["payload_json"] or "{}")
+        except Exception:
+            stored = {}
+        out.append({
+            "snapshot_id": int(row["id"]), "ticker": safe,
+            "company_name": str(row["company_name"] or ""), "created_at": str(row["created_at"] or ""),
+            "schema_version": int(row["schema_version"] or 0), "research_status": str(row["research_status"] or ""),
+            "reason": str(row["reason"] or ""),
+            "payload": _normalize_stored(stored, safe, str(row["company_name"] or "")),
+        })
+    return out
+
+
+def load_snapshot(ticker: str, snapshot_id: int) -> dict[str, Any] | None:
+    safe = _safe_ticker(ticker)
+    init_db()
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id,company_name,payload_json,research_status,schema_version,created_at,reason "
+            "FROM chapter11_snapshots WHERE ticker=? AND id=?",
+            (safe, int(snapshot_id)),
+        ).fetchone()
+    if not row:
+        return None
+    try:
+        stored = json.loads(row["payload_json"] or "{}")
+    except Exception:
+        stored = {}
+    return {
+        "snapshot_id": int(row["id"]), "ticker": safe,
+        "company_name": str(row["company_name"] or ""), "created_at": str(row["created_at"] or ""),
+        "schema_version": int(row["schema_version"] or 0), "research_status": str(row["research_status"] or ""),
+        "reason": str(row["reason"] or ""),
+        "payload": _normalize_stored(stored, safe, str(row["company_name"] or "")),
+    }
+
+
+def mark_explicit_re_review(ticker: str, sections: list[str] | tuple[str, ...], note: str = "", company_name: str = "") -> dict[str, Any]:
+    """Record analyst re-review metadata without changing conclusions/status/confidence automatically."""
+    p = load_record(ticker, company_name)
+    syn = dict(p.get("ma_synthesis") or {})
+    syn["last_re_review_at"] = _now()
+    syn["last_re_review_note"] = str(note or "").strip()
+    syn["last_re_review_sections"] = [str(x).strip() for x in sections if str(x).strip()]
+    p["ma_synthesis"] = syn
+    return save_record(ticker, p, company_name)
+
+
 def promoted_candidate_ids(payload: dict[str, Any] | None) -> set[str]:
     p = ch11.normalize_payload(payload or {})
     return {
@@ -131,6 +231,6 @@ def promoted_candidate_ids(payload: dict[str, Any] | None) -> set[str]:
 
 
 __all__ = [
-    "DB_PATH", "SCHEMA_VERSION", "init_db", "load_record", "save_record",
-    "research_status", "promoted_candidate_ids",
+    "DB_PATH", "SCHEMA_VERSION", "init_db", "load_record", "save_record", "research_status",
+    "promoted_candidate_ids", "create_snapshot", "list_snapshots", "load_snapshot", "mark_explicit_re_review",
 ]
