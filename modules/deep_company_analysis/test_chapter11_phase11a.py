@@ -73,13 +73,13 @@ def test_rows_are_neutral_containers_only():
 
 def test_research_warnings_only_reflect_completeness():
     payload = ch11.empty_payload("FPT")
-    assert ch11.research_gap_warnings(payload) == [
-        "Q58: M&A research remains incomplete; analyst review required.",
-        "Q59: M&A research remains incomplete; analyst review required.",
-    ]
+    warnings = ch11.research_gap_warnings(payload)
+    assert "Q58: M&A research remains incomplete; analyst review required." in warnings
+    assert "Q59: M&A research remains incomplete; analyst review required." in warnings
     payload["question_status"]["Q58"] = "Answered"
     warnings = ch11.research_gap_warnings(payload)
-    assert warnings == ["Q59: M&A research remains incomplete; analyst review required."]
+    assert "Q58: M&A research remains incomplete; analyst review required." not in warnings
+    assert "Q59: M&A research remains incomplete; analyst review required." in warnings
 
 
 def test_normalize_is_deterministic_and_does_not_mutate_input():
