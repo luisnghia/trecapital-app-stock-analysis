@@ -1,0 +1,195 @@
+from __future__ import annotations
+
+"""Chapter 11 immutable snapshot history, neutral delta and explicit re-review.
+
+This module compares stored analyst-owned Chapter 11 M&A workspace versions. A delta only means
+that the research record changed. It never means M&A quality improved/worsened, never classifies
+an acquisition as successful/unsuccessful, never forecasts synergy, and never creates an M&A score,
+valuation/MOS change, Investment Research Gate change, portfolio action, or BUY/HOLD/SELL signal.
+
+Historical source freshness is never reconstructed from today's data. Version lineage only shows
+metadata actually persisted with a snapshot/current workspace. Canonical financial/market values
+remain in their existing SSOT and are not copied into the Chapter 11 history layer.
+"""
+
+from copy import deepcopy
+from typing import Any, Iterable
+import hashlib
+import json
+
+import pandas as pd
+
+import modules.deep_company_analysis.chapter11 as ch11
+
+HISTORY_BOUNDARY = (
+    "Analyst-owned Chapter 11 history/delta only; no automatic M&A conclusion, acquisition-success "
+    "classification, synergy forecast, M&A score, valuation, MOS, Investment Research Gate, "
+    "portfolio action, or BUY/HOLD/SELL."
+)
+
+SYNTHESIS_FIELDS: tuple[tuple[str, str], ...] = (
+    ("Synthesis Status", "status"),
+    ("Decision Process Takeaway", "decision_process_takeaway"),
+    ("Motivation & Fit Takeaway", "motivation_and_fit_takeaway"),
+    ("Synergy & Integration Takeaway", "synergy_and_integration_takeaway"),
+    ("Historical Acquisition Takeaway", "historical_acquisition_takeaway"),
+    ("Price & Financing Takeaway", "price_and_financing_takeaway"),
+    ("Key M&A Strengths", "key_strengths"),
+    ("Key M&A Concerns", "key_concerns"),
+    ("Material M&A Unknowns", "key_unknowns"),
+    ("Final Analyst M&A Synthesis", "final_ma_synthesis"),
+    ("Analyst Note", "analyst_note"),
+    ("Analyst Reviewed At", "analyst_reviewed_at"),
+    ("Last Re-review At", "last_re_review_at"),
+    ("Last Re-review Note", "last_re_review_note"),
+    ("Last Re-review Sections", "last_re_review_sections"),
+)
+
+DELTA_COLUMNS = ["Field", "Before Version", "Before", "After Version", "After", "Delta"]
+LINEAGE_COLUMNS = [
+    "Version", "Snapshot ID", "Created At", "Schema Version", "Research Status",
+    "Source Baseline", "Analyst Reviewed At", "Last Re-review At",
+    "Last Re-review Sections", "Final Synthesis Present",
+]
+
+
+def _text(value: Any) -> str:
+    return " ".join(str(value or "").split()).strip()
+
+
+def _canonical(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":"))
+    if isinstance(value, (list, tuple, set)):
+        return json.dumps(list(value), ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":"))
+    return _text(value)
+
+
+def source_baseline_fingerprint(payload: dict[str, Any] | None) -> str:
+    """Fingerprint source-facing workspace state without copying canonical financial SSOT values."""
+    p = ch11.normalize_payload(deepcopy(payload or {}))
+    source_state = {
+        "question_status": p.get("question_status", {}),
+        "confidence": p.get("confidence", {}),
+        "dimension_status": p.get("dimension_status", {}),
+        "evidence": p.get("evidence", []),
+        "research_gaps": p.get("research_gaps", []),
+        "ma_events": p.get("ma_events", []),
+    }
+    raw = json.dumps(source_state, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _synthesis(payload: dict[str, Any] | None) -> dict[str, Any]:
+    source = payload if isinstance(payload, dict) else {}
+    syn = source.get("ma_synthesis") if isinstance(source.get("ma_synthesis"), dict) else {}
+    return deepcopy(syn)
+
+
+def _display(value: Any) -> str:
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    if isinstance(value, (list, tuple, set)):
+        return ", ".join(_text(v) for v in value if _text(v))
+    return _text(value)
+
+
+def _change(before: Any, after: Any) -> str:
+    left, right = _canonical(before), _canonical(after)
+    if left == right:
+        return "Unchanged"
+    if not left and right:
+        return "Added"
+    if left and not right:
+        return "Removed"
+    return "Changed"
+
+
+def compare_versions(before: dict[str, Any] | None, after: dict[str, Any] | None, *, before_label: str = "Before", after_label: str = "After") -> pd.DataFrame:
+    """Compare analyst-owned Chapter 11 state without changing either payload."""
+    left_raw, right_raw = deepcopy(before or {}), deepcopy(after or {})
+    left, right = ch11.normalize_payload(left_raw), ch11.normalize_payload(right_raw)
+    left_syn, right_syn = _synthesis(left_raw), _synthesis(right_raw)
+    specs: list[tuple[str, Any, Any]] = []
+    for q in ch11.QUESTION_KEYS:
+        specs.extend([
+            (f"{q} Research Status", left.get("question_status", {}).get(q), right.get("question_status", {}).get(q)),
+            (f"{q} Confidence", left.get("confidence", {}).get(q), right.get("confidence", {}).get(q)),
+            (f"{q} Analyst Assessment", left.get("analyst_assessment", {}).get(q), right.get("analyst_assessment", {}).get(q)),
+        ])
+    for label, key in SYNTHESIS_FIELDS:
+        specs.append((label, left_syn.get(key), right_syn.get(key)))
+    specs.append(("Source Baseline Fingerprint", source_baseline_fingerprint(left_raw), source_baseline_fingerprint(right_raw)))
+    rows = [{
+        "Field": label,
+        "Before Version": _text(before_label) or "Before",
+        "Before": _display(a),
+        "After Version": _text(after_label) or "After",
+        "After": _display(b),
+        "Delta": _change(a, b),
+    } for label, a, b in specs]
+    return pd.DataFrame(rows, columns=DELTA_COLUMNS)
+
+
+def build_version_lineage(records: Iterable[dict[str, Any]] | None) -> pd.DataFrame:
+    normalized: list[dict[str, Any]] = []
+    for record in records or []:
+        if not isinstance(record, dict):
+            continue
+        payload = deepcopy(record.get("payload") or {})
+        sid = record.get("snapshot_id", record.get("id", ""))
+        normalized.append({
+            "snapshot_id": sid,
+            "created_at": _text(record.get("created_at")),
+            "schema_version": record.get("schema_version", ""),
+            "research_status": _text(record.get("research_status")),
+            "payload": payload,
+        })
+    normalized.sort(key=lambda r: (r["created_at"], str(r["snapshot_id"])))
+    rows: list[dict[str, Any]] = []
+    for record in normalized:
+        payload = record["payload"]
+        syn = _synthesis(payload)
+        sid = record["snapshot_id"]
+        rows.append({
+            "Version": f"Snapshot #{sid}" if _text(sid) else "Snapshot",
+            "Snapshot ID": sid,
+            "Created At": record["created_at"],
+            "Schema Version": record["schema_version"],
+            "Research Status": record["research_status"],
+            "Source Baseline": source_baseline_fingerprint(payload)[:16],
+            "Analyst Reviewed At": _text(syn.get("analyst_reviewed_at")),
+            "Last Re-review At": _text(syn.get("last_re_review_at")),
+            "Last Re-review Sections": _display(syn.get("last_re_review_sections")),
+            "Final Synthesis Present": "Yes" if _text(syn.get("final_ma_synthesis")) else "No",
+        })
+    return pd.DataFrame(rows, columns=LINEAGE_COLUMNS)
+
+
+def history_summary(before: dict[str, Any] | None, after: dict[str, Any] | None) -> dict[str, Any]:
+    delta = compare_versions(before, after)
+    counts = delta["Delta"].value_counts().to_dict() if not delta.empty else {}
+    return {
+        "tracked_fields": int(len(delta)),
+        "changed_fields": int(sum(int(counts.get(x, 0)) for x in ("Added", "Removed", "Changed"))),
+        "unchanged_fields": int(counts.get("Unchanged", 0)),
+        "source_baseline_changed": source_baseline_fingerprint(before) != source_baseline_fingerprint(after),
+        "historical_source_freshness_reconstructed": False,
+        "automatic_question_status_change": False,
+        "automatic_confidence_change": False,
+        "automatic_analyst_text_change": False,
+        "automatic_ma_score": False,
+        "automatic_acquisition_success_classification": False,
+        "automatic_synergy_forecast": False,
+        "automatic_investment_signal": False,
+        "mos_or_investment_research_gate_changed": False,
+        "boundary": HISTORY_BOUNDARY,
+    }
+
+
+__all__ = [
+    "DELTA_COLUMNS", "HISTORY_BOUNDARY", "LINEAGE_COLUMNS", "SYNTHESIS_FIELDS",
+    "build_version_lineage", "compare_versions", "history_summary", "source_baseline_fingerprint",
+]
