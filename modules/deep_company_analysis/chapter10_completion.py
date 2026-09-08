@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-"""Chapter 10 Phase 10F — deterministic research completion and analyst-owned growth synthesis.
+"""Chapter 10 deterministic research completion and analyst-owned growth synthesis.
 
 The completion gate measures research completeness only. It never scores growth quality,
-forecasts growth, changes valuation/MOS, or creates an investment signal.
+forecasts growth, changes valuation/MOS, or creates an investment signal. V81 preserves explicit
+re-review metadata so the Streamlit synthesis editor cannot silently discard the V80 audit trail.
 """
 
 from copy import deepcopy
@@ -57,6 +58,10 @@ def default_synthesis() -> dict[str, Any]:
         "key_unknowns": "",
         "final_growth_synthesis": "",
         "analyst_note": "",
+        "analyst_reviewed_at": "",
+        "last_re_review_at": "",
+        "last_re_review_note": "",
+        "last_re_review_sections": [],
     }
 
 
@@ -64,7 +69,15 @@ def normalize_synthesis(value: dict[str, Any] | None) -> dict[str, Any]:
     out = default_synthesis()
     if isinstance(value, dict):
         for key in out:
-            if key in value:
+            if key not in value:
+                continue
+            if key == "last_re_review_sections":
+                raw = value.get(key)
+                if isinstance(raw, (list, tuple)):
+                    out[key] = [str(x).strip() for x in raw if str(x).strip()]
+                elif str(raw or "").strip():
+                    out[key] = [str(raw).strip()]
+            else:
                 out[key] = str(value[key] or "")
     if out["status"] not in SYNTHESIS_STATUS_OPTIONS:
         out["status"] = "Unknown"
