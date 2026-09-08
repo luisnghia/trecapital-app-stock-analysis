@@ -1,0 +1,137 @@
+name: Deep Company Analysis Chapter 11 Phase 11F Completion Synthesis V87
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter11-phase11f-v87
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  chapter11-phase11f:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Chapter 11 V87
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter11.py
+          python -m py_compile modules/deep_company_analysis/chapter11_completion.py
+          python -m py_compile modules/deep_company_analysis/chapter11_store.py
+          python -m py_compile modules/deep_company_analysis/chapter11_page_support.py
+          python -m py_compile modules/deep_company_analysis/test_chapter11_phase11f.py
+          python -m py_compile scripts/qa_chapter11_completion_v87.py
+          python -m py_compile pages/09_Phan_tich_MA.py
+          python -m py_compile app.py
+
+      - name: Chapter 11 cumulative deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_chapter11_phase11a.py \
+            modules/deep_company_analysis/test_chapter11_phase11b.py \
+            modules/deep_company_analysis/test_chapter11_phase11c.py \
+            modules/deep_company_analysis/test_chapter11_phase11d.py \
+            modules/deep_company_analysis/test_chapter11_phase11e.py \
+            modules/deep_company_analysis/test_chapter11_phase11f.py \
+            2>&1 | tee reports/CH11_V87_DETERMINISTIC_TESTS.log
+
+      - name: Chapter 11 V87 completion synthesis acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter11_completion_v87.py \
+            2>&1 | tee reports/CH11_V87_COMPLETION_ACCEPTANCE.log
+
+      - name: Chapter 11 V87 source SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH11_V87_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import modules.deep_company_analysis.chapter11 as ch11
+          import modules.deep_company_analysis.chapter11_completion as comp
+          assert ch11.QUESTION_KEYS == ('Q58', 'Q59')
+          assert ch11.dimension_count_by_question() == {'Q58': 8, 'Q59': 7}
+          assert len(ch11.dimension_ids()) == 15
+          store = Path('modules/deep_company_analysis/chapter11_store.py').read_text(encoding='utf-8').casefold()
+          ui = Path('modules/deep_company_analysis/chapter11_page_support.py').read_text(encoding='utf-8').casefold()
+          docs = Path('docs/FORMULA_EXPLANATION_CHAPTER11_PHASE11F_V87.md').read_text(encoding='utf-8').casefold()
+          assert 'canonical_financials' not in store
+          assert 'ma_synthesis' in store
+          assert 'research completion gate' in ui
+          assert 'analyst m&a synthesis' in ui
+          assert 'does **not calculate** ev/ebit' in docs
+          empty = comp.default_synthesis()
+          assert empty['status'] == 'Unknown' and empty['final_ma_synthesis'] == ''
+          forbidden = ('weighted ma score', 'weighted m&a score', 'automatic synergy forecast')
+          assert all(term not in store for term in forbidden)
+          print('PASS: V87 preserves Q58-Q59/15 source lock, analyst ownership, SSOT and investment boundaries.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/CH11_V87_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8550 \
+            > reports/CH11_V87_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8550/_stcore/health \
+              | tee reports/CH11_V87_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/CH11_V87_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V87 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 11 Phase 11F V87\nBranch: feature/deep-company-analysis-chapter11-phase11f-v87\nCommit: %s\nPurpose: research completion gate and analyst-owned M&A synthesis/report integration for Q58-Q59/15 dimensions; no M&A score, automatic acquisition-success conclusion, synergy forecast, duplicate financial SSOT, MOS/Research Gate change, or automatic investment conclusion.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH11_V87.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter11_Phase11F_V87.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter11_Phase11F_V87.zip | tail -n 3
+
+      - name: Upload V87 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter11_Phase11F_V87
+          retention-days: 90
+          path: |
+            docs/CHAPTER11_PHASE11F_COMPLETION_SYNTHESIS_V87.md
+            docs/FORMULA_EXPLANATION_CHAPTER11_PHASE11F_V87.md
+            reports/CH11_PHASE11F_COMPLETION_V87.json
+            reports/CH11_V87_DETERMINISTIC_TESTS.log
+            reports/CH11_V87_COMPLETION_ACCEPTANCE.log
+            reports/CH11_V87_BOUNDARY_AUDIT.log
+            reports/CH11_V87_FULL_DCA_REGRESSION.log
+            reports/CH11_V87_STREAMLIT_SERVER.log
+            reports/CH11_V87_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter11_Phase11F_V87.zip
