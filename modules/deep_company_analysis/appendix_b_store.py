@@ -1,17 +1,21 @@
 from __future__ import annotations
 
-"""SQLite persistence for Appendix B V94 management interview workspace.
+"""SQLite persistence for Appendix B V94 workspace plus V95 immutable snapshots/re-review.
 
 Only normalized analyst-owned interview state is persisted. DCA references are identifiers only;
 no chapter state, financial SSOT, valuation, MOS, Research Gate or investment signal is copied.
 """
 
+from copy import deepcopy
 import json
 import sqlite3
 from pathlib import Path
 from typing import Any
 
+from modules.deep_company_analysis.appendix_b_history import normalize_history_payload
 from modules.deep_company_analysis.appendix_b_workspace import normalize_research_gap, normalize_session
+
+SNAPSHOT_SCHEMA_VERSION = 1
 
 
 def _connect(db_path: str | Path) -> sqlite3.Connection:
@@ -40,6 +44,25 @@ def init_store(db_path: str | Path) -> None:
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (ticker, gap_id)
             );
+            CREATE TABLE IF NOT EXISTS appendix_b_snapshots (
+                snapshot_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                company_name TEXT NOT NULL DEFAULT '',
+                schema_version INTEGER NOT NULL DEFAULT 1,
+                payload_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_appendix_b_snapshots_ticker_created
+                ON appendix_b_snapshots(ticker, created_at, snapshot_id);
+            CREATE TABLE IF NOT EXISTS appendix_b_re_reviews (
+                rereview_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                note TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_appendix_b_rereviews_ticker_created
+                ON appendix_b_re_reviews(ticker, created_at, rereview_id);
             """
         )
 
@@ -110,4 +133,106 @@ def list_research_gaps(db_path: str | Path, ticker: str) -> list[dict[str, Any]]
     return [normalize_research_gap(json.loads(row["payload_json"])) for row in rows]
 
 
-__all__ = ["init_store", "list_research_gaps", "list_sessions", "load_session", "save_research_gap", "save_session"]
+def _snapshot_row(row: sqlite3.Row | None) -> dict[str, Any]:
+    if row is None:
+        return {}
+    try:
+        raw = json.loads(row["payload_json"])
+    except (TypeError, json.JSONDecodeError):
+        raw = {}
+    return {
+        "snapshot_id": int(row["snapshot_id"]),
+        "ticker": str(row["ticker"] or ""),
+        "company_name": str(row["company_name"] or ""),
+        "schema_version": int(row["schema_version"]),
+        "created_at": str(row["created_at"] or ""),
+        "payload": deepcopy(normalize_history_payload(raw)),
+    }
+
+
+def create_snapshot(
+    db_path: str | Path,
+    ticker: str,
+    sessions: list[dict[str, Any]],
+    research_gaps: list[dict[str, Any]],
+    company_name: str = "",
+) -> dict[str, Any]:
+    payload = normalize_history_payload({
+        "ticker": ticker,
+        "company_name": company_name,
+        "sessions": sessions,
+        "research_gaps": research_gaps,
+    })
+    if not payload["ticker"]:
+        raise ValueError("ticker is required")
+    init_store(db_path)
+    with _connect(db_path) as con:
+        cur = con.execute(
+            """INSERT INTO appendix_b_snapshots(ticker, company_name, schema_version, payload_json)
+               VALUES (?, ?, ?, ?)""",
+            (
+                payload["ticker"], payload["company_name"], SNAPSHOT_SCHEMA_VERSION,
+                json.dumps(payload, ensure_ascii=False, sort_keys=True),
+            ),
+        )
+        row = con.execute(
+            "SELECT snapshot_id,ticker,company_name,schema_version,payload_json,created_at FROM appendix_b_snapshots WHERE snapshot_id=?",
+            (int(cur.lastrowid),),
+        ).fetchone()
+    return _snapshot_row(row)
+
+
+def load_snapshot(db_path: str | Path, snapshot_id: int) -> dict[str, Any]:
+    init_store(db_path)
+    with _connect(db_path) as con:
+        row = con.execute(
+            "SELECT snapshot_id,ticker,company_name,schema_version,payload_json,created_at FROM appendix_b_snapshots WHERE snapshot_id=?",
+            (int(snapshot_id),),
+        ).fetchone()
+    return _snapshot_row(row)
+
+
+def list_snapshots(db_path: str | Path, ticker: str) -> list[dict[str, Any]]:
+    init_store(db_path)
+    with _connect(db_path) as con:
+        rows = con.execute(
+            "SELECT snapshot_id,ticker,company_name,schema_version,payload_json,created_at FROM appendix_b_snapshots WHERE ticker=? ORDER BY created_at,snapshot_id",
+            (str(ticker or "").strip().upper(),),
+        ).fetchall()
+    return [_snapshot_row(row) for row in rows]
+
+
+def record_re_review(db_path: str | Path, ticker: str, scope: str, note: str = "") -> dict[str, Any]:
+    key = str(ticker or "").strip().upper()
+    scope = str(scope or "").strip()
+    note = str(note or "").strip()
+    if not key or not scope:
+        raise ValueError("ticker and scope are required")
+    init_store(db_path)
+    with _connect(db_path) as con:
+        cur = con.execute(
+            "INSERT INTO appendix_b_re_reviews(ticker,scope,note) VALUES(?,?,?)",
+            (key, scope, note),
+        )
+        row = con.execute(
+            "SELECT rereview_id,ticker,scope,note,created_at FROM appendix_b_re_reviews WHERE rereview_id=?",
+            (int(cur.lastrowid),),
+        ).fetchone()
+    return dict(row)
+
+
+def list_re_reviews(db_path: str | Path, ticker: str) -> list[dict[str, Any]]:
+    init_store(db_path)
+    with _connect(db_path) as con:
+        rows = con.execute(
+            "SELECT rereview_id,ticker,scope,note,created_at FROM appendix_b_re_reviews WHERE ticker=? ORDER BY created_at,rereview_id",
+            (str(ticker or "").strip().upper(),),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+__all__ = [
+    "SNAPSHOT_SCHEMA_VERSION", "create_snapshot", "init_store", "list_re_reviews", "list_research_gaps",
+    "list_sessions", "list_snapshots", "load_session", "load_snapshot", "record_re_review",
+    "save_research_gap", "save_session",
+]

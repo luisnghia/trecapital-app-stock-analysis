@@ -1,0 +1,160 @@
+name: Deep Company Analysis Appendix B Phase C History Closure V95
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-appendix-b-phasec-v95
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  appendix-b-phasec-v95:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Appendix B V95
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/appendix_b.py
+          python -m py_compile modules/deep_company_analysis/appendix_b_workspace.py
+          python -m py_compile modules/deep_company_analysis/appendix_b_history.py
+          python -m py_compile modules/deep_company_analysis/appendix_b_store.py
+          python -m py_compile modules/deep_company_analysis/test_appendix_b_phasea_v93.py
+          python -m py_compile modules/deep_company_analysis/test_appendix_b_phaseb_v94.py
+          python -m py_compile modules/deep_company_analysis/test_appendix_b_phasec_v95.py
+          python -m py_compile scripts/qa_appendix_b_history_closure_v95.py
+          python -m py_compile pages/11_Appendix_B_Management_Interview.py
+          python -m py_compile app.py
+
+      - name: Appendix B cumulative deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q \
+            modules/deep_company_analysis/test_appendix_b_phasea_v93.py \
+            modules/deep_company_analysis/test_appendix_b_phaseb_v94.py \
+            modules/deep_company_analysis/test_appendix_b_phasec_v95.py \
+            2>&1 | tee reports/APPENDIX_B_V95_DETERMINISTIC_TESTS.log
+
+      - name: Appendix B V95 history closure acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_appendix_b_history_closure_v95.py \
+            2>&1 | tee reports/APPENDIX_B_V95_HISTORY_CLOSURE_ACCEPTANCE.log
+
+      - name: Appendix B V95 source, SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/APPENDIX_B_V95_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import json
+          import tempfile
+          import modules.deep_company_analysis.appendix_b as appb
+          from modules.deep_company_analysis.appendix_b_history import history_summary, normalize_history_payload
+          from modules.deep_company_analysis.appendix_b_store import create_snapshot, load_snapshot, record_re_review
+          from modules.deep_company_analysis.appendix_b_workspace import new_session
+
+          docs = Path('docs/APPENDIX_B_PHASEC_HISTORY_CLOSURE_V95.md').read_text(encoding='utf-8').casefold()
+          report = json.loads(Path('reports/APPENDIX_B_PHASEC_HISTORY_CLOSURE_V95.json').read_text(encoding='utf-8'))
+          assert appb.SOURCE_PRINT_PAGES == (331, 334)
+          assert len(appb.MANAGEMENT_INTERVIEW_TOPICS) == 8
+          assert 'no new financial formulas' in docs
+          assert report['acceptance'] == 'PASS'
+          assert report['appendix_b_closure'] == 'COMPLETE'
+          for key in (
+              'automatic_management_score','automatic_ceo_quality_classifier',
+              'automatic_credibility_or_personality_score','automatic_investment_signal',
+              'automatic_mos_change','automatic_research_gate_change','duplicate_financial_ssot_added',
+          ):
+              assert report[key] is False
+
+          dirty = {
+              'ticker':'QA','sessions':[new_session('QA','CEO','2026-09-08')],'research_gaps':[],
+              'research_gate':'PASS','intrinsic_value':999,'management_score':100,'financials':{'revenue':1},
+          }
+          clean = normalize_history_payload(dirty)
+          serialized = json.dumps(clean, ensure_ascii=False, sort_keys=True).casefold()
+          for forbidden in ('research_gate','intrinsic_value','management_score','financials'):
+              assert forbidden not in serialized
+          summary = history_summary(clean, clean)
+          assert summary['automatic_management_score'] is False
+          assert summary['automatic_research_gate_change'] is False
+          with tempfile.TemporaryDirectory() as tmp:
+              db = Path(tmp) / 'audit.sqlite'
+              snap = create_snapshot(db, 'QA', clean['sessions'], [], '')
+              assert load_snapshot(db, snap['snapshot_id'])['payload'] == snap['payload']
+              rr = record_re_review(db, 'QA', 'Appendix B', 'analyst only')
+              assert rr['scope'] == 'Appendix B'
+          print('PASS: V95 history is immutable analyst-owned lineage and Appendix B closure is source/SSOT safe.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/APPENDIX_B_V95_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8555 \
+            > reports/APPENDIX_B_V95_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8555/_stcore/health \
+              | tee reports/APPENDIX_B_V95_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/APPENDIX_B_V95_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V95 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Appendix B Phase C V95\nBranch: feature/deep-company-analysis-appendix-b-phasec-v95\nCommit: %s\nPurpose: immutable management-interview snapshots + neutral history delta + explicit analyst re-review + Appendix B closure.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_APPENDIX_B_V95.txt
+          zip -qr Trecapital_Deep_Analysis_AppendixB_PhaseC_V95.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_AppendixB_PhaseC_V95.zip | tail -n 3
+          sha256sum Trecapital_Deep_Analysis_AppendixB_PhaseC_V95.zip | tee reports/APPENDIX_B_V95_OFFLINE_ZIP_SHA256.txt
+
+      - name: Upload V95 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_AppendixB_PhaseC_V95
+          retention-days: 90
+          path: |
+            docs/APPENDIX_B_PHASEC_HISTORY_CLOSURE_V95.md
+            reports/APPENDIX_B_PHASEC_HISTORY_CLOSURE_V95.json
+            reports/APPENDIX_B_V95_DETERMINISTIC_TESTS.log
+            reports/APPENDIX_B_V95_HISTORY_CLOSURE_ACCEPTANCE.log
+            reports/APPENDIX_B_V95_BOUNDARY_AUDIT.log
+            reports/APPENDIX_B_V95_FULL_DCA_REGRESSION.log
+            reports/APPENDIX_B_V95_STREAMLIT_SERVER.log
+            reports/APPENDIX_B_V95_STREAMLIT_HEALTH.txt
+            reports/APPENDIX_B_V95_OFFLINE_ZIP_SHA256.txt
+            Trecapital_Deep_Analysis_AppendixB_PhaseC_V95.zip

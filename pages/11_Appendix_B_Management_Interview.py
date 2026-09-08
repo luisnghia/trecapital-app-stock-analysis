@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import streamlit as st
@@ -8,14 +7,23 @@ import streamlit as st
 from modules.deep_company_analysis.appendix_b import (
     APPENDIX_TITLE,
     CONTEXTUAL_CHECKS,
-    FACE_TO_FACE_CAVEATS,
     INTERVIEW_PROTOCOL,
     MANAGEMENT_INTERVIEW_TOPICS,
     SOURCE_LOCK,
 )
+from modules.deep_company_analysis.appendix_b_history import (
+    build_session_lineage,
+    build_version_lineage,
+    compare_versions,
+    normalize_history_payload,
+)
 from modules.deep_company_analysis.appendix_b_store import (
+    create_snapshot,
+    list_re_reviews,
     list_research_gaps,
     list_sessions,
+    list_snapshots,
+    record_re_review,
     save_research_gap,
     save_session,
 )
@@ -109,6 +117,63 @@ if gaps:
         hide_index=True,
     )
 
+st.divider()
+st.subheader("V95 — Snapshot, history & explicit analyst re-review")
+current_payload = normalize_history_payload({
+    "ticker": ticker,
+    "company_name": company_name,
+    "sessions": list_sessions(DB_PATH, ticker),
+    "research_gaps": list_research_gaps(DB_PATH, ticker),
+})
+
+hc1, hc2 = st.columns([1, 2])
+with hc1:
+    if st.button("Create immutable snapshot", use_container_width=True):
+        snap = create_snapshot(DB_PATH, ticker, current_payload["sessions"], current_payload["research_gaps"], company_name)
+        st.success(f"Created Snapshot #{snap['snapshot_id']}. Current workspace was not changed.")
+        st.rerun()
+with hc2:
+    st.caption("Snapshot/history is provenance only. A change means the interview record changed — not that management improved or worsened.")
+
+snapshots = list_snapshots(DB_PATH, ticker)
+if snapshots:
+    lineage = build_version_lineage(snapshots)
+    st.markdown("#### Version lineage")
+    st.dataframe(lineage, use_container_width=True, hide_index=True)
+
+    options = [int(s["snapshot_id"]) for s in snapshots]
+    selected_snapshot_id = st.selectbox("Compare snapshot to current", options=options, index=len(options) - 1)
+    selected_snapshot = next(s for s in snapshots if int(s["snapshot_id"]) == int(selected_snapshot_id))
+    delta = compare_versions(
+        selected_snapshot["payload"], current_payload,
+        before_label=f"Snapshot #{selected_snapshot_id}", after_label="Current",
+    )
+    st.markdown("#### Neutral delta")
+    st.dataframe(delta, use_container_width=True, hide_index=True)
+    st.caption("Delta vocabulary is limited to Unchanged / Added / Removed / Changed. No quality direction is inferred.")
+
+    st.markdown("#### Interview-session lineage — current")
+    st.dataframe(build_session_lineage(current_payload), use_container_width=True, hide_index=True)
+
+st.markdown("#### Explicit analyst re-review")
+rr1, rr2 = st.columns([1, 2])
+with rr1:
+    rereview_scope = st.selectbox("Re-review scope", ["Appendix B", "Interview sessions", "Research gaps", "Source baseline"])
+with rr2:
+    rereview_note = st.text_input("Analyst re-review note (optional)")
+if st.button("Record analyst re-review"):
+    record_re_review(DB_PATH, ticker, rereview_scope, rereview_note)
+    st.success("Re-review recorded. No research status, management conclusion, valuation or investment gate was changed automatically.")
+    st.rerun()
+
+rereviews = list_re_reviews(DB_PATH, ticker)
+if rereviews:
+    st.dataframe(
+        [{"Time": x["created_at"], "Scope": x["scope"], "Analyst note": x["note"]} for x in rereviews],
+        use_container_width=True,
+        hide_index=True,
+    )
+
 with st.expander("Boundary reminder"):
     st.write("No management/CEO/credibility/personality score; no BUY/HOLD/SELL; no intrinsic-value/MOS or Investment Research Gate change; no duplicate financial SSOT.")
-    st.write("Meeting impressions and caveats are retained for analyst re-review only.")
+    st.write("Meeting impressions, neutral deltas and re-review records are analyst-owned research lineage only.")
