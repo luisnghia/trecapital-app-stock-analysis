@@ -1,0 +1,143 @@
+name: Deep Company Analysis Appendix C Phase A Source Lock V96
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-appendix-c-phasea-v96
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  appendix-c-phasea-v96:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Appendix C V96
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/appendix_c.py
+          python -m py_compile modules/deep_company_analysis/test_appendix_c_phasea_v96.py
+          python -m py_compile scripts/qa_appendix_c_source_lock_v96.py
+          python -m py_compile app.py
+
+      - name: Appendix C V96 deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_appendix_c_phasea_v96.py \
+            2>&1 | tee reports/APPENDIX_C_V96_DETERMINISTIC_TESTS.log
+
+      - name: Appendix C V96 source-lock acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_appendix_c_source_lock_v96.py \
+            2>&1 | tee reports/APPENDIX_C_V96_SOURCE_LOCK_ACCEPTANCE.log
+
+      - name: Appendix C V96 source, SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/APPENDIX_C_V96_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import json
+          import modules.deep_company_analysis.appendix_c as appc
+
+          source = Path('modules/deep_company_analysis/appendix_c.py').read_text(encoding='utf-8').casefold()
+          docs = Path('docs/FORMULA_EXPLANATION_APPENDIX_C_PHASEA_V96.md').read_text(encoding='utf-8').casefold()
+          report = json.loads(Path('reports/APPENDIX_C_PHASEA_SOURCE_LOCK_V96.json').read_text(encoding='utf-8'))
+
+          assert appc.APPENDIX_KEY == 'C'
+          assert appc.APPENDIX_TITLE == 'Your Investment Checklist'
+          assert appc.SOURCE_PRINT_PAGES == (335, 338)
+          assert appc.QUESTION_COUNT == 59
+          assert len(appc.SECTION_ORDER) == 10
+          assert tuple(appc.SECTION_COUNTS.values()) == (6, 8, 6, 6, 6, 6, 9, 5, 5, 2)
+          assert appc.QUESTION_IDS == tuple(f'Q{i:02d}' for i in range(1, 60))
+          assert all(item['ssot_reference'] == item['question_id'] for item in appc.CHECKLIST_ITEMS)
+          assert 'import streamlit' not in source
+          assert 'sqlite3' not in source
+          assert 'import requests' not in source
+          assert 'import httpx' not in source
+          assert 'no new financial formulas' in docs
+          assert report['acceptance'] == 'PASS'
+          assert report['automatic_weighted_score'] is False
+          assert report['automatic_management_or_growth_score'] is False
+          assert report['automatic_investment_signal'] is False
+          assert report['automatic_intrinsic_value_or_mos_change'] is False
+          assert report['automatic_research_gate_change'] is False
+          assert report['duplicate_financial_or_question_ssot_added'] is False
+          assert report['ai_role'] == 'Research Assistant'
+          assert report['conclusion_owner'] == 'Analyst'
+          print('PASS: Appendix C V96 preserves Q01-Q59 source lock, referential SSOT, analyst ownership and investment boundaries.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/APPENDIX_C_V96_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8555 \
+            > reports/APPENDIX_C_V96_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8555/_stcore/health \
+              | tee reports/APPENDIX_C_V96_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/APPENDIX_C_V96_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V96 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Appendix C Phase A V96\nBranch: feature/deep-company-analysis-appendix-c-phasea-v96\nCommit: %s\nPurpose: Michael Shearn Appendix C Q01-Q59 source-locked consolidated reference; no duplicate answer/financial SSOT, weighted score, MOS/Research Gate change, or automatic investment conclusion.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_APPENDIX_C_V96.txt
+          zip -qr Trecapital_Deep_Analysis_AppendixC_PhaseA_V96.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_AppendixC_PhaseA_V96.zip | tail -n 3
+          sha256sum Trecapital_Deep_Analysis_AppendixC_PhaseA_V96.zip | tee reports/APPENDIX_C_V96_OFFLINE_ZIP_SHA256.txt
+
+      - name: Upload V96 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_AppendixC_PhaseA_V96
+          retention-days: 90
+          path: |
+            docs/APPENDIX_C_PHASEA_SOURCE_LOCK_V96.md
+            docs/FORMULA_EXPLANATION_APPENDIX_C_PHASEA_V96.md
+            reports/APPENDIX_C_PHASEA_SOURCE_LOCK_V96.json
+            reports/APPENDIX_C_V96_DETERMINISTIC_TESTS.log
+            reports/APPENDIX_C_V96_SOURCE_LOCK_ACCEPTANCE.log
+            reports/APPENDIX_C_V96_BOUNDARY_AUDIT.log
+            reports/APPENDIX_C_V96_FULL_DCA_REGRESSION.log
+            reports/APPENDIX_C_V96_STREAMLIT_SERVER.log
+            reports/APPENDIX_C_V96_STREAMLIT_HEALTH.txt
+            reports/APPENDIX_C_V96_OFFLINE_ZIP_SHA256.txt
+            Trecapital_Deep_Analysis_AppendixC_PhaseA_V96.zip
