@@ -1,0 +1,143 @@
+name: Deep Company Analysis Appendix A Phase B Workspace V91
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-appendix-a-phaseb-v91
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  appendix-a-phaseb-v91:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Appendix A V91
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/appendix_a.py
+          python -m py_compile modules/deep_company_analysis/appendix_a_workspace.py
+          python -m py_compile modules/deep_company_analysis/appendix_a_store.py
+          python -m py_compile modules/deep_company_analysis/test_appendix_a_phasea_v90.py
+          python -m py_compile modules/deep_company_analysis/test_appendix_a_phaseb_v91.py
+          python -m py_compile scripts/qa_appendix_a_workspace_v91.py
+          python -m py_compile pages/10_Mang_nguon_tin.py
+          python -m py_compile tre_sidebar_nav.py
+          python -m py_compile app.py
+
+      - name: Appendix A cumulative deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_appendix_a_phasea_v90.py modules/deep_company_analysis/test_appendix_a_phaseb_v91.py \
+            2>&1 | tee reports/APPENDIX_A_V91_DETERMINISTIC_TESTS.log
+
+      - name: Appendix A V91 workspace acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_appendix_a_workspace_v91.py \
+            2>&1 | tee reports/APPENDIX_A_V91_WORKSPACE_ACCEPTANCE.log
+
+      - name: Appendix A V91 source, SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/APPENDIX_A_V91_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import json
+          import modules.deep_company_analysis.appendix_a_workspace as ws
+
+          workspace = Path('modules/deep_company_analysis/appendix_a_workspace.py').read_text(encoding='utf-8').casefold()
+          store = Path('modules/deep_company_analysis/appendix_a_store.py').read_text(encoding='utf-8').casefold()
+          page = Path('pages/10_Mang_nguon_tin.py').read_text(encoding='utf-8').casefold()
+          docs = Path('docs/FORMULA_EXPLANATION_APPENDIX_A_PHASEB_V91.md').read_text(encoding='utf-8').casefold()
+          report = json.loads(Path('reports/APPENDIX_A_PHASEB_WORKSPACE_V91.json').read_text(encoding='utf-8'))
+
+          assert len(ws.QUESTION_IDS) == 59
+          assert ws.QUESTION_IDS[0] == 'Q01' and ws.QUESTION_IDS[-1] == 'Q59'
+          assert 'import requests' not in workspace and 'import httpx' not in workspace
+          assert 'import requests' not in store and 'import httpx' not in store
+          assert 'send_email' not in workspace and 'contact_source' not in workspace
+          assert 'buy/hold/sell' in page
+          assert 'no new financial formulas' in docs
+          assert report['acceptance'] == 'PASS'
+          assert report['automatic_human_source_score'] is False
+          assert report['automatic_credibility_score'] is False
+          assert report['automatic_investment_signal'] is False
+          assert report['automatic_mos_change'] is False
+          assert report['automatic_research_gate_change'] is False
+          assert report['duplicate_financial_ssot_added'] is False
+          assert report['automatic_contact_action_added'] is False
+          print('PASS: Appendix A V91 preserves source lock, analyst ownership, reference-only Q01-Q59 linkage, SSOT and investment boundaries.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/APPENDIX_A_V91_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8555 \
+            > reports/APPENDIX_A_V91_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8555/_stcore/health \
+              | tee reports/APPENDIX_A_V91_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/APPENDIX_A_V91_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V91 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Appendix A Phase B V91\nBranch: feature/deep-company-analysis-appendix-a-phaseb-v91\nCommit: %s\nPurpose: Human-source workspace, interview database, and reference-only Q01-Q59 research-gap linkage; no source/credibility score, duplicate financial SSOT, MOS/Research Gate change, contact action, or automatic investment conclusion.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_APPENDIX_A_V91.txt
+          zip -qr Trecapital_Deep_Analysis_AppendixA_PhaseB_V91.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_AppendixA_PhaseB_V91.zip | tail -n 3
+          sha256sum Trecapital_Deep_Analysis_AppendixA_PhaseB_V91.zip | tee reports/APPENDIX_A_V91_OFFLINE_SHA256.txt
+
+      - name: Upload V91 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_AppendixA_PhaseB_V91
+          retention-days: 90
+          path: |
+            docs/APPENDIX_A_PHASEB_WORKSPACE_V91.md
+            docs/FORMULA_EXPLANATION_APPENDIX_A_PHASEB_V91.md
+            reports/APPENDIX_A_PHASEB_WORKSPACE_V91.json
+            reports/APPENDIX_A_V91_DETERMINISTIC_TESTS.log
+            reports/APPENDIX_A_V91_WORKSPACE_ACCEPTANCE.log
+            reports/APPENDIX_A_V91_BOUNDARY_AUDIT.log
+            reports/APPENDIX_A_V91_FULL_DCA_REGRESSION.log
+            reports/APPENDIX_A_V91_STREAMLIT_SERVER.log
+            reports/APPENDIX_A_V91_STREAMLIT_HEALTH.txt
+            reports/APPENDIX_A_V91_OFFLINE_SHA256.txt
+            Trecapital_Deep_Analysis_AppendixA_PhaseB_V91.zip
