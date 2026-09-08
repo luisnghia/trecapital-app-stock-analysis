@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-"""Streamlit analyst workspace for Chapter 11 Q58-Q59 — Phase 11F / V87.
+"""Streamlit analyst workspace for Chapter 11 Q58-Q59 — Phase 11H / V89.
 
 Research Assistant candidates remain suggestions. Evidence enters the durable workspace only
 through explicit analyst promotion. Research completion measures completeness only; the analyst
-owns every M&A conclusion and synthesis.
+owns every M&A conclusion and synthesis. V89 integrates immutable history/version lineage,
+neutral delta and explicit analyst re-review into the live workflow and report.
 """
 
 from datetime import datetime, timezone
@@ -14,6 +15,7 @@ import streamlit as st
 import modules.deep_company_analysis.chapter11 as ch11
 import modules.deep_company_analysis.chapter11_research as research
 import modules.deep_company_analysis.chapter11_completion as completion
+import modules.deep_company_analysis.chapter11_history_ui as history_ui
 from modules.deep_company_analysis.chapter11_store import load_record, save_record, promoted_candidate_ids
 from modules.deep_company_analysis.table_format import render_static_table, sortable_data_editor
 
@@ -131,6 +133,18 @@ def render_chapter11_tab(default_ticker: str = "") -> None:
     if st.button("💾 Save Chapter 11 workspace", type="primary", use_container_width=True, key=f"ch11_save_{ticker}"):
         st.session_state[payload_key] = save_record(ticker, payload)
         st.success("Saved analyst-owned Chapter 11 workspace and M&A synthesis. Canonical financial SSOT was not copied or mutated.")
+
+    history_ui.render_history_panel(ticker, st.session_state[payload_key], payload_session_key=payload_key)
+    history_report = history_ui.history_report_section(ticker, st.session_state[payload_key])
+    if history_report["snapshot_count"]:
+        st.markdown("### Chapter 11 Report — Version Lineage")
+        render_static_table(history_report["lineage"], hide_index=True, use_container_width=True)
+        changed = history_report["latest_to_current_delta"]
+        changed = changed[changed["Delta"] != "Unchanged"].reset_index(drop=True)
+        if not changed.empty:
+            st.markdown("#### Latest immutable snapshot → current workspace")
+            render_static_table(changed, hide_index=True, use_container_width=True)
+        st.caption(history_report["boundary_note"])
 
 
 __all__ = ["render_chapter11_tab"]
