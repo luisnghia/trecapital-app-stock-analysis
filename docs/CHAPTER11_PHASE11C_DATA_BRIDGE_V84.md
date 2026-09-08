@@ -45,6 +45,8 @@ The bridge preserves the supplied analyst payload and does not automatically cha
 - `docs/FORMULA_EXPLANATION_CHAPTER11_PHASE11C_V84.md`
 - `.github/workflows/chapter11-phase11c-data-bridge-v84.yml`
 
+The dedicated V84 workflow compiles the changed modules, runs cumulative Chapter 11 deterministic tests, V84 acceptance and boundary audits, the complete Deep Company Analysis regression, production Streamlit health, offline ZIP validation and artifact upload.
+
 ## Next phase
 
 The next logical phase is Chapter 11 Phase 11D: source research / Research Assistant bridge for qualitative dimensions and remaining Unknown data gaps, while preserving analyst ownership of every qualitative conclusion.
