@@ -1,0 +1,134 @@
+name: Deep Company Analysis Chapter 11 Phase 11C Data Bridge V84
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter11-phase11c-v84
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  chapter11-phase11c:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Chapter 11 V84
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter11.py
+          python -m py_compile modules/deep_company_analysis/chapter11_data_bridge.py
+          python -m py_compile modules/deep_company_analysis/test_chapter11_phase11c.py
+          python -m py_compile scripts/qa_chapter11_data_bridge_v84.py
+          python -m py_compile app.py
+
+      - name: Chapter 11 Phase 11C deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_chapter11_phase11a.py \
+            modules/deep_company_analysis/test_chapter11_phase11b.py \
+            modules/deep_company_analysis/test_chapter11_phase11c.py \
+            2>&1 | tee reports/CH11_V84_DETERMINISTIC_TESTS.log
+
+      - name: Chapter 11 V84 data-bridge acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter11_data_bridge_v84.py \
+            2>&1 | tee reports/CH11_V84_DATA_BRIDGE_ACCEPTANCE.log
+
+      - name: Chapter 11 V84 SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH11_V84_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import modules.deep_company_analysis.chapter11_data_bridge as bridge
+
+          source = Path('modules/deep_company_analysis/chapter11_data_bridge.py').read_text(encoding='utf-8').casefold()
+          docs = Path('docs/FORMULA_EXPLANATION_CHAPTER11_PHASE11C_V84.md').read_text(encoding='utf-8').casefold()
+          assert 'import streamlit' not in source
+          assert 'sqlite3' not in source
+          assert 'import httpx' not in source
+          assert 'import requests' not in source
+          assert 'fireant' not in source
+          assert 'simplize' not in source
+          assert 'does not calculate acquisition valuation ratios' in source
+          assert 'chapter 11 does not calculate these formulas' in docs
+          assert bridge.valuation_ratio_policy()['computed_by_chapter11'] is False
+          assert bridge.financing_policy()['computed_by_chapter11'] is False
+          result = bridge.bridge_payload({'metrics': {'ebitda': 100}}, {'analyst_assessment': {'Q59': 'keep'}})
+          assert result['automatic_ma_score'] is False
+          assert result['automatic_acquisition_success_conclusion'] is False
+          assert result['automatic_synergy_forecast'] is False
+          assert result['automatic_investment_signal'] is False
+          assert result['mos_or_research_gate_changed'] is False
+          print('PASS: V84 consumes canonical M&A evidence read-only and preserves SSOT/analyst/investment boundaries.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/CH11_V84_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8548 \
+            > reports/CH11_V84_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8548/_stcore/health \
+              | tee reports/CH11_V84_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/CH11_V84_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V84 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 11 Phase 11C V84\nBranch: feature/deep-company-analysis-chapter11-phase11c-v84\nCommit: %s\nPurpose: canonical read-only data bridge for Q58-Q59; no duplicate financial SSOT, local acquisition ratio calculation, analyst mutation, M&A score, success conclusion, synergy forecast, MOS/Research Gate change, or automatic investment conclusion.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH11_V84.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter11_Phase11C_V84.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter11_Phase11C_V84.zip | tail -n 3
+
+      - name: Upload V84 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter11_Phase11C_V84
+          retention-days: 90
+          path: |
+            docs/CHAPTER11_PHASE11C_DATA_BRIDGE_V84.md
+            docs/FORMULA_EXPLANATION_CHAPTER11_PHASE11C_V84.md
+            reports/CH11_PHASE11C_DATA_BRIDGE_V84.json
+            reports/CH11_V84_DETERMINISTIC_TESTS.log
+            reports/CH11_V84_DATA_BRIDGE_ACCEPTANCE.log
+            reports/CH11_V84_BOUNDARY_AUDIT.log
+            reports/CH11_V84_FULL_DCA_REGRESSION.log
+            reports/CH11_V84_STREAMLIT_SERVER.log
+            reports/CH11_V84_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter11_Phase11C_V84.zip
