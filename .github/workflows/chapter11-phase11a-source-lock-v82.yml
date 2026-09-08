@@ -1,0 +1,142 @@
+name: Deep Company Analysis Chapter 11 Phase 11A Source Lock V82
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-chapter11-phase11a-v82
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  chapter11-phase11a:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile Chapter 11 V82
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/chapter11.py
+          python -m py_compile modules/deep_company_analysis/test_chapter11_phase11a.py
+          python -m py_compile scripts/qa_chapter11_source_lock_v82.py
+          python -m py_compile app.py
+
+      - name: Chapter 11 Phase 11A deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_chapter11_phase11a.py \
+            2>&1 | tee reports/CH11_V82_DETERMINISTIC_TESTS.log
+
+      - name: Chapter 11 V82 source-lock acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_chapter11_source_lock_v82.py \
+            2>&1 | tee reports/CH11_V82_SOURCE_LOCK_ACCEPTANCE.log
+
+      - name: Chapter 11 V82 source and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/CH11_V82_BOUNDARY_AUDIT.log
+          from pathlib import Path
+          import json
+          import modules.deep_company_analysis.chapter11 as ch11
+
+          source = Path('modules/deep_company_analysis/chapter11.py').read_text(encoding='utf-8').casefold()
+          docs = Path('docs/FORMULA_EXPLANATION_CHAPTER11_PHASE11A_V82.md').read_text(encoding='utf-8').casefold()
+          report = json.loads(Path('reports/CH11_PHASE11A_SOURCE_LOCK_V82.json').read_text(encoding='utf-8'))
+
+          assert ch11.CHAPTER_NUMBER == 11
+          assert ch11.QUESTION_KEYS == ('Q58', 'Q59')
+          assert ch11.QUESTION_SOURCE_PAGES == {'Q58': 305, 'Q59': 310}
+          assert 'Q57' not in ch11.QUESTION_TITLES and 'Q60' not in ch11.QUESTION_TITLES
+          assert 'import streamlit' not in source
+          assert 'sqlite3' not in source
+          assert 'import httpx' not in source
+          assert 'import requests' not in source
+          assert 'fireant' not in source
+          assert 'simplize' not in source
+          assert 'duplicate financial ssot' in source
+          assert 'no new financial formulas' in docs
+          assert report['acceptance'] == 'PASS'
+          assert report['exact_question_range'] == 'Q58-Q59'
+          assert report['source_locked_questions'] == 2
+          assert report['unknown_first'] is True
+          assert report['automatic_ma_score'] is False
+          assert report['automatic_synergy_forecast'] is False
+          assert report['automatic_acquisition_success_conclusion'] is False
+          assert report['automatic_investment_signal'] is False
+          assert report['financial_bridge_added'] is False
+          assert report['duplicate_financial_ssot_added'] is False
+          assert report['mos_or_research_gate_changed'] is False
+          print('PASS: Phase 11A preserves Q58-Q59 source lock, analyst ownership and financial/investment boundaries.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/CH11_V82_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8547 \
+            > reports/CH11_V82_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8547/_stcore/health \
+              | tee reports/CH11_V82_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/CH11_V82_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V82 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Chapter 11 Phase 11A V82\nBranch: feature/deep-company-analysis-chapter11-phase11a-v82\nCommit: %s\nPurpose: Michael Shearn Chapter 11 Q58-Q59 source lock and Unknown-first analyst contract; no M&A score, synergy forecast, duplicate financial SSOT, MOS/Research Gate change, or automatic investment conclusion.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_CH11_V82.txt
+          zip -qr Trecapital_Deep_Analysis_Chapter11_Phase11A_V82.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Chapter11_Phase11A_V82.zip | tail -n 3
+
+      - name: Upload V82 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Chapter11_Phase11A_V82
+          retention-days: 90
+          path: |
+            docs/CHAPTER11_PHASE11A_SOURCE_LOCK_V82.md
+            docs/FORMULA_EXPLANATION_CHAPTER11_PHASE11A_V82.md
+            reports/CH11_PHASE11A_SOURCE_LOCK_V82.json
+            reports/CH11_V82_DETERMINISTIC_TESTS.log
+            reports/CH11_V82_SOURCE_LOCK_ACCEPTANCE.log
+            reports/CH11_V82_BOUNDARY_AUDIT.log
+            reports/CH11_V82_FULL_DCA_REGRESSION.log
+            reports/CH11_V82_STREAMLIT_SERVER.log
+            reports/CH11_V82_STREAMLIT_HEALTH.txt
+            Trecapital_Deep_Analysis_Chapter11_Phase11A_V82.zip
