@@ -51,7 +51,8 @@ def test_trimmed_mean_reduces_single_cycle_outlier_in_long_window():
     gm = table.loc[table.metric == "gross_margin"].iloc[0]
     assert gm.trimmed_mean > 20
     assert gm.trimmed_mean != gm.trough
-    assert gm.p25 <= gm.median <= gm.p75
+    # Series.median is a method; use label access for the normalization column.
+    assert gm.p25 <= gm["median"] <= gm.p75
 
 
 def test_comparability_break_is_explicit_not_silently_removed():
