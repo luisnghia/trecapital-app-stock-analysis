@@ -1,0 +1,137 @@
+name: Deep Company Analysis Financial Report V102
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-financial-report-v102
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+  MPLBACKEND: Agg
+
+jobs:
+  financial-report-v102:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile V102
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/financial_report_v102.py
+          python -m py_compile modules/deep_company_analysis/investment_checklist_report_v102.py
+          python -m py_compile modules/deep_company_analysis/test_financial_report_v102.py
+          python -m py_compile scripts/qa_financial_report_v102.py
+          python -m py_compile app.py
+
+      - name: V102 deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_financial_report_v102.py \
+            2>&1 | tee reports/FINANCIAL_REPORT_V102_DETERMINISTIC_TESTS.log
+
+      - name: V102 deterministic acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_financial_report_v102.py \
+            2>&1 | tee reports/FINANCIAL_REPORT_V102_ACCEPTANCE.log
+
+      - name: Source SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/FINANCIAL_REPORT_V102_BOUNDARY_AUDIT.log
+          import json
+          from pathlib import Path
+          report = json.loads(Path('reports/FINANCIAL_REPORT_V102_ACCEPTANCE.json').read_text(encoding='utf-8'))
+          assert report['acceptance'] == 'PASS'
+          assert report['annual_periods'] == 10
+          assert report['ttm_overlay'] is True
+          assert report['metric_contract_complete'] is True
+          assert report['chart_media_present'] is True
+          assert report['cyclical_normalization_present'] is True
+          assert report['provenance_columns_present'] is True
+          assert report['v101_checklist_composed_by_reference'] is True
+          assert report['q33_q52_unknown_without_evidence'] is True
+          assert report['duplicate_financial_ssot_added'] is False
+          assert report['duplicate_question_ssot_added'] is False
+          assert report['valuation_formula_changed'] is False
+          assert report['automatic_weighted_score'] is False
+          assert report['automatic_buy_hold_sell'] is False
+          assert report['automatic_research_gate_change'] is False
+          assert report['ai_role'] == 'Research Assistant'
+          assert report['conclusion_owner'] == 'Analyst'
+          print('PASS: V102 is a read-only quantitative evidence layer over canonical owners.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/FINANCIAL_REPORT_V102_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8556 \
+            > reports/FINANCIAL_REPORT_V102_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8556/_stcore/health \
+              | tee reports/FINANCIAL_REPORT_V102_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/FINANCIAL_REPORT_V102_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V102 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Financial Report V102\nBranch: feature/deep-company-analysis-financial-report-v102\nCommit: %s\nPurpose: read-only 10Y + TTM quantitative financial tables/charts over canonical SSOT.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_FINANCIAL_REPORT_V102.txt
+          zip -qr Trecapital_Deep_Analysis_Financial_Report_V102.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Financial_Report_V102.zip | tail -n 3
+          sha256sum Trecapital_Deep_Analysis_Financial_Report_V102.zip \
+            | tee reports/FINANCIAL_REPORT_V102_OFFLINE_ZIP_SHA256.txt
+
+      - name: Upload V102 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Financial_Report_V102
+          retention-days: 90
+          path: |
+            CHANGELOG_V102_DEEP_ANALYSIS_FINANCIAL_REPORT.md
+            docs/DEEP_ANALYSIS_FINANCIAL_REPORT_V102.md
+            reports/DGC_FINANCIAL_REPORT_V102_SAMPLE.docx
+            reports/FINANCIAL_REPORT_V102_ACCEPTANCE.json
+            reports/FINANCIAL_REPORT_V102_DETERMINISTIC_TESTS.log
+            reports/FINANCIAL_REPORT_V102_ACCEPTANCE.log
+            reports/FINANCIAL_REPORT_V102_BOUNDARY_AUDIT.log
+            reports/FINANCIAL_REPORT_V102_FULL_DCA_REGRESSION.log
+            reports/FINANCIAL_REPORT_V102_STREAMLIT_SERVER.log
+            reports/FINANCIAL_REPORT_V102_STREAMLIT_HEALTH.txt
+            reports/FINANCIAL_REPORT_V102_OFFLINE_ZIP_SHA256.txt
+            Trecapital_Deep_Analysis_Financial_Report_V102.zip
