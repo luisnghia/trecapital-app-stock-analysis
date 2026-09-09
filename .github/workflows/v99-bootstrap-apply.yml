@@ -1,0 +1,146 @@
+name: V99 Bootstrap Apply And Validate
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-financial-semantics-v99
+
+permissions:
+  contents: write
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  bootstrap-v99:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout bootstrap branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Apply V99 implementation patch and commit final source
+        run: |
+          set -euo pipefail
+          base64 --decode scripts/v99_financial_semantics.patch.gz.b64 | gzip -d > /tmp/v99.patch
+          git apply --check /tmp/v99.patch
+          git apply /tmp/v99.patch
+          rm -f scripts/v99_financial_semantics.patch.gz.b64
+          rm -f .github/workflows/v99-bootstrap-apply.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "V99: harden financial semantics, TTM provenance and DCA bridge"
+          git push origin HEAD:feature/deep-company-analysis-financial-semantics-v99
+          echo "V99_FINAL_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile V99
+        run: |
+          set -euo pipefail
+          python -m py_compile adapters/base.py adapters/vn_public_crawler.py module1_engine.py app.py
+          python -m py_compile modules/deep_company_analysis/financial_semantics.py
+          python -m py_compile modules/deep_company_analysis/chapter6_quant.py
+          python -m py_compile modules/deep_company_analysis/chapter6_page_support.py
+          python -m py_compile modules/deep_company_analysis/test_financial_semantics_v99.py
+          python -m py_compile scripts/qa_financial_semantics_v99.py
+
+      - name: V99 deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_financial_semantics_v99.py 2>&1 | tee reports/FINANCIAL_SEMANTICS_V99_DETERMINISTIC_TESTS.log
+
+      - name: Targeted regressions
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_chapter6_quant.py modules/deep_company_analysis/test_ttm_coverage_v32.py modules/deep_company_analysis/test_chapter6_phase6b_integration.py tools/test_fireant_parser.py tools/test_fireant_raw_parser.py 2>&1 | tee reports/FINANCIAL_SEMANTICS_V99_TARGETED_REGRESSION.log
+          pytest -q modules/investment_checklist/tests/test_trecapital_bridge.py modules/investment_checklist/tests/test_sign_safe_financial_formulas.py 2>&1 | tee reports/FINANCIAL_SEMANTICS_V99_CHECKLIST_BRIDGE.log
+
+      - name: V99 deterministic acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_financial_semantics_v99.py 2>&1 | tee reports/FINANCIAL_SEMANTICS_V99_ACCEPTANCE.log
+
+      - name: Financial SSOT and investment boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/FINANCIAL_SEMANTICS_V99_BOUNDARY_AUDIT.log
+          import json
+          from pathlib import Path
+          from adapters.base import MODULE1_TIMESERIES_COLUMNS
+          required = {'net_profit_bil','net_profit_consolidated_bil','net_profit_parent_bil','period_display','ttm_end_period','net_profit_scope','comparability_status','comparability_note'}
+          assert required.issubset(set(MODULE1_TIMESERIES_COLUMNS))
+          report = json.loads(Path('reports/FINANCIAL_SEMANTICS_V99_ACCEPTANCE.json').read_text(encoding='utf-8'))
+          assert report['acceptance'] == 'PASS'
+          assert report['duplicate_financial_ssot_added'] is False
+          assert report['automatic_weighted_score'] is False
+          assert report['automatic_buy_hold_sell'] is False
+          assert report['valuation_formula_changed'] is False
+          assert report['ai_role'] == 'Research Assistant'
+          assert report['conclusion_owner'] == 'Analyst'
+          print('PASS: V99 hardens canonical semantics/provenance without second SSOT or automatic investment judgement.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py 2>&1 | tee reports/FINANCIAL_SEMANTICS_V99_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8555 > reports/FINANCIAL_SEMANTICS_V99_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8555/_stcore/health | tee reports/FINANCIAL_SEMANTICS_V99_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/FINANCIAL_SEMANTICS_V99_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V99 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Financial Semantics V99\nBranch: feature/deep-company-analysis-financial-semantics-v99\nCommit: %s\nPurpose: canonical consolidated-vs-parent PAT semantics, EPS scope guardrail, complete-four-quarter TTM and dated period provenance.\n' "$V99_FINAL_SHA" > OFFLINE_BUILD_INFO_FINANCIAL_SEMANTICS_V99.txt
+          zip -qr Trecapital_Deep_Analysis_Financial_Semantics_V99.zip . -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Financial_Semantics_V99.zip | tail -n 3
+          sha256sum Trecapital_Deep_Analysis_Financial_Semantics_V99.zip | tee reports/FINANCIAL_SEMANTICS_V99_OFFLINE_ZIP_SHA256.txt
+
+      - name: Upload V99 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Financial_Semantics_V99
+          retention-days: 90
+          path: |
+            CHANGELOG_V99_DEEP_ANALYSIS_FINANCIAL_SEMANTICS.md
+            docs/DEEP_ANALYSIS_FINANCIAL_SEMANTICS_TTM_PROVENANCE_V99.md
+            docs/FORMULA_EXPLANATION_FINANCIAL_SEMANTICS_TTM_V99.md
+            reports/FINANCIAL_SEMANTICS_V99_ACCEPTANCE.json
+            reports/FINANCIAL_SEMANTICS_V99_DETERMINISTIC_TESTS.log
+            reports/FINANCIAL_SEMANTICS_V99_TARGETED_REGRESSION.log
+            reports/FINANCIAL_SEMANTICS_V99_CHECKLIST_BRIDGE.log
+            reports/FINANCIAL_SEMANTICS_V99_ACCEPTANCE.log
+            reports/FINANCIAL_SEMANTICS_V99_BOUNDARY_AUDIT.log
+            reports/FINANCIAL_SEMANTICS_V99_FULL_DCA_REGRESSION.log
+            reports/FINANCIAL_SEMANTICS_V99_STREAMLIT_SERVER.log
+            reports/FINANCIAL_SEMANTICS_V99_STREAMLIT_HEALTH.txt
+            reports/FINANCIAL_SEMANTICS_V99_OFFLINE_ZIP_SHA256.txt
+            OFFLINE_BUILD_INFO_FINANCIAL_SEMANTICS_V99.txt
+            Trecapital_Deep_Analysis_Financial_Semantics_V99.zip
