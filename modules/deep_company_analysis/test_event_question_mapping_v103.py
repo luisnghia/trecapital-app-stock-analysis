@@ -32,6 +32,36 @@ def _event(event_type: str, event_id: str = "E1", summary: str = "Material event
     }
 
 
+def _canonical_df() -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    for year in range(2015, 2025):
+        n = year - 2014
+        rows.append({
+            "year": year, "period": str(year), "period_type": "Y",
+            "revenue_bil": 1000.0 + n * 100, "gross_profit_bil": 300.0 + n * 30,
+            "ebit_bil": 180.0 + n * 18, "ebitda_bil": 220.0 + n * 20,
+            "net_profit_bil": 120.0 + n * 12, "npat_mi_bil": 110.0 + n * 11,
+            "cfo_bil": 150.0 + n * 13, "capex_bil": -(40.0 + n),
+            "cash_bil": 250.0 + n * 10, "total_debt_bil": 100.0 + n * 5,
+            "equity_bil": 600.0 + n * 40, "roic_pct": 12.0 + n / 10,
+            "roce_pct": 14.0 + n / 10, "accounts_receivable_bil": 120.0 + n,
+            "inventory_bil": 100.0 + n * 2, "accounts_payable_bil": 80.0 + n,
+            "ccc_days": 45.0 + n / 2, "source_module": "Trecapital Data Layer",
+            "data_origin": "fixture/canonical",
+        })
+    rows.append({
+        "year": 2025, "period": "TTM 2025", "period_type": "TTM",
+        "revenue_bil": 2200.0, "gross_profit_bil": 660.0, "ebit_bil": 396.0,
+        "ebitda_bil": 450.0, "net_profit_bil": 260.0, "npat_mi_bil": 245.0,
+        "cfo_bil": 300.0, "capex_bil": -60.0, "cash_bil": 390.0,
+        "total_debt_bil": 150.0, "equity_bil": 1050.0, "roic_pct": 14.0,
+        "roce_pct": 16.0, "accounts_receivable_bil": 150.0, "inventory_bil": 140.0,
+        "accounts_payable_bil": 105.0, "ccc_days": 49.0,
+        "source_module": "Trecapital Data Layer", "data_origin": "fixture/canonical",
+    })
+    return pd.DataFrame(rows)
+
+
 def test_contract_and_exact_three_event_families() -> None:
     assert validate_mapping_contract() == ()
     assert tuple(EVENT_RULES) == ("raw_material_cost", "audit_governance", "project_delay")
@@ -44,8 +74,8 @@ def test_mapped_question_ids_are_canonical_references() -> None:
         rows = map_event_to_questions(_event(event_type))
         assert rows
         assert all(row["question_id"] in QUESTION_IDS for row in rows)
-        assert all("question" not in row for row in rows)  # no wording copy in mapping state
-        assert all("status" not in row for row in rows)  # no state mutation contract
+        assert all("question" not in row for row in rows)
+        assert all("status" not in row for row in rows)
 
 
 def test_required_event_families_route_deterministically() -> None:
@@ -78,18 +108,11 @@ def test_q33_q52_unknown_guard_is_unchanged_without_evidence() -> None:
 
 
 def test_v103_docx_composes_v102_and_event_mapping_without_owner_mutation() -> None:
-    canonical = pd.DataFrame([
-        {"period": "2025", "period_type": "FY", "revenue": 1000.0, "gross_profit": 300.0, "ebit": 150.0, "ebitda": 180.0, "net_income": 100.0, "npat_mi": 95.0, "cfo": 120.0, "capex": 40.0, "cash": 200.0, "debt": 100.0, "equity": 500.0, "roic": 0.15, "roce": 0.16, "accounts_receivable": 100.0, "inventory": 80.0, "accounts_payable": 70.0},
-        {"period": "TTM", "period_type": "TTM", "revenue": 1100.0, "gross_profit": 330.0, "ebit": 165.0, "ebitda": 198.0, "net_income": 110.0, "npat_mi": 105.0, "cfo": 132.0, "capex": 44.0, "cash": 220.0, "debt": 105.0, "equity": 530.0, "roic": 0.16, "roce": 0.17, "accounts_receivable": 105.0, "inventory": 82.0, "accounts_payable": 72.0},
-    ])
+    canonical = _canonical_df()
     before = canonical.copy(deep=True)
     payload = build_investment_checklist_report_v103_docx(
-        company_name="DGC",
-        as_of="2026-08-31",
-        canonical_financial_df=canonical,
-        years=10,
-        answers={},
-        events=[_event("raw_material_cost")],
+        company_name="DGC", as_of="TTM 2025", canonical_financial_df=canonical,
+        answers={}, events=[_event("raw_material_cost")],
     )
     pd.testing.assert_frame_equal(canonical, before)
     document = Document(BytesIO(payload))
