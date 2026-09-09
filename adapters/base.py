@@ -28,7 +28,7 @@ MODULE1_OVERVIEW_COLUMNS = [
 
 MODULE1_TIMESERIES_COLUMNS = [
     "ticker", "period_type", "period", "year", "quarter",
-    "revenue_bil", "gross_revenue_bil", "gross_profit_bil", "operating_profit_bil", "core_operating_profit_bil", "net_profit_bil", "pretax_profit_bil",
+    "revenue_bil", "gross_revenue_bil", "gross_profit_bil", "operating_profit_bil", "core_operating_profit_bil", "net_profit_bil", "net_profit_consolidated_bil", "net_profit_parent_bil", "pretax_profit_bil",
     "financial_income_bil", "financial_expense_bil", "selling_expense_bil", "admin_expense_bil", "tax_expense_bil", "nopat_bil",
     "cfo_bil", "cfi_bil", "cff_bil", "capex_bil", "depreciation_bil", "cash_dividend_bil", "cash_dividend_yield_pct", "year_end_price",
     "noncash_adjustments_bil", "operating_cash_before_wc_bil", "working_capital_change_bil", "receivables_change_bil", "inventory_change_bil", "payables_change_bil",
@@ -46,6 +46,10 @@ MODULE1_TIMESERIES_COLUMNS = [
     "current_ratio", "quick_ratio", "net_liquid_assets_bil", "equity_to_assets_pct", "liabilities_to_assets_pct", "liabilities_to_equity", "net_debt_bil", "net_debt_to_equity", "interest_coverage", "net_debt_to_ebitda",
     "receivables_turnover", "dso_days", "inventory_turnover", "dio_days", "payables_turnover", "dpo_days", "cash_conversion_cycle_days",
     "wacc_pct", "cfo_to_net_profit", "fcf_to_net_profit", "fcf_to_pretax", "nibt_to_fcf", "noncash_to_pretax", "wc_to_pretax", "capex_to_pretax",
+    # V99 financial-semantics metadata. These fields do not create a second financial SSOT;
+    # they preserve the meaning/as-of context of canonical facts so downstream research can
+    # distinguish consolidated profit, parent-attributable profit and TTM display periods.
+    "period_display", "ttm_end_period", "net_profit_scope", "comparability_status", "comparability_note",
 ]
 
 

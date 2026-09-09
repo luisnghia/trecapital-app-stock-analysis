@@ -262,13 +262,50 @@ def load_timeseries_from_csv(csv_path: str | Path, ticker: str, period_type: str
     return df.reset_index(drop=True)
 
 
+def _apply_profit_scope_semantics(df: pd.DataFrame) -> pd.DataFrame:
+    """Preserve explicit net-profit scope while keeping legacy formulas backward compatible.
+
+    Existing `net_profit_bil` remains the legacy canonical field. If the data layer also carries
+    explicit parent-attributable profit, that value wins for the legacy field because EPS and
+    shareholder-return metrics belong to the parent owners. A consolidated-only value is never
+    re-labelled as parent-attributable; `net_profit_scope` records the distinction.
+    """
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        return df
+    out = df.copy()
+    for col in ("net_profit_bil", "net_profit_consolidated_bil", "net_profit_parent_bil"):
+        if col not in out.columns:
+            out[col] = pd.NA
+        out[col] = pd.to_numeric(out[col], errors="coerce")
+    parent = out["net_profit_parent_bil"]
+    consolidated = out["net_profit_consolidated_bil"]
+    legacy = out["net_profit_bil"]
+    out["net_profit_bil"] = parent.combine_first(legacy).combine_first(consolidated)
+
+    if "net_profit_scope" not in out.columns:
+        out["net_profit_scope"] = pd.NA
+    scope = out["net_profit_scope"].astype("object")
+    scope = scope.where(scope.notna() & scope.astype(str).str.strip().ne(""), pd.NA)
+    scope = scope.mask(parent.notna(), "parent_attributable")
+    scope = scope.mask(parent.isna() & consolidated.notna(), "consolidated")
+    scope = scope.mask(parent.isna() & consolidated.isna() & out["net_profit_bil"].notna(), "unspecified")
+    out["net_profit_scope"] = scope
+
+    if "period_display" not in out.columns:
+        out["period_display"] = pd.NA
+    if "period" in out.columns:
+        blank = out["period_display"].isna() | out["period_display"].astype(str).str.strip().eq("")
+        out.loc[blank, "period_display"] = out.loc[blank, "period"].astype(str)
+    return out
+
+
 def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) -> pd.DataFrame:
     """Fill missing FCF / Owner Earnings / DuPont fields when source file has enough raw data."""
     if df.empty:
         return df
-    df = df.copy()
+    df = _apply_profit_scope_semantics(df.copy())
     for col in [
-        "revenue_bil", "gross_profit_bil", "operating_profit_bil", "core_operating_profit_bil", "net_profit_bil", "pretax_profit_bil",
+        "revenue_bil", "gross_profit_bil", "operating_profit_bil", "core_operating_profit_bil", "net_profit_bil", "net_profit_consolidated_bil", "net_profit_parent_bil", "pretax_profit_bil",
         "financial_income_bil", "financial_expense_bil", "selling_expense_bil", "admin_expense_bil", "tax_expense_bil", "nopat_bil",
         "cfo_bil", "cfi_bil", "cff_bil", "capex_bil",
         "depreciation_bil", "noncash_adjustments_bil", "operating_cash_before_wc_bil", "working_capital_change_bil",
@@ -494,8 +531,14 @@ def ensure_derived_metrics(df: pd.DataFrame, maintenance_capex_window: int = 5) 
         if "eps_vnd" not in df.columns:
             df["eps_vnd"] = pd.NA
         df["eps_vnd"] = df["eps_vnd"].where(df["shares_outstanding_mil"] > 0)
+        # V99: never derive EPS from a row explicitly known to contain consolidated-only PAT.
+        # Prefer explicit parent-attributable PAT; legacy/unspecified PAT retains backward compatibility.
+        parent_profit = pd.to_numeric(df.get("net_profit_parent_bil"), errors="coerce")
+        legacy_profit = pd.to_numeric(df["net_profit_bil"], errors="coerce")
+        scope = df.get("net_profit_scope", pd.Series(index=df.index, dtype="object")).astype(str)
+        eps_profit = parent_profit.combine_first(legacy_profit.where(~scope.eq("consolidated")))
         df["eps_vnd"] = df["eps_vnd"].fillna(
-            _ratio_on_positive_denominator(df["net_profit_bil"] * 1000, df["shares_outstanding_mil"])
+            _ratio_on_positive_denominator(eps_profit * 1000, df["shares_outstanding_mil"])
         )
     if {"owner_earnings_bil", "shares_outstanding_mil"}.issubset(df.columns):
         if "oeps_vnd" not in df.columns:
@@ -1003,7 +1046,7 @@ def append_ttm_row(annual_df: pd.DataFrame, quarterly_df: Optional[pd.DataFrame]
     latest = q4.iloc[-1]
 
     flow_cols = [
-        "revenue_bil", "gross_profit_bil", "cost_of_goods_sold_bil", "operating_profit_bil", "core_operating_profit_bil", "net_profit_bil", "pretax_profit_bil",
+        "revenue_bil", "gross_profit_bil", "cost_of_goods_sold_bil", "operating_profit_bil", "core_operating_profit_bil", "net_profit_bil", "net_profit_consolidated_bil", "net_profit_parent_bil", "pretax_profit_bil",
         "financial_income_bil", "financial_expense_bil", "selling_expense_bil", "admin_expense_bil", "tax_expense_bil", "nopat_bil",
         "cfo_bil", "cfi_bil", "cff_bil", "capex_bil", "depreciation_bil", "noncash_adjustments_bil", "operating_cash_before_wc_bil", "working_capital_change_bil",
         "receivables_change_bil", "inventory_change_bil", "payables_change_bil", "prepaid_change_bil", "other_current_assets_change_bil",
@@ -1019,6 +1062,9 @@ def append_ttm_row(annual_df: pd.DataFrame, quarterly_df: Optional[pd.DataFrame]
         "shares_outstanding_mil", "year_end_price", "short_term_debt_bil", "long_term_debt_bil", "net_debt_bil",
     ]
     keep_cols = list(dict.fromkeys(list(base.columns) + list(q.columns)))
+    for metadata_col in ("period_display", "ttm_end_period", "net_profit_scope", "comparability_status", "comparability_note"):
+        if metadata_col not in keep_cols:
+            keep_cols.append(metadata_col)
     ttm: Dict[str, Any] = {c: pd.NA for c in keep_cols}
     ttm["ticker"] = latest.get("ticker") if "ticker" in q.columns else (base.iloc[-1].get("ticker") if not base.empty else "")
     ttm["period"] = "TTM"
@@ -1027,11 +1073,21 @@ def append_ttm_row(annual_df: pd.DataFrame, quarterly_df: Optional[pd.DataFrame]
         ttm["year"] = latest.get("year")
     if "quarter" in q.columns:
         ttm["quarter"] = latest.get("quarter")
+    latest_year = _to_float(latest.get("year"))
+    latest_quarter = _to_float(latest.get("quarter"))
+    if latest_year is not None and latest_quarter is not None and 1 <= int(latest_quarter) <= 4:
+        ttm_end = f"Q{int(latest_quarter)}/{int(latest_year)}"
+        ttm["ttm_end_period"] = ttm_end
+        ttm["period_display"] = f"TTM đến {ttm_end}"
+    else:
+        ttm["period_display"] = "TTM"
 
     for col in flow_cols:
         if col in q4.columns:
             vals = pd.to_numeric(q4[col], errors="coerce")
-            if vals.notna().any():
+            # V99: a TTM flow is valid only when all four component quarters are present.
+            # Partial 1-3 quarter sums must remain Unknown rather than being mislabelled TTM.
+            if int(vals.notna().sum()) == 4:
                 ttm[col] = float(vals.sum(skipna=True))
     for col in stock_cols:
         if col in q4.columns and pd.notna(latest.get(col)):
@@ -1113,7 +1169,15 @@ def build_mos_valuation_table(company: CompanyOverview, annual_df: pd.DataFrame,
     # If the latest/TTM row has no EPS/OEPS, derive them from LNST/OE and shares.
     eps = _to_float(latest.get("eps_vnd"))
     if eps is None:
-        eps = _per_share_from_bil(_to_float(latest.get("net_profit_bil")), shares_mil)
+        # V99 semantic guardrail: valuation math is unchanged, but its EPS fallback may only
+        # use parent-attributable PAT when that scope is explicit. Consolidated-only PAT is
+        # not converted into a shareholder EPS proxy. Legacy/unspecified rows keep prior behavior.
+        parent_profit = _to_float(latest.get("net_profit_parent_bil"))
+        profit_scope = str(latest.get("net_profit_scope") or "").strip().lower()
+        eps_profit = parent_profit
+        if eps_profit is None and profit_scope != "consolidated":
+            eps_profit = _to_float(latest.get("net_profit_bil"))
+        eps = _per_share_from_bil(eps_profit, shares_mil)
     if eps is None:
         eps = company.eps
     oeps = _to_float(latest.get("oeps_vnd"))
@@ -2115,8 +2179,15 @@ def build_value_investing_assessment(company: CompanyOverview, annual_df: pd.Dat
 def format_table_for_display(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
+    df = df.copy()
+    if "period_display" in df.columns and "period" in df.columns:
+        display = df["period_display"].astype("object")
+        blank = display.isna() | display.astype(str).str.strip().eq("")
+        df["period_display"] = display.where(~blank, df["period"].astype(str))
+    period_col = "period_display" if "period_display" in df.columns else "period"
     cols = [
-        "period", "revenue_bil", "gross_profit_bil", "operating_profit_bil", "core_operating_profit_bil", "net_profit_bil",
+        period_col, "revenue_bil", "gross_profit_bil", "operating_profit_bil", "core_operating_profit_bil",
+        "net_profit_bil", "net_profit_consolidated_bil", "net_profit_parent_bil", "net_profit_scope",
         "cash_dividend_bil", "cash_dividend_yield_pct", "year_end_price", "cfo_bil", "free_cash_flow_bil", "owner_earnings_bil", "maintenance_capex_bil",
         "noncash_adjustments_bil", "working_capital_change_bil", "receivables_change_bil", "inventory_change_bil", "payables_change_bil", "prepaid_change_bil", "tax_paid_bil",
         "debt_raised_bil", "debt_repaid_bil", "net_debt_cashflow_bil", "buyback_bil", "cash_and_short_investments_change_bil",
@@ -2131,7 +2202,8 @@ def format_table_for_display(df: pd.DataFrame) -> pd.DataFrame:
     ]
     cols = [c for c in cols if c in df.columns]
     renamed = {
-        "period": "Kỳ", "revenue_bil": "Doanh thu (tỷ)", "gross_profit_bil": "Lợi nhuận gộp (tỷ)", "operating_profit_bil": "Lợi nhuận thuần HĐKD (tỷ)", "net_profit_bil": "LNST (tỷ)",
+        "period": "Kỳ", "period_display": "Kỳ", "revenue_bil": "Doanh thu (tỷ)", "gross_profit_bil": "Lợi nhuận gộp (tỷ)", "operating_profit_bil": "Lợi nhuận thuần HĐKD (tỷ)",
+        "net_profit_bil": "LNST canonical (tỷ)", "net_profit_consolidated_bil": "LNST hợp nhất (tỷ)", "net_profit_parent_bil": "LNST CĐ công ty mẹ (tỷ)", "net_profit_scope": "Phạm vi LNST canonical",
         "cash_dividend_bil": "Cổ tức tiền mặt đã trả (tỷ)", "cash_dividend_yield_pct": "Tỷ suất cổ tức (%)", "year_end_price": "Giá cuối năm", "cfo_bil": "CFO (tỷ)",
         "free_cash_flow_bil": "FCF (tỷ)", "owner_earnings_bil": "Owner Earnings (tỷ)", "maintenance_capex_bil": "Maintenance Capex ước tính (tỷ)", "nopat_bil": "NOPAT (tỷ)",
         "noncash_adjustments_bil": "Điều chỉnh phi tiền mặt/D&A (tỷ)", "working_capital_change_bil": "Thay đổi VLĐ (tỷ)", "receivables_change_bil": "Tăng/giảm phải thu (tỷ)", "inventory_change_bil": "Tăng/giảm tồn kho (tỷ)", "payables_change_bil": "Tăng/giảm phải trả (tỷ)", "prepaid_change_bil": "Tăng/giảm trả trước (tỷ)", "tax_paid_bil": "Thuế TNDN đã nộp (tỷ)",

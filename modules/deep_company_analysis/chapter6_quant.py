@@ -13,6 +13,8 @@ import math
 
 import pandas as pd
 
+from modules.deep_company_analysis.financial_semantics import period_display, semantic_warnings, semantics_table
+
 
 FINANCIAL_INDUSTRY_TOKENS = (
     "bank",
@@ -78,7 +80,7 @@ def _pick(row: dict[str, Any], *keys: str) -> Optional[float]:
 
 
 def _period(row: dict[str, Any]) -> str:
-    return str(row.get("period") or row.get("year") or "")
+    return period_display(row)
 
 
 def _is_ttm(row: dict[str, Any]) -> bool:
@@ -210,7 +212,10 @@ def build_q27_accounting_quality(df: pd.DataFrame, years: int = 10) -> tuple[pd.
 
         out.append({
             "Kỳ": _period(row),
-            "LNST (tỷ)": ni,
+            "LNST canonical (tỷ)": ni,
+            "LNST hợp nhất (tỷ)": _pick(row, "net_profit_consolidated_bil"),
+            "LNST CĐ công ty mẹ (tỷ)": _pick(row, "net_profit_parent_bil"),
+            "Profit Scope": str(row.get("net_profit_scope") or "Unknown"),
             "CFO (tỷ)": cfo,
             "CFO/NI (x)": ratio,
             "CFO - NI (tỷ)": gap,
@@ -558,7 +563,7 @@ def _provenance_table(prov: QuantProvenance) -> pd.DataFrame:
         {
             "Question": "Q27",
             "Metrics": "CFO/NI; CFO-NI; cumulative cash conversion; current-tax vs provision when separately disclosed",
-            "Source Field(s)": "cfo_bil; net_profit_bil; tax_expense_bil; current_tax_* only",
+            "Source Field(s)": "cfo_bil; net_profit_bil + explicit net_profit_parent_bil/net_profit_consolidated_bil; tax_expense_bil; current_tax_* only",
             "Formula / Boundary": "tax_paid_bil is never substituted for current-tax expense",
             "Source Module": prov.source_module,
             "Data Origin": prov.data_origin,
@@ -670,6 +675,13 @@ def build_chapter6_quant_context(
         if "Gross PP&E (tỷ)" in q32.columns and pd.to_numeric(q32["Gross PP&E (tỷ)"], errors="coerce").notna().sum() == 0:
             warnings.append("Q32: Gross PP&E unavailable; asset-age Net/Gross PP&E diagnostic remains N/A.")
 
+    warnings.extend(semantic_warnings(annual_and_ttm_df))
+    financial_semantics = semantics_table(
+        annual_and_ttm_df,
+        source_label=prov.source_label,
+        source_module=prov.source_module,
+    )
+
     return {
         "ticker": prov.ticker,
         "company_name": prov.company_name,
@@ -687,6 +699,7 @@ def build_chapter6_quant_context(
         "q32_capex_history": q32,
         "q32_summary": q32_summary,
         "coverage_warnings": warnings,
+        "financial_semantics": financial_semantics,
         "provenance_table": _provenance_table(prov),
         "provenance": {
             "source_label": prov.source_label,

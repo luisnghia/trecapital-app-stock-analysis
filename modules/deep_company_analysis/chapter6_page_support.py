@@ -336,6 +336,16 @@ def _render_phase6b_quantitative_bridge(ticker: str) -> dict[str, Any] | None:
                 for warning in warnings:
                     st.write(f"- {warning}")
 
+        with st.expander("🧾 V99 — Financial semantics & TTM provenance", expanded=True):
+            semantics = ctx.get("financial_semantics")
+            if isinstance(semantics, pd.DataFrame) and not semantics.empty:
+                render_static_table(semantics, height=min(300, 110 + 34 * len(semantics)), sort_key=f"ch6b_semantics_{safe}")
+            st.caption(
+                "LNST hợp nhất, LNST thuộc cổ đông công ty mẹ và EPS là ba khái niệm khác nhau. "
+                "TTM phải hiển thị kỳ kết thúc cụ thể (ví dụ TTM đến Q2/2026). Missing scope/provenance giữ Unknown; "
+                "không tự suy parent-attributable profit từ consolidated profit."
+            )
+
         with st.expander("Q27 — CFO/NI + Accounting-quality diagnostics", expanded=True):
             table = ctx.get("q27_accounting_quality")
             if isinstance(table, pd.DataFrame) and not table.empty:

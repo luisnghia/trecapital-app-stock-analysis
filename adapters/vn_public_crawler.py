@@ -435,7 +435,23 @@ METRIC_MAP = {
     "revenue_bil": ["doanh thu thuan", "doanh thu ban hang", "doanh thu ban hang va cung cap dich vu", "net revenue", "total revenue", "total_revenue", "revenue", "sales", "net sales", "doanh thu", "3. doanh thu thuan"],
     "gross_revenue_bil": ["tong doanh thu", "gross revenue", "gross_revenue"],
     "gross_profit_bil": ["loi nhuan gop", "gross profit", "gross_profit"],
-    "net_profit_bil": ["loi nhuan sau thue cua co dong cua cong ty me", "loi nhuan sau thue thu nhap doanh nghiep", "loi nhuan sau thue", "lnst", "loi nhuan rong", "net income", "net_income", "net profit", "net_profit", "profit after tax", "profit_after_tax", "profit after tax attributable"],
+    # V99: preserve profit scope instead of collapsing consolidated PAT and parent-attributable PAT.
+    # Generic labels stay in legacy net_profit_bil with scope=unspecified unless the source explicitly
+    # identifies consolidated or parent-attributable profit.
+    "net_profit_parent_bil": [
+        "loi nhuan sau thue cua co dong cua cong ty me",
+        "loi nhuan sau thue thuoc ve co dong cong ty me",
+        "profit after tax attributable",
+        "profit attributable to owners of parent",
+        "net profit attributable to parent",
+    ],
+    "net_profit_consolidated_bil": [
+        "loi nhuan sau thue thu nhap doanh nghiep",
+        "tong loi nhuan sau thue",
+        "consolidated profit after tax",
+        "consolidated net profit",
+    ],
+    "net_profit_bil": ["loi nhuan sau thue", "lnst", "loi nhuan rong", "net income", "net_income", "net profit", "net_profit", "profit after tax", "profit_after_tax"],
     "pretax_profit_bil": ["loi nhuan truoc thue", "lntt", "profit before tax", "pre tax", "pre_tax_income", "pre_tax_profit"],
     # Cash flow
     "cfo_bil": ["luu chuyen tien thuan tu hoat dong kinh doanh", "luu chuyen tien tu hoat dong kinh doanh", "net cash flows from operating activities", "net_cash_flow_from_operating_activities", "cash flow from operating", "operating cash flow", "operating_cash_flow", "cfo"],
@@ -947,8 +963,8 @@ FIREANT_INCOME_ID_MAP = {
     11: "operating_profit_bil",
     15: "pretax_profit_bil",
     18: "tax_expense_bil",
-    19: "net_profit_bil",
-    21: "net_profit_bil",  # prefer parent-company profit when present; appears after ID 19 in FireAnt payload
+    19: "net_profit_consolidated_bil",
+    21: "net_profit_parent_bil",
 }
 
 FIREANT_BALANCE_ID_MAP = {
@@ -1057,7 +1073,7 @@ def _fireant_statement_map_for_payload(payload: list[dict[str, Any]]) -> dict[in
 
 
 FIREANT_MONETARY_FIELDS = {
-    "revenue_bil", "gross_revenue_bil", "gross_profit_bil", "operating_profit_bil", "core_operating_profit_bil", "net_profit_bil", "pretax_profit_bil",
+    "revenue_bil", "gross_revenue_bil", "gross_profit_bil", "operating_profit_bil", "core_operating_profit_bil", "net_profit_bil", "net_profit_consolidated_bil", "net_profit_parent_bil", "pretax_profit_bil",
     "financial_income_bil", "financial_expense_bil", "selling_expense_bil", "admin_expense_bil", "tax_expense_bil", "nopat_bil",
     "cfo_bil", "cfi_bil", "cff_bil", "capex_bil", "cash_dividend_bil", "depreciation_bil", "noncash_adjustments_bil", "operating_cash_before_wc_bil",
     "receivables_change_bil", "inventory_change_bil", "payables_change_bil", "prepaid_change_bil", "other_current_assets_change_bil", "interest_paid_bil", "tax_paid_bil", "other_operating_cash_in_bil", "other_operating_cash_out_bil",
@@ -1107,6 +1123,46 @@ def _fireant_period_key(period_value: dict[str, Any], default_quarter: int | Non
     return "Y", y, None, str(y)
 
 
+def _finalize_profit_scope_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Preserve profit-scope semantics while keeping legacy net_profit_bil compatible.
+
+    `net_profit_bil` remains the legacy canonical profit used by existing formulas. When an
+    explicit parent-attributable figure exists it is preferred, matching per-share economics.
+    Consolidated profit remains separately available and is never silently relabelled as parent
+    profit. If only a consolidated figure exists, legacy `net_profit_bil` may mirror it for
+    backwards compatibility but `net_profit_scope` is explicitly `consolidated`.
+    """
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        return df
+    out = df.copy()
+    for col in ("net_profit_bil", "net_profit_consolidated_bil", "net_profit_parent_bil"):
+        if col not in out.columns:
+            out[col] = pd.NA
+        out[col] = pd.to_numeric(out[col], errors="coerce")
+
+    parent = out["net_profit_parent_bil"]
+    consolidated = out["net_profit_consolidated_bil"]
+    legacy = out["net_profit_bil"]
+    # Explicit parent-attributable profit is the preferred legacy profit fact when available.
+    out["net_profit_bil"] = parent.combine_first(legacy).combine_first(consolidated)
+
+    if "net_profit_scope" not in out.columns:
+        out["net_profit_scope"] = pd.NA
+    scope = out["net_profit_scope"].astype("object")
+    scope = scope.where(scope.notna() & scope.astype(str).str.strip().ne(""), pd.NA)
+    scope = scope.mask(parent.notna(), "parent_attributable")
+    scope = scope.mask(parent.isna() & consolidated.notna(), "consolidated")
+    scope = scope.mask(parent.isna() & consolidated.isna() & out["net_profit_bil"].notna(), "unspecified")
+    out["net_profit_scope"] = scope
+
+    if "period_display" not in out.columns:
+        out["period_display"] = pd.NA
+    if "period" in out.columns:
+        blank = out["period_display"].isna() | out["period_display"].astype(str).str.strip().eq("")
+        out.loc[blank, "period_display"] = out.loc[blank, "period"].astype(str)
+    return out
+
+
 def _extract_fireant_statement_timeseries_exact(payloads: list[Any], ticker: str) -> pd.DataFrame:
     rows: dict[tuple[str, int, int | None], dict[str, Any]] = {}
     for payload in payloads:
@@ -1140,7 +1196,7 @@ def _extract_fireant_statement_timeseries_exact(payloads: list[Any], ticker: str
                 _put_metric_value(base, field, value)
     if not rows:
         return pd.DataFrame(columns=MODULE1_TIMESERIES_COLUMNS)
-    df = pd.DataFrame(rows.values())
+    df = _finalize_profit_scope_columns(pd.DataFrame(rows.values()))
     return normalize_columns(_sort_fireant_timeseries(df), MODULE1_TIMESERIES_COLUMNS)
 
 
@@ -1175,7 +1231,7 @@ def _extract_fireant_financial_info_exact(payloads: list[Any], ticker: str) -> p
                     base["shares_outstanding_mil"] = shares_raw / 1_000_000 if abs(shares_raw) >= 1_000_000 else shares_raw
     if not rows:
         return pd.DataFrame(columns=MODULE1_TIMESERIES_COLUMNS)
-    df = pd.DataFrame(rows.values())
+    df = _finalize_profit_scope_columns(pd.DataFrame(rows.values()))
     return _sort_fireant_timeseries(df)
 
 
@@ -1226,7 +1282,7 @@ def _merge_fireant_prefer_statement(statement_df: pd.DataFrame, info_df: pd.Data
     out_df = pd.DataFrame(rows)
     out_df = _sort_fireant_timeseries(out_df)
     # Derived fields.
-    for col in ["cfo_bil", "cfi_bil", "cff_bil", "capex_bil", "cash_dividend_bil", "depreciation_bil", "noncash_adjustments_bil", "operating_cash_before_wc_bil", "working_capital_change_bil", "receivables_change_bil", "inventory_change_bil", "payables_change_bil", "prepaid_change_bil", "other_current_assets_change_bil", "interest_paid_bil", "tax_paid_bil", "other_operating_cash_in_bil", "other_operating_cash_out_bil", "equity_issued_bil", "buyback_bil", "debt_raised_bil", "debt_repaid_bil", "net_debt_cashflow_bil", "net_profit_bil", "revenue_bil", "total_assets_bil", "equity_bil", "gross_profit_bil", "operating_profit_bil", "core_operating_profit_bil", "financial_income_bil", "financial_expense_bil", "selling_expense_bil", "admin_expense_bil", "tax_expense_bil", "nopat_bil", "current_assets_bil", "current_liabilities_bil", "fixed_assets_bil", "cash_equivalents_bil", "short_term_investments_bil", "cash_and_short_investments_bil", "capital_employed_bil", "avg_capital_employed_bil", "operating_working_capital_bil", "deployed_capital_bil", "avg_deployed_capital_bil", "inventory_bil", "investment_subsidiary_bil"]:
+    for col in ["cfo_bil", "cfi_bil", "cff_bil", "capex_bil", "cash_dividend_bil", "depreciation_bil", "noncash_adjustments_bil", "operating_cash_before_wc_bil", "working_capital_change_bil", "receivables_change_bil", "inventory_change_bil", "payables_change_bil", "prepaid_change_bil", "other_current_assets_change_bil", "interest_paid_bil", "tax_paid_bil", "other_operating_cash_in_bil", "other_operating_cash_out_bil", "equity_issued_bil", "buyback_bil", "debt_raised_bil", "debt_repaid_bil", "net_debt_cashflow_bil", "net_profit_bil", "net_profit_consolidated_bil", "net_profit_parent_bil", "revenue_bil", "total_assets_bil", "equity_bil", "gross_profit_bil", "operating_profit_bil", "core_operating_profit_bil", "financial_income_bil", "financial_expense_bil", "selling_expense_bil", "admin_expense_bil", "tax_expense_bil", "nopat_bil", "current_assets_bil", "current_liabilities_bil", "fixed_assets_bil", "cash_equivalents_bil", "short_term_investments_bil", "cash_and_short_investments_bil", "capital_employed_bil", "avg_capital_employed_bil", "operating_working_capital_bil", "deployed_capital_bil", "avg_deployed_capital_bil", "inventory_bil", "investment_subsidiary_bil"]:
         if col in out_df.columns:
             out_df[col] = pd.to_numeric(out_df[col], errors="coerce")
     if "free_cash_flow_bil" not in out_df.columns:
@@ -1307,6 +1363,7 @@ def _merge_fireant_prefer_statement(statement_df: pd.DataFrame, info_df: pd.Data
     if {"capex_bil", "pretax_profit_bil"}.issubset(out_df.columns):
         out_df["capex_to_pretax"] = out_df.get("capex_to_pretax", pd.Series(index=out_df.index, dtype="float64")).fillna(out_df["capex_bil"] / out_df["pretax_profit_bil"].replace({0: pd.NA}))
     out_df = _recompute_roic_and_roe_v14(out_df)
+    out_df = _finalize_profit_scope_columns(out_df)
     return normalize_columns(out_df, MODULE1_TIMESERIES_COLUMNS)
 
 
@@ -1358,8 +1415,8 @@ def _enrich_fireant_metrics_v12(df: pd.DataFrame, ticker: str, payloads: list[An
     """
     if not isinstance(df, pd.DataFrame) or df.empty:
         return normalize_columns(pd.DataFrame(), MODULE1_TIMESERIES_COLUMNS)
-    out = df.copy()
-    for col in ["year", "quarter", "revenue_bil", "gross_profit_bil", "operating_profit_bil", "core_operating_profit_bil", "net_profit_bil", "pretax_profit_bil", "financial_income_bil", "financial_expense_bil", "selling_expense_bil", "admin_expense_bil", "tax_expense_bil", "nopat_bil", "cfo_bil", "cfi_bil", "cff_bil", "capex_bil", "cash_dividend_bil", "depreciation_bil", "noncash_adjustments_bil", "operating_cash_before_wc_bil", "working_capital_change_bil", "receivables_change_bil", "inventory_change_bil", "payables_change_bil", "prepaid_change_bil", "other_current_assets_change_bil", "interest_paid_bil", "tax_paid_bil", "other_operating_cash_in_bil", "other_operating_cash_out_bil", "equity_issued_bil", "buyback_bil", "debt_raised_bil", "debt_repaid_bil", "net_debt_cashflow_bil", "cash_and_short_investments_bil", "free_cash_flow_bil", "owner_earnings_bil", "maintenance_capex_bil", "current_assets_bil", "current_liabilities_bil", "accounts_receivable_bil", "working_capital_bil", "roic_working_capital_bil", "operating_working_capital_bil", "fixed_assets_bil", "cash_equivalents_bil", "short_term_investments_bil", "capital_employed_bil", "avg_capital_employed_bil", "deployed_capital_bil", "avg_deployed_capital_bil", "accounts_payable_bil", "accounts_receivable_bil", "inventory_bil", "investment_subsidiary_bil", "expansion_investment_bil", "total_investment_bil", "total_assets_bil", "equity_bil", "avg_equity_bil", "eps_vnd", "oeps_vnd", "roe_pct", "roe_actual_pct", "roa_pct", "roic_pct", "roic_operating_profit_pct", "roic_owner_earnings_pct", "roic_standard_pct", "roic_lilu_pct", "roic_fireant_pct", "asset_turnover", "equity_multiplier", "roe_dupont_pct", "shares_outstanding_mil", "cash_dividend_yield_pct", "year_end_price", "wacc_pct", "cfo_to_net_profit", "fcf_to_net_profit", "fcf_to_pretax", "nibt_to_fcf", "noncash_to_pretax", "wc_to_pretax", "capex_to_pretax"]:
+    out = _finalize_profit_scope_columns(df.copy())
+    for col in ["year", "quarter", "revenue_bil", "gross_profit_bil", "operating_profit_bil", "core_operating_profit_bil", "net_profit_bil", "net_profit_consolidated_bil", "net_profit_parent_bil", "pretax_profit_bil", "financial_income_bil", "financial_expense_bil", "selling_expense_bil", "admin_expense_bil", "tax_expense_bil", "nopat_bil", "cfo_bil", "cfi_bil", "cff_bil", "capex_bil", "cash_dividend_bil", "depreciation_bil", "noncash_adjustments_bil", "operating_cash_before_wc_bil", "working_capital_change_bil", "receivables_change_bil", "inventory_change_bil", "payables_change_bil", "prepaid_change_bil", "other_current_assets_change_bil", "interest_paid_bil", "tax_paid_bil", "other_operating_cash_in_bil", "other_operating_cash_out_bil", "equity_issued_bil", "buyback_bil", "debt_raised_bil", "debt_repaid_bil", "net_debt_cashflow_bil", "cash_and_short_investments_bil", "free_cash_flow_bil", "owner_earnings_bil", "maintenance_capex_bil", "current_assets_bil", "current_liabilities_bil", "accounts_receivable_bil", "working_capital_bil", "roic_working_capital_bil", "operating_working_capital_bil", "fixed_assets_bil", "cash_equivalents_bil", "short_term_investments_bil", "capital_employed_bil", "avg_capital_employed_bil", "deployed_capital_bil", "avg_deployed_capital_bil", "accounts_payable_bil", "accounts_receivable_bil", "inventory_bil", "investment_subsidiary_bil", "expansion_investment_bil", "total_investment_bil", "total_assets_bil", "equity_bil", "avg_equity_bil", "eps_vnd", "oeps_vnd", "roe_pct", "roe_actual_pct", "roa_pct", "roic_pct", "roic_operating_profit_pct", "roic_owner_earnings_pct", "roic_standard_pct", "roic_lilu_pct", "roic_fireant_pct", "asset_turnover", "equity_multiplier", "roe_dupont_pct", "shares_outstanding_mil", "cash_dividend_yield_pct", "year_end_price", "wacc_pct", "cfo_to_net_profit", "fcf_to_net_profit", "fcf_to_pretax", "nibt_to_fcf", "noncash_to_pretax", "wc_to_pretax", "capex_to_pretax"]:
         if col in out.columns:
             out[col] = pd.to_numeric(out[col], errors="coerce")
 
@@ -1447,7 +1504,13 @@ def _enrich_fireant_metrics_v12(df: pd.DataFrame, ticker: str, payloads: list[An
 
     shares = out["shares_outstanding_mil"].replace({0: pd.NA})
     if "eps_vnd" in out.columns and "net_profit_bil" in out.columns:
-        derived_eps = out["net_profit_bil"] * 1000 / shares
+        # V99: per-share earnings require parent-attributable PAT when that scope is explicit.
+        # A consolidated-only PAT must not be converted into a shareholder EPS proxy.
+        parent_profit = pd.to_numeric(out.get("net_profit_parent_bil"), errors="coerce")
+        legacy_profit = pd.to_numeric(out["net_profit_bil"], errors="coerce")
+        scope = out.get("net_profit_scope", pd.Series(index=out.index, dtype="object")).astype(str)
+        eps_profit = parent_profit.combine_first(legacy_profit.where(~scope.eq("consolidated")))
+        derived_eps = eps_profit * 1000 / shares
         out["eps_vnd"] = out["eps_vnd"].fillna(derived_eps)
     if "oeps_vnd" in out.columns and "owner_earnings_bil" in out.columns:
         derived_oeps = out["owner_earnings_bil"] * 1000 / shares
