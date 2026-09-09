@@ -1,0 +1,131 @@
+name: Deep Company Analysis Investment Checklist Report V101
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-investment-checklist-report-v101
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+
+jobs:
+  investment-checklist-report-v101:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile V101
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/investment_checklist_report.py
+          python -m py_compile modules/deep_company_analysis/test_investment_checklist_report_v101.py
+          python -m py_compile scripts/qa_investment_checklist_report_v101.py
+          python -m py_compile app.py
+
+      - name: V101 deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_investment_checklist_report_v101.py \
+            2>&1 | tee reports/INVESTMENT_CHECKLIST_REPORT_V101_DETERMINISTIC_TESTS.log
+
+      - name: V101 deterministic acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_investment_checklist_report_v101.py \
+            2>&1 | tee reports/INVESTMENT_CHECKLIST_REPORT_V101_ACCEPTANCE.log
+
+      - name: Source, SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/INVESTMENT_CHECKLIST_REPORT_V101_BOUNDARY_AUDIT.log
+          import json
+          from pathlib import Path
+          report = json.loads(Path('reports/INVESTMENT_CHECKLIST_REPORT_V101_ACCEPTANCE.json').read_text(encoding='utf-8'))
+          assert report['acceptance'] == 'PASS'
+          assert report['question_count'] == 59
+          assert report['exact_source_wording_by_reference'] is True
+          assert report['q33_q52_unknown_without_evidence'] is True
+          assert report['provenance_columns_present'] is True
+          assert report['duplicate_financial_ssot_added'] is False
+          assert report['duplicate_question_ssot_added'] is False
+          assert report['valuation_formula_changed'] is False
+          assert report['automatic_weighted_score'] is False
+          assert report['automatic_buy_hold_sell'] is False
+          assert report['automatic_research_gate_change'] is False
+          assert report['ai_role'] == 'Research Assistant'
+          assert report['conclusion_owner'] == 'Analyst'
+          print('PASS: V101 is a read-only evidence/report layer over Appendix C and canonical financial owners.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/INVESTMENT_CHECKLIST_REPORT_V101_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8555 \
+            > reports/INVESTMENT_CHECKLIST_REPORT_V101_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8555/_stcore/health \
+              | tee reports/INVESTMENT_CHECKLIST_REPORT_V101_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/INVESTMENT_CHECKLIST_REPORT_V101_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V101 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Investment Checklist Report V101\nBranch: feature/deep-company-analysis-investment-checklist-report-v101\nCommit: %s\nPurpose: evidence-rich read-only Q01-Q59 DOCX export over canonical owners.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_INVESTMENT_CHECKLIST_REPORT_V101.txt
+          zip -qr Trecapital_Deep_Analysis_Investment_Checklist_Report_V101.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Investment_Checklist_Report_V101.zip | tail -n 3
+          sha256sum Trecapital_Deep_Analysis_Investment_Checklist_Report_V101.zip \
+            | tee reports/INVESTMENT_CHECKLIST_REPORT_V101_OFFLINE_ZIP_SHA256.txt
+
+      - name: Upload V101 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Investment_Checklist_Report_V101
+          retention-days: 90
+          path: |
+            CHANGELOG_V101_DEEP_ANALYSIS_INVESTMENT_CHECKLIST_REPORT.md
+            docs/DEEP_ANALYSIS_INVESTMENT_CHECKLIST_REPORT_V101.md
+            reports/DGC_INVESTMENT_CHECKLIST_REPORT_V101_SAMPLE.docx
+            reports/INVESTMENT_CHECKLIST_REPORT_V101_ACCEPTANCE.json
+            reports/INVESTMENT_CHECKLIST_REPORT_V101_DETERMINISTIC_TESTS.log
+            reports/INVESTMENT_CHECKLIST_REPORT_V101_ACCEPTANCE.log
+            reports/INVESTMENT_CHECKLIST_REPORT_V101_BOUNDARY_AUDIT.log
+            reports/INVESTMENT_CHECKLIST_REPORT_V101_FULL_DCA_REGRESSION.log
+            reports/INVESTMENT_CHECKLIST_REPORT_V101_STREAMLIT_SERVER.log
+            reports/INVESTMENT_CHECKLIST_REPORT_V101_STREAMLIT_HEALTH.txt
+            reports/INVESTMENT_CHECKLIST_REPORT_V101_OFFLINE_ZIP_SHA256.txt
+            Trecapital_Deep_Analysis_Investment_Checklist_Report_V101.zip
