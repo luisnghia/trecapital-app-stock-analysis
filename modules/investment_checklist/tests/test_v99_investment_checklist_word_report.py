@@ -113,12 +113,18 @@ def test_v99_financial_evidence_has_full_source_traceability():
 
 
 def test_v99_missing_canonical_evidence_is_explicit_and_never_zero_filled():
-    provider = Provider(pd.DataFrame([{"ticker": "DGC", "period": "2026 TTM", "period_type": "TTM"}]))
+    provider = Provider(pd.DataFrame([{
+        "ticker": "DGC", "period": "2026 TTM", "period_type": "TTM", "capex_bil": 500.0,
+    }]))
     rows = extract_question_financial_evidence(provider, "Q32")
-    assert len(rows) == 1
-    assert rows[0]["evidence_status"] == "missing"
-    assert rows[0]["value"] is None
-    assert rows[0]["value_display"] == MISSING_STANDARDIZED_DATA
+    by_metric = {row["metric_code"]: row for row in rows}
+    assert by_metric["capex"]["value"] == 500.0
+    assert by_metric["cfo"]["evidence_status"] == "missing"
+    assert by_metric["cfo"]["value"] is None
+    assert by_metric["cfo"]["value_display"] == MISSING_STANDARDIZED_DATA
+    assert by_metric["fcf"]["evidence_status"] == "missing"
+    assert by_metric["fcf"]["value"] is None
+    assert by_metric["fcf"]["value_display"] == MISSING_STANDARDIZED_DATA
 
 
 def test_v99_report_payload_preserves_analyst_judgment_exactly():

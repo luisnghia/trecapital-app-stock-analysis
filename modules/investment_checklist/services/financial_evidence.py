@@ -236,21 +236,25 @@ def extract_question_financial_evidence(provider, question_id: str, *, max_years
                 "data_origin": data_origin,
                 "evidence_status": "available",
             })
-    if evidence:
-        return evidence
-    return [{
-        "question_id": qid,
-        "metric_code": "missing",
-        "metric": "Financial evidence",
-        "value": None,
-        "value_display": MISSING_STANDARDIZED_DATA,
-        "unit": "",
-        "source_field": None,
-        "source_module": CANONICAL_SOURCE_MODULE,
-        "source_period": None,
-        "data_origin": CANONICAL_DATA_ORIGIN,
-        "evidence_status": "missing",
-    }]
+    observed = {row["metric_code"] for row in evidence}
+    for metric_code in metric_codes:
+        if metric_code in observed:
+            continue
+        spec = METRICS[metric_code]
+        evidence.append({
+            "question_id": qid,
+            "metric_code": spec.code,
+            "metric": spec.label,
+            "value": None,
+            "value_display": MISSING_STANDARDIZED_DATA,
+            "unit": spec.unit,
+            "source_field": None,
+            "source_module": CANONICAL_SOURCE_MODULE,
+            "source_period": None,
+            "data_origin": CANONICAL_DATA_ORIGIN,
+            "evidence_status": "missing",
+        })
+    return evidence
 
 
 def financial_evidence_map(provider, *, max_years: int = 10) -> dict[str, list[dict[str, Any]]]:
