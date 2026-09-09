@@ -1,0 +1,138 @@
+name: Deep Company Analysis Event Question Mapping V103
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-event-question-mapping-v103
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+  MPLBACKEND: Agg
+
+jobs:
+  event-question-mapping-v103:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports
+
+      - name: Compile V103
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/event_question_mapping_v103.py
+          python -m py_compile modules/deep_company_analysis/investment_checklist_report_v103.py
+          python -m py_compile modules/deep_company_analysis/test_event_question_mapping_v103.py
+          python -m py_compile scripts/qa_event_question_mapping_v103.py
+          python -m py_compile app.py
+
+      - name: V103 deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_event_question_mapping_v103.py \
+            2>&1 | tee reports/EVENT_QUESTION_MAPPING_V103_DETERMINISTIC_TESTS.log
+
+      - name: V103 deterministic acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_event_question_mapping_v103.py \
+            2>&1 | tee reports/EVENT_QUESTION_MAPPING_V103_ACCEPTANCE.log
+
+      - name: Source SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/EVENT_QUESTION_MAPPING_V103_BOUNDARY_AUDIT.log
+          import json
+          from pathlib import Path
+          report = json.loads(Path('reports/EVENT_QUESTION_MAPPING_V103_ACCEPTANCE.json').read_text(encoding='utf-8'))
+          assert report['acceptance'] == 'PASS'
+          assert report['event_families'] == ['raw_material_cost', 'audit_governance', 'project_delay']
+          assert report['deterministic_mapping'] is True
+          assert report['mapped_question_ids_canonical'] is True
+          assert report['question_wording_resolved_by_reference'] is True
+          assert report['mapping_state_contains_question_wording'] is False
+          assert report['mapping_state_contains_checklist_status'] is False
+          assert report['provenance_columns_present'] is True
+          assert report['q33_q52_unknown_without_evidence'] is True
+          assert report['duplicate_financial_ssot_added'] is False
+          assert report['duplicate_question_ssot_added'] is False
+          assert report['valuation_formula_changed'] is False
+          assert report['automatic_weighted_score'] is False
+          assert report['automatic_buy_hold_sell'] is False
+          assert report['automatic_research_gate_change'] is False
+          assert report['ai_role'] == 'Research Assistant'
+          assert report['conclusion_owner'] == 'Analyst'
+          assert report['contract_errors'] == []
+          print('PASS: V103 is read-only evidence routing over canonical Appendix C and report owners.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/EVENT_QUESTION_MAPPING_V103_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8557 \
+            > reports/EVENT_QUESTION_MAPPING_V103_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8557/_stcore/health \
+              | tee reports/EVENT_QUESTION_MAPPING_V103_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/EVENT_QUESTION_MAPPING_V103_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: Build offline V103 app package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Event Question Mapping V103\nBranch: feature/deep-company-analysis-event-question-mapping-v103\nCommit: %s\nPurpose: read-only event-to-Qxx evidence routing over canonical DCA owners.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_EVENT_QUESTION_MAPPING_V103.txt
+          zip -qr Trecapital_Deep_Analysis_Event_Question_Mapping_V103.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' '*.zip'
+          unzip -t Trecapital_Deep_Analysis_Event_Question_Mapping_V103.zip | tail -n 3
+          sha256sum Trecapital_Deep_Analysis_Event_Question_Mapping_V103.zip \
+            | tee reports/EVENT_QUESTION_MAPPING_V103_OFFLINE_ZIP_SHA256.txt
+
+      - name: Upload V103 app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Event_Question_Mapping_V103
+          retention-days: 90
+          path: |
+            CHANGELOG_V103_DEEP_ANALYSIS_EVENT_QUESTION_MAPPING.md
+            docs/DEEP_ANALYSIS_EVENT_QUESTION_MAPPING_V103.md
+            reports/EVENT_QUESTION_MAPPING_V103_ACCEPTANCE.json
+            reports/EVENT_QUESTION_MAPPING_V103_DETERMINISTIC_TESTS.log
+            reports/EVENT_QUESTION_MAPPING_V103_ACCEPTANCE.log
+            reports/EVENT_QUESTION_MAPPING_V103_BOUNDARY_AUDIT.log
+            reports/EVENT_QUESTION_MAPPING_V103_FULL_DCA_REGRESSION.log
+            reports/EVENT_QUESTION_MAPPING_V103_STREAMLIT_SERVER.log
+            reports/EVENT_QUESTION_MAPPING_V103_STREAMLIT_HEALTH.txt
+            reports/EVENT_QUESTION_MAPPING_V103_OFFLINE_ZIP_SHA256.txt
+            OFFLINE_BUILD_INFO_EVENT_QUESTION_MAPPING_V103.txt
+            Trecapital_Deep_Analysis_Event_Question_Mapping_V103.zip
