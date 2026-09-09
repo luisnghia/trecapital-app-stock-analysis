@@ -1,0 +1,94 @@
+name: Deep Company Analysis Post-DGC Upgrade Closure V104
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-post-dgc-closure-v104
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  closure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Compile V104 closure
+        run: python -m py_compile modules/deep_company_analysis/test_post_dgc_upgrade_closure_v104.py
+
+      - name: V104 deterministic closure audit
+        run: pytest -q modules/deep_company_analysis/test_post_dgc_upgrade_closure_v104.py
+
+      - name: V100-V103 deterministic acceptance
+        run: |
+          pytest -q \
+            modules/deep_company_analysis/test_cyclical_normalization_v100.py \
+            modules/deep_company_analysis/test_event_question_mapping_v103.py
+
+      - name: Full Deep Company Analysis regression
+        run: pytest -q modules/deep_company_analysis/test_*.py
+
+      - name: Streamlit production health
+        run: |
+          python -m streamlit run app.py --server.headless true --server.port 8501 > /tmp/streamlit-v104.log 2>&1 &
+          PID=$!
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8501/_stcore/health | grep -qi ok; then
+              kill $PID || true
+              wait $PID || true
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/streamlit-v104.log
+          kill $PID || true
+          exit 1
+
+      - name: Build offline app ZIP
+        run: |
+          mkdir -p dist
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          root = Path('.')
+          target = Path('dist/Trecapital_Deep_Analysis_Post_DGC_Closure_V104.zip')
+          excluded = {'.git', '.pytest_cache', '__pycache__', 'dist'}
+          with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as z:
+              for p in root.rglob('*'):
+                  if not p.is_file() or any(part in excluded for part in p.parts):
+                      continue
+                  z.write(p, p.as_posix())
+          with zipfile.ZipFile(target) as z:
+              bad = z.testzip()
+              if bad:
+                  raise SystemExit(f'ZIP integrity failure: {bad}')
+          print(target)
+          PY
+          sha256sum dist/Trecapital_Deep_Analysis_Post_DGC_Closure_V104.zip > dist/Trecapital_Deep_Analysis_Post_DGC_Closure_V104.sha256
+
+      - name: Upload V104 app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Post_DGC_Closure_V104
+          path: |
+            dist/Trecapital_Deep_Analysis_Post_DGC_Closure_V104.zip
+            dist/Trecapital_Deep_Analysis_Post_DGC_Closure_V104.sha256
+            docs/POST_DGC_UPGRADE_COMPLETE.md
+          if-no-files-found: error
+          retention-days: 30
