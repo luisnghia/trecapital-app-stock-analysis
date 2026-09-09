@@ -24,10 +24,11 @@ jobs:
       - name: Apply V99 implementation patch and commit final source
         run: |
           set -euo pipefail
-          base64 --decode scripts/v99_financial_semantics.patch.gz.b64 | gzip -d > /tmp/v99.patch
+          cat scripts/v99_patch_chunks/*.b64 | base64 --decode | gzip -d > /tmp/v99.patch
           git apply --check /tmp/v99.patch
           git apply /tmp/v99.patch
           rm -f scripts/v99_financial_semantics.patch.gz.b64
+          rm -rf scripts/v99_patch_chunks
           rm -f .github/workflows/v99-bootstrap-apply.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
