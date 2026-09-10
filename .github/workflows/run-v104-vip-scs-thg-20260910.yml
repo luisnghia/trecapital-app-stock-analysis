@@ -1,0 +1,91 @@
+name: V104 VIP SCS THG 10Y TTM2026 Reports
+
+on:
+  push:
+    branches:
+      - analysis/v104-vip-scs-thg-20260910
+    paths:
+      - '.github/workflows/run-v104-vip-scs-thg-20260910.yml'
+      - 'scripts/run_v104_company_reports_20260910.py'
+
+permissions:
+  contents: read
+
+jobs:
+  build-company-reports:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TICKERS: VIP,SCS,THG
+      TARGET_MOS_PCT: '50'
+      REPORT_DIR: reports/company_v104_20260910
+      MPLCONFIGDIR: /tmp/trecapital-matplotlib
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: analysis/v104-vip-scs-thg-20260910
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install app dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Streamlit V104 health check
+        shell: bash
+        run: |
+          mkdir -p "$REPORT_DIR"
+          timeout 55s streamlit run app.py --server.headless true --server.port 8540 >"$REPORT_DIR/streamlit_health.log" 2>&1 &
+          PID=$!
+          sleep 16
+          curl --fail --silent http://127.0.0.1:8540/_stcore/health
+          STATUS=$?
+          kill $PID || true
+          wait $PID || true
+          tail -n 120 "$REPORT_DIR/streamlit_health.log" || true
+          exit $STATUS
+
+      - name: Run canonical 10Y + TTM2026 analysis and Module 2 valuation
+        shell: bash
+        run: |
+          python scripts/run_v104_company_reports_20260910.py 2>&1 | tee "$REPORT_DIR/run.log"
+
+      - name: Validate three Word reports
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from zipfile import ZipFile
+          root = Path('reports/company_v104_20260910')
+          summary = json.loads((root/'RUN_SUMMARY.json').read_text(encoding='utf-8'))
+          if summary.get('errors'):
+              raise SystemExit(f"Run errors: {summary['errors']}")
+          expected = [root/f'Trecapital_V104_{t}_10Y_TTM2026_Investment_Report.docx' for t in ('VIP','SCS','THG')]
+          for p in expected:
+              if not p.exists() or p.stat().st_size < 50000:
+                  raise SystemExit(f'Invalid/missing DOCX: {p}')
+              with ZipFile(p) as z:
+                  names = set(z.namelist())
+                  if 'word/document.xml' not in names:
+                      raise SystemExit(f'Not a valid DOCX package: {p}')
+          print(json.dumps(summary, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Upload VIP SCS THG reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_V104_VIP_SCS_THG_10Y_TTM2026_Reports
+          path: |
+            reports/company_v104_20260910/*.docx
+            reports/company_v104_20260910/*.csv
+            reports/company_v104_20260910/*.json
+            reports/company_v104_20260910/*.log
+          if-no-files-found: warn
+          retention-days: 30
