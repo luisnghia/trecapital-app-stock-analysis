@@ -1,0 +1,159 @@
+name: Deep Company Analysis Report Export Hardening V105
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-report-export-hardening-v105
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+  MPLBACKEND: Agg
+
+jobs:
+  report-export-hardening-v105:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports dist
+
+      - name: Compile V105
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/docx_layout_v105.py
+          python -m py_compile modules/deep_company_analysis/investment_checklist_report.py
+          python -m py_compile modules/deep_company_analysis/investment_checklist_report_v102.py
+          python -m py_compile modules/deep_company_analysis/investment_checklist_report_v103.py
+          python -m py_compile modules/deep_company_analysis/test_docx_layout_v105.py
+          python -m py_compile scripts/qa_docx_layout_v105.py
+          python -m py_compile app.py
+
+      - name: V105 deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_docx_layout_v105.py \
+            2>&1 | tee reports/REPORT_EXPORT_HARDENING_V105_DETERMINISTIC_TESTS.log
+
+      - name: V105 deterministic acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_docx_layout_v105.py \
+            2>&1 | tee reports/REPORT_EXPORT_HARDENING_V105_ACCEPTANCE.log
+
+      - name: SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/REPORT_EXPORT_HARDENING_V105_BOUNDARY_AUDIT.log
+          import json
+          from pathlib import Path
+          report = json.loads(Path('reports/REPORT_EXPORT_HARDENING_V105_ACCEPTANCE.json').read_text(encoding='utf-8'))
+          assert report['acceptance'] == 'PASS'
+          assert report['cant_split_all_rows'] is True
+          assert report['repeat_all_table_headers'] is True
+          assert report['keep_all_headings_with_next'] is True
+          assert report['source_locked_wording_preserved'] is True
+          assert report['chart_media_present'] is True
+          assert report['duplicate_financial_ssot_added'] is False
+          assert report['valuation_formula_changed'] is False
+          assert report['automatic_weighted_score'] is False
+          assert report['automatic_buy_hold_sell'] is False
+          assert report['automatic_research_gate_change'] is False
+          assert report['ai_role'] == 'Research Assistant'
+          assert report['conclusion_owner'] == 'Analyst'
+          print('PASS: V105 changes DOCX pagination only; financial/checklist/valuation boundaries are unchanged.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/REPORT_EXPORT_HARDENING_V105_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8559 \
+            > reports/REPORT_EXPORT_HARDENING_V105_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8559/_stcore/health \
+              | tee reports/REPORT_EXPORT_HARDENING_V105_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/REPORT_EXPORT_HARDENING_V105_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: DOCX headless render smoke
+        run: |
+          set -euo pipefail
+          if ! command -v libreoffice >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq libreoffice-writer poppler-utils
+          fi
+          mkdir -p reports/v105_render
+          libreoffice --headless --convert-to pdf --outdir reports/v105_render \
+            reports/DGC_REPORT_EXPORT_HARDENING_V105_SAMPLE.docx \
+            > reports/REPORT_EXPORT_HARDENING_V105_RENDER.log 2>&1
+          test -s reports/v105_render/DGC_REPORT_EXPORT_HARDENING_V105_SAMPLE.pdf
+          pdfinfo reports/v105_render/DGC_REPORT_EXPORT_HARDENING_V105_SAMPLE.pdf \
+            | tee -a reports/REPORT_EXPORT_HARDENING_V105_RENDER.log
+          pdftoppm -f 1 -singlefile -png -r 90 \
+            reports/v105_render/DGC_REPORT_EXPORT_HARDENING_V105_SAMPLE.pdf \
+            reports/v105_render/page-1 >/dev/null 2>&1
+          test -s reports/v105_render/page-1.png
+
+      - name: Build offline V105 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Report Export Hardening V105\nBranch: feature/deep-company-analysis-report-export-hardening-v105\nCommit: %s\nPurpose: DOCX pagination/layout hardening only; no financial/checklist/valuation semantic changes.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_REPORT_EXPORT_HARDENING_V105.txt
+          zip -qr dist/Trecapital_Deep_Analysis_Report_Export_Hardening_V105.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' 'dist/*' '*.zip'
+          unzip -t dist/Trecapital_Deep_Analysis_Report_Export_Hardening_V105.zip | tail -n 3
+          sha256sum dist/Trecapital_Deep_Analysis_Report_Export_Hardening_V105.zip \
+            | tee reports/REPORT_EXPORT_HARDENING_V105_OFFLINE_ZIP_SHA256.txt
+
+      - name: Upload V105 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Report_Export_Hardening_V105
+          retention-days: 90
+          path: |
+            CHANGELOG_V105_DEEP_ANALYSIS_REPORT_EXPORT_HARDENING.md
+            docs/DEEP_ANALYSIS_REPORT_EXPORT_HARDENING_V105.md
+            docs/formulas/DEEP_ANALYSIS_REPORT_EXPORT_HARDENING_V105_FORMULAS.md
+            reports/DGC_REPORT_EXPORT_HARDENING_V105_SAMPLE.docx
+            reports/REPORT_EXPORT_HARDENING_V105_ACCEPTANCE.json
+            reports/REPORT_EXPORT_HARDENING_V105_DETERMINISTIC_TESTS.log
+            reports/REPORT_EXPORT_HARDENING_V105_ACCEPTANCE.log
+            reports/REPORT_EXPORT_HARDENING_V105_BOUNDARY_AUDIT.log
+            reports/REPORT_EXPORT_HARDENING_V105_FULL_DCA_REGRESSION.log
+            reports/REPORT_EXPORT_HARDENING_V105_STREAMLIT_SERVER.log
+            reports/REPORT_EXPORT_HARDENING_V105_STREAMLIT_HEALTH.txt
+            reports/REPORT_EXPORT_HARDENING_V105_RENDER.log
+            reports/v105_render/DGC_REPORT_EXPORT_HARDENING_V105_SAMPLE.pdf
+            reports/v105_render/page-1.png
+            reports/REPORT_EXPORT_HARDENING_V105_OFFLINE_ZIP_SHA256.txt
+            dist/Trecapital_Deep_Analysis_Report_Export_Hardening_V105.zip
+          if-no-files-found: error
