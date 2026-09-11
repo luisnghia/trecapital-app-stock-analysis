@@ -14,6 +14,7 @@ from typing import Any
 import pandas as pd
 from docx import Document
 
+from modules.deep_company_analysis.docx_layout_v105 import harden_document_layout
 from modules.deep_company_analysis.investment_checklist_report import build_investment_checklist_report_docx
 from modules.deep_company_analysis.financial_report_v102 import render_financial_evidence
 
@@ -26,6 +27,7 @@ def build_investment_checklist_report_v102_docx(*, canonical_financial_df: pd.Da
     render_financial_evidence(document, canonical_financial_df, years=years)
     props = document.core_properties
     props.comments = (props.comments or "") + " V102 appends read-only 10Y + TTM canonical financial evidence and quantitative charts."
+    harden_document_layout(document)
     output = BytesIO()
     document.save(output)
     return output.getvalue()
