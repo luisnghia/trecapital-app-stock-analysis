@@ -20,6 +20,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
 
+from modules.deep_company_analysis.docx_layout_v105 import harden_document_layout
 from modules.deep_company_analysis.appendix_c import (
     CHECKLIST_ITEMS,
     QUESTION_IDS,
@@ -231,6 +232,7 @@ def build_investment_checklist_report_docx(*, company_name: str, as_of: str, ans
     props.comments = f"{AI_ROLE}; conclusions owned by {CONCLUSION_OWNER}."
     fixed = datetime(2000, 1, 1, tzinfo=timezone.utc)
     props.created = props.modified = fixed
+    harden_document_layout(document)
     output = BytesIO()
     document.save(output)
     return output.getvalue()
