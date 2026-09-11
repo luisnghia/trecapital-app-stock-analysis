@@ -1,0 +1,164 @@
+name: Deep Company Analysis Vietnamese Report V106
+
+on:
+  push:
+    branches:
+      - feature/deep-company-analysis-report-vietnamese-v106
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+  MPLBACKEND: Agg
+
+jobs:
+  report-vietnamese-v106:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          mkdir -p reports dist
+
+      - name: Compile V106
+        run: |
+          set -euo pipefail
+          python -m py_compile modules/deep_company_analysis/report_localization_v106.py
+          python -m py_compile modules/deep_company_analysis/investment_checklist_report_v106.py
+          python -m py_compile modules/deep_company_analysis/test_report_vietnamese_v106.py
+          python -m py_compile scripts/qa_report_vietnamese_v106.py
+          python -m py_compile app.py
+
+      - name: V106 deterministic tests
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_report_vietnamese_v106.py \
+            2>&1 | tee reports/REPORT_VIETNAMESE_V106_DETERMINISTIC_TESTS.log
+
+      - name: V106 deterministic acceptance
+        run: |
+          set -euo pipefail
+          python scripts/qa_report_vietnamese_v106.py \
+            2>&1 | tee reports/REPORT_VIETNAMESE_V106_ACCEPTANCE.log
+
+      - name: Source lock SSOT and investment-boundary audit
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee reports/REPORT_VIETNAMESE_V106_BOUNDARY_AUDIT.log
+          import json
+          from pathlib import Path
+          report = json.loads(Path('reports/REPORT_VIETNAMESE_V106_ACCEPTANCE.json').read_text(encoding='utf-8'))
+          assert report['acceptance'] == 'PASS'
+          assert report['report_language'] == 'vi'
+          assert report['question_count'] == 59
+          assert report['vietnamese_ui_complete'] is True
+          assert report['legacy_english_ui_removed'] is True
+          assert report['source_locked_english_sidecar_preserved'] is True
+          assert report['q33_q52_unknown_without_evidence'] is True
+          assert report['provenance_columns_present'] is True
+          assert report['cant_split_all_rows'] is True
+          assert report['repeat_all_table_headers'] is True
+          assert report['keep_all_headings_with_next'] is True
+          assert report['chart_media_present'] is True
+          assert report['duplicate_financial_ssot_added'] is False
+          assert report['duplicate_question_ssot_added'] is False
+          assert report['valuation_formula_changed'] is False
+          assert report['automatic_weighted_score'] is False
+          assert report['automatic_buy_hold_sell'] is False
+          assert report['automatic_research_gate_change'] is False
+          assert report['ai_role'] == 'Research Assistant'
+          assert report['conclusion_owner'] == 'Analyst'
+          print('PASS: V106 localizes report presentation to Vietnamese without changing source lock, financial SSOT or investment semantics.')
+          PY
+
+      - name: Full Deep Company Analysis regression
+        run: |
+          set -euo pipefail
+          pytest -q modules/deep_company_analysis/test_*.py \
+            2>&1 | tee reports/REPORT_VIETNAMESE_V106_FULL_DCA_REGRESSION.log
+
+      - name: Production Streamlit health
+        run: |
+          set -euo pipefail
+          streamlit run app.py --server.headless true --server.port 8560 \
+            > reports/REPORT_VIETNAMESE_V106_STREAMLIT_SERVER.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8560/_stcore/health \
+              | tee reports/REPORT_VIETNAMESE_V106_STREAMLIT_HEALTH.txt | grep -q ok; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat reports/REPORT_VIETNAMESE_V106_STREAMLIT_SERVER.log
+          exit 1
+
+      - name: DOCX Vietnamese headless render smoke
+        run: |
+          set -euo pipefail
+          if ! command -v libreoffice >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq libreoffice-writer poppler-utils
+          fi
+          mkdir -p reports/v106_render
+          libreoffice --headless --convert-to pdf --outdir reports/v106_render \
+            reports/DGC_REPORT_VIETNAMESE_V106_SAMPLE.docx \
+            > reports/REPORT_VIETNAMESE_V106_RENDER.log 2>&1
+          test -s reports/v106_render/DGC_REPORT_VIETNAMESE_V106_SAMPLE.pdf
+          pdfinfo reports/v106_render/DGC_REPORT_VIETNAMESE_V106_SAMPLE.pdf \
+            | tee -a reports/REPORT_VIETNAMESE_V106_RENDER.log
+          pdftoppm -png -r 90 \
+            reports/v106_render/DGC_REPORT_VIETNAMESE_V106_SAMPLE.pdf \
+            reports/v106_render/page >/dev/null 2>&1
+          test -s reports/v106_render/page-1.png
+
+      - name: Build offline V106 package
+        run: |
+          set -euo pipefail
+          printf 'Trecapital Deep Company Analysis Vietnamese Report V106\nBranch: feature/deep-company-analysis-report-vietnamese-v106\nCommit: %s\nPurpose: Vietnamese-first DOCX presentation with exact English source-lock sidecar; no semantic changes.\n' "$(git rev-parse HEAD)" > OFFLINE_BUILD_INFO_REPORT_VIETNAMESE_V106.txt
+          zip -qr dist/Trecapital_Deep_Analysis_Report_Vietnamese_V106.zip . \
+            -x '.git/*' 'data_cache/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '*.sqlite' '*.db' 'dist/*' '*.zip'
+          unzip -t dist/Trecapital_Deep_Analysis_Report_Vietnamese_V106.zip | tail -n 3
+          sha256sum dist/Trecapital_Deep_Analysis_Report_Vietnamese_V106.zip \
+            | tee reports/REPORT_VIETNAMESE_V106_OFFLINE_ZIP_SHA256.txt
+
+      - name: Upload V106 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trecapital_Deep_Analysis_Report_Vietnamese_V106
+          retention-days: 90
+          path: |
+            CHANGELOG_V106_DEEP_ANALYSIS_REPORT_VIETNAMESE.md
+            docs/DEEP_ANALYSIS_REPORT_VIETNAMESE_V106.md
+            docs/formulas/DEEP_ANALYSIS_REPORT_VIETNAMESE_V106_FORMULAS.md
+            reports/DGC_REPORT_VIETNAMESE_V106_SAMPLE.docx
+            reports/REPORT_VIETNAMESE_V106_ACCEPTANCE.json
+            reports/REPORT_VIETNAMESE_V106_DETERMINISTIC_TESTS.log
+            reports/REPORT_VIETNAMESE_V106_ACCEPTANCE.log
+            reports/REPORT_VIETNAMESE_V106_BOUNDARY_AUDIT.log
+            reports/REPORT_VIETNAMESE_V106_FULL_DCA_REGRESSION.log
+            reports/REPORT_VIETNAMESE_V106_STREAMLIT_SERVER.log
+            reports/REPORT_VIETNAMESE_V106_STREAMLIT_HEALTH.txt
+            reports/REPORT_VIETNAMESE_V106_RENDER.log
+            reports/v106_render/DGC_REPORT_VIETNAMESE_V106_SAMPLE.pdf
+            reports/v106_render/page-1.png
+            reports/REPORT_VIETNAMESE_V106_OFFLINE_ZIP_SHA256.txt
+            dist/Trecapital_Deep_Analysis_Report_Vietnamese_V106.zip
+          if-no-files-found: error
