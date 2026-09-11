@@ -14,6 +14,7 @@ from typing import Any, Iterable, Mapping
 from docx import Document
 from docx.shared import Pt
 
+from modules.deep_company_analysis.docx_layout_v105 import harden_document_layout
 from modules.deep_company_analysis.event_question_mapping_v103 import render_event_mapping_rows
 from modules.deep_company_analysis.investment_checklist_report_v102 import build_investment_checklist_report_v102_docx
 
@@ -71,6 +72,7 @@ def build_investment_checklist_report_v103_docx(
     props.comments = (props.comments or "") + (
         " V103 appends read-only deterministic event-to-question evidence routing; analyst owns every conclusion."
     )
+    harden_document_layout(document)
     output = BytesIO()
     document.save(output)
     return output.getvalue()
