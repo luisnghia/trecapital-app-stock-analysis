@@ -124,9 +124,9 @@ jobs:
           test -s reports/v106_render/DGC_REPORT_VIETNAMESE_V106_SAMPLE.pdf
           pdfinfo reports/v106_render/DGC_REPORT_VIETNAMESE_V106_SAMPLE.pdf \
             | tee -a reports/REPORT_VIETNAMESE_V106_RENDER.log
-          pdftoppm -png -r 90 \
+          pdftoppm -f 1 -singlefile -png -r 90 \
             reports/v106_render/DGC_REPORT_VIETNAMESE_V106_SAMPLE.pdf \
-            reports/v106_render/page >/dev/null 2>&1
+            reports/v106_render/page-1 >/dev/null 2>&1
           test -s reports/v106_render/page-1.png
 
       - name: Build offline V106 package
