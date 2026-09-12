@@ -13,7 +13,7 @@ on:
       - 'khdn_apps/Dockerfile'
 
 jobs:
-  syntax:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,4 +27,9 @@ jobs:
             khdn_apps/weekly_plan_v2.py \
             khdn_apps/weekly_plan_v3.py \
             khdn_apps/app_weekly.py \
-            khdn_apps/online_entry.py
+            khdn_apps/online_entry.py \
+            khdn_apps/test_weekly_plan_smoke.py
+      - name: Install KHDN dependencies
+        run: pip install --disable-pip-version-check -r khdn_apps/requirements.txt
+      - name: Run Weekly Plan smoke tests
+        run: python -m khdn_apps.test_weekly_plan_smoke
