@@ -9,9 +9,10 @@ RUN apt-get update \
 COPY khdn_apps/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# Streamlit's explicit theme config makes Light the deterministic default in Railway.
+# Streamlit's explicit theme config makes Dark the deterministic default in Railway.
 COPY khdn_apps/.streamlit /app/.streamlit
 COPY khdn_apps /app/khdn_apps
+RUN python /app/khdn_apps/install_branding.py
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
