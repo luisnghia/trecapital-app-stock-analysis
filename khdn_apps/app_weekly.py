@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from khdn_apps import app as base
-from khdn_apps.weekly_plan_v7 import weekly_plan_page
+from khdn_apps.weekly_plan_v9 import weekly_plan_page
 
 
 WEEKLY_PLAN_ROLES = {"Cán bộ hỗ trợ", "Cán bộ QLKH", "Lãnh đạo phòng"}
@@ -28,8 +28,6 @@ def sidebar_navigation(u):
     if role == "Lãnh đạo phòng":
         options.append(("leader", "🗂️  Quản lý công việc"))
 
-    # Weekly Plan is intentionally restricted to staff and room leaders.
-    # There is no Ban Giám đốc role/view in this module.
     if weekly_access_allowed(u):
         options.append(("weekly", "📅  Kế hoạch tuần"))
 
@@ -103,8 +101,6 @@ def app():
         base.leader_page(u)
     elif page == "weekly":
         if not weekly_access_allowed(u):
-            # Defense in depth: a stale/manually-forced session state must not
-            # bypass the navigation restriction.
             base.st.session_state["main_page"] = "dashboard"
             base.st.error("Bạn không có quyền truy cập Kế hoạch tuần.")
             base.dashboard_page(u)
