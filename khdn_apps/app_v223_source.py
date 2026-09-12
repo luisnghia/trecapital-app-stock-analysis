@@ -926,9 +926,17 @@ def inject_css():
       color:#2B2410!important;-webkit-text-fill-color:#2B2410!important;
       border-color:#FFF0A6!important;box-shadow:0 8px 20px rgba(244,180,26,.34)!important
     }
+    div[class*="st-key-subnav_qlkh_create"] button p,
+    div[class*="st-key-subnav_qlkh_create"] button [data-testid="stMarkdownContainer"]{
+      color:#2B2410!important;-webkit-text-fill-color:#2B2410!important
+    }
     div[class*="st-key-subnav_qlkh_create"] button:hover{
       background:linear-gradient(135deg,#FFD45A 0%,#FFE99B 100%)!important;
       color:#201B0A!important;-webkit-text-fill-color:#201B0A!important;border-color:#FFF7D1!important
+    }
+    div[class*="st-key-subnav_qlkh_create"] button:hover p,
+    div[class*="st-key-subnav_qlkh_create"] button:hover [data-testid="stMarkdownContainer"]{
+      color:#201B0A!important;-webkit-text-fill-color:#201B0A!important
     }
 
     /* Native Streamlit already animates the sidebar; keep that transition
