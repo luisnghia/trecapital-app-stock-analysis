@@ -3,8 +3,9 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 from tre_full_width import apply_full_width
+from tre_sidebar_nav import render_tre_sidebar_nav
 
-# Import module2_dashboard first: it owns the shared page config, theme CSS, data loaders and sidebar navigation.
+# Import module2_dashboard first: it owns the shared page config, theme CSS and data loaders.
 import module2_dashboard as md
 from module2_engine import (
     build_module2_valuation_table,
@@ -48,7 +49,7 @@ def render_consolidated_report_page() -> None:
     available_tickers = md._available_financial_tickers_cached(str(md.BUNDLED_XLSM)) if md.BUNDLED_XLSM.exists() else []
 
     with st.sidebar:
-        md._render_tre_sidebar_nav()
+        render_tre_sidebar_nav()
         st.header("Thiết lập báo cáo tổng hợp")
         source_display = st.selectbox("Chế độ dữ liệu tài chính", SOURCE_OPTIONS, index=0, key="full_report_source")
         source = SOURCE_DISPLAY_TO_INTERNAL.get(source_display, source_display)

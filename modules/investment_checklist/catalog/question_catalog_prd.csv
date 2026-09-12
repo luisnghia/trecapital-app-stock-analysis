@@ -1,0 +1,60 @@
+question_id,group_name,question_vi,research_mode,supporting_tool,analyst_assessment_required
+Q01,Business Basics,Tôi có muốn dành nhiều thời gian để tìm hiểu doanh nghiệp này không?,manual,,YES
+Q02,Business Basics,"Nếu trở thành CEO, tôi sẽ đánh giá doanh nghiệp này như thế nào?",manual,,YES
+Q03,Business Basics,Tôi có thể mô tả cách doanh nghiệp vận hành bằng chính lời của mình không?,hybrid,Business Model Map,YES
+Q04,Business Basics,Doanh nghiệp kiếm tiền bằng cách nào?,hybrid,Business Model Map,YES
+Q05,Business Basics,Doanh nghiệp đã tiến hóa/thay đổi như thế nào theo thời gian?,hybrid,History Timeline,YES
+Q06,Business Basics,Doanh nghiệp hoạt động ở những thị trường nước ngoài nào và rủi ro là gì?,hybrid,Geo Risk Map,YES
+Q07,Customer,Khách hàng cốt lõi của doanh nghiệp là ai?,hybrid,Customer Map,YES
+Q08,Customer,Cơ sở khách hàng tập trung hay đa dạng?,hybrid,Customer Concentration,YES
+Q09,Customer,Dễ hay khó thuyết phục khách hàng mua sản phẩm/dịch vụ?,hybrid,Customer Acquisition,YES
+Q10,Customer,Tỷ lệ giữ chân khách hàng là bao nhiêu?,hybrid,Retention/Proxy Metrics,YES
+Q11,Customer,Dấu hiệu nào cho thấy doanh nghiệp định hướng khách hàng?,hybrid,Customer Evidence,YES
+Q12,Customer,Doanh nghiệp giải quyết nỗi đau/vấn đề gì cho khách hàng?,manual,Customer Value Proposition,YES
+Q13,Customer,Khách hàng phụ thuộc vào sản phẩm/dịch vụ của doanh nghiệp đến mức nào?,hybrid,Switching Cost,YES
+Q14,Customer,"Nếu doanh nghiệp biến mất ngày mai, khách hàng bị ảnh hưởng như thế nào?",manual,Dependency Scenario,YES
+Q15,Business & Industry,Doanh nghiệp có lợi thế cạnh tranh bền vững không và nguồn gốc là gì?,hybrid,Moat Copyability Analyzer,YES
+Q16,Business & Industry,Doanh nghiệp có thể tăng giá mà không mất khách hàng không?,hybrid,Pricing Power Analyzer,YES
+Q17,Business & Industry,Doanh nghiệp hoạt động trong một ngành tốt hay xấu?,hybrid,Peer & Industry Analyzer,YES
+Q18,Business & Industry,Ngành đã tiến hóa như thế nào theo thời gian?,hybrid,Industry Timeline,YES
+Q19,Business & Industry,Bối cảnh cạnh tranh và cường độ cạnh tranh như thế nào?,hybrid,Peer & Ideal Company Analyzer,YES
+Q20,Business & Industry,Quan hệ của doanh nghiệp với nhà cung cấp như thế nào?,hybrid,Supplier Power,YES
+Q21,Operating & Financial Health,Các nền tảng/fundamentals quan trọng của doanh nghiệp là gì?,hybrid,Financial History,YES
+Q22,Operating & Financial Health,Các chỉ số vận hành nào cần theo dõi?,hybrid,Operating Metrics Registry,YES
+Q23,Operating & Financial Health,Các rủi ro chính doanh nghiệp đang đối mặt là gì?,hybrid,Risk Register,YES
+Q24,Operating & Financial Health,Lạm phát ảnh hưởng đến doanh nghiệp như thế nào?,hybrid,Inflation Sensitivity,YES
+Q25,Operating & Financial Health,Bảng cân đối mạnh hay yếu?,hybrid,Balance Sheet & Leverage Analyzer,YES
+Q26,Operating & Financial Health,ROIC của doanh nghiệp là bao nhiêu và chất lượng của ROIC ra sao?,hybrid,ROIC Quality Analyzer,YES
+Q27,Earnings & Cash Flow,Chính sách/kỹ thuật kế toán của management bảo thủ hay thiên về tích cực?,hybrid,Accounting Reserve Quality Analyzer,YES
+Q28,Earnings & Cash Flow,Doanh thu là định kỳ/tái diễn hay từ giao dịch một lần?,hybrid,Recurring Revenue Analyzer,YES
+Q29,Earnings & Cash Flow,"Doanh nghiệp mang tính chu kỳ, ngược chu kỳ hay chống suy thoái đến mức nào?",hybrid,Cycle Analyzer,YES
+Q30,Earnings & Cash Flow,Đòn bẩy hoạt động ảnh hưởng đến lợi nhuận đến mức nào?,hybrid,Operating Leverage & Cost Structure Analyzer,YES
+Q31,Earnings & Cash Flow,Vốn lưu động ảnh hưởng đến dòng tiền như thế nào?,hybrid,Working Capital / CCC Analyzer,YES
+Q32,Earnings & Cash Flow,Doanh nghiệp có yêu cầu capex cao hay thấp?,hybrid,Capex Intensity Analyzer,YES
+Q33,Management Background,Loại nhà quản lý nào đang lãnh đạo công ty?,manual,Management Profile,YES
+Q34,Management Background,Đưa management từ bên ngoài vào có tác động gì đến doanh nghiệp?,hybrid,Management Timeline,YES
+Q35,Management Background,Manager là “lion” hay “hyena”?,manual,Management Character Matrix,YES
+Q36,Management Background,Manager đã đi lên để lãnh đạo doanh nghiệp như thế nào?,hybrid,Management Timeline,YES
+Q37,Management Background,Senior managers được trả lương thế nào và sở hữu cổ phần ra sao?,hybrid,Compensation & Ownership,YES
+Q38,Management Background,Managers đang mua hay bán cổ phiếu?,hybrid,Insider Transactions,YES
+Q39,Management Competence,CEO có quản trị doanh nghiệp vì lợi ích của các stakeholder không?,hybrid,Stakeholder Evidence,YES
+Q40,Management Competence,Management cải thiện hoạt động hàng ngày hay dựa vào strategic plan?,hybrid,Execution Evidence,YES
+Q41,Management Competence,CEO/CFO có đưa guidance về earnings không và chất lượng guidance ra sao?,hybrid,Guidance Track Record,YES
+Q42,Management Competence,Doanh nghiệp được quản trị tập trung hay phân quyền?,manual,Organization Model,YES
+Q43,Management Competence,Management có coi trọng nhân viên không?,hybrid,Employee Evidence,YES
+Q44,Management Competence,Management có biết tuyển người giỏi không?,hybrid,Management Timeline,YES
+Q45,Management Competence,Management có tập trung cắt chi phí không cần thiết không?,hybrid,Cost Discipline,YES
+Q46,Management Competence,CEO/CFO có kỷ luật trong phân bổ vốn không?,hybrid,Capital Allocation Analyzer,YES
+Q47,Management Competence,CEO/CFO có mua lại cổ phiếu một cách cơ hội/hợp lý không?,hybrid,Buyback & Dilution Analyzer,YES
+Q48,Management Traits,CEO yêu tiền hay yêu doanh nghiệp?,manual,Management Character Matrix,YES
+Q49,Management Traits,Có thể xác định một “moment of integrity” của manager không?,manual,Integrity Evidence,YES
+Q50,Management Traits,"Management có giao tiếp và hành động rõ ràng, nhất quán với stakeholders không?",hybrid,Communication Consistency,YES
+Q51,Management Traits,"Management có suy nghĩ độc lập, không bị cuốn theo hành vi ngành không?",hybrid,Independent Thinking Evidence,YES
+Q52,Management Traits,CEO có tự quảng bá quá mức không?,hybrid,Communication Style,YES
+Q53,Growth,Doanh nghiệp tăng trưởng qua M&A hay hữu cơ?,hybrid,Growth Quality Analyzer,YES
+Q54,Growth,Động lực của management khi muốn tăng trưởng là gì?,manual,Growth Motivation,YES
+Q55,Growth,Tăng trưởng lịch sử có sinh lời và có thể tiếp tục không?,hybrid,Operating Driver → Earnings Bridge,YES
+Q56,Growth,Triển vọng tăng trưởng tương lai là gì?,hybrid,Runway Analyzer,YES
+Q57,Growth,Management đang tăng trưởng quá nhanh hay với nhịp độ ổn định?,hybrid,Growth Pace & Funding,YES
+Q58,M&A,Management ra quyết định M&A như thế nào?,hybrid,M&A Decision Analyzer,YES
+Q59,M&A,Các thương vụ M&A trước đây có thành công không?,hybrid,M&A Track Record,YES

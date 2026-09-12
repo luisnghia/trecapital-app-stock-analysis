@@ -1,5 +1,8 @@
+import streamlit as st
 from module2_dashboard import render_module3_comparison_dashboard
 from tre_full_width import apply_full_width
 
 render_module3_comparison_dashboard()
+with st.sidebar:
+    st.page_link("pages/05_Investment_Checklist.py", label="Investment Checklist", icon="📋")
 apply_full_width()
