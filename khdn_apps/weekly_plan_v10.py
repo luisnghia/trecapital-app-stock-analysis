@@ -90,20 +90,32 @@ def _json_value(value):
     return str(value)
 
 
-@st.fragment(run_every=30)
-def _autosave_new_task_fragment(get_conn: Callable, user_id: int, plan_id: int,
-                                buffer_key: str, state_keys: dict):
-    payload = {name: _json_value(st.session_state.get(key)) for name, key in state_keys.items()}
-    meaningful = bool(str(payload.get("title") or "").strip() or str(payload.get("expected") or "").strip())
+def _persist_new_task_buffer(get_conn: Callable, user_id: int, plan_id: int,
+                             buffer_key: str, payload: dict) -> bool:
+    """Persist one new-task draft payload; return True when something meaningful was saved.
+
+    Kept separate from the Streamlit fragment so CI can verify persistence/recovery
+    deterministically without waiting 30 seconds for a browser timer.
+    """
+    clean = {str(k): _json_value(v) for k, v in dict(payload or {}).items()}
+    meaningful = bool(str(clean.get("title") or "").strip() or str(clean.get("expected") or "").strip())
     if not meaningful:
-        return
+        return False
     with get_conn() as c:
         c.execute("""INSERT INTO weekly_draft_buffers(user_id,plan_id,buffer_key,payload_json,updated_at)
             VALUES(?,?,?,?,?) ON CONFLICT(user_id,plan_id,buffer_key) DO UPDATE SET
             payload_json=excluded.payload_json,updated_at=excluded.updated_at""",
-            (int(user_id), int(plan_id), str(buffer_key), json.dumps(payload, ensure_ascii=False), wp._now()))
+            (int(user_id), int(plan_id), str(buffer_key), json.dumps(clean, ensure_ascii=False), wp._now()))
         c.commit()
-    st.caption("💾 Nháp được lưu tự động mỗi 30 giây.")
+    return True
+
+
+@st.fragment(run_every=30)
+def _autosave_new_task_fragment(get_conn: Callable, user_id: int, plan_id: int,
+                                buffer_key: str, state_keys: dict):
+    payload = {name: st.session_state.get(key) for name, key in state_keys.items()}
+    if _persist_new_task_buffer(get_conn, user_id, plan_id, buffer_key, payload):
+        st.caption("💾 Nháp được lưu tự động mỗi 30 giây.")
 
 
 @st.fragment(run_every=30)
