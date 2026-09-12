@@ -25,11 +25,9 @@ def install():
             raise RuntimeError("KHDN loader exec line not found; mobile navigation patch not installed")
         loader_text = loader_text.replace(exec_line, patch_marker + exec_line, 1)
 
-    # V2.35: the old runtime support/QLKH override recreated ops_action_cards()
-    # after the patched source had been loaded. That gave CBHT/QLKH a different
-    # DOM path from leader_view and defeated the proven mobile 2-column layout.
-    # Remove that override at image-build time so all three workflow pages use
-    # the exact same source ops_action_cards() renderer.
+    # V2.35+: the old runtime support/QLKH override recreated ops_action_cards()
+    # after the patched source had been loaded. Remove it so CBHT/QLKH use the
+    # exact same source renderer as leader_view.
     runtime_nav_start = "# Remove the separate workflow pill strip on the two operational pages."
     runtime_nav_end = "# Dark-mode readability + yellow Create actions."
     start_idx = loader_text.find(runtime_nav_start)
@@ -39,7 +37,7 @@ def install():
             raise RuntimeError("KHDN runtime navigation override end marker not found")
         loader_text = (
             loader_text[:start_idx]
-            + "# V2.35: CBHT/QLKH use the same patched source navigation renderer as leader_view.\n"
+            + "# V2.35+: CBHT/QLKH use the same patched source navigation renderer as leader_view.\n"
             + loader_text[end_idx:]
         )
     loader.write_text(loader_text, encoding="utf-8")
@@ -85,19 +83,28 @@ div[class*="st-key-ops_create_qlkh_view_"] button:hover{
   box-shadow:0 10px 24px rgba(244,180,26,.34)!important;
 }
 
-/* Mobile fallback: every ops_cards_* group is two columns, same DOM path as leader_view. */
+/* Admin buttons use exactly the same idle/hover colors as work-management cards. */
+div[class*="st-key-admin_nav_card_"] button,
+div[class*="st-key-admin_nav_card_"] button[kind="primary"],
+div[class*="st-key-admin_nav_card_"] button[data-testid="stBaseButton-primary"]{
+  background:linear-gradient(135deg,#173A37,#15302E)!important;
+  color:#F4FFFC!important;-webkit-text-fill-color:#F4FFFC!important;
+  border-color:rgba(164,232,219,.42)!important;
+  box-shadow:0 6px 17px rgba(0,0,0,.24)!important;
+}
+div[class*="st-key-admin_nav_card_"] button *,
+div[class*="st-key-admin_nav_card_"] button[kind="primary"] *{
+  color:#F4FFFC!important;-webkit-text-fill-color:#F4FFFC!important;
+}
+div[class*="st-key-admin_nav_card_"] button:hover,
+div[class*="st-key-admin_nav_card_"] button[kind="primary"]:hover{
+  background:linear-gradient(135deg,#20514B,#1A3D39)!important;
+  color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;
+  border-color:#F4B41A!important;
+}
+
+/* CSS fallback only. The JS below resolves Streamlit's nested column wrapper. */
 @media(max-width:768px){
-  div[class*="st-key-ops_cards_"] div[data-testid="stHorizontalBlock"]{
-    display:flex!important;flex-wrap:wrap!important;gap:.44rem!important;align-items:stretch!important;
-  }
-  div[class*="st-key-ops_cards_"] div[data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
-  div[class*="st-key-ops_cards_"] div[data-testid="stHorizontalBlock"] > [data-testid="column"],
-  div[class*="st-key-ops_cards_"] div[data-testid="stHorizontalBlock"] > div{
-    flex:0 0 calc(50% - .22rem)!important;
-    width:calc(50% - .22rem)!important;
-    min-width:0!important;max-width:calc(50% - .22rem)!important;
-    box-sizing:border-box!important;margin:0!important;padding:0!important;
-  }
   div[class*="st-key-ops_cards_"] button{
     width:100%!important;min-height:70px!important;padding:7px 6px!important;border-radius:13px!important;
   }
@@ -106,12 +113,6 @@ div[class*="st-key-ops_create_qlkh_view_"] button:hover{
   }
 }
 @media(max-width:430px){
-  div[class*="st-key-ops_cards_"] div[data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
-  div[class*="st-key-ops_cards_"] div[data-testid="stHorizontalBlock"] > [data-testid="column"],
-  div[class*="st-key-ops_cards_"] div[data-testid="stHorizontalBlock"] > div{
-    flex:0 0 calc(50% - .22rem)!important;
-    width:calc(50% - .22rem)!important;min-width:0!important;max-width:calc(50% - .22rem)!important;
-  }
   div[class*="st-key-ops_cards_"] button{min-height:66px!important;padding:6px 4px!important}
   div[class*="st-key-ops_cards_"] button p{font-size:.64rem!important}
 }
@@ -128,6 +129,92 @@ div[class*="st-key-ops_create_qlkh_view_"] button:hover{
       : document.querySelector('[data-testid="stExpandSidebarButton"]');
     if(button) button.click();
   };
+
+  /*
+   * Streamlit currently inserts an extra wrapper around stColumn on some phone
+   * breakpoints. Earlier CSS shrank that wrapper to 50%, which produced exactly
+   * the symptom seen on iPhone: every card was half-width but still stacked in
+   * one left-hand column. Resolve the real column parent after render and apply
+   * the same two-column layout used by the working Leader work-management page.
+   */
+  const directChildUnder=(node,parent)=>{
+    let cur=node;
+    while(cur&&cur.parentElement&&cur.parentElement!==parent) cur=cur.parentElement;
+    return cur;
+  };
+  const commonAncestor=(nodes,limit)=>{
+    if(!nodes.length) return null;
+    let p=nodes[0].parentElement;
+    while(p&&p!==limit){
+      if(nodes.every(n=>p.contains(n))) return p;
+      p=p.parentElement;
+    }
+    return limit;
+  };
+  const forceTwoColumnCards=()=>{
+    if(!mobile()) return;
+    const roots=document.querySelectorAll(
+      'div[class*="st-key-ops_cards_support_view"],div[class*="st-key-ops_cards_qlkh_view"],div[class*="st-key-ops_cards_leader_view"],div[class*="st-key-ops_cards_admin_view"]'
+    );
+    roots.forEach(root=>{
+      const hb=root.querySelector('[data-testid="stHorizontalBlock"]')||root;
+      const cols=[...hb.querySelectorAll('[data-testid="stColumn"],[data-testid="column"]')]
+        .filter(c=>c.querySelector('button'));
+      if(cols.length<2) return;
+
+      let layout=commonAncestor(cols,hb)||hb;
+      if(layout===hb){
+        const parents=[...new Set(cols.map(c=>c.parentElement))];
+        if(parents.length===1&&parents[0]) layout=parents[0];
+      }
+
+      /* Undo any old 50%-width rule applied to the outer Streamlit wrapper. */
+      let outer=layout;
+      while(outer&&outer!==hb){
+        outer.style.setProperty('width','100%','important');
+        outer.style.setProperty('max-width','100%','important');
+        outer.style.setProperty('min-width','0','important');
+        outer.style.setProperty('flex','1 1 100%','important');
+        outer=outer.parentElement;
+      }
+      hb.style.setProperty('width','100%','important');
+      hb.style.setProperty('max-width','100%','important');
+
+      layout.style.setProperty('display','flex','important');
+      layout.style.setProperty('flex-wrap','wrap','important');
+      layout.style.setProperty('gap','7px','important');
+      layout.style.setProperty('align-items','stretch','important');
+      layout.style.setProperty('width','100%','important');
+      layout.style.setProperty('max-width','100%','important');
+
+      const items=[...new Set(cols.map(c=>directChildUnder(c,layout)).filter(Boolean))];
+      items.forEach(item=>{
+        item.style.setProperty('flex','0 0 calc(50% - 4px)','important');
+        item.style.setProperty('width','calc(50% - 4px)','important');
+        item.style.setProperty('max-width','calc(50% - 4px)','important');
+        item.style.setProperty('min-width','0','important');
+        item.style.setProperty('box-sizing','border-box','important');
+        item.style.setProperty('margin','0','important');
+      });
+      cols.forEach(col=>{
+        col.style.setProperty('width','100%','important');
+        col.style.setProperty('max-width','100%','important');
+        col.style.setProperty('min-width','0','important');
+      });
+    });
+  };
+
+  let raf=0;
+  const scheduleGrid=()=>{
+    if(raf) cancelAnimationFrame(raf);
+    raf=requestAnimationFrame(()=>{raf=0;forceTwoColumnCards();});
+  };
+  new MutationObserver(scheduleGrid).observe(document.documentElement,{childList:true,subtree:true});
+  window.addEventListener('resize',scheduleGrid,{passive:true});
+  document.addEventListener('DOMContentLoaded',scheduleGrid,{once:true});
+  setTimeout(scheduleGrid,250);
+  setTimeout(scheduleGrid,900);
+
   let startX=0,startY=0,tracking=false,startedInPanel=false;
   document.addEventListener('touchstart',event=>{
     if(!mobile()||event.touches.length!==1) return;
