@@ -38,10 +38,12 @@ jobs:
             khdn_apps/weekly_plan_v8.py \
             khdn_apps/weekly_plan_v9.py \
             khdn_apps/weekly_plan_v10.py \
+            khdn_apps/weekly_plan_v11.py \
             khdn_apps/app_weekly.py \
             khdn_apps/online_entry.py \
             khdn_apps/test_weekly_plan_smoke.py \
             khdn_apps/test_weekly_plan_v10.py \
+            khdn_apps/test_weekly_plan_v11.py \
             khdn_apps/test_weekly_plan_ui.py
       - name: Install KHDN dependencies
         run: pip install --disable-pip-version-check -r khdn_apps/requirements.txt
@@ -49,6 +51,8 @@ jobs:
         run: python -m khdn_apps.test_weekly_plan_smoke
       - name: Run Weekly Plan V10 autosave tests
         run: python -m khdn_apps.test_weekly_plan_v10
+      - name: Run Weekly Plan V11 filter/drill-down tests
+        run: python -m khdn_apps.test_weekly_plan_v11
       - name: Run Weekly Plan Streamlit UI tests
         run: python -m khdn_apps.test_weekly_plan_ui
       - name: Run existing KHDN regression tests
