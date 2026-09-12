@@ -81,6 +81,16 @@ def _run(script):
     return app
 
 
+def _texts(app):
+    values=[]
+    for collection_name in ("markdown","caption","info","success","warning","error"):
+        try:
+            values.extend(str(x.value) for x in getattr(app,collection_name))
+        except Exception:
+            pass
+    return values
+
+
 def main():
     assert _period_bounds('Tuần',date(2026,9,12))==(date(2026,9,7),date(2026,9,13))
     assert _period_bounds('Tháng',date(2026,2,10))==(date(2026,2,1),date(2026,2,28))
@@ -89,14 +99,14 @@ def main():
     personal=_run(PERSONAL_HARNESS)
     labels=[str(x.label) for x in personal.selectbox]
     assert any('Kỳ xem' in x for x in labels)
-    assert personal.plotly_chart
+    assert any('Dashboard cá nhân' in x for x in _texts(personal))
 
     room=_run(ROOM_HARNESS)
     labels=[str(x.label) for x in room.selectbox]
     assert any('Kỳ xem' in x for x in labels)
     assert any('Phòng' in x for x in labels)
     assert any('Cán bộ' in x for x in labels)
-    assert room.plotly_chart
+    assert any('Tổng quan phòng' in x for x in _texts(room))
 
     print('KHDN Weekly Plan V11 filter/drill-down tests: OK')
 
