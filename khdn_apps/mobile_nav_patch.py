@@ -1,4 +1,4 @@
-"""Build-time source patch for compact KHDN mobile navigation and leader analytics.
+"""Build-time source patch for compact KHDN mobile navigation and dashboard analytics.
 
 The production loader keeps the large Streamlit engine compressed. This helper
 patches only navigation/UI/reporting fragments before that engine is executed,
@@ -14,7 +14,7 @@ def _replace_once(source: str, old: str, new: str, label: str) -> str:
 
 def patch_source(source: str) -> str:
     # Allow action cards without a numeric counter. Status cards keep their
-    # existing counters/attention animation; create/navigation cards render plain.
+    # existing counters/attention animation; create cards render as plain CTAs.
     source = _replace_once(
         source,
         '            container_key = f"ops_alert_hot_{state_key}_{idx}" if needs_attention else f"ops_alert_idle_{state_key}_{idx}"\n',
@@ -28,8 +28,8 @@ def patch_source(source: str) -> str:
         "ops card label",
     )
 
-    # CBHT: put the only standalone action in the status-card group and remove
-    # the separate operation-tab strip beneath it.
+    # CBHT: place Create in the same status-card group and remove the separate
+    # operation-tab strip. The source ops_action_cards() remains the renderer.
     source = _replace_once(
         source,
         '    ops_action_cards("support_view",[\n        ("inbox","📥","Chờ tiếp nhận",wait_count,True,wait_count>0),\n',
@@ -43,8 +43,7 @@ def patch_source(source: str) -> str:
         "CBHT operation tabs",
     )
 
-    # QLKH: create/assign becomes a card beside workflow statuses; review,
-    # assigned and history are reached directly from the status cards.
+    # QLKH: same structure as leader_view — one ops_action_cards() group only.
     source = _replace_once(
         source,
         '    ops_action_cards("qlkh_view",[("assigned","📤","Chờ CBHT tiếp nhận",wait,True,wait>0),("assigned","↩️","CBHT trả lại",returned,True,returned>0,{"qlkh_focus":"returned"}),("assigned","🛠️","CBHT đang xử lý",work,True,False),("review","⭐","Chờ tôi đánh giá",len(pending),True,len(pending)>0),("history","✅","Đã kết thúc",closed,False,False)])\n',
@@ -58,8 +57,8 @@ def patch_source(source: str) -> str:
         "QLKH operation tabs",
     )
 
-    # Lãnh đạo/Admin - Quản lý công việc: the status cards themselves are the
-    # navigation. Remove the redundant two-button strip underneath them.
+    # Lãnh đạo/Admin - Quản lý công việc: status cards are navigation; remove
+    # the redundant two-button strip beneath them.
     source = _replace_once(
         source,
         '    view=pill_nav("leader_view",[("active","📋 Công việc đang theo dõi"),("history","🕘 Lịch sử & yêu cầu làm lại")],default="active",prefix="subnav_leader")\n',
@@ -67,14 +66,27 @@ def patch_source(source: str) -> str:
         "Leader operation tabs",
     )
 
-    # Admin: use exactly the same ops_action_cards rendering mechanism as the
-    # Leader work-management page. This removes the special pill DOM that kept
-    # collapsing to one column on phones while preserving all five old actions.
+    # Admin keeps the original five choices and old active/idle color semantics,
+    # but is rendered inside the same ops_cards_* container family as leader_view.
+    admin_nav = (
+        '    _admin_options=[("users","👥","Người dùng"),("customers","🏢","Khách hàng CIF"),("types","🧩","Loại công việc"),("audit","🧾","Audit"),("backup","💾","Sao lưu")]\n'
+        '    _admin_values=[v for v,_,_ in _admin_options]\n'
+        '    _admin_current=st.session_state.get("admin_view","users")\n'
+        '    if _admin_current not in _admin_values: _admin_current="users"; st.session_state["admin_view"]="users"\n'
+        '    with st.container(key="ops_cards_admin_view"):\n'
+        '        _admin_cols=st.columns(len(_admin_options),gap="small")\n'
+        '        for _idx,(_value,_icon,_label) in enumerate(_admin_options):\n'
+        '            with _admin_cols[_idx]:\n'
+        '                with st.container(key=f"admin_nav_card_{_idx}"):\n'
+        '                    if st.button(f"{_icon}  {_label}",key=f"adminnav_{_value}",use_container_width=True,type="primary" if _admin_current==_value else "secondary"):\n'
+        '                        st.session_state["admin_view"]=_value; st.rerun()\n'
+        '    admin_view=st.session_state.get("admin_view","users")\n'
+    )
     source = _replace_once(
         source,
         '    admin_view = pill_nav("admin_view", [("users","👥 Người dùng"),("customers","🏢 Khách hàng CIF"),("types","🧩 Loại công việc"),("audit","🧾 Audit"),("backup","💾 Sao lưu")], default="users", prefix="subnav_admin")\n',
-        '    _admin_cards=[("users","👥","Người dùng",None,False,False),("customers","🏢","Khách hàng CIF",None,False,False),("types","🧩","Loại công việc",None,False,False),("audit","🧾","Audit",None,False,False),("backup","💾","Sao lưu",None,False,False)]\n    ops_action_cards("admin_view",_admin_cards)\n    admin_view=st.session_state.get("admin_view","users")\n    if admin_view not in {"users","customers","types","audit","backup"}:\n        admin_view="users"; st.session_state["admin_view"]=admin_view\n',
-        "Admin leader-style cards",
+        admin_nav,
+        "Admin leader-structure navigation",
     )
 
     # Dashboard-only workflow analysis. Attribution comes from task_actions so
@@ -83,7 +95,7 @@ def patch_source(source: str) -> str:
     workflow_helper = r'''
 
 def _render_workflow_staff_analysis(task_df):
-    """Dashboard: số hồ sơ điều phối / trả lại / hủy theo cán bộ, tuần và tháng hiện tại."""
+    # Dashboard: unique hồ sơ điều phối / trả lại / hủy theo cán bộ, tuần/tháng hiện tại.
     if task_df is None or task_df.empty or "id" not in task_df.columns:
         st.info("Chưa có dữ liệu điều phối / trả lại / hủy hồ sơ.")
         return
@@ -167,9 +179,8 @@ def _render_workflow_staff_analysis(task_df):
         unsafe_allow_html=True,
     )
 
-    # Heatmap is applied directly to the data table. No separate heatmap chart.
-    table = show[["Cán bộ","Vai trò"] + numeric_cols].copy()
-    heat_max = max(1, int(table[numeric_cols].to_numpy().max()))
+    # Heatmap trực tiếp trên bảng; mỗi vai trò có một bảng riêng.
+    global_heat_max = max(1, int(show[numeric_cols].to_numpy().max()))
     def _heat_style(v):
         try:
             n = int(v)
@@ -177,7 +188,7 @@ def _render_workflow_staff_analysis(task_df):
             return ""
         if n <= 0:
             return "background-color:#17312F;color:#D9EEEA;font-weight:700;"
-        ratio = min(1.0, max(0.0, n / heat_max))
+        ratio = min(1.0, max(0.0, n / global_heat_max))
         if ratio <= 0.25:
             return "background-color:#195F58;color:#FFFFFF;font-weight:850;"
         if ratio <= 0.50:
@@ -185,13 +196,22 @@ def _render_workflow_staff_analysis(task_df):
         if ratio <= 0.75:
             return "background-color:#B88716;color:#16120A;font-weight:950;"
         return "background-color:#F4B41A;color:#181306;font-weight:950;"
-    sty = table.style
-    try:
-        sty = sty.map(_heat_style, subset=numeric_cols)
-    except AttributeError:
-        sty = sty.applymap(_heat_style, subset=numeric_cols)
-    sty = sty.set_properties(subset=["Tổng tuần","Tổng tháng"], **{"font-weight":"950","border-left":"2px solid #F4B41A"})
-    st.dataframe(sty, use_container_width=True, hide_index=True, height=_task_list_height(len(table), 520))
+
+    present_roles = [str(x) for x in show["Vai trò"].dropna().astype(str).unique().tolist()]
+    preferred = ["Cán bộ hỗ trợ", "Cán bộ QLKH", "Lãnh đạo phòng"]
+    role_order = [r for r in preferred if r in present_roles] + sorted([r for r in present_roles if r not in preferred])
+    for role in role_order:
+        table = show[show["Vai trò"].astype(str).eq(role)][["Cán bộ"] + numeric_cols].copy()
+        if table.empty:
+            continue
+        st.markdown(f"#### {role}")
+        sty = table.style
+        try:
+            sty = sty.map(_heat_style, subset=numeric_cols)
+        except AttributeError:
+            sty = sty.applymap(_heat_style, subset=numeric_cols)
+        sty = sty.set_properties(subset=["Tổng tuần","Tổng tháng"], **{"font-weight":"950","border-left":"2px solid #F4B41A"})
+        st.dataframe(sty, use_container_width=True, hide_index=True, height=_task_list_height(len(table), 420))
 '''
     source = _replace_once(
         source,
@@ -200,22 +220,22 @@ def _render_workflow_staff_analysis(task_df):
         "workflow staff analysis helper",
     )
 
-    # Place the workflow analysis at the absolute bottom of Dashboard, after the
-    # detailed data table and Excel export. Do not render it in Quản lý công việc.
-    dashboard_report_line = '    report=make_excel_report(detail_df, support_privacy=support_view); st.download_button("Xuất báo cáo Excel theo bộ lọc",report,file_name=f"KHDN_TacNghiep_{datetime.now():%Y%m%d_%H%M}.xlsx",mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",type="primary")\n'
+    # Workflow analysis sits immediately before Dữ liệu chi tiết. Therefore the
+    # detailed data table + Excel export are the absolute bottom of Dashboard.
+    detail_anchor = '    st.subheader("Dữ liệu chi tiết")\n'
     source = _replace_once(
         source,
-        dashboard_report_line,
-        dashboard_report_line + '    if bool(u["is_admin"]) or u["role"] == "Lãnh đạo phòng":\n        st.markdown("## Phân tích điều phối / trả lại / hủy hồ sơ theo cán bộ")\n        _render_workflow_staff_analysis(room_f)\n',
-        "Dashboard bottom workflow analysis",
+        detail_anchor,
+        '    if bool(u["is_admin"]) or u["role"] == "Lãnh đạo phòng":\n        st.markdown("## Phân tích điều phối / trả lại / hủy hồ sơ theo cán bộ")\n        _render_workflow_staff_analysis(room_f)\n\n' + detail_anchor,
+        "Dashboard workflow analysis before detail",
     )
 
-    # Final CSS uses the SAME flex-wrap structure that already works on the
-    # Leader work-management page. It targets all ops_cards_* containers,
-    # including Admin after the conversion above.
+    # Final CSS: support/QLKH use exactly the same ops_cards_* structure as the
+    # working leader_view. Admin uses the same container layout but restores the
+    # old subnav teal/dark color semantics and compact pill height.
     final_mobile_css = r'''
 
-    /* V2.34: one proven mobile layout path for Leader/Admin/CBHT/CBQLKH */
+    /* V2.35: one proven layout path for Leader/Admin/CBHT/CBQLKH */
     div[class*="st-key-ops_create_support_view_"] button,
     div[class*="st-key-ops_create_qlkh_view_"] button,
     div[class*="st-key-ops_alert_create_support_view_"] button,
@@ -232,17 +252,28 @@ def _render_workflow_staff_analysis(task_df):
       color:#2B2410!important;-webkit-text-fill-color:#2B2410!important;font-weight:950!important;
     }
 
-    /* Admin cards are navigation, not yellow create actions. */
-    div[class*="st-key-ops_create_admin_view_"] button{
-      background:#17312F!important;color:#F4FFFC!important;-webkit-text-fill-color:#F4FFFC!important;
-      border:1.5px solid rgba(164,232,219,.48)!important;box-shadow:0 5px 14px rgba(0,0,0,.16)!important;
-      font-weight:850!important;
+    /* Admin: restore the original subnav palette. */
+    div[class*="st-key-admin_nav_card_"] button{
+      min-height:43px!important;border-radius:999px!important;
+      border:1.6px solid rgba(164,232,219,.42)!important;
+      background:linear-gradient(135deg,#173A37,#15302E)!important;
+      color:#F4FFFC!important;-webkit-text-fill-color:#F4FFFC!important;
+      font-size:.88rem!important;font-weight:850!important;
+      box-shadow:0 5px 14px rgba(0,0,0,.20)!important;padding:0 15px!important;
     }
-    div[class*="st-key-ops_create_admin_view_"] button *{color:#F4FFFC!important;-webkit-text-fill-color:#F4FFFC!important}
-    div[class*="st-key-ops_create_admin_view_"] button:hover{background:#24504A!important;border-color:#F4B41A!important}
+    div[class*="st-key-admin_nav_card_"] button *{color:inherit!important;-webkit-text-fill-color:inherit!important}
+    div[class*="st-key-admin_nav_card_"] button:hover{
+      background:linear-gradient(135deg,#20514B,#1A3D39)!important;
+      border-color:#F4B41A!important;color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;
+    }
+    div[class*="st-key-admin_nav_card_"] button[kind="primary"],
+    div[class*="st-key-admin_nav_card_"] button[data-testid="stBaseButton-primary"]{
+      background:linear-gradient(135deg,#006B68,#008F80)!important;
+      color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;
+      border-color:#F4B41A!important;box-shadow:0 8px 19px rgba(11,127,117,.24)!important;
+    }
 
     @media(max-width:768px){
-      /* Same flex-wrap strategy for every workflow/admin card group. */
       div[class*="st-key-ops_cards_"] [data-testid="stHorizontalBlock"]{
         display:flex!important;flex-wrap:wrap!important;gap:.44rem!important;
         align-items:stretch!important;overflow:visible!important;width:100%!important;
@@ -262,23 +293,30 @@ def _render_workflow_staff_analysis(task_df):
         font-size:.69rem!important;line-height:1.12!important;margin:0!important;
         white-space:pre-line!important;overflow-wrap:anywhere!important;
       }
-      div[class*="st-key-ops_cards_admin_view"] button{min-height:50px!important}
-      div[class*="st-key-ops_cards_admin_view"] button p{font-size:.70rem!important;white-space:normal!important}
+
+      /* Admin keeps compact old-style buttons inside the same two-column grid. */
+      div[class*="st-key-ops_cards_admin_view"] div[class*="st-key-admin_nav_card_"] button{
+        min-height:46px!important;height:100%!important;border-radius:999px!important;padding:5px 9px!important;
+      }
+      div[class*="st-key-ops_cards_admin_view"] div[class*="st-key-admin_nav_card_"] button p{
+        font-size:.70rem!important;line-height:1.12!important;white-space:normal!important;
+      }
       div[class*="st-key-ops_cards_"]{margin-bottom:.35rem!important}
     }
 
     @media(max-width:430px){
-      /* Never fall back to Streamlit's one-column phone rule for these groups. */
       div[class*="st-key-ops_cards_"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
       div[class*="st-key-ops_cards_"] [data-testid="stHorizontalBlock"] > [data-testid="column"],
       div[class*="st-key-ops_cards_"] [data-testid="stHorizontalBlock"] > div{
-        flex-basis:calc(50% - .22rem)!important;width:calc(50% - .22rem)!important;
-        min-width:0!important;max-width:calc(50% - .22rem)!important;
+        flex:0 0 calc(50% - .22rem)!important;
+        width:calc(50% - .22rem)!important;min-width:0!important;max-width:calc(50% - .22rem)!important;
       }
       div[class*="st-key-ops_cards_"] button{min-height:66px!important;padding:6px 4px!important}
       div[class*="st-key-ops_cards_"] button p{font-size:.64rem!important}
-      div[class*="st-key-ops_cards_admin_view"] button{min-height:46px!important;padding:5px 4px!important}
-      div[class*="st-key-ops_cards_admin_view"] button p{font-size:.66rem!important}
+      div[class*="st-key-ops_cards_admin_view"] div[class*="st-key-admin_nav_card_"] button{
+        min-height:44px!important;padding:4px 6px!important;
+      }
+      div[class*="st-key-ops_cards_admin_view"] div[class*="st-key-admin_nav_card_"] button p{font-size:.66rem!important}
     }
 '''
     css_anchor = '</style>""", unsafe_allow_html=True)\n\ndef page_title(title, caption=None):'
