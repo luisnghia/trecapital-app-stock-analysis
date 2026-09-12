@@ -11,9 +11,8 @@ def install():
     assets = app_dir / "static"
     index = static / "index.html"
 
-    # Patch the compressed loader before runtime.  The large application engine
-    # stays compressed in Git; only the compact mobile navigation fragments are
-    # transformed immediately before exec().
+    # Patch the compressed loader before runtime. The large application engine
+    # stays compressed in Git; only compact UI fragments are transformed before exec().
     loader = app_dir / "app.py"
     loader_text = loader.read_text(encoding="utf-8")
     patch_marker = (
@@ -25,7 +24,25 @@ def install():
         if exec_line not in loader_text:
             raise RuntimeError("KHDN loader exec line not found; mobile navigation patch not installed")
         loader_text = loader_text.replace(exec_line, patch_marker + exec_line, 1)
-        loader.write_text(loader_text, encoding="utf-8")
+
+    # V2.35: the old runtime support/QLKH override recreated ops_action_cards()
+    # after the patched source had been loaded. That gave CBHT/QLKH a different
+    # DOM path from leader_view and defeated the proven mobile 2-column layout.
+    # Remove that override at image-build time so all three workflow pages use
+    # the exact same source ops_action_cards() renderer.
+    runtime_nav_start = "# Remove the separate workflow pill strip on the two operational pages."
+    runtime_nav_end = "# Dark-mode readability + yellow Create actions."
+    start_idx = loader_text.find(runtime_nav_start)
+    if start_idx >= 0:
+        end_idx = loader_text.find(runtime_nav_end, start_idx)
+        if end_idx < 0:
+            raise RuntimeError("KHDN runtime navigation override end marker not found")
+        loader_text = (
+            loader_text[:start_idx]
+            + "# V2.35: CBHT/QLKH use the same patched source navigation renderer as leader_view.\n"
+            + loader_text[end_idx:]
+        )
+    loader.write_text(loader_text, encoding="utf-8")
 
     page = index.read_text(encoding="utf-8")
     if "</head>" not in page:
@@ -68,36 +85,35 @@ div[class*="st-key-ops_create_qlkh_view_"] button:hover{
   box-shadow:0 10px 24px rgba(244,180,26,.34)!important;
 }
 
-/* Mobile: retain two compact cards per row instead of a long vertical stack. */
-@media(max-width:700px){
-  div[class*="st-key-ops_cards_support_view"] div[data-testid="stHorizontalBlock"],
-  div[class*="st-key-ops_cards_qlkh_view"] div[data-testid="stHorizontalBlock"]{
-    display:flex!important;flex-wrap:wrap!important;gap:.45rem!important;
+/* Mobile fallback: every ops_cards_* group is two columns, same DOM path as leader_view. */
+@media(max-width:768px){
+  div[class*="st-key-ops_cards_"] div[data-testid="stHorizontalBlock"]{
+    display:flex!important;flex-wrap:wrap!important;gap:.44rem!important;align-items:stretch!important;
   }
-  div[class*="st-key-ops_cards_support_view"] div[data-testid="column"],
-  div[class*="st-key-ops_cards_qlkh_view"] div[data-testid="column"]{
-    flex:1 1 calc(50% - .45rem)!important;
-    width:calc(50% - .45rem)!important;
-    min-width:140px!important;
+  div[class*="st-key-ops_cards_"] div[data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+  div[class*="st-key-ops_cards_"] div[data-testid="stHorizontalBlock"] > [data-testid="column"],
+  div[class*="st-key-ops_cards_"] div[data-testid="stHorizontalBlock"] > div{
+    flex:0 0 calc(50% - .22rem)!important;
+    width:calc(50% - .22rem)!important;
+    min-width:0!important;max-width:calc(50% - .22rem)!important;
+    box-sizing:border-box!important;margin:0!important;padding:0!important;
   }
-  div[class*="st-key-ops_cards_support_view"] button,
-  div[class*="st-key-ops_cards_qlkh_view"] button{
-    min-height:80px!important;padding:8px 7px!important;border-radius:14px!important;
+  div[class*="st-key-ops_cards_"] button{
+    width:100%!important;min-height:70px!important;padding:7px 6px!important;border-radius:13px!important;
   }
-  div[class*="st-key-ops_cards_support_view"] button p,
-  div[class*="st-key-ops_cards_qlkh_view"] button p{
-    font-size:.70rem!important;line-height:1.18!important;white-space:pre-line!important;
+  div[class*="st-key-ops_cards_"] button p{
+    font-size:.69rem!important;line-height:1.12!important;white-space:pre-line!important;
   }
 }
-@media(max-width:390px){
-  div[class*="st-key-ops_cards_support_view"] div[data-testid="column"],
-  div[class*="st-key-ops_cards_qlkh_view"] div[data-testid="column"]{
-    flex-basis:calc(50% - .35rem)!important;width:calc(50% - .35rem)!important;min-width:0!important;
+@media(max-width:430px){
+  div[class*="st-key-ops_cards_"] div[data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+  div[class*="st-key-ops_cards_"] div[data-testid="stHorizontalBlock"] > [data-testid="column"],
+  div[class*="st-key-ops_cards_"] div[data-testid="stHorizontalBlock"] > div{
+    flex:0 0 calc(50% - .22rem)!important;
+    width:calc(50% - .22rem)!important;min-width:0!important;max-width:calc(50% - .22rem)!important;
   }
-  div[class*="st-key-ops_cards_support_view"] button,
-  div[class*="st-key-ops_cards_qlkh_view"] button{min-height:76px!important;padding:7px 5px!important}
-  div[class*="st-key-ops_cards_support_view"] button p,
-  div[class*="st-key-ops_cards_qlkh_view"] button p{font-size:.66rem!important}
+  div[class*="st-key-ops_cards_"] button{min-height:66px!important;padding:6px 4px!important}
+  div[class*="st-key-ops_cards_"] button p{font-size:.64rem!important}
 }
 </style>
 <script id="khdn-mobile-swipe">
