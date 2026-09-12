@@ -1,0 +1,44 @@
+name: Export KHDN App Archive
+
+on:
+  push:
+    branches:
+      - feature/khdn-official-bidv-ios-icon
+    paths:
+      - '.github/workflows/export-khdn-app.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p export_pkg
+          cp -a khdn_apps export_pkg/khdn_apps
+          cat > export_pkg/EXPORT_INFO.txt <<'EOF'
+          KHDN Apps source archive
+          Branch: feature/khdn-official-bidv-ios-icon
+          Production source baseline: commit 282253865edb507d488f59e334a6137957d90a43
+          Export created by GitHub Actions.
+          This archive contains application source/config/assets only.
+          Production database and Railway environment secrets are intentionally excluded.
+          EOF
+          cd export_pkg
+          zip -r ../KHDNApps_Source_2026-09-12.zip khdn_apps EXPORT_INFO.txt
+
+      - name: Upload archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KHDNApps_Source_2026-09-12
+          path: KHDNApps_Source_2026-09-12.zip
+          if-no-files-found: error
+          retention-days: 30
