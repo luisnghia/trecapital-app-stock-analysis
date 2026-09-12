@@ -1,6 +1,13 @@
 """Build-time QA for reason-category workflow on the exact V2.38 compressed source."""
 from pathlib import Path
-import base64, gzip
+import base64, gzip, sys
+
+# Docker executes this file directly before the runtime ENV PYTHONPATH is applied.
+# Add /app explicitly so the preflight imports the same package copied into the image.
+_app_root=str(Path(__file__).resolve().parent.parent)
+if _app_root not in sys.path:
+    sys.path.insert(0,_app_root)
+
 from khdn_apps.mobile_nav_patch import patch_source as mobile_patch
 from khdn_apps.reason_categories_patch import patch_source as reason_patch
 
@@ -24,7 +31,7 @@ def main():
         "atomic_transition": "def _reasoned_task_transition" in source,
     }
     failed=[k for k,v in checks.items() if not v]
-    print("KHDN_REASON_PREFLIGHT",checks)
+    print("KHDN_REASON_PREFLIGHT",checks,flush=True)
     if failed:
         raise RuntimeError("Reason-category preflight failed: "+", ".join(failed))
 
