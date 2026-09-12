@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import sqlite3
 import tempfile
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -13,6 +13,8 @@ from khdn_apps import weekly_plan_v2 as v2
 from khdn_apps import weekly_plan_v3 as v3
 from khdn_apps import weekly_plan_v4 as v4
 from khdn_apps import weekly_plan_v5 as v5
+from khdn_apps import weekly_plan_v6 as v6
+from khdn_apps import weekly_plan_v7 as v7
 from khdn_apps.app_weekly import weekly_access_allowed
 
 
@@ -42,7 +44,7 @@ def main():
     assert not weekly_access_allowed({"role": "Quản trị", "is_admin": 1})
     assert not weekly_access_allowed({})
 
-    v4._init_v4_schema(get_conn)
+    v6._init_v6_schema(get_conn)
     year, week, monday, sunday = wp._iso_week()
     plan = wp._get_or_create_plan(get_conn, 1, year, week, monday, sunday)
     focus = wp._focus_df(get_conn, year, active_only=True)
@@ -54,6 +56,14 @@ def main():
     assert wp._classification(None, True, True) == "Q1"
     assert wp._classification(None, True, False) == "Q3"
     assert wp._classification(None, False, False) == "Q4"
+
+    # V6 derives urgency directly from due date instead of asking twice.
+    due_soon = date.today() + timedelta(days=3)
+    due_later = date.today() + timedelta(days=8)
+    assert v6._classification_from_inputs(focus_id, due_soon, False)[0] == "Q2"
+    assert v6._classification_from_inputs(0, due_soon, True)[0] == "Q1"
+    assert v6._classification_from_inputs(0, due_soon, False)[0] == "Q3"
+    assert v6._classification_from_inputs(0, due_later, True)[0] == "Q4"
 
     with get_conn() as c:
         for i in range(3):
@@ -84,6 +94,18 @@ def main():
     ])
     expected_score = 100.0 * (3.0 * 0.6 + 3.0 * 1.0) / 6.0
     assert abs(wp._progress_score(score_df) - expected_score) < 1e-9
+
+    # Durable in-app notification must be generated for a returned plan and deduplicated.
+    with get_conn() as c:
+        c.execute("UPDATE weekly_plans SET status='RETURNED',return_reason='Bổ sung Q2',updated_at=? WHERE id=?",
+                  (wp._now(), int(plan["id"])))
+        c.commit()
+    user = {"id": 1, "username": "cb01", "full_name": "Cán bộ Test", "role": "Cán bộ QLKH"}
+    v7._generate_in_app_notifications(get_conn, user)
+    v7._generate_in_app_notifications(get_conn, user)
+    notes = wp._qdf(get_conn, "SELECT * FROM weekly_notifications WHERE user_id=? AND event_type='RETURNED'", (1,))
+    assert len(notes) == 1
+    assert "Bổ sung Q2" in str(notes.iloc[0]["message"])
 
     # Create a prior incomplete task and confirm carry-forward discovery.
     prev_monday = monday - timedelta(days=7)
