@@ -12,6 +12,7 @@ from khdn_apps import weekly_plan as wp
 from khdn_apps import weekly_plan_v2 as v2
 from khdn_apps import weekly_plan_v3 as v3
 from khdn_apps import weekly_plan_v4 as v4
+from khdn_apps.app_weekly import weekly_access_allowed
 
 
 def main():
@@ -31,6 +32,14 @@ def main():
         c.execute("INSERT INTO users(id,username,full_name,role,active,is_admin) VALUES(1,'cb01','Cán bộ Test','Cán bộ QLKH',1,0)")
         c.execute("INSERT INTO users(id,username,full_name,role,active,is_admin) VALUES(2,'ld01','Lãnh đạo Test','Lãnh đạo phòng',1,0)")
         c.commit()
+
+    # Permission UAT: Weekly Plan is limited to officers and room leaders.
+    assert weekly_access_allowed({"role": "Cán bộ hỗ trợ"})
+    assert weekly_access_allowed({"role": "Cán bộ QLKH"})
+    assert weekly_access_allowed({"role": "Lãnh đạo phòng"})
+    assert not weekly_access_allowed({"role": "Ban Giám đốc"})
+    assert not weekly_access_allowed({"role": "Quản trị", "is_admin": 1})
+    assert not weekly_access_allowed({})
 
     v4._init_v4_schema(get_conn)
     year, week, monday, sunday = wp._iso_week()
