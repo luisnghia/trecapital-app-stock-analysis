@@ -19,12 +19,24 @@ def _replace_required(text: str, variants, replacement: str, label: str) -> str:
 def install():
     patch_file = Path(__file__).resolve().parent / "mobile_nav_patch.py"
     text = patch_file.read_text(encoding="utf-8")
+
+    # 1) Use the very same ancestor-key pattern as the correct Work Management
+    # idle cards. This makes the existing selector
+    #   div[class*="st-key-ops_alert_idle_"] button
+    # apply to Admin without any Admin-specific color declarations.
     text = _replace_required(
         text,
-        ['admin_nav_card_{_idx}'],
+        [
+            'admin_nav_card_{_idx}',
+        ],
         'ops_alert_idle_admin_view_{_idx}',
         "Admin idle container key",
     )
+
+    # 2) Work Management idle cards are secondary buttons. Do exactly the same
+    # for Admin; do not let the selected Admin view become a primary-colored
+    # button. Selection is still tracked in session state and content switching
+    # is unchanged.
     text = _replace_required(
         text,
         [
@@ -34,6 +46,7 @@ def install():
         'type=\"secondary\"',
         "Admin secondary button type",
     )
+
     patch_file.write_text(text, encoding="utf-8")
 
 
