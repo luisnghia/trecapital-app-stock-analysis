@@ -1,0 +1,27 @@
+name: KHDN Weekly Plan CI
+
+on:
+  push:
+    branches:
+      - feature/khdn-weekly-plan-v1
+  pull_request:
+    paths:
+      - 'khdn_apps/weekly_plan*.py'
+      - 'khdn_apps/app_weekly.py'
+      - 'khdn_apps/online_entry.py'
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile Weekly Plan modules
+        run: |
+          python -m py_compile \
+            khdn_apps/weekly_plan.py \
+            khdn_apps/weekly_plan_v2.py \
+            khdn_apps/app_weekly.py \
+            khdn_apps/online_entry.py
