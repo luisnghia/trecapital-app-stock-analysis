@@ -9,6 +9,8 @@ on:
       - 'khdn_apps/weekly_plan*.py'
       - 'khdn_apps/app_weekly.py'
       - 'khdn_apps/online_entry.py'
+      - 'khdn_apps/requirements.txt'
+      - 'khdn_apps/Dockerfile'
 
 jobs:
   syntax:
@@ -23,5 +25,6 @@ jobs:
           python -m py_compile \
             khdn_apps/weekly_plan.py \
             khdn_apps/weekly_plan_v2.py \
+            khdn_apps/weekly_plan_v3.py \
             khdn_apps/app_weekly.py \
             khdn_apps/online_entry.py
