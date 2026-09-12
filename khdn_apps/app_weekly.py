@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from khdn_apps import app as base
-from khdn_apps.weekly_plan import weekly_plan_page
+from khdn_apps.weekly_plan_v2 import weekly_plan_page
 
 
 def sidebar_navigation(u):
