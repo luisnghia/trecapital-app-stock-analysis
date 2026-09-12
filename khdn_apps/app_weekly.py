@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from khdn_apps import app as base
-from khdn_apps.weekly_plan_v13 import weekly_admin_panel, weekly_plan_page
+from khdn_apps.weekly_plan_v14 import weekly_admin_panel, weekly_plan_page
 
 
 WEEKLY_PLAN_ROLES = {"Cán bộ hỗ trợ", "Cán bộ QLKH", "Lãnh đạo phòng"}
