@@ -12,6 +12,7 @@ from khdn_apps import weekly_plan as wp
 from khdn_apps import weekly_plan_v2 as v2
 from khdn_apps import weekly_plan_v3 as v3
 from khdn_apps import weekly_plan_v4 as v4
+from khdn_apps import weekly_plan_v5 as v5
 from khdn_apps.app_weekly import weekly_access_allowed
 
 
@@ -111,11 +112,20 @@ def main():
     assert int(review["auto_fallback"]) == 1
     assert abs(float(review["quality_score"]) - 80.0) < 1e-9
 
-    # Reports must be non-empty and valid container formats.
+    # Personal reports must be valid Excel/PDF containers.
     excel = v2._excel_bytes(get_conn, 1)
     assert excel[:2] == b"PK"
     pdf = v3._pdf_bytes(get_conn, {"id": 1, "username": "cb01", "full_name": "Cán bộ Test"})
     assert pdf[:4] == b"%PDF"
+
+    # Leader room reports cover staff data and are valid Excel/PDF containers.
+    room_excel = v5._room_excel_bytes(get_conn)
+    assert room_excel[:2] == b"PK"
+    room_pdf = v5._room_pdf_bytes(get_conn)
+    assert room_pdf[:4] == b"%PDF"
+    room_summary = v5._room_current_summary(get_conn)
+    assert set(room_summary["role"].astype(str).tolist()) <= {"Cán bộ hỗ trợ", "Cán bộ QLKH"}
+    assert "Lãnh đạo phòng" not in set(room_summary["role"].astype(str).tolist())
 
     print("KHDN Weekly Plan smoke/UAT tests: OK")
 
