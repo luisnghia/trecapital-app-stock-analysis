@@ -5,3 +5,8 @@ backgroundColor = "#0E1F1E"
 secondaryBackgroundColor = "#17312F"
 textColor = "#F4FFFC"
 font = "sans serif"
+
+[server]
+# Serve the bundled favicon/PWA assets so iOS and Android can use the BIDV icon
+# when the app is added to the device home screen.
+enableStaticServing = true
