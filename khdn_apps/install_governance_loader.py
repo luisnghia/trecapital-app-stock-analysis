@@ -1,4 +1,4 @@
-"""Install the V2.39 governance source transformer into the production loader."""
+"""Install governance source transformers into the production loader."""
 from pathlib import Path
 
 
@@ -13,11 +13,18 @@ def install():
         "from khdn_apps.governance_source_patch import patch_source as _governance_patch_source\n"
         "_source = _governance_patch_source(_source)\n"
     )
-    if governance in text:
-        return
+    reason_admin = (
+        "from khdn_apps.reason_admin_ui_patch import patch_source as _reason_admin_patch_source\n"
+        "_source = _reason_admin_patch_source(_source)\n"
+    )
+
     if mobile not in text:
-        raise RuntimeError("V2.39 governance loader requires the mobile source patch marker")
-    text = text.replace(mobile, mobile + governance, 1)
+        raise RuntimeError("Governance loader requires the mobile source patch marker")
+    if governance not in text:
+        text = text.replace(mobile, mobile + governance, 1)
+    if reason_admin not in text:
+        text = text.replace(governance, governance + reason_admin, 1)
+
     app.write_text(text, encoding="utf-8")
 
 
