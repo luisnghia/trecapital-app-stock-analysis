@@ -1,4 +1,4 @@
-"""Compressed loader for KHDN Ops V2.27 production hosting.
+"""Compressed loader for KHDN Ops V2.28 production hosting.
 Loads the engine with persistent paths and consistent SQLite backups.
 """
 from pathlib import Path as _Path

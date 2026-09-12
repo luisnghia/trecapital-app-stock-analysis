@@ -27,7 +27,7 @@ from khdn_apps.storage import snapshot_database, sqlite_backup_bytes, read_statu
 from khdn_apps import device_login
 
 APP_TITLE = "KHDN Ops - Theo dõi tác nghiệp"
-APP_VERSION = "2.27.0"
+APP_VERSION = "2.28.0"
 CLOUD_MODE = str(os.getenv("KHDN_CLOUD_MODE", "0")).strip().lower() in {"1","true","yes","on"}
 DB_PATH = os.getenv("KHDN_DB_PATH", "khdn_ops.db")
 
@@ -57,7 +57,7 @@ APP_ICON_SVG_PATH = STATIC_DIR / "bidv-icon.svg"
 APP_ICON_PNG_PATH = STATIC_DIR / "bidv-icon-180.png"
 APP_ICON_192_PATH = STATIC_DIR / "bidv-icon-192.png"
 APP_ICON_512_PATH = STATIC_DIR / "bidv-icon-512.png"
-APP_ICON_VERSION = "2.27"
+APP_ICON_VERSION = "2.28"
 RUNTIME_DATA_DIR = Path(os.getenv("KHDN_DATA_DIR", str(APP_DIR))).expanduser()
 ANNUAL_ARCHIVE_DIR = RUNTIME_DATA_DIR / "annual_archive"
 LOG_DIR = RUNTIME_DATA_DIR / "logs"
@@ -1014,6 +1014,85 @@ def inject_css():
       div[class*="st-key-ops_alert_"] button [data-testid="stMarkdownContainer"],
       div[class*="st-key-opsaction_"] button [data-testid="stMarkdownContainer"]{font-size:.64rem!important;line-height:1.08!important}
     }
+
+    /* V2.28: final Dark-theme contrast pass.  Streamlit applies
+       -webkit-text-fill-color on markdown containers; that inherited value can
+       make semantic chips and read-only cards look almost blank.  Every custom
+       information surface therefore sets both color and text-fill explicitly. */
+    .task-chip-row{align-items:stretch!important;gap:7px!important}
+    .task-chip{font-weight:850!important;line-height:1.25!important;text-shadow:none!important;box-shadow:0 2px 8px rgba(0,0,0,.16)!important}
+    .task-chip.chip-kh{background:#EAF2FF!important;color:#164E9A!important;-webkit-text-fill-color:#164E9A!important;border-color:#8EB4E8!important}
+    .task-chip.chip-task{background:#FFF3CD!important;color:#7A4B00!important;-webkit-text-fill-color:#7A4B00!important;border-color:#E7B94B!important}
+    .task-chip.chip-value{background:#E7F7EF!important;color:#0B684F!important;-webkit-text-fill-color:#0B684F!important;border-color:#70C9A7!important}
+    .task-chip.chip-time{background:#FFF0E5!important;color:#9A4300!important;-webkit-text-fill-color:#9A4300!important;border-color:#E7A070!important}
+    .task-chip.chip-support{background:#F1EAFE!important;color:#5A3A91!important;-webkit-text-fill-color:#5A3A91!important;border-color:#B69BE6!important}
+    .task-chip.chip-qlkh{background:#E6F7F5!important;color:#08645D!important;-webkit-text-fill-color:#08645D!important;border-color:#67CFC2!important}
+    .task-chip.chip-status{background:#FCE8EC!important;color:#9B2945!important;-webkit-text-fill-color:#9B2945!important;border-color:#E69AAC!important}
+    .task-chip *{color:inherit!important;-webkit-text-fill-color:inherit!important}
+
+    /* Custom cards rendered by st.markdown()/st.html(). */
+    .kpi-label{color:#B7D5D0!important;-webkit-text-fill-color:#B7D5D0!important}
+    .kpi-value{color:#F4FFFC!important;-webkit-text-fill-color:#F4FFFC!important}
+    .kpi-sub{color:#B7D5D0!important;-webkit-text-fill-color:#B7D5D0!important}
+    .perf-period-title{color:#F4FFFC!important;-webkit-text-fill-color:#F4FFFC!important}
+    .perf-trend-label{color:#B7D5D0!important;-webkit-text-fill-color:#B7D5D0!important}
+    .perf-trend-value{color:#F4FFFC!important;-webkit-text-fill-color:#F4FFFC!important}
+    .perf-trend-detail{color:#D7FFF5!important;-webkit-text-fill-color:#D7FFF5!important}
+    .trend-good .perf-trend-value,.trend-good .perf-trend-detail{color:#75E0C7!important;-webkit-text-fill-color:#75E0C7!important}
+    .trend-bad .perf-trend-value,.trend-bad .perf-trend-detail{color:#FFB4B9!important;-webkit-text-fill-color:#FFB4B9!important}
+    .trend-neutral .perf-trend-value,.trend-neutral .perf-trend-detail{color:#D5E8E4!important;-webkit-text-fill-color:#D5E8E4!important}
+    .section-note,.section-note b,.section-note span{color:#E8FFFA!important;-webkit-text-fill-color:#E8FFFA!important}
+    .section-note span[style*="08785E"]{color:#75E0C7!important;-webkit-text-fill-color:#75E0C7!important}
+    .section-note span[style*="C62828"]{color:#FFB4B9!important;-webkit-text-fill-color:#FFB4B9!important}
+    .task-pick-alert,.task-pick-alert *{color:#FFE9A6!important;-webkit-text-fill-color:#FFE9A6!important}
+    .required-error,.required-error *{color:#FFD3D8!important;-webkit-text-fill-color:#FFD3D8!important}
+    .open-list-note,.open-list-note *{color:#D7FFF5!important;-webkit-text-fill-color:#D7FFF5!important}
+    .annual-benchmark-note,.annual-benchmark-note *{color:#D7FFF5!important;-webkit-text-fill-color:#D7FFF5!important}
+    .sidebar-user-name{color:#F4FFFC!important;-webkit-text-fill-color:#F4FFFC!important}
+    .sidebar-user-role{color:#B7D5D0!important;-webkit-text-fill-color:#B7D5D0!important}
+
+    /* Buttons: set the foreground on descendants too, because Streamlit places
+       labels inside nested <p>/<div> nodes. */
+    div.stButton>button,.stDownloadButton>button,
+    div[class*="st-key-mainnav_"] button,div[class*="st-key-subnav_"] button,
+    div[class*="st-key-ops_alert_idle_"] button{color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important}
+    div.stButton>button *, .stDownloadButton>button *,
+    div[class*="st-key-mainnav_"] button *,div[class*="st-key-subnav_"] button *,
+    div[class*="st-key-ops_alert_idle_"] button *{color:inherit!important;-webkit-text-fill-color:inherit!important}
+    @keyframes opsAttentionBlinkReadable{
+      0%,100%{background:linear-gradient(135deg,#5A4312,#735719)!important;color:#FFF7DB!important;border-color:#F4B41A!important;box-shadow:0 7px 18px rgba(245,158,11,.24),0 0 0 0 rgba(245,158,11,.30);transform:translateY(0) scale(1)}
+      50%{background:linear-gradient(135deg,#6B2930,#842F38)!important;color:#FFF0F2!important;border-color:#FF8A8A!important;box-shadow:0 12px 28px rgba(220,38,38,.34),0 0 0 8px rgba(220,38,38,0);transform:translateY(-2px) scale(1.018)}
+    }
+    div[class*="st-key-ops_alert_hot_"] button{animation:opsAttentionBlinkReadable .95s ease-in-out infinite!important;color:#FFF7DB!important;-webkit-text-fill-color:#FFF7DB!important}
+    div[class*="st-key-ops_alert_hot_"] button *,div[class*="st-key-ops_alert_danger_"] button *{color:inherit!important;-webkit-text-fill-color:inherit!important}
+    div[class*="st-key-ops_alert_danger_"] button{background:linear-gradient(135deg,#512329,#6B2930)!important;color:#FFF0F2!important;-webkit-text-fill-color:#FFF0F2!important;border-color:#FF7B86!important}
+
+    /* Read-only HTML tables keep body text and headers independent of inherited
+       Streamlit markdown colors. */
+    table.bidv-html-table,table.bidv-html-table *{text-shadow:none!important}
+    table.bidv-html-table thead th{color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important}
+    table.bidv-html-table tbody td{color:#EAFBF7!important;-webkit-text-fill-color:#EAFBF7!important}
+    table.bidv-html-table tbody td *{color:inherit!important;-webkit-text-fill-color:inherit!important}
+    [data-testid="stDataFrame"]{
+      --gdg-bg-cell:#122624;--gdg-bg-header:#1B403C;--gdg-bg-header-has-focus:#24584F;
+      --gdg-text-dark:#F4FFFC;--gdg-text-light:#B7D5D0;--gdg-text-medium:#D7FFF5;
+      --gdg-text-group-header:#FFFFFF;--gdg-border-color:rgba(164,232,219,.30);
+      --gdg-accent-color:#6FD6C4;--gdg-accent-light:rgba(111,214,196,.20);--gdg-accent-fg:#08211E
+    }
+    [data-testid="stDataFrame"] [role="gridcell"],[data-testid="stDataFrame"] [role="columnheader"]{color:#F4FFFC!important;-webkit-text-fill-color:#F4FFFC!important}
+
+    /* Streamlit alerts, expanders and widget labels. */
+    [data-testid="stAlert"] [data-testid="stMarkdownContainer"],
+    [data-testid="stAlert"] [data-testid="stMarkdownContainer"] *{color:#F4FFFC!important;-webkit-text-fill-color:#F4FFFC!important}
+    [data-testid="stExpander"] summary,[data-testid="stExpander"] summary *{color:#F4FFFC!important;-webkit-text-fill-color:#F4FFFC!important}
+    [data-baseweb="popover"] *,[data-baseweb="menu"] *,[role="listbox"] *,[role="option"] *{text-shadow:none!important}
+
+    /* The yellow create/giao action must win over the generic button descendant
+       rule above. */
+    div[class*="st-key-subnav_qlkh_create"] button,
+    div[class*="st-key-subnav_qlkh_create"] button *{color:#2B2410!important;-webkit-text-fill-color:#2B2410!important}
+    div[class*="st-key-subnav_qlkh_create"] button:hover,
+    div[class*="st-key-subnav_qlkh_create"] button:hover *{color:#201B0A!important;-webkit-text-fill-color:#201B0A!important}
 </style>""", unsafe_allow_html=True)
 
 def page_title(title, caption=None):
