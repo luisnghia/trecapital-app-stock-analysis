@@ -1,5 +1,5 @@
-"""Compressed loader for KHDN Ops V2.24 production hosting.
-Loads the audited V2.23 engine, then adds an online-safe in-app guide fallback.
+"""Compressed loader for KHDN Ops V2.25 production hosting.
+Loads the engine with persistent paths and consistent SQLite backups.
 """
 from pathlib import Path as _Path
 import base64 as _base64
