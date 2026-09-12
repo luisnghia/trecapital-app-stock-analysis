@@ -1,4 +1,4 @@
-# KHDN Ops V2.25 — Persistent Railway deployment
+# KHDN Ops V2.27 — Persistent Railway deployment
 
 The standalone Docker entry point is `python -m khdn_apps.runtime`. The embedded
 Trecapital entry point remains `pages/KHDNApps.py`.

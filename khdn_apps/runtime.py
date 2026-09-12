@@ -66,7 +66,7 @@ def main() -> int:
     signal.signal(signal.SIGINT, forward)
     try:
         child = subprocess.Popen([
-            sys.executable, "-m", "streamlit", "run", str(Path(__file__).with_name("online_entry.py")),
+            sys.executable, "-m", "khdn_apps.web_server", "run", str(Path(__file__).with_name("online_entry.py")),
             "--server.address=0.0.0.0", f"--server.port={os.getenv('PORT', '8080')}",
             "--server.headless=true", "--browser.gatherUsageStats=false",
         ])
