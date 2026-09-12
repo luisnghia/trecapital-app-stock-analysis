@@ -9,7 +9,7 @@ import sqlite3
 import tempfile
 from pathlib import Path
 import streamlit as st
-from khdn_apps.weekly_plan_v11 import weekly_plan_page
+from khdn_apps.weekly_plan_v12 import weekly_plan_page
 
 role = __ROLE__
 tmp = tempfile.mkdtemp(prefix="khdn-weekly-ui-")
