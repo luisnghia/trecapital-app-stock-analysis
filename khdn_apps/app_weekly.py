@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from khdn_apps import app as base
-from khdn_apps.weekly_plan_v11 import weekly_plan_page
+from khdn_apps.weekly_plan_v12 import weekly_admin_panel, weekly_plan_page
 
 
 WEEKLY_PLAN_ROLES = {"Cán bộ hỗ trợ", "Cán bộ QLKH", "Lãnh đạo phòng"}
@@ -114,6 +114,8 @@ def app():
         base.guide_page(u)
     elif page == "admin":
         base.admin_page(u)
+        if bool(u.get("is_admin")):
+            weekly_admin_panel(u, base.get_conn)
 
 
 if __name__ == "__main__":
