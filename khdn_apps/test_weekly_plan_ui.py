@@ -9,7 +9,7 @@ import sqlite3
 import tempfile
 from pathlib import Path
 import streamlit as st
-from khdn_apps.weekly_plan_v5 import weekly_plan_page
+from khdn_apps.weekly_plan_v7 import weekly_plan_page
 
 role = __ROLE__
 tmp = tempfile.mkdtemp(prefix="khdn-weekly-ui-")
@@ -61,6 +61,11 @@ def main():
     assert any("Xuất báo cáo" in x for x in officer_options)
     assert not any("Duyệt & đánh giá" in x for x in officer_options)
     assert not any("Tổng quan phòng" in x for x in officer_options)
+
+    # NT1: due-date urgency is derived, not re-entered through a second checkbox.
+    checkbox_labels = [str(x.label) for x in officer.checkbox]
+    assert not any("Có hạn hoàn thành trong 7 ngày tới" in x for x in checkbox_labels)
+    assert any("chỉ tiêu" in x.lower() or "rủi ro" in x.lower() for x in checkbox_labels)
 
     leader = _run("Lãnh đạo phòng")
     leader_options = _radio_options(leader)
