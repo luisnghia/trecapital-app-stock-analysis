@@ -12,7 +12,8 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # Streamlit's explicit theme config makes Dark the deterministic default in Railway.
 COPY khdn_apps/.streamlit /app/.streamlit
 COPY khdn_apps /app/khdn_apps
-RUN python /app/khdn_apps/install_branding.py \
+RUN python /app/khdn_apps/blind_scoring_patch.py \
+    && python /app/khdn_apps/install_branding.py \
     && python /app/khdn_apps/admin_color_fix.py
 
 ENV PYTHONUNBUFFERED=1 \
