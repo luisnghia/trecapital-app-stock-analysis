@@ -11,6 +11,9 @@ on:
       - 'khdn_apps/online_entry.py'
       - 'khdn_apps/requirements.txt'
       - 'khdn_apps/Dockerfile'
+      - 'khdn_apps/install_branding.py'
+      - 'khdn_apps/admin_color_fix.py'
+      - 'khdn_apps/mobile_nav_patch.py'
 
 jobs:
   validate:
@@ -34,3 +37,5 @@ jobs:
         run: pip install --disable-pip-version-check -r khdn_apps/requirements.txt
       - name: Run Weekly Plan smoke tests
         run: python -m khdn_apps.test_weekly_plan_smoke
+      - name: Build production Docker image
+        run: docker build -f khdn_apps/Dockerfile -t khdn-weekly-plan-ci .
