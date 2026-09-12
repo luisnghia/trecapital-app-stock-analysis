@@ -9,6 +9,8 @@ RUN apt-get update \
 COPY khdn_apps/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
+# Streamlit's explicit theme config makes Light the deterministic default in Railway.
+COPY khdn_apps/.streamlit /app/.streamlit
 COPY khdn_apps /app/khdn_apps
 
 ENV PYTHONUNBUFFERED=1 \
