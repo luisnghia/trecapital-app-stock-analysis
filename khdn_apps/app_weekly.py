@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from khdn_apps import app as base
+from khdn_apps import weekly_plan_v6 as weekly_v6
 from khdn_apps.weekly_plan_v12 import weekly_admin_panel, weekly_plan_page
 
 
@@ -115,6 +116,7 @@ def app():
     elif page == "admin":
         base.admin_page(u)
         if bool(u.get("is_admin")):
+            weekly_v6._init_v6_schema(base.get_conn)
             weekly_admin_panel(u, base.get_conn)
 
 
