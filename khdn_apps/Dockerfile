@@ -13,7 +13,9 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY khdn_apps/.streamlit /app/.streamlit
 COPY khdn_apps /app/khdn_apps
 RUN python /app/khdn_apps/install_branding.py \
-    && python /app/khdn_apps/admin_color_fix.py
+    && python /app/khdn_apps/admin_color_fix.py \
+    && python /app/khdn_apps/reason_categories_preflight.py \
+    && python /app/khdn_apps/install_reason_categories.py
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
