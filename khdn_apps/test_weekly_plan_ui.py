@@ -9,7 +9,7 @@ import sqlite3
 import tempfile
 from pathlib import Path
 import streamlit as st
-from khdn_apps.weekly_plan_v7 import weekly_plan_page
+from khdn_apps.weekly_plan_v9 import weekly_plan_page
 
 role = __ROLE__
 tmp = tempfile.mkdtemp(prefix="khdn-weekly-ui-")
@@ -57,6 +57,7 @@ def main():
     officer = _run("Cán bộ QLKH")
     officer_options = _radio_options(officer)
     assert any("Tuần của tôi" in x for x in officer_options)
+    assert any("Dashboard cá nhân" in x for x in officer_options)
     assert any("8 tuần" in x for x in officer_options)
     assert any("Xuất báo cáo" in x for x in officer_options)
     assert not any("Duyệt & đánh giá" in x for x in officer_options)
@@ -70,6 +71,7 @@ def main():
     leader = _run("Lãnh đạo phòng")
     leader_options = _radio_options(leader)
     assert any("Kế hoạch của tôi" in x for x in leader_options)
+    assert any("Dashboard cá nhân" in x for x in leader_options)
     assert any("Duyệt & đánh giá" in x for x in leader_options)
     assert any("Trọng tâm Q2" in x for x in leader_options)
     assert any("Tổng quan phòng" in x for x in leader_options)
