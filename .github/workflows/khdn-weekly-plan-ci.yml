@@ -43,3 +43,28 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_*.py'
       - name: Build production Docker image
         run: docker build -f khdn_apps/Dockerfile -t khdn-weekly-plan-ci .
+      - name: Boot production image and verify Streamlit health
+        run: |
+          docker run -d --name khdn-weekly-plan-runtime \
+            -p 18080:8080 \
+            -e PORT=8080 \
+            -e KHDN_CLOUD_MODE=1 \
+            -e KHDN_REQUIRE_VOLUME=0 \
+            -e KHDN_DATA_DIR=/tmp/khdn-data \
+            -e KHDN_DB_PATH=/tmp/khdn-data/khdn_ops.db \
+            khdn-weekly-plan-ci
+          healthy=0
+          for i in $(seq 1 35); do
+            if curl -fsS http://127.0.0.1:18080/_stcore/health >/dev/null; then
+              healthy=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$healthy" != "1" ]; then
+            echo 'KHDN container did not become healthy.'
+            docker logs khdn-weekly-plan-runtime || true
+            exit 1
+          fi
+          docker logs khdn-weekly-plan-runtime | tail -n 80 || true
+          docker rm -f khdn-weekly-plan-runtime
