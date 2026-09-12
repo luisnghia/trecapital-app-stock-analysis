@@ -40,6 +40,7 @@ jobs:
             khdn_apps/weekly_plan_v10.py \
             khdn_apps/weekly_plan_v11.py \
             khdn_apps/weekly_plan_v12.py \
+            khdn_apps/weekly_plan_v13.py \
             khdn_apps/app_weekly.py \
             khdn_apps/online_entry.py \
             khdn_apps/test_weekly_plan_smoke.py \
