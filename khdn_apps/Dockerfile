@@ -14,7 +14,8 @@ COPY khdn_apps/.streamlit /app/.streamlit
 COPY khdn_apps /app/khdn_apps
 RUN python /app/khdn_apps/blind_scoring_patch.py \
     && python /app/khdn_apps/install_branding.py \
-    && python /app/khdn_apps/admin_color_fix.py
+    && python /app/khdn_apps/admin_color_fix.py \
+    && python /app/khdn_apps/install_governance_loader.py
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
