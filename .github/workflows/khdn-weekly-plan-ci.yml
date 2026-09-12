@@ -14,6 +14,8 @@ on:
       - 'khdn_apps/install_branding.py'
       - 'khdn_apps/admin_color_fix.py'
       - 'khdn_apps/mobile_nav_patch.py'
+      - 'tests/test_device_sessions.py'
+      - 'tests/test_khdn_storage.py'
 
 jobs:
   validate:
@@ -35,7 +37,9 @@ jobs:
             khdn_apps/test_weekly_plan_smoke.py
       - name: Install KHDN dependencies
         run: pip install --disable-pip-version-check -r khdn_apps/requirements.txt
-      - name: Run Weekly Plan smoke tests
+      - name: Run Weekly Plan smoke/UAT tests
         run: python -m khdn_apps.test_weekly_plan_smoke
+      - name: Run existing KHDN regression tests
+        run: python -m unittest discover -s tests -p 'test_*.py'
       - name: Build production Docker image
         run: docker build -f khdn_apps/Dockerfile -t khdn-weekly-plan-ci .
