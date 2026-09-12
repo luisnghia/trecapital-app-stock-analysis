@@ -14,7 +14,7 @@ def _replace_once(source: str, old: str, new: str, label: str) -> str:
 
 def patch_source(source: str) -> str:
     # Allow action cards without a numeric counter. Status cards keep their
-    # existing counters/attention animation; create cards render as plain CTAs.
+    # existing counters/attention animation; create/navigation cards render plain.
     source = _replace_once(
         source,
         '            container_key = f"ops_alert_hot_{state_key}_{idx}" if needs_attention else f"ops_alert_idle_{state_key}_{idx}"\n',
@@ -67,6 +67,16 @@ def patch_source(source: str) -> str:
         "Leader operation tabs",
     )
 
+    # Admin: use exactly the same ops_action_cards rendering mechanism as the
+    # Leader work-management page. This removes the special pill DOM that kept
+    # collapsing to one column on phones while preserving all five old actions.
+    source = _replace_once(
+        source,
+        '    admin_view = pill_nav("admin_view", [("users","👥 Người dùng"),("customers","🏢 Khách hàng CIF"),("types","🧩 Loại công việc"),("audit","🧾 Audit"),("backup","💾 Sao lưu")], default="users", prefix="subnav_admin")\n',
+        '    _admin_cards=[("users","👥","Người dùng",None,False,False),("customers","🏢","Khách hàng CIF",None,False,False),("types","🧩","Loại công việc",None,False,False),("audit","🧾","Audit",None,False,False),("backup","💾","Sao lưu",None,False,False)]\n    ops_action_cards("admin_view",_admin_cards)\n    admin_view=st.session_state.get("admin_view","users")\n    if admin_view not in {"users","customers","types","audit","backup"}:\n        admin_view="users"; st.session_state["admin_view"]=admin_view\n',
+        "Admin leader-style cards",
+    )
+
     # Dashboard-only workflow analysis. Attribution comes from task_actions so
     # the staff member shown is the person who actually performed the action.
     # Counts are DISTINCT task counts, not event-frequency counts.
@@ -109,11 +119,7 @@ def _render_workflow_staff_analysis(task_df):
     week_start = today - pd.Timedelta(days=int(today.weekday()))
     month_start = today.replace(day=1)
     tomorrow = today + pd.Timedelta(days=1)
-
-    periods = [
-        ("Tuần", week_start, tomorrow),
-        ("Tháng", month_start, tomorrow),
-    ]
+    periods = [("Tuần", week_start, tomorrow), ("Tháng", month_start, tomorrow)]
     cats = ["Điều phối", "Trả lại", "Hủy"]
     actors = acts[["actor","role"]].drop_duplicates().sort_values(["role","actor"], kind="stable")
     rows = []
@@ -160,36 +166,32 @@ def _render_workflow_staff_analysis(task_df):
         '<div class="section-note"><b>Cách ghi nhận:</b> mỗi cán bộ/mỗi nhóm chỉ tiêu chỉ đếm <b>hồ sơ duy nhất</b> trong tuần hoặc tháng hiện tại; không đếm số lần lặp lại. “Điều phối” gồm QLKH đổi CBHT và Lãnh đạo/Admin điều chuyển; “Trả lại” ghi cho CBHT thực hiện trả; “Hủy” ghi cho cán bộ thực hiện hủy.</div>',
         unsafe_allow_html=True,
     )
-    _html_table(show[["Cán bộ","Vai trò"] + numeric_cols], max_height=520)
 
-    # Heatmap theo số lượng hồ sơ, không dùng cột tổng để tránh tổng làm lệch thang màu.
+    # Heatmap is applied directly to the data table. No separate heatmap chart.
+    table = show[["Cán bộ","Vai trò"] + numeric_cols].copy()
+    heat_max = max(1, int(table[numeric_cols].to_numpy().max()))
+    def _heat_style(v):
+        try:
+            n = int(v)
+        except Exception:
+            return ""
+        if n <= 0:
+            return "background-color:#17312F;color:#D9EEEA;font-weight:700;"
+        ratio = min(1.0, max(0.0, n / heat_max))
+        if ratio <= 0.25:
+            return "background-color:#195F58;color:#FFFFFF;font-weight:850;"
+        if ratio <= 0.50:
+            return "background-color:#0B7F75;color:#FFFFFF;font-weight:900;"
+        if ratio <= 0.75:
+            return "background-color:#B88716;color:#16120A;font-weight:950;"
+        return "background-color:#F4B41A;color:#181306;font-weight:950;"
+    sty = table.style
     try:
-        import plotly.graph_objects as go
-        heat_cols = ["Điều phối tuần", "Trả lại tuần", "Hủy tuần", "Điều phối tháng", "Trả lại tháng", "Hủy tháng"]
-        z = show[heat_cols].astype(float).to_numpy()
-        y = [f"{r['Cán bộ']} · {r['Vai trò']}" for _, r in show.iterrows()]
-        fig = go.Figure(go.Heatmap(
-            z=z,
-            x=heat_cols,
-            y=y,
-            text=z.astype(int),
-            texttemplate="%{text}",
-            colorscale=[[0,"#17312F"],[0.45,"#0B7F75"],[0.75,"#F4B41A"],[1,"#D64545"]],
-            colorbar=dict(title="Số hồ sơ", thickness=12),
-            hovertemplate="Cán bộ: %{y}<br>Chỉ tiêu: %{x}<br>Số hồ sơ: %{z:.0f}<extra></extra>",
-        ))
-        fig.update_layout(
-            title=dict(text="Heatmap số lượng hồ sơ điều phối / trả lại / hủy", x=0, xanchor="left", font=dict(size=14)),
-            height=max(320, min(720, 48 * max(1, len(show)) + 180)),
-            margin=dict(l=120, r=20, t=55, b=75),
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(size=11, color="#EAFBF7"),
-        )
-        fig.update_xaxes(tickangle=-20, automargin=True)
-        fig.update_yaxes(automargin=True)
-        st.plotly_chart(fig, use_container_width=True, config=_plotly_config())
-    except Exception as exc:
-        st.caption(f"Chưa thể hiển thị heatmap: {exc}")
+        sty = sty.map(_heat_style, subset=numeric_cols)
+    except AttributeError:
+        sty = sty.applymap(_heat_style, subset=numeric_cols)
+    sty = sty.set_properties(subset=["Tổng tuần","Tổng tháng"], **{"font-weight":"950","border-left":"2px solid #F4B41A"})
+    st.dataframe(sty, use_container_width=True, hide_index=True, height=_task_list_height(len(table), 520))
 '''
     source = _replace_once(
         source,
@@ -208,23 +210,19 @@ def _render_workflow_staff_analysis(task_df):
         "Dashboard bottom workflow analysis",
     )
 
-    # IMPORTANT: Admin stays exactly as the original five-button navigation.
-    # The CSS below only changes mobile layout into two columns.
-
-    # Inject this at the END of inject_css(). Streamlit's base responsive rules
-    # force columns to 100% width at small breakpoints; these more-specific final
-    # selectors support both old `column` and current `stColumn` test IDs.
+    # Final CSS uses the SAME flex-wrap structure that already works on the
+    # Leader work-management page. It targets all ops_cards_* containers,
+    # including Admin after the conversion above.
     final_mobile_css = r'''
 
-    /* V2.33 final compact workflow/admin override */
+    /* V2.34: one proven mobile layout path for Leader/Admin/CBHT/CBQLKH */
     div[class*="st-key-ops_create_support_view_"] button,
     div[class*="st-key-ops_create_qlkh_view_"] button,
     div[class*="st-key-ops_alert_create_support_view_"] button,
     div[class*="st-key-ops_alert_create_qlkh_view_"] button{
       background:linear-gradient(135deg,#FFD45A 0%,#F4B41A 100%)!important;
       color:#2B2410!important;-webkit-text-fill-color:#2B2410!important;
-      border:2px solid #FFE790!important;
-      box-shadow:0 8px 20px rgba(244,180,26,.34)!important;
+      border:2px solid #FFE790!important;box-shadow:0 8px 20px rgba(244,180,26,.34)!important;
       font-weight:950!important;
     }
     div[class*="st-key-ops_create_support_view_"] button *,
@@ -234,88 +232,53 @@ def _render_workflow_staff_analysis(task_df):
       color:#2B2410!important;-webkit-text-fill-color:#2B2410!important;font-weight:950!important;
     }
 
+    /* Admin cards are navigation, not yellow create actions. */
+    div[class*="st-key-ops_create_admin_view_"] button{
+      background:#17312F!important;color:#F4FFFC!important;-webkit-text-fill-color:#F4FFFC!important;
+      border:1.5px solid rgba(164,232,219,.48)!important;box-shadow:0 5px 14px rgba(0,0,0,.16)!important;
+      font-weight:850!important;
+    }
+    div[class*="st-key-ops_create_admin_view_"] button *{color:#F4FFFC!important;-webkit-text-fill-color:#F4FFFC!important}
+    div[class*="st-key-ops_create_admin_view_"] button:hover{background:#24504A!important;border-color:#F4B41A!important}
+
     @media(max-width:768px){
-      /* Workflow cards: CBHT / QLKH / Lãnh đạo always two columns. */
-      div[class*="st-key-ops_cards_support_view"] [data-testid="stHorizontalBlock"],
-      div[class*="st-key-ops_cards_qlkh_view"] [data-testid="stHorizontalBlock"],
-      div[class*="st-key-ops_cards_leader_view"] [data-testid="stHorizontalBlock"]{
-        display:grid!important;
-        grid-template-columns:repeat(2,minmax(0,1fr))!important;
-        gap:.44rem!important;
-        align-items:stretch!important;
-        overflow:visible!important;
-        width:100%!important;
+      /* Same flex-wrap strategy for every workflow/admin card group. */
+      div[class*="st-key-ops_cards_"] [data-testid="stHorizontalBlock"]{
+        display:flex!important;flex-wrap:wrap!important;gap:.44rem!important;
+        align-items:stretch!important;overflow:visible!important;width:100%!important;
       }
-      div[class*="st-key-ops_cards_support_view"] [data-testid="stHorizontalBlock"]>div,
-      div[class*="st-key-ops_cards_qlkh_view"] [data-testid="stHorizontalBlock"]>div,
-      div[class*="st-key-ops_cards_leader_view"] [data-testid="stHorizontalBlock"]>div,
-      div[class*="st-key-ops_cards_support_view"] [data-testid="stColumn"],
-      div[class*="st-key-ops_cards_qlkh_view"] [data-testid="stColumn"],
-      div[class*="st-key-ops_cards_leader_view"] [data-testid="stColumn"],
-      div[class*="st-key-ops_cards_support_view"] [data-testid="column"],
-      div[class*="st-key-ops_cards_qlkh_view"] [data-testid="column"],
-      div[class*="st-key-ops_cards_leader_view"] [data-testid="column"]{
-        width:100%!important;min-width:0!important;max-width:none!important;
-        flex:0 0 auto!important;grid-column:auto!important;padding:0!important;margin:0!important;
+      div[class*="st-key-ops_cards_"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+      div[class*="st-key-ops_cards_"] [data-testid="stHorizontalBlock"] > [data-testid="column"],
+      div[class*="st-key-ops_cards_"] [data-testid="stHorizontalBlock"] > div{
+        flex:0 0 calc(50% - .22rem)!important;
+        width:calc(50% - .22rem)!important;min-width:0!important;max-width:calc(50% - .22rem)!important;
+        box-sizing:border-box!important;margin:0!important;padding:0!important;
       }
-      div[class*="st-key-ops_cards_support_view"] button,
-      div[class*="st-key-ops_cards_qlkh_view"] button,
-      div[class*="st-key-ops_cards_leader_view"] button{
+      div[class*="st-key-ops_cards_"] button{
         width:100%!important;min-height:70px!important;height:100%!important;
         padding:7px 6px!important;border-radius:13px!important;margin:0!important;
       }
-      div[class*="st-key-ops_cards_support_view"] button p,
-      div[class*="st-key-ops_cards_qlkh_view"] button p,
-      div[class*="st-key-ops_cards_leader_view"] button p{
+      div[class*="st-key-ops_cards_"] button p{
         font-size:.69rem!important;line-height:1.12!important;margin:0!important;
         white-space:pre-line!important;overflow-wrap:anywhere!important;
       }
-
-      /* Admin: preserve all five original buttons, force 2-column mobile grid. */
-      div[class*="st-key-subnav_admin_row"] [data-testid="stHorizontalBlock"]{
-        display:grid!important;
-        grid-template-columns:repeat(2,minmax(0,1fr))!important;
-        gap:.44rem!important;
-        align-items:stretch!important;
-        overflow:visible!important;
-        width:100%!important;
-      }
-      div[class*="st-key-subnav_admin_row"] [data-testid="stHorizontalBlock"]>div,
-      div[class*="st-key-subnav_admin_row"] [data-testid="stColumn"],
-      div[class*="st-key-subnav_admin_row"] [data-testid="column"]{
-        width:100%!important;min-width:0!important;max-width:none!important;
-        flex:0 0 auto!important;padding:0!important;margin:0!important;
-      }
-      div[class*="st-key-subnav_admin_"] button{
-        width:100%!important;min-height:50px!important;height:100%!important;
-        padding:6px 7px!important;border-radius:12px!important;margin:0!important;
-        white-space:normal!important;
-      }
-      div[class*="st-key-subnav_admin_"] button p{
-        font-size:.70rem!important;line-height:1.12!important;white-space:normal!important;margin:0!important;
-      }
-
-      div[class*="st-key-ops_cards_support_view"],
-      div[class*="st-key-ops_cards_qlkh_view"],
-      div[class*="st-key-ops_cards_leader_view"],
-      div[class*="st-key-subnav_admin_row"]{margin-bottom:.35rem!important}
+      div[class*="st-key-ops_cards_admin_view"] button{min-height:50px!important}
+      div[class*="st-key-ops_cards_admin_view"] button p{font-size:.70rem!important;white-space:normal!important}
+      div[class*="st-key-ops_cards_"]{margin-bottom:.35rem!important}
     }
 
     @media(max-width:430px){
-      div[class*="st-key-ops_cards_support_view"] [data-testid="stHorizontalBlock"],
-      div[class*="st-key-ops_cards_qlkh_view"] [data-testid="stHorizontalBlock"],
-      div[class*="st-key-ops_cards_leader_view"] [data-testid="stHorizontalBlock"],
-      div[class*="st-key-subnav_admin_row"] [data-testid="stHorizontalBlock"]{
-        grid-template-columns:repeat(2,minmax(0,1fr))!important;
+      /* Never fall back to Streamlit's one-column phone rule for these groups. */
+      div[class*="st-key-ops_cards_"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+      div[class*="st-key-ops_cards_"] [data-testid="stHorizontalBlock"] > [data-testid="column"],
+      div[class*="st-key-ops_cards_"] [data-testid="stHorizontalBlock"] > div{
+        flex-basis:calc(50% - .22rem)!important;width:calc(50% - .22rem)!important;
+        min-width:0!important;max-width:calc(50% - .22rem)!important;
       }
-      div[class*="st-key-ops_cards_support_view"] button,
-      div[class*="st-key-ops_cards_qlkh_view"] button,
-      div[class*="st-key-ops_cards_leader_view"] button{min-height:66px!important;padding:6px 4px!important}
-      div[class*="st-key-ops_cards_support_view"] button p,
-      div[class*="st-key-ops_cards_qlkh_view"] button p,
-      div[class*="st-key-ops_cards_leader_view"] button p{font-size:.64rem!important}
-      div[class*="st-key-subnav_admin_"] button{min-height:46px!important;padding:5px 4px!important}
-      div[class*="st-key-subnav_admin_"] button p{font-size:.66rem!important}
+      div[class*="st-key-ops_cards_"] button{min-height:66px!important;padding:6px 4px!important}
+      div[class*="st-key-ops_cards_"] button p{font-size:.64rem!important}
+      div[class*="st-key-ops_cards_admin_view"] button{min-height:46px!important;padding:5px 4px!important}
+      div[class*="st-key-ops_cards_admin_view"] button p{font-size:.66rem!important}
     }
 '''
     css_anchor = '</style>""", unsafe_allow_html=True)\n\ndef page_title(title, caption=None):'
