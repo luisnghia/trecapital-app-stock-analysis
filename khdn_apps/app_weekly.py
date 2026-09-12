@@ -5,25 +5,40 @@ from khdn_apps import app as base
 from khdn_apps.weekly_plan_v4 import weekly_plan_page
 
 
+WEEKLY_PLAN_ROLES = {"Cán bộ hỗ trợ", "Cán bộ QLKH", "Lãnh đạo phòng"}
+
+
+def weekly_access_allowed(u) -> bool:
+    """Server-side navigation guard for the Weekly Plan module.
+
+    The user explicitly requested no Ban Giám đốc view. Only the two officer
+    roles and room leaders may enter this module, regardless of admin flag.
+    """
+    return str((u or {}).get("role") or "") in WEEKLY_PLAN_ROLES
+
+
 def sidebar_navigation(u):
-    """Keep the existing KHDN_APP navigation format and add one Weekly Plan page."""
+    """Keep the existing KHDN_APP navigation format and add Weekly Plan safely."""
     options = []
-    if u["role"] == "Cán bộ hỗ trợ":
+    role = str((u or {}).get("role") or "")
+    if role == "Cán bộ hỗ trợ":
         options.append(("support", "🧾  Tác nghiệp"))
-    if u["role"] == "Cán bộ QLKH":
+    if role == "Cán bộ QLKH":
         options.append(("qlkh", "🧾  Tác nghiệp QLKH"))
-    if u["role"] == "Lãnh đạo phòng":
+    if role == "Lãnh đạo phòng":
         options.append(("leader", "🗂️  Quản lý công việc"))
 
-    # Weekly Plan is available to officers and room leaders only.
-    # There is intentionally no Ban Giám đốc role/view in this module.
-    options.append(("weekly", "📅  Kế hoạch tuần"))
+    # Weekly Plan is intentionally restricted to staff and room leaders.
+    # There is no Ban Giám đốc role/view in this module.
+    if weekly_access_allowed(u):
+        options.append(("weekly", "📅  Kế hoạch tuần"))
+
     options += [
         ("dashboard", "📊  Dashboard"),
         ("profile", "👤  Tài khoản"),
         ("guide", "📘  Hướng dẫn sử dụng"),
     ]
-    if u["is_admin"]:
+    if bool((u or {}).get("is_admin")):
         options.append(("admin", "⚙️  Quản trị"))
 
     values = [x[0] for x in options]
@@ -87,7 +102,14 @@ def app():
     elif page == "leader":
         base.leader_page(u)
     elif page == "weekly":
-        weekly_plan_page(u, base.get_conn, base.page_title, base.pill_nav)
+        if not weekly_access_allowed(u):
+            # Defense in depth: a stale/manually-forced session state must not
+            # bypass the navigation restriction.
+            base.st.session_state["main_page"] = "dashboard"
+            base.st.error("Bạn không có quyền truy cập Kế hoạch tuần.")
+            base.dashboard_page(u)
+        else:
+            weekly_plan_page(u, base.get_conn, base.page_title, base.pill_nav)
     elif page == "dashboard":
         base.dashboard_page(u)
     elif page == "profile":
