@@ -21,8 +21,16 @@ def main():
     for token in required:
         assert token in source, f"Missing V14 mobile contract: {token}"
 
-    # V14 must not re-introduce a fixed wide table that forces phone scrolling.
-    forbidden = ["min-width:680px", "min-width:700px", "width:680px", "width:700px"]
+    # V14 must not re-introduce a fixed wide content/table width that forces
+    # phone scrolling. Match declarations, not the max-width media query text.
+    forbidden = [
+        "min-width:680px!important",
+        "min-width:700px!important",
+        "width:680px!important",
+        "width:700px!important",
+        "min-width:680px;",
+        "min-width:700px;",
+    ]
     for token in forbidden:
         assert token not in source, f"V14 reintroduced fixed mobile width: {token}"
 
