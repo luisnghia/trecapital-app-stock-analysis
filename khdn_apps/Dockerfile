@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates tzdata \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY khdn_apps/requirements.txt /app/requirements.txt

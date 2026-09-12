@@ -1,0 +1,98 @@
+name: KHDN Weekly Plan CI
+
+on:
+  push:
+    branches:
+      - feature/khdn-weekly-plan-v1
+  pull_request:
+    paths:
+      - 'khdn_apps/weekly_plan*.py'
+      - 'khdn_apps/app_weekly.py'
+      - 'khdn_apps/online_entry.py'
+      - 'khdn_apps/requirements.txt'
+      - 'khdn_apps/Dockerfile'
+      - 'khdn_apps/install_branding.py'
+      - 'khdn_apps/admin_color_fix.py'
+      - 'khdn_apps/mobile_nav_patch.py'
+      - 'tests/test_device_sessions.py'
+      - 'tests/test_khdn_storage.py'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile Weekly Plan modules
+        run: |
+          python -m py_compile \
+            khdn_apps/weekly_plan.py \
+            khdn_apps/weekly_plan_v2.py \
+            khdn_apps/weekly_plan_v3.py \
+            khdn_apps/weekly_plan_v4.py \
+            khdn_apps/weekly_plan_v5.py \
+            khdn_apps/weekly_plan_v6.py \
+            khdn_apps/weekly_plan_v7.py \
+            khdn_apps/weekly_plan_v8.py \
+            khdn_apps/weekly_plan_v9.py \
+            khdn_apps/weekly_plan_v10.py \
+            khdn_apps/weekly_plan_v11.py \
+            khdn_apps/weekly_plan_v12.py \
+            khdn_apps/weekly_plan_v13.py \
+            khdn_apps/weekly_plan_v14.py \
+            khdn_apps/app_weekly.py \
+            khdn_apps/online_entry.py \
+            khdn_apps/test_weekly_plan_smoke.py \
+            khdn_apps/test_weekly_plan_v10.py \
+            khdn_apps/test_weekly_plan_v11.py \
+            khdn_apps/test_weekly_plan_v12.py \
+            khdn_apps/test_weekly_plan_uat_v14.py \
+            khdn_apps/test_weekly_plan_mobile_v14.py \
+            khdn_apps/test_weekly_plan_ui.py
+      - name: Install KHDN dependencies
+        run: pip install --disable-pip-version-check -r khdn_apps/requirements.txt
+      - name: Run Weekly Plan smoke/UAT tests
+        run: python -m khdn_apps.test_weekly_plan_smoke
+      - name: Run Weekly Plan V10 autosave tests
+        run: python -m khdn_apps.test_weekly_plan_v10
+      - name: Run Weekly Plan V11 filter/drill-down tests
+        run: python -m khdn_apps.test_weekly_plan_v11
+      - name: Run Weekly Plan V12 parameter/admin tests
+        run: python -m khdn_apps.test_weekly_plan_v12
+      - name: Run Weekly Plan V14 pre-production UAT simulation
+        run: python -m khdn_apps.test_weekly_plan_uat_v14
+      - name: Run Weekly Plan V14 mobile contract checks
+        run: python -m khdn_apps.test_weekly_plan_mobile_v14
+      - name: Run Weekly Plan Streamlit UI tests
+        run: python -m khdn_apps.test_weekly_plan_ui
+      - name: Run existing KHDN regression tests
+        run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Build production Docker image
+        run: docker build -f khdn_apps/Dockerfile -t khdn-weekly-plan-ci .
+      - name: Boot production image and verify Streamlit health
+        run: |
+          docker run -d --name khdn-weekly-plan-runtime \
+            -p 18080:8080 \
+            -e PORT=8080 \
+            -e KHDN_CLOUD_MODE=1 \
+            -e KHDN_REQUIRE_VOLUME=0 \
+            -e KHDN_DATA_DIR=/tmp/khdn-data \
+            -e KHDN_DB_PATH=/tmp/khdn-data/khdn_ops.db \
+            khdn-weekly-plan-ci
+          healthy=0
+          for i in $(seq 1 35); do
+            if curl -fsS http://127.0.0.1:18080/_stcore/health >/dev/null; then
+              healthy=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$healthy" != "1" ]; then
+            echo 'KHDN container did not become healthy.'
+            docker logs khdn-weekly-plan-runtime || true
+            exit 1
+          fi
+          docker logs khdn-weekly-plan-runtime | tail -n 80 || true
+          docker rm -f khdn-weekly-plan-runtime
