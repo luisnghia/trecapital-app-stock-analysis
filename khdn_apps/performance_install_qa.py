@@ -8,6 +8,7 @@ def main():
     loader=(root/"app.py").read_text(encoding="utf-8")
     device=(root/"device_login.py").read_text(encoding="utf-8")
     sessions=(root/"device_sessions.py").read_text(encoding="utf-8")
+    perf=(root/"performance_patch.py").read_text(encoding="utf-8")
     index=(Path(streamlit.__file__).resolve().parent/"static"/"index.html").read_text(encoding="utf-8")
     checks={
         "loader_perf_patch": "_performance_patch_source" in loader,
@@ -16,6 +17,10 @@ def main():
         "device_schema_once": "_SCHEMA_READY" in sessions and "_ensure_schema(path)" in sessions,
         "global_dom_observer_removed": "new MutationObserver(scheduleGrid).observe(document.documentElement" not in index,
         "grid_observer_filtered": "mutationTouchesGrid" in index and "OPS_GRID_SELECTOR" in index,
+        "grid_observer_paused_while_typing": "khdn-typing-mode" in index and "gridObserver=new MutationObserver" in index,
+        "typing_focus_script": 'id="khdn-typing-fastpath"' in index and "focusin" in index and "focusout" in index,
+        "typing_animation_pause": 'body.khdn-typing-mode div[class*="st-key-ops_alert_hot_"] button' in index and "animation:none!important" in index,
+        "draft_widget_ignore_patch": perf.count('on_change=\\"ignore\\"') >= 13 or perf.count('on_change="ignore"') >= 13,
     }
     failed=[k for k,v in checks.items() if not v]
     print("KHDN_SPEED_INSTALL_QA",checks,flush=True)
