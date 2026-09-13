@@ -12,13 +12,14 @@ from khdn_apps.mobile_nav_patch import patch_source as mobile_patch
 from khdn_apps.reason_categories_patch import patch_source as reason_patch
 from khdn_apps.performance_patch import patch_source as performance_patch
 from khdn_apps.input_batch_patch import patch_source as input_batch_patch
+from khdn_apps.catalog_input_fast_patch import patch_source as catalog_fast_patch
 
 
 def main():
     root=Path(__file__).resolve().parent
     payload="".join(p.read_text(encoding="ascii") for p in sorted((root/"_src").glob("*.txt")))
     baseline=reason_patch(mobile_patch(gzip.decompress(base64.b64decode(payload)).decode("utf-8")))
-    source=input_batch_patch(performance_patch(baseline))
+    source=catalog_fast_patch(input_batch_patch(performance_patch(baseline)))
     compile(source,"<khdn-speed-preflight>","exec")
 
     get_conn_block=source[source.index("def get_conn") : source.index("def table_columns")]
@@ -37,13 +38,15 @@ def main():
         "realtime_page_scoped": 'if page in {"support", "qlkh", "leader", "dashboard"}' in main_tail,
         "admin_route_before_poll": main_tail.find("page = sidebar_navigation(u)") < main_tail.find("realtime_refresh_watch(u)"),
         "invalid_string_callbacks_absent": 'on_change="ignore"' not in source and "on_change='ignore'" not in source,
-        "task_type_zero_keystroke_component": 'fast_catalog_input("Tên công việc mới"' in type_block and 'st.text_input("Tên công việc mới")' not in type_block,
-        "task_type_table_and_edit_same_page": type_block.find('st.dataframe(types') < type_block.find('fast_catalog_input("Tên công việc mới"') and 'Chọn loại công việc để sửa' in type_block and 'Cập nhật loại công việc' in type_block,
+        "task_type_zero_keystroke_component": 'fast_catalog_input(' in type_block and '"Tên công việc mới"' in type_block and 'st.text_input("Tên công việc mới")' not in type_block,
+        "task_type_plain_table": '_catalog_static_table(show' in type_block and 'st.dataframe(types' not in type_block,
+        "task_type_edit_same_page": 'Chọn loại công việc để sửa' in type_block and 'Cập nhật loại công việc' in type_block,
         "task_type_no_extra_mode": 'task_type_catalog_mode_fast' not in type_block and 'Danh sách / trạng thái' not in type_block,
         "reason_route_preserved": '    if admin_view == "reasons":\n        _render_reason_category_manager(u)\n' in source,
-        "reason_zero_keystroke_component": 'fast_catalog_input("Tên nhóm nguyên nhân mới"' in reason_block and 'st.text_input("Tên nhóm nguyên nhân mới")' not in reason_block,
+        "reason_zero_keystroke_component": 'fast_catalog_input(' in reason_block and '"Tên nhóm nguyên nhân mới"' in reason_block and 'st.text_input("Tên nhóm nguyên nhân mới")' not in reason_block,
         "reason_single_kind_only": 'key="reason_catalog_kind_v214"' in reason_block and 'st.tabs(' not in reason_block,
-        "reason_table_and_edit_same_page": 'df=qdf("SELECT id,name,active,created_at,updated_at FROM reason_categories WHERE reason_type=? ORDER BY id"' in reason_block and 'with st.form(f"reason_edit_form_{kind}_{int(xid)}"):' in reason_block,
+        "reason_plain_table": '_catalog_static_table(show' in reason_block and 'st.dataframe(show' not in reason_block,
+        "reason_edit_same_page": 'with st.form(f"reason_edit_form_{kind}_{int(xid)}"' in reason_block,
         "reason_no_extra_mode": 'reason_catalog_mode_' not in reason_block and 'Danh sách / chỉnh sửa' not in reason_block,
         "qlkh_create_payload_batched": 'with st.form("qlkh_create_payload_form", clear_on_submit=False, enter_to_submit=False):' in source and 'st.form_submit_button("Giao hồ sơ cho Cán bộ hỗ trợ"' in source,
         "support_create_payload_batched": 'with st.form("support_create_payload_form", clear_on_submit=False, enter_to_submit=False):' in source and 'st.form_submit_button("Tạo tác nghiệp"' in source,
