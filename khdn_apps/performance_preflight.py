@@ -1,4 +1,4 @@
-"""Build-time structural QA for KHDN speed v3 hotfix."""
+"""Build-time structural QA for KHDN input fast v3."""
 from pathlib import Path
 import base64
 import gzip
@@ -11,13 +11,14 @@ if _app_root not in sys.path:
 from khdn_apps.mobile_nav_patch import patch_source as mobile_patch
 from khdn_apps.reason_categories_patch import patch_source as reason_patch
 from khdn_apps.performance_patch import patch_source as performance_patch
+from khdn_apps.input_batch_patch import patch_source as input_batch_patch
 
 
 def main():
     root=Path(__file__).resolve().parent
     payload="".join(p.read_text(encoding="ascii") for p in sorted((root/"_src").glob("*.txt")))
     baseline=reason_patch(mobile_patch(gzip.decompress(base64.b64decode(payload)).decode("utf-8")))
-    source=performance_patch(baseline)
+    source=input_batch_patch(performance_patch(baseline))
     compile(source,"<khdn-speed-preflight>","exec")
 
     get_conn_block=source[source.index("def get_conn") : source.index("def table_columns")]
@@ -30,17 +31,19 @@ def main():
         "realtime_page_scoped": 'if page in {"support", "qlkh", "leader", "dashboard"}' in main_tail,
         "admin_route_before_poll": main_tail.find("page = sidebar_navigation(u)") < main_tail.find("realtime_refresh_watch(u)"),
         "invalid_string_callbacks_absent": 'on_change="ignore"' not in source and "on_change='ignore'" not in source,
-        "task_type_create_uses_form": 'with st.form("new_type"):' in source and 'st.form_submit_button("Thêm loại công việc")' in source,
-        "reason_create_uses_form": 'with st.form(create_key):' in source and 'st.form_submit_button("Thêm nhóm nguyên nhân")' in source,
+        "task_type_create_uses_fast_form": 'with st.form("new_type", clear_on_submit=False, enter_to_submit=False):' in source and 'st.form_submit_button("Thêm loại công việc")' in source,
+        "reason_create_uses_fast_form": 'with st.form(create_key, clear_on_submit=False, enter_to_submit=False):' in source and 'st.form_submit_button("Thêm nhóm nguyên nhân")' in source,
         "reason_edit_uses_form": 'with st.form(f"{edit_key}_form_{int(xid)}"):' in source and 'save_reason=st.form_submit_button("Cập nhật nhóm nguyên nhân")' in source,
-        "qlkh_note_has_no_callback": 'st.text_area("Ghi chú / yêu cầu xử lý (không bắt buộc)",key="ql_new_note")' in source,
-        "customer_search_still_reruns": search_anchor in source,
+        "qlkh_create_payload_batched": 'with st.form("qlkh_create_payload_form", clear_on_submit=False, enter_to_submit=False):' in source and 'st.form_submit_button("Giao hồ sơ cho Cán bộ hỗ trợ"' in source,
+        "support_create_payload_batched": 'with st.form("support_create_payload_form", clear_on_submit=False, enter_to_submit=False):' in source and 'st.form_submit_button("Tạo tác nghiệp"' in source,
+        "qlkh_note_same_native_widget": 'st.text_area("Ghi chú / yêu cầu xử lý (không bắt buộc)",key="ql_new_note")' in source,
+        "customer_search_stays_live_outside_form": source.find('cust=customer_selector("ql_new_cust"') < source.find('with st.form("qlkh_create_payload_form"') and search_anchor in source,
         "source_compiles": True,
     }
     failed=[k for k,v in checks.items() if not v]
-    print("KHDN_SPEED_PREFLIGHT",checks,flush=True)
+    print("KHDN_INPUT_FAST_PREFLIGHT",checks,flush=True)
     if failed:
-        raise RuntimeError("KHDN speed preflight failed: "+", ".join(failed))
+        raise RuntimeError("KHDN input fast preflight failed: "+", ".join(failed))
 
 
 if __name__=="__main__":
