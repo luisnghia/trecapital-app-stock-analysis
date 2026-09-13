@@ -1,4 +1,4 @@
-"""Streamlit AppTest smoke QA for reason-category UI and V2.14-style catalog render."""
+"""Streamlit AppTest smoke QA for reason-category UI and V2.14 golden catalog render."""
 from pathlib import Path
 import base64
 import gzip
@@ -41,12 +41,17 @@ def button_labels(at):
 
 def run():
     root=Path(__file__).resolve().parent
+    source=transformed_source()
+    assert 'fast_catalog_input("Tên công việc mới"' in source
+    assert 'fast_catalog_input("Tên nhóm nguyên nhân mới"' in source
+    assert 'with st.form("new_type")' not in source, "Catalog create should use zero-keystroke component, not Streamlit text_input form"
+
     with tempfile.TemporaryDirectory(prefix="khdn_streamlit_reason_") as td:
         tdir=Path(td); db=tdir/"qa.db"; qa_file=root/"_reason_categories_apptest_runtime.py"
         old_env={k:os.environ.get(k) for k in ("KHDN_DB_PATH","KHDN_DATA_DIR","KHDN_CLOUD_MODE","KHDN_ADMIN_PASSWORD")}
         try:
             os.environ["KHDN_DB_PATH"]=str(db); os.environ["KHDN_DATA_DIR"]=str(tdir); os.environ["KHDN_CLOUD_MODE"]="0"; os.environ["KHDN_ADMIN_PASSWORD"]="Admin@123"
-            qa_file.write_text(transformed_source(),encoding="utf-8")
+            qa_file.write_text(source,encoding="utf-8")
 
             at_login=AppTest.from_file(str(qa_file),default_timeout=30).run(timeout=30)
             no_exceptions(at_login,"login")
@@ -71,19 +76,19 @@ def run():
             for expected in ("Người dùng","Khách hàng CIF","Loại công việc","Nhóm nguyên nhân","Audit","Sao lưu"):
                 assert expected in labels, f"Admin navigation missing {expected}"
             reason_inputs=[str(x.label) for x in at_admin.text_input]
-            assert reason_inputs.count("Tên nhóm nguyên nhân mới")==1, reason_inputs
+            assert "Tên nhóm nguyên nhân mới" not in reason_inputs, "Create field unexpectedly fell back to Streamlit text_input"
             assert not any("Mô tả" in x for x in reason_inputs)
             reason_radio_labels=[str(x.label) for x in at_admin.radio]
             assert "Danh mục nguyên nhân" in reason_radio_labels
             assert "Thao tác" not in reason_radio_labels
-            assert len(at_admin.dataframe)==1, "Selected reason catalog should render one table like the simple V2.14 page"
+            assert len(at_admin.dataframe)==1, "Selected reason catalog should render one table"
 
             at_types=AppTest.from_file(str(qa_file),default_timeout=30)
             at_types.session_state["user"]=admin; at_types.session_state["main_page"]="admin"; at_types.session_state["admin_view"]="types"
             at_types.run(timeout=30); no_exceptions(at_types,"admin task types")
             type_inputs=[str(x.label) for x in at_types.text_input]
-            assert "Tên công việc mới" in type_inputs, type_inputs
-            assert len(at_types.dataframe)==1, "Task type page should show its table above the native create form"
+            assert "Tên công việc mới" not in type_inputs, "Task type create unexpectedly fell back to Streamlit text_input"
+            assert len(at_types.dataframe)==1, "Task type page should show its table above the fast create component"
             assert not any(str(x.label)=="Thao tác" for x in at_types.radio)
 
             at_leader_admin=AppTest.from_file(str(qa_file),default_timeout=30)
@@ -100,7 +105,7 @@ def run():
             work_subs=[str(x.value) for x in at_leader_work.subheader]
             assert not any("Nhóm nguyên nhân" in x for x in work_subs)
 
-            print("KHDN_REASON_STREAMLIT_SMOKE PASS login admin_reasons_v214 admin_types_v214 leader_reason_only leader_work_clean",flush=True)
+            print("KHDN_REASON_STREAMLIT_SMOKE PASS login admin_reasons_fast_component admin_types_fast_component leader_reason_only leader_work_clean",flush=True)
         finally:
             try: qa_file.unlink(missing_ok=True)
             except Exception: pass
