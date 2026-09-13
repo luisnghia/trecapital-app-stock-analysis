@@ -1,4 +1,4 @@
-"""Streamlit AppTest smoke QA for reason-category UI, permissions, and lazy catalog render."""
+"""Streamlit AppTest smoke QA for reason-category UI and V2.14-style catalog render."""
 from pathlib import Path
 import base64
 import gzip
@@ -59,6 +59,9 @@ def run():
                 ts="2026-09-13 17:00:00"
                 c.execute("""INSERT INTO users(username,full_name,password_hash,role,is_admin,active,must_change_password,created_at,updated_at)
                              VALUES('leader_qa','Lãnh đạo QA','x','Lãnh đạo phòng',0,1,0,?,?)""",(ts,ts))
+                admin_id=int(c.execute("SELECT id FROM users WHERE username='admin'").fetchone()[0])
+                c.execute("""INSERT INTO reason_categories(reason_type,name,active,created_by,created_at,updated_at)
+                             VALUES('RETURN','QA trả lại',1,?,?,?)""",(admin_id,ts,ts))
                 c.commit(); admin=dict(c.execute("SELECT * FROM users WHERE username='admin'").fetchone()); leader=dict(c.execute("SELECT * FROM users WHERE username='leader_qa'").fetchone())
 
             at_admin=AppTest.from_file(str(qa_file),default_timeout=30)
@@ -70,14 +73,18 @@ def run():
             reason_inputs=[str(x.label) for x in at_admin.text_input]
             assert reason_inputs.count("Tên nhóm nguyên nhân mới")==1, reason_inputs
             assert not any("Mô tả" in x for x in reason_inputs)
-            assert len(at_admin.dataframe)==0, "Reason add-new mode rendered a dataframe"
+            reason_radio_labels=[str(x.label) for x in at_admin.radio]
+            assert "Danh mục nguyên nhân" in reason_radio_labels
+            assert "Thao tác" not in reason_radio_labels
+            assert len(at_admin.dataframe)==1, "Selected reason catalog should render one table like the simple V2.14 page"
 
             at_types=AppTest.from_file(str(qa_file),default_timeout=30)
             at_types.session_state["user"]=admin; at_types.session_state["main_page"]="admin"; at_types.session_state["admin_view"]="types"
             at_types.run(timeout=30); no_exceptions(at_types,"admin task types")
             type_inputs=[str(x.label) for x in at_types.text_input]
             assert "Tên công việc mới" in type_inputs, type_inputs
-            assert len(at_types.dataframe)==0, "Task type add-new mode rendered a dataframe"
+            assert len(at_types.dataframe)==1, "Task type page should show its table above the native create form"
+            assert not any(str(x.label)=="Thao tác" for x in at_types.radio)
 
             at_leader_admin=AppTest.from_file(str(qa_file),default_timeout=30)
             at_leader_admin.session_state["user"]=leader; at_leader_admin.session_state["main_page"]="admin"; at_leader_admin.session_state["admin_view"]="reasons"
@@ -93,7 +100,7 @@ def run():
             work_subs=[str(x.value) for x in at_leader_work.subheader]
             assert not any("Nhóm nguyên nhân" in x for x in work_subs)
 
-            print("KHDN_REASON_STREAMLIT_SMOKE PASS login admin_reasons_lazy admin_types_lazy leader_reason_only leader_work_clean",flush=True)
+            print("KHDN_REASON_STREAMLIT_SMOKE PASS login admin_reasons_v214 admin_types_v214 leader_reason_only leader_work_clean",flush=True)
         finally:
             try: qa_file.unlink(missing_ok=True)
             except Exception: pass
