@@ -8,30 +8,30 @@
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:transparent;font-family:Inter,"Source Sans Pro",Arial,sans-serif}
   .wrap{padding:0 1px 2px}
-  label{display:block;font-size:13px;font-weight:600;line-height:1.25;margin:0 0 6px}
+  label{display:block;font-size:13px;font-weight:700;line-height:1.25;margin:0 0 6px}
   .row{display:flex;gap:8px;align-items:stretch}
   input{flex:1 1 auto;min-width:0;height:42px;border-radius:7px;padding:0 12px;font-size:16px;outline:none;transition:none!important;box-shadow:none!important}
-  button{flex:0 0 auto;min-height:42px;border-radius:7px;padding:0 15px;font-size:14px;font-weight:700;cursor:pointer;transition:none!important;box-shadow:none!important}
-  body.light label{color:#16302D}
-  body.light input{background:#F3F6F8;color:#16302D;border:1px solid #C9D8D5;caret-color:#16302D}
-  body.light input:focus{background:#FFFFFF;border-color:#00857A;outline:2px solid rgba(0,133,122,.15)}
+  button{flex:0 0 auto;min-height:42px;border-radius:999px;padding:0 18px;font-size:14px;font-weight:800;cursor:pointer;transition:none!important;box-shadow:none!important}
+  body.light label{color:#12302D}
+  body.light input{background:#F4F6F8;color:#12302D;border:1px solid #C9D8D5;caret-color:#12302D}
+  body.light input:focus{background:#FFFFFF;border-color:#0B7F75;outline:2px solid rgba(11,127,117,.13)}
   body.light input::placeholder{color:#71817E}
-  body.light button{background:#FFFFFF;color:#006B68;border:1px solid #7FC6BB}
-  body.light button:hover{background:#F3FAF8;border-color:#006B68}
+  body.light button{background:linear-gradient(135deg,#0B7F75,#139486);color:#FFFFFF;border:1px solid rgba(11,127,117,.35)}
+  body.light button:hover{background:linear-gradient(135deg,#086C64,#128C7E);border-color:#F5B21B}
   body.dark label{color:#F4FFFC}
   body.dark input{background:#17312F;color:#F4FFFC;border:1px solid #4E7771;caret-color:#F4FFFC}
   body.dark input:focus{border-color:#6FD6C4;outline:2px solid rgba(111,214,196,.15)}
   body.dark input::placeholder{color:#AFCAC5}
-  body.dark button{background:#17312F;color:#F4FFFC;border:1px solid #5B8F87}
-  body.dark button:hover{background:#21423E;border-color:#6FD6C4}
-  @media(max-width:520px){.row{gap:6px}.row{flex-direction:column}button{width:100%}}
+  body.dark button{background:#176B63;color:#FFFFFF;border:1px solid #5B8F87}
+  body.dark button:hover{background:#1B7E74;border-color:#F4B41A}
+  @media(max-width:520px){.row{gap:6px;flex-direction:column}button{width:100%}}
 </style>
 </head>
 <body class="light">
 <div class="wrap">
   <label id="label" for="input"></label>
   <div class="row">
-    <input id="input" type="text" autocomplete="off" spellcheck="false">
+    <input id="input" type="text" autocomplete="off" autocapitalize="sentences" spellcheck="false">
     <button id="submit" type="button"></button>
   </div>
 </div>
