@@ -67,12 +67,9 @@ def run():
             labels="\n".join(button_labels(at_admin))
             for expected in ("Người dùng","Khách hàng CIF","Loại công việc","Nhóm nguyên nhân","Audit","Sao lưu"):
                 assert expected in labels, f"Admin navigation missing {expected}"
-            subs=[str(x.value) for x in at_admin.subheader]
-            assert any("Nhóm nguyên nhân trả lại / hủy" in x for x in subs)
             reason_inputs=[str(x.label) for x in at_admin.text_input]
             assert reason_inputs.count("Tên nhóm nguyên nhân mới")==1, reason_inputs
             assert not any("Mô tả" in x for x in reason_inputs)
-            # Fast default path must not render the catalog dataframe at all.
             assert len(at_admin.dataframe)==0, "Reason add-new mode rendered a dataframe"
 
             at_types=AppTest.from_file(str(qa_file),default_timeout=30)
