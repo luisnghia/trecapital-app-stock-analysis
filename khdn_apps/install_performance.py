@@ -11,11 +11,21 @@ def install():
     perf = (
         "from khdn_apps.performance_patch import patch_source as _performance_patch_source\n"
         "_source = _performance_patch_source(_source)\n"
+        "from khdn_apps.input_batch_patch import patch_source as _input_batch_patch_source\n"
+        "_source = _input_batch_patch_source(_source)\n"
     )
     if perf not in text:
         if exec_line not in text:
             raise RuntimeError("Performance installer cannot find loader exec marker")
-        text = text.replace(exec_line, perf + exec_line, 1)
+        # Replace an older performance-only injection if present; otherwise inject fresh.
+        old_perf = (
+            "from khdn_apps.performance_patch import patch_source as _performance_patch_source\n"
+            "_source = _performance_patch_source(_source)\n"
+        )
+        if old_perf in text:
+            text = text.replace(old_perf, perf, 1)
+        else:
+            text = text.replace(exec_line, perf + exec_line, 1)
     loader.write_text(text, encoding="utf-8")
 
     # The previous mobile grid observer watched the entire document and ran a
@@ -42,15 +52,11 @@ def install():
   });
   gridObserver.observe(document.body||document.documentElement,{childList:true,subtree:true});
 '''
-    if old not in page:
+    if old in page:
+        page = page.replace(old, new, 1)
+    elif "mutationTouchesGrid" not in page:
         raise RuntimeError("Performance installer cannot find mobile MutationObserver marker")
-    page = page.replace(old, new, 1)
 
-    # Older/mobile GPUs can spend a surprising amount of time continuously
-    # compositing the pulsing alert cards while the software keyboard is active.
-    # Pause non-essential animation/transition work only while a text editor has
-    # focus. This keeps all alert animation intact as soon as the user leaves the
-    # field, while prioritising keystroke paint latency during typing.
     typing_fastpath = '''
 <style id="khdn-typing-fastpath-style">
 @media(max-width:768px){
