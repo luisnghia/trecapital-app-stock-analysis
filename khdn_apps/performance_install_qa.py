@@ -1,4 +1,4 @@
-"""Verify built image contains KHDN fast input and adaptive Light/Dark styling."""
+"""Verify built image contains zero-keystroke catalog input and V2.14 Light/Dark styling."""
 from pathlib import Path
 import streamlit
 
@@ -10,6 +10,8 @@ def main():
     sessions=(root/"device_sessions.py").read_text(encoding="utf-8")
     perf=(root/"performance_patch.py").read_text(encoding="utf-8")
     batch=(root/"input_batch_patch.py").read_text(encoding="utf-8")
+    component_py=(root/"fast_catalog_input.py").read_text(encoding="utf-8")
+    component_html=(root/"fast_catalog_component"/"index.html").read_text(encoding="utf-8")
     config=(root/".streamlit"/"config.toml").read_text(encoding="utf-8")
     index=(Path(streamlit.__file__).resolve().parent/"static"/"index.html").read_text(encoding="utf-8")
     checks={
@@ -30,18 +32,25 @@ def main():
         "callback_guard_present": "Invalid Streamlit string callback detected" in perf and "Invalid Streamlit string callback detected after input batching" in batch,
         "qlkh_batch_patch_present": "qlkh_create_payload_form" in batch,
         "support_batch_patch_present": "support_create_payload_form" in batch,
-        "v214_task_type_flow_present": 'with st.form("new_type"):' in batch and 'Tên công việc mới' in batch and 'V2.14-style task type manager' in batch,
-        "v214_reason_flow_present": 'reason_catalog_kind_v214' in batch and 'with st.form(f"reason_create_{kind}"):' in batch and 'V2.14-style reason manager' in batch,
+        "catalog_component_declared": "khdn_fast_catalog_input" in component_py and "declare_component" in component_py,
+        "catalog_component_no_input_messages": "inputEl.addEventListener('input'" not in component_html and "streamlit:setComponentValue" in component_html,
+        "catalog_component_submit_only": "buttonEl.addEventListener('click',submit)" in component_html and "event.key==='Enter'" in component_html,
+        "task_type_fast_component_present": 'fast_catalog_input("Tên công việc mới"' in batch,
+        "reason_fast_component_present": 'fast_catalog_input("Tên nhóm nguyên nhân mới"' in batch,
         "default_light_theme": '[theme]\nbase = "light"' in config,
+        "v214_white_light_canvas": '[theme.light]\nprimaryColor = "#007F78"\nbackgroundColor = "#FFFFFF"\nsecondaryBackgroundColor = "#FFFFFF"' in config,
+        "v214_white_light_sidebar": '[theme.light.sidebar]\nprimaryColor = "#007F78"\nbackgroundColor = "#FFFFFF"\nsecondaryBackgroundColor = "#FFFFFF"' in config,
         "switchable_light_dark_themes": '[theme.light]' in config and '[theme.dark]' in config and '[theme.light.sidebar]' in config and '[theme.dark.sidebar]' in config,
-        "adaptive_runtime_theme": 'id="khdn-adaptive-runtime-theme"' in loader and '--khdn-surface:var(--secondary-background-color)' in loader and '--khdn-text:var(--text-color)' in loader,
-        "hard_dark_widget_css_removed": 'div[data-testid="stTextInput"] input,div[data-testid="stNumberInput"] input' not in loader,
-        "adaptive_admin_navigation": 'Admin navigation follows the active Streamlit Light/Dark theme.' in index and '#173A37' not in index,
+        "runtime_theme_uses_context": 'getattr(st.context.theme, "type", "light")' in loader,
+        "v214_light_runtime_css": 'id="khdn-v214-light-runtime-theme"' in loader and 'background:#FFFFFF!important' in loader,
+        "clean_dark_runtime_css": 'id="khdn-clean-dark-runtime-theme"' in loader,
+        "hard_dark_widget_css_removed": 'div[data-testid="stTextInput"] input,div[data-testid="stNumberInput"] input,div[data-testid="stTextArea"] textarea,div[data-baseweb="input"] input' not in loader,
+        "admin_index_does_not_force_dark": '#173A37' not in index,
     }
     failed=[k for k,v in checks.items() if not v]
-    print("KHDN_V214_THEME_INSTALL_QA",checks,flush=True)
+    print("KHDN_V214_GOLDEN_INSTALL_QA",checks,flush=True)
     if failed:
-        raise RuntimeError("KHDN V2.14/theme install QA failed: "+", ".join(failed))
+        raise RuntimeError("KHDN V2.14 golden install QA failed: "+", ".join(failed))
 
 
 if __name__=="__main__":
