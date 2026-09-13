@@ -20,7 +20,7 @@ def main():
         "grid_observer_paused_while_typing": "khdn-typing-mode" in index and "gridObserver=new MutationObserver" in index,
         "typing_focus_script": 'id="khdn-typing-fastpath"' in index and "focusin" in index and "focusout" in index,
         "typing_animation_pause": 'body.khdn-typing-mode div[class*="st-key-ops_alert_hot_"] button' in index and "animation:none!important" in index,
-        "invalid_string_callback_patch_removed": 'on_change=\\"ignore\\"' not in perf and 'on_change="ignore"' not in perf,
+        "legacy_draft_callback_rewriter_removed": "draft_widgets = [" not in perf and "for old_widget, new_widget, label in draft_widgets" not in perf,
         "reason_edit_form_patch": 'reason category edit form' in perf and 'form_submit_button' in perf,
         "callback_guard_present": "Invalid Streamlit string callback detected" in perf,
     }
