@@ -2,26 +2,48 @@
 import hashlib
 import secrets
 import sqlite3
+import threading
 import time
 from contextlib import contextmanager
 
 COOKIE = "__Host-khdn-device"
 TTL = 30 * 86400
 
+_SCHEMA_READY = set()
+_SCHEMA_LOCK = threading.Lock()
+
 
 def digest(value):
     return hashlib.sha256(value.encode()).hexdigest()
 
 
+def _ensure_schema(path):
+    key = str(path)
+    if key in _SCHEMA_READY:
+        return
+    with _SCHEMA_LOCK:
+        if key in _SCHEMA_READY:
+            return
+        c = sqlite3.connect(path, timeout=15)
+        try:
+            c.execute('''CREATE TABLE IF NOT EXISTS device_sessions (
+                token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
+                password_stamp TEXT NOT NULL, expires REAL NOT NULL,
+                grant_hash TEXT UNIQUE, grant_expires REAL)''')
+            c.commit()
+        finally:
+            c.close()
+        _SCHEMA_READY.add(key)
+
+
 @contextmanager
 def connect(path):
+    # DDL is done once per process/path. Subsequent resolves are a lightweight
+    # indexed SELECT instead of CREATE TABLE + COMMIT + SELECT on every rerun.
+    _ensure_schema(path)
     c = sqlite3.connect(path, timeout=15)
     c.row_factory = sqlite3.Row
-    c.execute('''CREATE TABLE IF NOT EXISTS device_sessions (
-        token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
-        password_stamp TEXT NOT NULL, expires REAL NOT NULL,
-        grant_hash TEXT UNIQUE, grant_expires REAL)''')
-    c.commit()
+    c.execute("PRAGMA busy_timeout=15000")
     try:
         with c:
             yield c
