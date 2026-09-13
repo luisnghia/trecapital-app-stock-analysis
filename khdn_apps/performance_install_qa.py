@@ -1,4 +1,4 @@
-"""Verify built image contains zero-keystroke catalog entry and V2.14 Light/Dark styling."""
+"""Verify built image contains zero-keystroke catalog entry and exact V2.14 Light styling."""
 from pathlib import Path
 import streamlit
 
@@ -14,6 +14,7 @@ def main():
     component_py=(root/"fast_catalog_input.py").read_text(encoding="utf-8")
     component_html=(root/"fast_catalog_component"/"index.html").read_text(encoding="utf-8")
     config=(root/".streamlit"/"config.toml").read_text(encoding="utf-8")
+    exact_light=(root/"v214_exact_light.html").read_text(encoding="utf-8")
     index=(Path(streamlit.__file__).resolve().parent/"static"/"index.html").read_text(encoding="utf-8")
     checks={
         "loader_perf_patch": "_performance_patch_source" in loader,
@@ -35,16 +36,13 @@ def main():
         "catalog_component_submit_only": "buttonEl.addEventListener('click',submit)" in component_html and "event.key==='Enter'" in component_html,
         "task_type_fast_component_present": 'key="catalog_submit_only_task_type"' in catalog and 'Tên công việc mới' in catalog,
         "reason_fast_component_present": 'catalog_submit_only_reason_' in catalog and 'Tên nhóm nguyên nhân mới' in catalog,
-        "plain_catalog_table": 'class="khdn-catalog-table"' in catalog,
+        "plain_catalog_table": 'class="khdn-catalog-table"' in catalog and 'st.html(table_html)' in catalog,
         "default_light_theme": '[theme]\nbase = "light"' in config,
-        "v214_light_palette": '[theme.light]\nprimaryColor = "#0B7F75"\nbackgroundColor = "#FFFFFF"\nsecondaryBackgroundColor = "#F6F8F8"\ntextColor = "#12302D"' in config,
-        "v214_sidebar_palette": '[theme.light.sidebar]\nprimaryColor = "#0B7F75"\nbackgroundColor = "#F4FBF8"\nsecondaryBackgroundColor = "#FFFFFF"' in config,
-        "switchable_light_dark_themes": '[theme.light]' in config and '[theme.dark]' in config and '[theme.light.sidebar]' in config and '[theme.dark.sidebar]' in config,
+        "native_theme_not_repainted_by_config": '[theme.light]' not in config and '[theme.dark]' not in config,
+        "exact_v214_css_snapshot": 'radial-gradient(circle at 10% 0%,rgba(11,127,117,.08),transparent 28%)' in exact_light and 'section[data-testid="stSidebar"]{background:linear-gradient(180deg,#EAF7F1 0%,#FFFFFF 74%)' in exact_light and 'div.stButton>button,.stDownloadButton>button{border-radius:999px' in exact_light,
+        "loader_reads_exact_v214_css": 'v214_exact_light.html' in loader and '_v214_exact_css' in loader,
         "runtime_theme_uses_context": 'getattr(st.context.theme,"type","light")' in loader or 'getattr(st.context.theme, "type", "light")' in loader,
-        "v214_light_runtime_css": 'id="khdn-v214-light-runtime-theme"' in loader and 'background:#FFFFFF!important' in loader and '#F4FBF8' in loader,
-        "v214_gold_selected_border": 'border:2px solid #F5B21B!important' in loader,
-        "v214_plain_white_table": '.khdn-catalog-table td' in loader and 'background:#FFFFFF' in loader and '#EEF7F4' in loader,
-        "native_inputs_not_broadly_repainted": '[data-testid="stTextInput"] input' not in loader and '[data-testid="stTextArea"] textarea' not in loader and '[data-baseweb="select"]' not in loader,
+        "postcompat_is_narrow": 'id="khdn-v214-postcompat"' in loader and '[data-testid="stTextInput"] input' not in loader and '[data-testid="stTextArea"] textarea' not in loader,
         "clean_dark_runtime_css": 'id="khdn-clean-dark-runtime-theme"' in loader,
         "admin_index_does_not_force_dark": '#173A37' not in index,
     }
