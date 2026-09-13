@@ -42,9 +42,9 @@ def main():
         "v214_white_light_sidebar": '[theme.light.sidebar]\nprimaryColor = "#007F78"\nbackgroundColor = "#FFFFFF"\nsecondaryBackgroundColor = "#FFFFFF"' in config,
         "switchable_light_dark_themes": '[theme.light]' in config and '[theme.dark]' in config and '[theme.light.sidebar]' in config and '[theme.dark.sidebar]' in config,
         "runtime_theme_uses_context": 'getattr(st.context.theme, "type", "light")' in loader,
-        "v214_light_runtime_css": 'id="khdn-v214-light-runtime-theme"' in loader and 'background:#FFFFFF!important' in loader,
+        "v214_light_runtime_css": 'id="khdn-v214-light-runtime-theme"' in loader and 'background:#FFFFFF!important' in loader and 'background:#F4F6F8!important' in loader,
         "clean_dark_runtime_css": 'id="khdn-clean-dark-runtime-theme"' in loader,
-        "hard_dark_widget_css_removed": 'div[data-testid="stTextInput"] input,div[data-testid="stNumberInput"] input,div[data-testid="stTextArea"] textarea,div[data-baseweb="input"] input' not in loader,
+        "legacy_unconditional_dark_runtime_removed": '# Dark-mode readability + yellow Create actions.' not in loader,
         "admin_index_does_not_force_dark": '#173A37' not in index,
     }
     failed=[k for k,v in checks.items() if not v]
