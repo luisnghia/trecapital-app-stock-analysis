@@ -1,9 +1,10 @@
-"""Batch task-entry payloads and keep catalog entry close to the fast V2.14 flow.
+"""Batch task-entry payloads and install the V2.14 golden-input fast path.
 
-The catalog fast path deliberately uses plain native Streamlit widgets: the table is
-rendered once, typing happens inside st.form without callbacks, and server work only
-runs on submit. This matches the simple behavior visible in the V2.14 local UI while
-preserving the newer reason-category workflow and task-entry batching.
+The operational forms keep Streamlit's normal st.form batching. The two catalog-name
+creation fields use a tiny custom component that keeps every keystroke entirely inside
+the browser iframe and sends exactly one value only on submit. This is intentionally
+stricter than st.text_input-in-form because production users still observed visible
+per-character lag on the large Admin page even though server reruns were already batched.
 """
 
 
@@ -56,10 +57,10 @@ def patch_source(source: str) -> str:
         'CBHT create payload',
     )
 
-    # Reason master: one selected category at a time (so RETURN and CANCEL are not
-    # both rendered), but within that category use the old simple V2.14-style page:
-    # table -> plain create form -> edit controls. No extra "mode" navigation.
+    # Reason master: selected RETURN/CANCEL table + ultra-light browser-local create
+    # field + normal edit controls. The create component emits nothing while typing.
     reason_manager = '''def _render_reason_category_manager(u):
+    from khdn_apps.fast_catalog_input import fast_catalog_input
     st.subheader("Nhóm nguyên nhân trả lại / hủy")
     st.caption("Tên nhóm nguyên nhân được dùng làm danh mục chuẩn. Khi CBHT trả lại hoặc CBQLKH hủy hồ sơ, người thao tác vẫn phải nhập thêm lý do chi tiết.")
     kind_label=st.radio("Danh mục nguyên nhân",["↩️ Trả lại","🗑️ Hủy hồ sơ"],horizontal=True,key="reason_catalog_kind_v214")
@@ -75,10 +76,9 @@ def patch_source(source: str) -> str:
         show["active"]=show["active"].map({1:"Đang sử dụng",0:"Đã khóa"}).fillna(show["active"])
         st.dataframe(show.rename(columns={"id":"ID","name":"Tên nhóm nguyên nhân","active":"Trạng thái","created_at":"Ngày tạo","updated_at":"Cập nhật"}),use_container_width=True,hide_index=True)
 
-    with st.form(f"reason_create_{kind}"):
-        name=st.text_input("Tên nhóm nguyên nhân mới",key=f"reason_create_name_{kind}")
-        ok=st.form_submit_button("Thêm nhóm nguyên nhân")
-    if ok:
+    _reason_reset=f"{kind}|{len(df)}|" + (str(df["updated_at"].max()) if (not df.empty and "updated_at" in df.columns) else "0")
+    name=fast_catalog_input("Tên nhóm nguyên nhân mới","Thêm nhóm nguyên nhân",key=f"reason_create_fast_{kind}",reset_token=_reason_reset)
+    if name is not None:
         clean=name.strip()
         if not clean:
             st.error("Bắt buộc nhập tên nhóm nguyên nhân.")
@@ -118,19 +118,19 @@ def patch_source(source: str) -> str:
         'def _render_reason_category_manager(u):\n',
         'def user_by_username(username, active_only=True):\n',
         reason_manager,
-        'V2.14-style reason manager',
+        'V2.14 golden reason manager',
     )
 
-    # Task type catalog: intentionally mirror the compact pre-online/V2.14 flow
-    # visible in the user's local screenshot. No extra mode radio, no callbacks,
-    # and the create field is a plain text_input inside a plain st.form.
+    # Task type catalog: keep the exact V2.14 table/edit layout, but replace only
+    # the create text box with the browser-local component to guarantee zero
+    # per-keystroke Streamlit work on the production Admin page.
     task_type_block = '''    if admin_view == "types":
+        from khdn_apps.fast_catalog_input import fast_catalog_input
         types=qdf("SELECT id,name,active,created_at,updated_at FROM task_types ORDER BY id")
         st.dataframe(types,use_container_width=True,hide_index=True)
-        with st.form("new_type"):
-            name=st.text_input("Tên công việc mới")
-            ok=st.form_submit_button("Thêm loại công việc")
-        if ok:
+        _type_reset=f"{len(types)}|" + (str(types["updated_at"].max()) if (not types.empty and "updated_at" in types.columns) else "0")
+        name=fast_catalog_input("Tên công việc mới","Thêm loại công việc",key="task_type_create_fast",reset_token=_type_reset)
+        if name is not None:
             clean=name.strip()
             if not clean:
                 st.error("Bắt buộc nhập tên công việc.")
@@ -152,7 +152,7 @@ def patch_source(source: str) -> str:
         '    if admin_view == "types":\n',
         '    if admin_view == "reasons":\n',
         task_type_block,
-        'V2.14-style task type manager',
+        'V2.14 golden task type manager',
     )
 
     if 'on_change="ignore"' in source or "on_change='ignore'" in source:
@@ -161,11 +161,12 @@ def patch_source(source: str) -> str:
         'with st.form("qlkh_create_payload_form"',
         'with st.form("support_create_payload_form"',
         'key="reason_catalog_kind_v214"',
-        'with st.form("new_type"):',
+        'fast_catalog_input("Tên công việc mới"',
+        'fast_catalog_input("Tên nhóm nguyên nhân mới"',
     ]
     for marker in required_once:
         if source.count(marker) != 1:
-            raise RuntimeError(f"V2.14 fast marker not installed exactly once: {marker}")
+            raise RuntimeError(f"Golden input marker not installed exactly once: {marker}")
     if 'task_type_catalog_mode_fast' in source or 'reason_catalog_mode_' in source:
         raise RuntimeError("Legacy lazy catalog mode controls still present")
     if '    if admin_view == "reasons":\n        _render_reason_category_manager(u)\n' not in source:
