@@ -3,13 +3,14 @@ base = "light"
 font = "sans serif"
 showSidebarBorder = true
 
+# V2.14-inspired light theme: white canvas/sidebar, dark teal text and clear borders.
 [theme.light]
 primaryColor = "#007F78"
 backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F3FAF8"
-textColor = "#16302D"
-borderColor = "#C9E0DB"
-dataframeHeaderBackgroundColor = "#E7F4F1"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#163B39"
+borderColor = "#BFD8D2"
+dataframeHeaderBackgroundColor = "#F1F7F5"
 showWidgetBorder = true
 
 [theme.dark]
@@ -23,10 +24,10 @@ showWidgetBorder = true
 
 [theme.light.sidebar]
 primaryColor = "#007F78"
-backgroundColor = "#F3FAF8"
+backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#FFFFFF"
-textColor = "#16302D"
-borderColor = "#C9E0DB"
+textColor = "#163B39"
+borderColor = "#BFD8D2"
 
 [theme.dark.sidebar]
 primaryColor = "#6FD6C4"
