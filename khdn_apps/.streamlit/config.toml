@@ -1,46 +1,10 @@
 [theme]
 base = "light"
-font = "sans serif"
-showSidebarBorder = true
-
-# V2.14 visual baseline: pure-white content canvas, pale-green sidebar,
-# dark teal typography and native Streamlit controls left theme-driven.
-[theme.light]
-primaryColor = "#0B7F75"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F6F8F8"
-textColor = "#12302D"
-borderColor = "#C9D8D5"
-dataframeHeaderBackgroundColor = "#EEF7F4"
-showWidgetBorder = true
-
-[theme.dark]
-primaryColor = "#6FD6C4"
-backgroundColor = "#0E1F1E"
-secondaryBackgroundColor = "#17312F"
-textColor = "#F4FFFC"
-borderColor = "#365A56"
-dataframeHeaderBackgroundColor = "#1B4540"
-showWidgetBorder = true
-
-[theme.light.sidebar]
-primaryColor = "#0B7F75"
-backgroundColor = "#F4FBF8"
-secondaryBackgroundColor = "#FFFFFF"
-textColor = "#12302D"
-borderColor = "#C9D8D5"
-
-[theme.dark.sidebar]
-primaryColor = "#6FD6C4"
-backgroundColor = "#102624"
-secondaryBackgroundColor = "#17312F"
-textColor = "#F4FFFC"
-borderColor = "#365A56"
 
 [server]
 headless = true
-enableStaticServing = true
 maxUploadSize = 50
+enableStaticServing = true
 
 [browser]
 gatherUsageStats = false
