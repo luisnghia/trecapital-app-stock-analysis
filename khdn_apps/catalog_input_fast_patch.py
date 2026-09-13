@@ -1,24 +1,27 @@
-"""Make Admin catalog entry follow the light, low-DOM V2.14 path.
+"""Make Admin catalog entry use a submit-only browser component.
 
-This runs after input_batch_patch. It deliberately keeps catalog typing in a native
-Streamlit form, but uses the same text-area widget that is empirically smooth in the
-QLKH note field and replaces interactive dataframe canvases with lightweight static
-HTML tables. No callbacks or per-keystroke backend work are introduced.
+The catalog-name fields are isolated from Streamlit's widget tree while typing. The
+plain DOM input sends no value to Python until the user presses Enter or clicks Add.
+This removes the last possible per-keystroke Streamlit/React/backend path on the two
+catalog screens while preserving the newer database/audit workflow.
 """
 
 
 def _replace_span(source: str, start_marker: str, end_marker: str, replacement: str, label: str) -> str:
-    start = source.find(start_marker)
-    if start < 0:
+    start=source.find(start_marker)
+    if start<0:
         raise RuntimeError(f"Catalog fast patch cannot find start: {label}")
-    end = source.find(end_marker, start + len(start_marker))
-    if end < 0:
+    end=source.find(end_marker,start+len(start_marker))
+    if end<0:
         raise RuntimeError(f"Catalog fast patch cannot find end: {label}")
-    return source[:start] + replacement + source[end:]
+    return source[:start]+replacement+source[end:]
 
 
 def patch_source(source: str) -> str:
-    reason_manager = '''def _catalog_static_table(df, columns):
+    reason_manager='''from khdn_apps.fast_catalog_input import fast_catalog_input
+
+
+def _catalog_static_table(df, columns):
     if df is None or df.empty:
         return
     _html=__import__("html")
@@ -43,12 +46,16 @@ def _render_reason_category_manager(u):
     title="Nhóm nguyên nhân trả lại" if kind=="RETURN" else "Nhóm nguyên nhân hủy"
     st.markdown(f"#### {title}")
 
-    # Fast create path comes first so the editor is not preceded by a heavy grid.
-    with st.form(f"reason_create_{kind}",clear_on_submit=False,enter_to_submit=False):
-        name=st.text_area("Tên nhóm nguyên nhân mới",height=68,key=f"catalog_fast_name_reason_{kind}")
-        ok=st.form_submit_button("Thêm nhóm nguyên nhân")
-    if ok:
-        clean=name.strip()
+    # Plain DOM input. No component value is emitted for input/keyup events.
+    _reset_key=f"_catalog_reason_reset_{kind}"
+    submitted_name=fast_catalog_input(
+        "Tên nhóm nguyên nhân mới",
+        "Thêm nhóm nguyên nhân",
+        key=f"catalog_submit_only_reason_{kind}",
+        reset_token=str(st.session_state.get(_reset_key,0)),
+    )
+    if submitted_name is not None:
+        clean=submitted_name.strip()
         if not clean:
             st.error("Bắt buộc nhập tên nhóm nguyên nhân.")
         else:
@@ -56,6 +63,7 @@ def _render_reason_category_manager(u):
                 ts=now_str(); xid=execute("INSERT INTO reason_categories(reason_type,name,active,created_by,created_at,updated_at) VALUES(?,?,1,?,?,?)",(kind,clean,int(u["id"]),ts,ts))
                 audit(u["id"],"CREATE_REASON_CATEGORY","reason_category",xid,f"type={kind}; name={clean}")
                 LOGGER.info("REASON_CATEGORY_CREATE actor=%s type=%s id=%s name=%s",u["id"],kind,xid,clean)
+                st.session_state[_reset_key]=int(st.session_state.get(_reset_key,0))+1
                 st.success("Đã thêm nhóm nguyên nhân."); st.rerun()
             except sqlite3.IntegrityError:
                 st.error("Tên nhóm nguyên nhân đã tồn tại trong danh mục này.")
@@ -64,10 +72,8 @@ def _render_reason_category_manager(u):
     if df.empty:
         st.info("Chưa có nhóm nguyên nhân.")
     else:
-        show=df.copy()
-        show["active"]=show["active"].map({1:"Đang sử dụng",0:"Đã khóa"}).fillna(show["active"])
+        show=df.copy(); show["active"]=show["active"].map({1:"Đang sử dụng",0:"Đã khóa"}).fillna(show["active"])
         _catalog_static_table(show,[('id','ID'),('name','Tên nhóm nguyên nhân'),('active','Trạng thái'),('created_at','Ngày tạo'),('updated_at','Cập nhật')])
-
         xid=st.selectbox("Chọn nhóm nguyên nhân để sửa",df.id.astype(int).tolist(),key=f"reason_edit_select_{kind}",format_func=lambda x:str(df[df.id.astype(int)==int(x)].iloc[0]["name"]))
         row=df[df.id.astype(int)==int(xid)].iloc[0]
         with st.form(f"reason_edit_form_{kind}_{int(xid)}",clear_on_submit=False,enter_to_submit=False):
@@ -89,7 +95,7 @@ def _render_reason_category_manager(u):
 
 
 '''
-    source = _replace_span(
+    source=_replace_span(
         source,
         'def _catalog_static_table(df, columns):\n' if 'def _catalog_static_table(df, columns):\n' in source else 'def _render_reason_category_manager(u):\n',
         'def user_by_username(username, active_only=True):\n',
@@ -97,19 +103,21 @@ def _render_reason_category_manager(u):
         'reason manager',
     )
 
-    task_type_block = '''    if admin_view == "types":
-        # Same browser-local entry behavior as V2.14, using the already-proven
-        # smooth text-area widget from the QLKH note field.
-        with st.form("new_type",clear_on_submit=False,enter_to_submit=False):
-            name=st.text_area("Tên công việc mới",height=68,key="catalog_fast_name_task_type")
-            ok=st.form_submit_button("Thêm loại công việc")
-        if ok:
-            clean=name.strip()
+    task_type_block='''    if admin_view == "types":
+        _reset_key="_catalog_task_type_reset"
+        submitted_name=fast_catalog_input(
+            "Tên công việc mới",
+            "Thêm loại công việc",
+            key="catalog_submit_only_task_type",
+            reset_token=str(st.session_state.get(_reset_key,0)),
+        )
+        if submitted_name is not None:
+            clean=submitted_name.strip()
             if not clean:
                 st.error("Bắt buộc nhập tên công việc.")
             else:
                 try:
-                    ts=now_str(); xid=execute("INSERT INTO task_types(name,sla_hours,active,created_at,updated_at) VALUES(?,8,1,?,?)",(clean,ts,ts)); _active_task_types_cached.clear(); audit(u["id"],"CREATE_TASK_TYPE","task_type",xid,clean); st.success("Đã thêm loại công việc."); st.rerun()
+                    ts=now_str(); xid=execute("INSERT INTO task_types(name,sla_hours,active,created_at,updated_at) VALUES(?,8,1,?,?)",(clean,ts,ts)); _active_task_types_cached.clear(); audit(u["id"],"CREATE_TASK_TYPE","task_type",xid,clean); st.session_state[_reset_key]=int(st.session_state.get(_reset_key,0))+1; st.success("Đã thêm loại công việc."); st.rerun()
                 except sqlite3.IntegrityError:
                     st.error("Tên công việc đã tồn tại.")
 
@@ -128,23 +136,17 @@ def _render_reason_category_manager(u):
                 execute("UPDATE task_types SET active=?,updated_at=? WHERE id=?",(int(nactive),now_str(),xid)); _active_task_types_cached.clear(); audit(u["id"],"UPDATE_TASK_TYPE","task_type",xid,f"active={nactive}"); st.success("Đã cập nhật."); st.rerun()
 
 '''
-    source = _replace_span(
-        source,
-        '    if admin_view == "types":\n',
-        '    if admin_view == "reasons":\n',
-        task_type_block,
-        'task type manager',
-    )
+    source=_replace_span(source,'    if admin_view == "types":\n','    if admin_view == "reasons":\n',task_type_block,'task type manager')
 
-    checks=[
-        'key="catalog_fast_name_task_type"',
-        'key=f"catalog_fast_name_reason_{kind}"',
+    required=[
+        'from khdn_apps.fast_catalog_input import fast_catalog_input',
+        'key="catalog_submit_only_task_type"',
+        'key=f"catalog_submit_only_reason_{kind}"',
         'class="khdn-catalog-table"',
-        'enter_to_submit=False',
     ]
-    for marker in checks:
+    for marker in required:
         if marker not in source:
-            raise RuntimeError(f"Catalog fast marker missing: {marker}")
+            raise RuntimeError(f"Catalog submit-only marker missing: {marker}")
     if 'on_change="ignore"' in source or "on_change='ignore'" in source:
         raise RuntimeError("Invalid Streamlit string callback detected in catalog fast path")
     compile(source,"<khdn-catalog-input-fast-patch>","exec")
