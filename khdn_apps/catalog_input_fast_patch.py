@@ -2,8 +2,8 @@
 
 The catalog-name fields are isolated from Streamlit's widget tree while typing. The
 plain DOM input sends no value to Python until the user presses Enter or clicks Add.
-This removes the last possible per-keystroke Streamlit/React/backend path on the two
-catalog screens while preserving the newer database/audit workflow.
+Catalog tables are rendered as stable st.html blocks before the component so component
+mounting cannot make a previously visible table appear to vanish.
 """
 
 
@@ -35,7 +35,11 @@ def _catalog_static_table(df, columns):
                 value=""
             cells.append(f"<td>{_html.escape(str(value))}</td>")
         body.append("<tr>"+"".join(cells)+"</tr>")
-    st.markdown('<div class="khdn-catalog-table-wrap"><table class="khdn-catalog-table"><thead><tr>'+head+'</tr></thead><tbody>'+"".join(body)+'</tbody></table></div>',unsafe_allow_html=True)
+    table_html='<div class="khdn-catalog-table-wrap"><table class="khdn-catalog-table"><thead><tr>'+head+'</tr></thead><tbody>'+"".join(body)+'</tbody></table></div>'
+    if hasattr(st,"html"):
+        st.html(table_html)
+    else:
+        st.markdown(table_html,unsafe_allow_html=True)
 
 
 def _render_reason_category_manager(u):
@@ -46,7 +50,15 @@ def _render_reason_category_manager(u):
     title="Nhóm nguyên nhân trả lại" if kind=="RETURN" else "Nhóm nguyên nhân hủy"
     st.markdown(f"#### {title}")
 
-    # Plain DOM input. No component value is emitted for input/keyup events.
+    # V2.14 order: list first, then create field, then edit controls. Rendering the
+    # table before the iframe prevents layout/component mounting from hiding it.
+    df=qdf("SELECT id,name,active,created_at,updated_at FROM reason_categories WHERE reason_type=? ORDER BY id",(kind,))
+    if df.empty:
+        st.info("Chưa có nhóm nguyên nhân.")
+    else:
+        show=df.copy(); show["active"]=show["active"].map({1:"Đang sử dụng",0:"Đã khóa"}).fillna(show["active"])
+        _catalog_static_table(show,[('id','ID'),('name','Tên nhóm nguyên nhân'),('active','Trạng thái'),('created_at','Ngày tạo'),('updated_at','Cập nhật')])
+
     _reset_key=f"_catalog_reason_reset_{kind}"
     submitted_name=fast_catalog_input(
         "Tên nhóm nguyên nhân mới",
@@ -68,12 +80,7 @@ def _render_reason_category_manager(u):
             except sqlite3.IntegrityError:
                 st.error("Tên nhóm nguyên nhân đã tồn tại trong danh mục này.")
 
-    df=qdf("SELECT id,name,active,created_at,updated_at FROM reason_categories WHERE reason_type=? ORDER BY id",(kind,))
-    if df.empty:
-        st.info("Chưa có nhóm nguyên nhân.")
-    else:
-        show=df.copy(); show["active"]=show["active"].map({1:"Đang sử dụng",0:"Đã khóa"}).fillna(show["active"])
-        _catalog_static_table(show,[('id','ID'),('name','Tên nhóm nguyên nhân'),('active','Trạng thái'),('created_at','Ngày tạo'),('updated_at','Cập nhật')])
+    if not df.empty:
         xid=st.selectbox("Chọn nhóm nguyên nhân để sửa",df.id.astype(int).tolist(),key=f"reason_edit_select_{kind}",format_func=lambda x:str(df[df.id.astype(int)==int(x)].iloc[0]["name"]))
         row=df[df.id.astype(int)==int(xid)].iloc[0]
         with st.form(f"reason_edit_form_{kind}_{int(xid)}",clear_on_submit=False,enter_to_submit=False):
@@ -104,6 +111,15 @@ def _render_reason_category_manager(u):
     )
 
     task_type_block='''    if admin_view == "types":
+        # Exact V2.14 page order: table -> create -> edit. The create input itself
+        # remains the zero-keystroke component to preserve the speed improvement.
+        types=qdf("SELECT id,name,active,created_at,updated_at FROM task_types ORDER BY id")
+        if types.empty:
+            st.info("Chưa có loại công việc.")
+        else:
+            show=types.copy(); show["active"]=show["active"].map({1:"Đang sử dụng",0:"Đã khóa"}).fillna(show["active"])
+            _catalog_static_table(show,[('id','ID'),('name','Tên công việc'),('active','Trạng thái'),('created_at','Ngày tạo'),('updated_at','Cập nhật')])
+
         _reset_key="_catalog_task_type_reset"
         submitted_name=fast_catalog_input(
             "Tên công việc mới",
@@ -121,12 +137,7 @@ def _render_reason_category_manager(u):
                 except sqlite3.IntegrityError:
                     st.error("Tên công việc đã tồn tại.")
 
-        types=qdf("SELECT id,name,active,created_at,updated_at FROM task_types ORDER BY id")
-        if types.empty:
-            st.info("Chưa có loại công việc.")
-        else:
-            show=types.copy(); show["active"]=show["active"].map({1:"Đang sử dụng",0:"Đã khóa"}).fillna(show["active"])
-            _catalog_static_table(show,[('id','ID'),('name','Tên công việc'),('active','Trạng thái'),('created_at','Ngày tạo'),('updated_at','Cập nhật')])
+        if not types.empty:
             xid=st.selectbox("Chọn loại công việc để sửa",types.id.astype(int).tolist(),format_func=lambda x:types[types.id.astype(int)==int(x)].iloc[0]["name"],key="catalog_fast_task_type_edit_select")
             r=types[types.id.astype(int)==int(xid)].iloc[0]
             with st.form(f"catalog_fast_task_type_edit_{int(xid)}",clear_on_submit=False,enter_to_submit=False):
@@ -143,6 +154,8 @@ def _render_reason_category_manager(u):
         'key="catalog_submit_only_task_type"',
         'key=f"catalog_submit_only_reason_{kind}"',
         'class="khdn-catalog-table"',
+        'st.html(table_html)',
+        '# Exact V2.14 page order: table -> create -> edit.',
     ]
     for marker in required:
         if marker not in source:
