@@ -12,10 +12,17 @@ def install():
     reason=(
         "from khdn_apps.reason_categories_patch import patch_source as _reason_categories_patch_source\n"
         "_source = _reason_categories_patch_source(_source)\n"
+        "_source = _source.replace('(\"reasons\",\"🧩\",\"Nhóm nguyên nhân\")', '(\"reasons\",\"🏷️\",\"Nhóm nguyên nhân\")')\n"
     )
     if mobile not in text:
         raise RuntimeError("Reason-category installer requires mobile patch marker")
-    if reason not in text:
+    old_reason=(
+        "from khdn_apps.reason_categories_patch import patch_source as _reason_categories_patch_source\n"
+        "_source = _reason_categories_patch_source(_source)\n"
+    )
+    if old_reason in text and reason not in text:
+        text=text.replace(old_reason,reason,1)
+    elif reason not in text:
         text=text.replace(mobile,mobile+reason,1)
     app.write_text(text,encoding="utf-8")
 
