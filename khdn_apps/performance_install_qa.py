@@ -1,4 +1,4 @@
-"""Verify built image contains the KHDN input fast path and callback guard."""
+"""Verify built image contains KHDN input fast path, lazy catalogs, and callback guard."""
 from pathlib import Path
 import streamlit
 
@@ -26,6 +26,8 @@ def main():
         "callback_guard_present": "Invalid Streamlit string callback detected" in perf and "Invalid Streamlit string callback detected after input batching" in batch,
         "qlkh_batch_patch_present": "qlkh_create_payload_form" in batch,
         "support_batch_patch_present": "support_create_payload_form" in batch,
+        "reason_lazy_catalog_present": "reason_catalog_kind_fast" in batch and "Danh sách / chỉnh sửa" in batch,
+        "task_type_lazy_catalog_present": "task_type_catalog_mode_fast" in batch and "Danh sách / trạng thái" in batch,
         "catalog_fast_form_present": 'enter_to_submit=False' in batch,
     }
     failed=[k for k,v in checks.items() if not v]
