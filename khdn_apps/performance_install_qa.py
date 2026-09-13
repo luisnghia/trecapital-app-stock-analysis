@@ -37,10 +37,11 @@ def main():
         "reason_fast_component_present": 'catalog_submit_only_reason_' in catalog and 'Tên nhóm nguyên nhân mới' in catalog,
         "plain_catalog_table": 'class="khdn-catalog-table"' in catalog,
         "default_light_theme": '[theme]\nbase = "light"' in config,
-        "white_light_canvas": '[theme.light]\nprimaryColor = "#007F78"\nbackgroundColor = "#FFFFFF"' in config,
+        "v214_light_palette": '[theme.light]\nprimaryColor = "#0B7F75"\nbackgroundColor = "#FFFFFF"\nsecondaryBackgroundColor = "#F4F6F8"\ntextColor = "#12302D"' in config,
+        "v214_sidebar_palette": '[theme.light.sidebar]\nprimaryColor = "#0B7F75"\nbackgroundColor = "#FFFFFF"\nsecondaryBackgroundColor = "#F4F6F8"' in config,
         "switchable_light_dark_themes": '[theme.light]' in config and '[theme.dark]' in config and '[theme.light.sidebar]' in config and '[theme.dark.sidebar]' in config,
         "runtime_theme_uses_context": 'getattr(st.context.theme,"type","light")' in loader or 'getattr(st.context.theme, "type", "light")' in loader,
-        "v214_light_runtime_css": 'id="khdn-v214-light-runtime-theme"' in loader and 'background:#FFFFFF!important' in loader,
+        "v214_light_runtime_css": 'id="khdn-v214-light-runtime-theme"' in loader and 'background:#FFFFFF!important' in loader and '#EAF7F1' in loader,
         "clean_dark_runtime_css": 'id="khdn-clean-dark-runtime-theme"' in loader,
         "admin_index_does_not_force_dark": '#173A37' not in index,
     }
