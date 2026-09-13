@@ -3,11 +3,12 @@ base = "light"
 font = "sans serif"
 showSidebarBorder = true
 
-# V2.14 visual baseline: white page, pale native controls, dark teal text.
+# V2.14 visual baseline: pure-white content canvas, pale-green sidebar,
+# dark teal typography and native Streamlit controls left theme-driven.
 [theme.light]
 primaryColor = "#0B7F75"
 backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F4F6F8"
+secondaryBackgroundColor = "#F6F8F8"
 textColor = "#12302D"
 borderColor = "#C9D8D5"
 dataframeHeaderBackgroundColor = "#EEF7F4"
@@ -24,8 +25,8 @@ showWidgetBorder = true
 
 [theme.light.sidebar]
 primaryColor = "#0B7F75"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F4F6F8"
+backgroundColor = "#F4FBF8"
+secondaryBackgroundColor = "#FFFFFF"
 textColor = "#12302D"
 borderColor = "#C9D8D5"
 
