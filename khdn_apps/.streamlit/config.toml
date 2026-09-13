@@ -3,14 +3,14 @@ base = "light"
 font = "sans serif"
 showSidebarBorder = true
 
-# V2.14-inspired light theme: white canvas/sidebar, dark teal text and clear borders.
+# V2.14 visual baseline: white page, pale native controls, dark teal text.
 [theme.light]
-primaryColor = "#007F78"
+primaryColor = "#0B7F75"
 backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#FFFFFF"
-textColor = "#163B39"
-borderColor = "#BFD8D2"
-dataframeHeaderBackgroundColor = "#F1F7F5"
+secondaryBackgroundColor = "#F4F6F8"
+textColor = "#12302D"
+borderColor = "#C9D8D5"
+dataframeHeaderBackgroundColor = "#EEF7F4"
 showWidgetBorder = true
 
 [theme.dark]
@@ -23,11 +23,11 @@ dataframeHeaderBackgroundColor = "#1B4540"
 showWidgetBorder = true
 
 [theme.light.sidebar]
-primaryColor = "#007F78"
+primaryColor = "#0B7F75"
 backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#FFFFFF"
-textColor = "#163B39"
-borderColor = "#BFD8D2"
+secondaryBackgroundColor = "#F4F6F8"
+textColor = "#12302D"
+borderColor = "#C9D8D5"
 
 [theme.dark.sidebar]
 primaryColor = "#6FD6C4"
@@ -37,5 +37,9 @@ textColor = "#F4FFFC"
 borderColor = "#365A56"
 
 [server]
-# Serve bundled favicon/PWA assets so iOS and Android can use the BIDV icon.
+headless = true
 enableStaticServing = true
+maxUploadSize = 50
+
+[browser]
+gatherUsageStats = false
