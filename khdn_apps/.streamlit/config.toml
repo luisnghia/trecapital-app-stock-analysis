@@ -1,12 +1,40 @@
 [theme]
-base = "dark"
+base = "light"
+font = "sans serif"
+showSidebarBorder = true
+
+[theme.light]
+primaryColor = "#007F78"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F3FAF8"
+textColor = "#16302D"
+borderColor = "#C9E0DB"
+dataframeHeaderBackgroundColor = "#E7F4F1"
+showWidgetBorder = true
+
+[theme.dark]
 primaryColor = "#6FD6C4"
 backgroundColor = "#0E1F1E"
 secondaryBackgroundColor = "#17312F"
 textColor = "#F4FFFC"
-font = "sans serif"
+borderColor = "#365A56"
+dataframeHeaderBackgroundColor = "#1B4540"
+showWidgetBorder = true
+
+[theme.light.sidebar]
+primaryColor = "#007F78"
+backgroundColor = "#F3FAF8"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#16302D"
+borderColor = "#C9E0DB"
+
+[theme.dark.sidebar]
+primaryColor = "#6FD6C4"
+backgroundColor = "#102624"
+secondaryBackgroundColor = "#17312F"
+textColor = "#F4FFFC"
+borderColor = "#365A56"
 
 [server]
-# Serve the bundled favicon/PWA assets so iOS and Android can use the BIDV icon
-# when the app is added to the device home screen.
+# Serve bundled favicon/PWA assets so iOS and Android can use the BIDV icon.
 enableStaticServing = true
