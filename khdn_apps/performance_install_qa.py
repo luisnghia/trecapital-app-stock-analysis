@@ -1,4 +1,4 @@
-"""Verify that the built image contains the KHDN performance fast path and callback hotfix."""
+"""Verify built image contains the KHDN input fast path and callback guard."""
 from pathlib import Path
 import streamlit
 
@@ -9,9 +9,11 @@ def main():
     device=(root/"device_login.py").read_text(encoding="utf-8")
     sessions=(root/"device_sessions.py").read_text(encoding="utf-8")
     perf=(root/"performance_patch.py").read_text(encoding="utf-8")
+    batch=(root/"input_batch_patch.py").read_text(encoding="utf-8")
     index=(Path(streamlit.__file__).resolve().parent/"static"/"index.html").read_text(encoding="utf-8")
     checks={
         "loader_perf_patch": "_performance_patch_source" in loader,
+        "loader_input_batch_patch": "_input_batch_patch_source" in loader,
         "component_command_gated": "if command:\n        result = _component" in device,
         "device_validation_throttled": "VALIDATE_SECONDS = 30.0" in device,
         "device_schema_once": "_SCHEMA_READY" in sessions and "_ensure_schema(path)" in sessions,
@@ -21,13 +23,15 @@ def main():
         "typing_focus_script": 'id="khdn-typing-fastpath"' in index and "focusin" in index and "focusout" in index,
         "typing_animation_pause": 'body.khdn-typing-mode div[class*="st-key-ops_alert_hot_"] button' in index and "animation:none!important" in index,
         "legacy_draft_callback_rewriter_removed": "draft_widgets = [" not in perf and "for old_widget, new_widget, label in draft_widgets" not in perf,
-        "reason_edit_form_patch": 'reason category edit form' in perf and 'form_submit_button' in perf,
-        "callback_guard_present": "Invalid Streamlit string callback detected" in perf,
+        "callback_guard_present": "Invalid Streamlit string callback detected" in perf and "Invalid Streamlit string callback detected after input batching" in batch,
+        "qlkh_batch_patch_present": "qlkh_create_payload_form" in batch,
+        "support_batch_patch_present": "support_create_payload_form" in batch,
+        "catalog_fast_form_present": 'enter_to_submit=False' in batch,
     }
     failed=[k for k,v in checks.items() if not v]
-    print("KHDN_SPEED_INSTALL_QA",checks,flush=True)
+    print("KHDN_INPUT_FAST_INSTALL_QA",checks,flush=True)
     if failed:
-        raise RuntimeError("KHDN speed install QA failed: "+", ".join(failed))
+        raise RuntimeError("KHDN input fast install QA failed: "+", ".join(failed))
 
 
 if __name__=="__main__":
