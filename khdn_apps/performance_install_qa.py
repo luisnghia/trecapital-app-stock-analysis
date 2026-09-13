@@ -1,4 +1,4 @@
-"""Verify built image contains KHDN input fast path, lazy catalogs, and callback guard."""
+"""Verify built image contains KHDN fast input and adaptive Light/Dark styling."""
 from pathlib import Path
 import streamlit
 
@@ -10,6 +10,7 @@ def main():
     sessions=(root/"device_sessions.py").read_text(encoding="utf-8")
     perf=(root/"performance_patch.py").read_text(encoding="utf-8")
     batch=(root/"input_batch_patch.py").read_text(encoding="utf-8")
+    config=(root/".streamlit"/"config.toml").read_text(encoding="utf-8")
     index=(Path(streamlit.__file__).resolve().parent/"static"/"index.html").read_text(encoding="utf-8")
     checks={
         "loader_perf_patch": "_performance_patch_source" in loader,
@@ -26,14 +27,18 @@ def main():
         "callback_guard_present": "Invalid Streamlit string callback detected" in perf and "Invalid Streamlit string callback detected after input batching" in batch,
         "qlkh_batch_patch_present": "qlkh_create_payload_form" in batch,
         "support_batch_patch_present": "support_create_payload_form" in batch,
-        "reason_lazy_catalog_present": "reason_catalog_kind_fast" in batch and "Danh sách / chỉnh sửa" in batch,
-        "task_type_lazy_catalog_present": "task_type_catalog_mode_fast" in batch and "Danh sách / trạng thái" in batch,
-        "catalog_fast_form_present": 'enter_to_submit=False' in batch,
+        "v214_task_type_flow_present": 'with st.form("new_type"):' in batch and 'task_type_catalog_mode_fast' not in batch,
+        "v214_reason_flow_present": 'reason_catalog_kind_v214' in batch and 'reason_catalog_mode_' not in batch,
+        "default_light_theme": '[theme]\nbase = "light"' in config,
+        "switchable_light_dark_themes": '[theme.light]' in config and '[theme.dark]' in config and '[theme.light.sidebar]' in config and '[theme.dark.sidebar]' in config,
+        "adaptive_runtime_theme": 'id="khdn-adaptive-runtime-theme"' in loader and '--khdn-surface:var(--secondary-background-color)' in loader and '--khdn-text:var(--text-color)' in loader,
+        "hard_dark_widget_css_removed": 'div[data-testid="stTextInput"] input,div[data-testid="stNumberInput"] input' not in loader,
+        "adaptive_admin_navigation": 'Admin navigation follows the active Streamlit Light/Dark theme.' in index and '#173A37' not in index,
     }
     failed=[k for k,v in checks.items() if not v]
-    print("KHDN_INPUT_FAST_INSTALL_QA",checks,flush=True)
+    print("KHDN_V214_THEME_INSTALL_QA",checks,flush=True)
     if failed:
-        raise RuntimeError("KHDN input fast install QA failed: "+", ".join(failed))
+        raise RuntimeError("KHDN V2.14/theme install QA failed: "+", ".join(failed))
 
 
 if __name__=="__main__":
