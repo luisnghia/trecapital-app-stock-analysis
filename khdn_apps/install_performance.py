@@ -37,6 +37,7 @@ def install():
     return false;
   };
   const gridObserver=new MutationObserver(mutations=>{
+    if(document.body?.classList.contains('khdn-typing-mode')) return;
     if(mutationTouchesGrid(mutations)) scheduleGrid();
   });
   gridObserver.observe(document.body||document.documentElement,{childList:true,subtree:true});
@@ -44,6 +45,49 @@ def install():
     if old not in page:
         raise RuntimeError("Performance installer cannot find mobile MutationObserver marker")
     page = page.replace(old, new, 1)
+
+    # Older/mobile GPUs can spend a surprising amount of time continuously
+    # compositing the pulsing alert cards while the software keyboard is active.
+    # Pause non-essential animation/transition work only while a text editor has
+    # focus. This keeps all alert animation intact as soon as the user leaves the
+    # field, while prioritising keystroke paint latency during typing.
+    typing_fastpath = '''
+<style id="khdn-typing-fastpath-style">
+@media(max-width:768px){
+  body.khdn-typing-mode div[class*="st-key-ops_alert_hot_"] button,
+  body.khdn-typing-mode div[class*="st-key-ops_alert_danger_"] button,
+  body.khdn-typing-mode div[class*="st-key-ops_alert_hot_"] button::before,
+  body.khdn-typing-mode div[class*="st-key-ops_alert_danger_"] button::before{
+    animation:none!important;transform:none!important;
+  }
+  body.khdn-typing-mode section[data-testid="stSidebar"]{
+    transition:none!important;will-change:auto!important;
+  }
+}
+</style>
+<script id="khdn-typing-fastpath">
+(()=>{
+  const isEditor=(el)=>!!el&&el.nodeType===1&&el.matches?.('input,textarea,[contenteditable="true"]');
+  const syncTypingMode=()=>{
+    const active=document.activeElement;
+    document.body?.classList.toggle('khdn-typing-mode',isEditor(active));
+  };
+  document.addEventListener('focusin',event=>{
+    if(isEditor(event.target)) document.body?.classList.add('khdn-typing-mode');
+  },true);
+  document.addEventListener('focusout',()=>setTimeout(syncTypingMode,0),true);
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden) document.body?.classList.remove('khdn-typing-mode');
+    else syncTypingMode();
+  },{passive:true});
+})();
+</script>
+'''
+    if 'id="khdn-typing-fastpath"' not in page:
+        if "</head>" not in page:
+            raise RuntimeError("Performance installer cannot find </head> for typing fast path")
+        page = page.replace("</head>", typing_fastpath + "</head>", 1)
+
     index.write_text(page, encoding="utf-8")
 
 
