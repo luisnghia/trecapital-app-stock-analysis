@@ -25,8 +25,6 @@ def _wrap_block(source: str, start_marker: str, end_marker: str, form_name: str,
 
 
 def patch_source(source: str) -> str:
-    # QLKH create/give-file page: customer search remains live outside the form.
-    # Everything after customer selection is a single browser-local payload.
     source = _wrap_block(
         source,
         '        validation=st.session_state.get("ql_new_validation",{}); types=active_task_types(); cust=customer_selector("ql_new_cust",validation.get("customer")); support_df=all_users("Cán bộ hỗ trợ",active_only=True); sid=None\n',
@@ -36,8 +34,6 @@ def patch_source(source: str) -> str:
         'if st.form_submit_button("Giao hồ sơ cho Cán bộ hỗ trợ",type="primary",use_container_width=True):',
         'QLKH create payload',
     )
-
-    # CBHT self-create page: same pattern; customer search stays live, payload is batched.
     source = _wrap_block(
         source,
         '        validation=st.session_state.get("new_task_validation",{}); types=active_task_types(); cust=customer_selector("new_cust",validation.get("customer")); qlkh_df=all_users("Cán bộ QLKH",active_only=True); qid_default=None\n',
@@ -48,15 +44,16 @@ def patch_source(source: str) -> str:
         'CBHT create payload',
     )
 
-    # Existing admin catalog forms are already the correct fast pattern; explicitly
-    # disable Enter-to-submit so mobile IME/newline actions cannot cause accidental reruns.
+    # Admin catalog entry already uses native no-callback widgets. Keep those values
+    # browser-local until an explicit submit, matching the smooth QLKH note path.
     source = source.replace('with st.form("new_type"):', 'with st.form("new_type", clear_on_submit=False, enter_to_submit=False):', 1)
     source = source.replace('with st.form(create_key):', 'with st.form(create_key, clear_on_submit=False, enter_to_submit=False):', 1)
 
-    # Guardrails: never reintroduce the invalid string-callback crash.
     if 'on_change="ignore"' in source or "on_change='ignore'" in source:
         raise RuntimeError("Invalid Streamlit string callback detected after input batching")
-    if 'qlkh_create_payload_form' not in source or 'support_create_payload_form' not in source:
-        raise RuntimeError("Task payload batching was not installed")
+    if source.count('with st.form("qlkh_create_payload_form"') != 1:
+        raise RuntimeError("QLKH task payload batching was not installed exactly once")
+    if source.count('with st.form("support_create_payload_form"') != 1:
+        raise RuntimeError("CBHT task payload batching was not installed exactly once")
     compile(source, "<khdn-input-batch-patch>", "exec")
     return source
