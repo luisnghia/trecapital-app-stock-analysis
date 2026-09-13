@@ -1,5 +1,40 @@
 [theme]
-base = "light"
+base = "dark"
+font = "sans serif"
+showSidebarBorder = true
+
+# Light mode mirrors the main Trecapital app palette.
+[theme.light]
+primaryColor = "#0F766E"
+backgroundColor = "#F8FAFC"
+secondaryBackgroundColor = "#ECFDF5"
+textColor = "#0F172A"
+borderColor = "#CBD5E1"
+dataframeHeaderBackgroundColor = "#ECFDF5"
+showWidgetBorder = true
+
+[theme.dark]
+primaryColor = "#6FD6C4"
+backgroundColor = "#0E1F1E"
+secondaryBackgroundColor = "#17312F"
+textColor = "#F4FFFC"
+borderColor = "#365A56"
+dataframeHeaderBackgroundColor = "#1B4540"
+showWidgetBorder = true
+
+[theme.light.sidebar]
+primaryColor = "#0F766E"
+backgroundColor = "#ECFDF5"
+secondaryBackgroundColor = "#F8FAFC"
+textColor = "#0F172A"
+borderColor = "#CBD5E1"
+
+[theme.dark.sidebar]
+primaryColor = "#6FD6C4"
+backgroundColor = "#102624"
+secondaryBackgroundColor = "#17312F"
+textColor = "#F4FFFC"
+borderColor = "#365A56"
 
 [server]
 headless = true
