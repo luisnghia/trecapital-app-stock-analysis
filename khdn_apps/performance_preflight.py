@@ -1,4 +1,4 @@
-"""Build-time structural QA for KHDN input fast v4."""
+"""Build-time structural QA for KHDN V2.14-style fast input flow."""
 from pathlib import Path
 import base64
 import gzip
@@ -35,13 +35,14 @@ def main():
         "realtime_page_scoped": 'if page in {"support", "qlkh", "leader", "dashboard"}' in main_tail,
         "admin_route_before_poll": main_tail.find("page = sidebar_navigation(u)") < main_tail.find("realtime_refresh_watch(u)"),
         "invalid_string_callbacks_absent": 'on_change="ignore"' not in source and "on_change='ignore'" not in source,
-        "task_type_create_uses_fast_form": 'with st.form("new_type", clear_on_submit=False, enter_to_submit=False):' in type_block and 'st.form_submit_button("Thêm loại công việc")' in type_block,
-        "task_type_list_lazy": 'if type_mode=="➕ Thêm mới":' in type_block and 'qdf("SELECT id,name,active,created_at,updated_at FROM task_types ORDER BY id")' in type_block,
+        "task_type_v214_plain_form": 'with st.form("new_type"):' in type_block and 'name=st.text_input("Tên công việc mới")' in type_block and 'st.form_submit_button("Thêm loại công việc")' in type_block,
+        "task_type_table_and_edit_same_page": type_block.find('st.dataframe(types') < type_block.find('with st.form("new_type")') and 'Chọn loại công việc để sửa' in type_block and 'Cập nhật loại công việc' in type_block,
+        "task_type_no_extra_mode": 'task_type_catalog_mode_fast' not in type_block and 'Danh sách / trạng thái' not in type_block,
         "reason_route_preserved": '    if admin_view == "reasons":\n        _render_reason_category_manager(u)\n' in source,
-        "reason_create_uses_fast_form": 'with st.form(f"reason_fast_create_{kind}", clear_on_submit=False, enter_to_submit=False):' in reason_block and 'st.form_submit_button("Thêm nhóm nguyên nhân")' in reason_block,
-        "reason_single_catalog": 'key="reason_catalog_kind_fast"' in reason_block and 'st.tabs(' not in reason_block,
-        "reason_list_lazy": 'if mode=="➕ Thêm mới":' in reason_block and 'return\n    df=qdf(' in reason_block,
-        "reason_edit_uses_form": 'with st.form(f"reason_fast_edit_form_{kind}_{int(xid)}", clear_on_submit=False, enter_to_submit=False):' in reason_block,
+        "reason_v214_plain_create_form": 'with st.form(f"reason_create_{kind}"):' in reason_block and 'st.form_submit_button("Thêm nhóm nguyên nhân")' in reason_block,
+        "reason_single_kind_only": 'key="reason_catalog_kind_v214"' in reason_block and 'st.tabs(' not in reason_block,
+        "reason_table_and_edit_same_page": 'df=qdf("SELECT id,name,active,created_at,updated_at FROM reason_categories WHERE reason_type=? ORDER BY id"' in reason_block and 'with st.form(f"reason_edit_form_{kind}_{int(xid)}"):' in reason_block,
+        "reason_no_extra_mode": 'reason_catalog_mode_' not in reason_block and 'Danh sách / chỉnh sửa' not in reason_block,
         "qlkh_create_payload_batched": 'with st.form("qlkh_create_payload_form", clear_on_submit=False, enter_to_submit=False):' in source and 'st.form_submit_button("Giao hồ sơ cho Cán bộ hỗ trợ"' in source,
         "support_create_payload_batched": 'with st.form("support_create_payload_form", clear_on_submit=False, enter_to_submit=False):' in source and 'st.form_submit_button("Tạo tác nghiệp"' in source,
         "qlkh_note_same_native_widget": 'st.text_area("Ghi chú / yêu cầu xử lý (không bắt buộc)",key="ql_new_note")' in source,
@@ -49,9 +50,9 @@ def main():
         "source_compiles": True,
     }
     failed=[k for k,v in checks.items() if not v]
-    print("KHDN_INPUT_FAST_PREFLIGHT",checks,flush=True)
+    print("KHDN_V214_FAST_PREFLIGHT",checks,flush=True)
     if failed:
-        raise RuntimeError("KHDN input fast preflight failed: "+", ".join(failed))
+        raise RuntimeError("KHDN V2.14 fast preflight failed: "+", ".join(failed))
 
 
 if __name__=="__main__":
