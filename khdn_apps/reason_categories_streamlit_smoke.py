@@ -1,7 +1,7 @@
 """Build-time smoke check for the final transformed KHDN source.
 
 Semantic transaction tests live in reason_categories_semantic_qa.py. This check focuses
-on the exact UI source that will execute in Streamlit after all source transformers.
+on the exact UI source that will execute after all source transformers.
 """
 from pathlib import Path
 import base64
@@ -25,13 +25,19 @@ def run():
     source=gzip.decompress(base64.b64decode(payload)).decode("utf-8")
     source=catalog_fast_patch(input_batch_patch(performance_patch(reason_patch(mobile_patch(source)))))
     compile(source,"<khdn-final-streamlit-smoke>","exec")
+    reason_block=source[source.find('def _render_reason_category_manager'):source.find('def user_by_username')]
+    type_start=source.find('    if admin_view == "types":')
+    type_end=source.find('    if admin_view == "reasons":',type_start)
+    type_block=source[type_start:type_end]
 
     checks={
         "admin_reason_route": 'if admin_view == "reasons":\n        _render_reason_category_manager(u)' in source,
         "leader_reason_manager_absent": 'Quản lý nhóm nguyên nhân trả lại / hủy' not in source[source.find('def leader_page'):source.find('def dashboard_page')],
         "task_type_zero_keystroke": 'key="catalog_submit_only_task_type"' in source and 'st.text_input("Tên công việc mới")' not in source,
         "reason_zero_keystroke": 'catalog_submit_only_reason_' in source and 'st.text_input("Tên nhóm nguyên nhân mới")' not in source,
-        "plain_catalog_table": 'class="khdn-catalog-table"' in source,
+        "plain_catalog_table": 'class="khdn-catalog-table"' in source and 'st.html(table_html)' in source,
+        "task_table_before_input": type_block.find('_catalog_static_table(show') < type_block.find('submitted_name=fast_catalog_input('),
+        "reason_table_before_input": reason_block.find('_catalog_static_table(show') < reason_block.find('submitted_name=fast_catalog_input('),
         "return_reason_required": 'Nhóm nguyên nhân trả lại *' in source and 'Lý do trả lại chi tiết *' in source,
         "cancel_reason_required": 'Nhóm nguyên nhân hủy *' in source and 'Lý do hủy chi tiết *' in source,
         "invalid_string_callback_absent": 'on_change="ignore"' not in source and "on_change='ignore'" not in source,
