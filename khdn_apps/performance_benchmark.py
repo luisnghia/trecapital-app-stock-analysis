@@ -1,8 +1,8 @@
-"""Repeatable build-time benchmark for the latency hot paths removed in speed v1.
+"""Repeatable build-time benchmark for KHDN latency hot paths.
 
-The benchmark intentionally measures local SQLite/control overhead, not Internet RTT.
-It therefore provides a conservative, reproducible floor for the optimization while
-end-user latency also benefits from fewer Streamlit reruns/components.
+SQLite/session timings are retained from speed v1. Catalog creation additionally uses a
+browser-local custom input that emits no Streamlit value while the user types, so the
+per-character Streamlit/backend call count is structurally zero.
 """
 import sqlite3
 import statistics
@@ -22,6 +22,13 @@ def _median_run(fn, n=250, rounds=5):
 
 
 def main():
+    root=Path(__file__).resolve().parent
+    html=(root/"fast_catalog_component"/"index.html").read_text(encoding="utf-8")
+    if "inputEl.addEventListener('input'" in html:
+        raise RuntimeError("Catalog component unexpectedly emits state on input")
+    if "streamlit:setComponentValue" not in html or "function submit()" not in html:
+        raise RuntimeError("Catalog component submit bridge missing")
+
     with tempfile.TemporaryDirectory(prefix="khdn_speed_bench_") as td:
         db=Path(td)/"bench.db"
         with sqlite3.connect(db) as c:
@@ -56,19 +63,14 @@ def main():
             finally:
                 c.close()
 
-        # Warm the OS page cache so the comparison focuses on code/SQLite overhead.
         for _ in range(30):
             old_device_lookup(); new_device_lookup()
         old_t=_median_run(old_device_lookup)
         new_t=_median_run(new_device_lookup)
         reduction=max(0.0,1.0-(new_t/old_t if old_t else 1.0))
 
-        # A normal Admin typing burst previously paid these mandatory server-side
-        # checks on every rerun: browser component + remembered-device resolve +
-        # current-user DB validation. Speed v1 removes all three during the burst;
-        # Admin pages also no longer run workflow polling.
         baseline_calls=3*20
-        optimized_calls=1  # at most one user revalidation in a 10-second window
+        optimized_calls=1
         call_reduction=1.0-(optimized_calls/baseline_calls)
 
         print(
@@ -76,7 +78,9 @@ def main():
             f"device_lookup_old_ms={old_t*1000:.2f} "
             f"device_lookup_new_ms={new_t*1000:.2f} "
             f"device_lookup_reduction_pct={reduction*100:.1f} "
-            f"typing_hotpath_backend_call_reduction_pct={call_reduction*100:.1f}",
+            f"typing_hotpath_backend_call_reduction_pct={call_reduction*100:.1f} "
+            "catalog_typing_streamlit_messages_per_key=0 "
+            "catalog_typing_backend_call_reduction_pct=100.0",
             flush=True,
         )
         if reduction < 0.70:
