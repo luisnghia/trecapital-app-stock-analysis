@@ -48,81 +48,21 @@ def patch_source(source: str) -> str:
     if old in source:
         source = source.replace(old, new, 1)
 
-    # 5) Streamlit 1.63 text widgets outside a form normally rerun the app when
-    # their value is committed (blur / Enter). For action-draft fields that are
-    # consumed only by the next button click, keep the draft browser-local with
-    # on_change="ignore". The next button rerun delivers the latest draft to Python,
-    # so workflow validation/audit remains unchanged while field-to-field entry no
-    # longer causes a full app rerun. Search fields intentionally remain rerunning.
-    draft_widgets = [
-        (
-            'st.text_area("Ghi chú / nội dung hồ sơ (không bắt buộc)",key="new_note")',
-            'st.text_area("Ghi chú / nội dung hồ sơ (không bắt buộc)",key="new_note",on_change="ignore")',
-            "support create note",
-        ),
-        (
-            'st.text_input("Lý do trả lại chi tiết *", key=f"return_pending_reason_{tid}")',
-            'st.text_input("Lý do trả lại chi tiết *", key=f"return_pending_reason_{tid}",on_change="ignore")',
-            "support pending return reason",
-        ),
-        (
-            'st.text_area("Ghi chú khi hoàn thành",value=default_note,key=f"finish_note_{tid}_{int(row.current_round)}")',
-            'st.text_area("Ghi chú khi hoàn thành",value=default_note,key=f"finish_note_{tid}_{int(row.current_round)}",on_change="ignore")',
-            "support finish note",
-        ),
-        (
-            'st.text_input("Lý do trả lại chi tiết *", key=f"return_work_reason_{tid}_{int(row.current_round)}")',
-            'st.text_input("Lý do trả lại chi tiết *", key=f"return_work_reason_{tid}_{int(row.current_round)}",on_change="ignore")',
-            "support work return reason",
-        ),
-        (
-            'st.text_area("Ghi chú",value=str(er.note or ""),key=f"post_note_{eid}_{int(er.current_round)}")',
-            'st.text_area("Ghi chú",value=str(er.note or ""),key=f"post_note_{eid}_{int(er.current_round)}",on_change="ignore")',
-            "support post-review note",
-        ),
-        (
-            'st.text_area("Ghi chú / yêu cầu xử lý (không bắt buộc)",key="ql_new_note")',
-            'st.text_area("Ghi chú / yêu cầu xử lý (không bắt buộc)",key="ql_new_note",on_change="ignore")',
-            "qlkh create note",
-        ),
-        (
-            'st.text_input("Lý do đổi/giao lại (khuyến nghị ghi để audit)",key=f"{key_prefix}_reason_{tid}")',
-            'st.text_input("Lý do đổi/giao lại (khuyến nghị ghi để audit)",key=f"{key_prefix}_reason_{tid}",on_change="ignore")',
-            "qlkh reassign reason",
-        ),
-        (
-            'st.text_input("Lý do hủy chi tiết *",key=f"{key_prefix}_cancel_reason_{tid}")',
-            'st.text_input("Lý do hủy chi tiết *",key=f"{key_prefix}_cancel_reason_{tid}",on_change="ignore")',
-            "qlkh pending cancel reason",
-        ),
-        (
-            'st.text_input("Lý do hủy chi tiết *",key=f"{key_prefix}_cancel_returned_reason_{tid}")',
-            'st.text_input("Lý do hủy chi tiết *",key=f"{key_prefix}_cancel_returned_reason_{tid}",on_change="ignore")',
-            "qlkh returned cancel reason",
-        ),
-        (
-            'st.text_area("Ý kiến lãnh đạo / yêu cầu thực hiện lại",key=f"leader_reason_{tid}")',
-            'st.text_area("Ý kiến lãnh đạo / yêu cầu thực hiện lại",key=f"leader_reason_{tid}",on_change="ignore")',
-            "leader rework reason",
-        ),
-        (
-            'new_name=st.text_input("Tên nhóm nguyên nhân",value=str(row["name"]),key=f"{edit_key}_name_{int(xid)}")',
-            'new_name=st.text_input("Tên nhóm nguyên nhân",value=str(row["name"]),key=f"{edit_key}_name_{int(xid)}",on_change="ignore")',
-            "reason category edit name",
-        ),
-        (
-            'new_username = c0.text_input("Username", value=str(cur.username), key=f"admin_username_{int(uid)}", help="Admin có thể đổi username. Username cũ được giải phóng ngay sau khi đổi.")',
-            'new_username = c0.text_input("Username", value=str(cur.username), key=f"admin_username_{int(uid)}", help="Admin có thể đổi username. Username cũ được giải phóng ngay sau khi đổi.", on_change="ignore")',
-            "admin username draft",
-        ),
-        (
-            'np = st.text_input("Reset mật khẩu (để trống nếu không đổi)", type="password", key=f"new_pw_{int(uid)}")',
-            'np = st.text_input("Reset mật khẩu (để trống nếu không đổi)", type="password", key=f"new_pw_{int(uid)}", on_change="ignore")',
-            "admin reset password draft",
-        ),
-    ]
-    for old_widget, new_widget, label in draft_widgets:
-        source = _replace_once(source, old_widget, new_widget, label)
+    # 5) Widget correctness + smooth typing.
+    # Streamlit on_change requires a callable. Never pass string sentinels such as
+    # on_change="ignore": Streamlit will attempt to call the string on the next
+    # widget-state sync and raise TypeError: 'str' object is not callable.
+    #
+    # Text entry that should be committed as a unit uses st.form. "Loại công việc"
+    # already uses the new_type form in the baseline source. Make editing a reason
+    # category use the same form model, so typing remains browser-local until Save.
+    old = '''        if not df.empty:\n            xid=st.selectbox("Chọn nhóm nguyên nhân để sửa",df.id.astype(int).tolist(),key=f"{edit_key}_select",format_func=lambda x:str(df[df.id.astype(int)==int(x)].iloc[0]["name"]))\n            row=df[df.id.astype(int)==int(xid)].iloc[0]\n            new_name=st.text_input("Tên nhóm nguyên nhân",value=str(row["name"]),key=f"{edit_key}_name_{int(xid)}")\n            active=st.checkbox("Đang sử dụng",value=bool(row["active"]),key=f"{edit_key}_active_{int(xid)}")\n            if st.button("Cập nhật nhóm nguyên nhân",key=f"{edit_key}_save_{int(xid)}"):\n                clean=new_name.strip()\n                if not clean:\n                    st.error("Tên nhóm nguyên nhân không được để trống.")\n                else:\n                    try:\n                        execute("UPDATE reason_categories SET name=?,active=?,updated_at=? WHERE id=? AND reason_type=?",(clean,int(active),now_str(),int(xid),kind))\n                        audit(u["id"],"UPDATE_REASON_CATEGORY","reason_category",xid,f"type={kind}; name={clean}; active={active}")\n                        LOGGER.info("REASON_CATEGORY_UPDATE actor=%s type=%s id=%s active=%s",u["id"],kind,xid,active)\n                        st.success("Đã cập nhật nhóm nguyên nhân."); st.rerun()\n                    except sqlite3.IntegrityError:\n                        st.error("Tên nhóm nguyên nhân đã tồn tại trong danh mục này.")\n'''
+    new = '''        if not df.empty:\n            xid=st.selectbox("Chọn nhóm nguyên nhân để sửa",df.id.astype(int).tolist(),key=f"{edit_key}_select",format_func=lambda x:str(df[df.id.astype(int)==int(x)].iloc[0]["name"]))\n            row=df[df.id.astype(int)==int(xid)].iloc[0]\n            with st.form(f"{edit_key}_form_{int(xid)}"):\n                new_name=st.text_input("Tên nhóm nguyên nhân",value=str(row["name"]),key=f"{edit_key}_name_{int(xid)}")\n                active=st.checkbox("Đang sử dụng",value=bool(row["active"]),key=f"{edit_key}_active_{int(xid)}")\n                save_reason=st.form_submit_button("Cập nhật nhóm nguyên nhân")\n            if save_reason:\n                clean=new_name.strip()\n                if not clean:\n                    st.error("Tên nhóm nguyên nhân không được để trống.")\n                else:\n                    try:\n                        execute("UPDATE reason_categories SET name=?,active=?,updated_at=? WHERE id=? AND reason_type=?",(clean,int(active),now_str(),int(xid),kind))\n                        audit(u["id"],"UPDATE_REASON_CATEGORY","reason_category",xid,f"type={kind}; name={clean}; active={active}")\n                        LOGGER.info("REASON_CATEGORY_UPDATE actor=%s type=%s id=%s active=%s",u["id"],kind,xid,active)\n                        st.success("Đã cập nhật nhóm nguyên nhân."); st.rerun()\n                    except sqlite3.IntegrityError:\n                        st.error("Tên nhóm nguyên nhân đã tồn tại trong danh mục này.")\n'''
+    source = _replace_once(source, old, new, "reason category edit form")
+
+    # Guard against reintroducing the exact production crash class.
+    if 'on_change="ignore"' in source or "on_change='ignore'" in source:
+        raise RuntimeError("Invalid Streamlit string callback detected")
 
     compile(source, "<khdn-performance-patch>", "exec")
     return source
