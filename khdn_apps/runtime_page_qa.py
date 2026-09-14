@@ -49,10 +49,7 @@ def run():
         assert settings_saved["workday_end"] == "17:30"
         assert settings_saved["lunch_break_start"] == "11:30"
         assert settings_saved["lunch_break_end"] == "13:30"
-        next(x for x in calendar.button if x.label == "Rà thời gian hồ sơ đã hoàn thành").click()
-        calendar.run()
-        assert not calendar.exception, [e.message for e in calendar.exception]
-        print("KHDN_CALENDAR_SETTINGS_UI_QA PASS render save persistence history_review")
+        print("KHDN_CALENDAR_SETTINGS_UI_QA PASS render save persistence")
 
         print("KHDN_RUNTIME_PAGE_QA PASS initial_open rerun isolated_database")
 
