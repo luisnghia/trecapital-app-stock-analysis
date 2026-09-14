@@ -2,8 +2,8 @@
 
 This custom component intentionally does not send keystrokes to Streamlit. The browser
 keeps the draft locally and only emits a value when the user clicks the submit button or
-presses Enter. It is used for short catalog-name creation where production users reported
-visible typing lag despite st.form batching.
+presses Enter. Theme selection is read directly from Streamlit's component render event
+inside the iframe, avoiding st.context.theme inconsistencies.
 """
 from pathlib import Path
 import streamlit as st
@@ -15,32 +15,14 @@ _component = components.declare_component(
 )
 
 
-def _theme_type():
-    try:
-        value = getattr(getattr(st, "context", None), "theme", None)
-        if value is not None:
-            kind = getattr(value, "type", None)
-            if kind in {"light", "dark"}:
-                return kind
-    except Exception:
-        pass
-    return "light"
-
-
 def fast_catalog_input(label, button_label, key, *, placeholder="", reset_token="", default_value=""):
-    """Return submitted text once; return ``None`` while the user is only typing.
-
-    The iframe uses a plain DOM ``<input>``. No ``streamlit:setComponentValue`` message
-    is sent for ``input``/``keyup`` events, so the rest of the Streamlit tree cannot be
-    involved in per-character rendering.
-    """
+    """Return submitted text once; return ``None`` while the user is only typing."""
     result = _component(
         label=str(label),
         buttonLabel=str(button_label),
         placeholder=str(placeholder or ""),
         resetToken=str(reset_token or ""),
         defaultValue=str(default_value or ""),
-        themeType=_theme_type(),
         key=str(key),
         default=None,
     )
