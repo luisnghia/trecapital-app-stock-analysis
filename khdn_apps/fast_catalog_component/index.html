@@ -4,30 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-  :root{color-scheme:light dark}
   *{box-sizing:border-box}
-  html,body{margin:0;padding:0;background:transparent;font-family:Inter,"Source Sans Pro",Arial,sans-serif}
+  html,body{margin:0;padding:0;background:transparent;font-family:Inter,"Source Sans Pro",Arial,sans-serif;color:var(--theme-text,#F4FFFC)}
   .wrap{padding:0 1px 2px}
-  label{display:block;font-size:13px;font-weight:700;line-height:1.25;margin:0 0 6px}
+  label{display:block;font-size:13px;font-weight:700;line-height:1.25;margin:0 0 6px;color:var(--theme-text,#F4FFFC)}
   .row{display:flex;gap:8px;align-items:stretch}
-  input{flex:1 1 auto;min-width:0;height:42px;border-radius:7px;padding:0 12px;font-size:16px;outline:none;transition:none!important;box-shadow:none!important}
-  button{flex:0 0 auto;min-height:42px;border-radius:999px;padding:0 18px;font-size:14px;font-weight:800;cursor:pointer;transition:none!important;box-shadow:none!important}
-  body.light label{color:#0F172A}
-  body.light input{background:#FFFFFF;color:#0F172A;border:1px solid #CBD5E1;caret-color:#0F172A}
-  body.light input:focus{background:#FFFFFF;border-color:#0F766E;outline:2px solid rgba(15,118,110,.13)}
-  body.light input::placeholder{color:#64748B}
-  body.light button{background:#0F766E;color:#FFFFFF;border:1px solid #0F766E}
-  body.light button:hover{background:#115E59;border-color:#F4B41A}
-  body.dark label{color:#F4FFFC}
-  body.dark input{background:#17312F;color:#F4FFFC;border:1px solid #4E7771;caret-color:#F4FFFC}
-  body.dark input:focus{border-color:#6FD6C4;outline:2px solid rgba(111,214,196,.15)}
-  body.dark input::placeholder{color:#AFCAC5}
-  body.dark button{background:#176B63;color:#FFFFFF;border:1px solid #5B8F87}
-  body.dark button:hover{background:#1B7E74;border-color:#F4B41A}
+  input{flex:1 1 auto;min-width:0;height:42px;border-radius:7px;padding:0 12px;font-size:16px;outline:none;transition:none!important;box-shadow:none!important;background:var(--theme-secondary,#17312F);color:var(--theme-text,#F4FFFC);border:1px solid var(--theme-border,#4E7771);caret-color:var(--theme-text,#F4FFFC)}
+  input:focus{border-color:var(--theme-primary,#6FD6C4);outline:2px solid color-mix(in srgb,var(--theme-primary,#6FD6C4) 18%,transparent)}
+  input::placeholder{color:var(--theme-muted,#AFCAC5)}
+  button{flex:0 0 auto;min-height:42px;border-radius:999px;padding:0 18px;font-size:14px;font-weight:800;cursor:pointer;transition:none!important;box-shadow:none!important;background:var(--theme-primary,#176B63);color:#fff;border:1px solid var(--theme-primary,#176B63)}
+  button:hover{filter:brightness(.92);border-color:#F4B41A}
   @media(max-width:520px){.row{gap:6px;flex-direction:column}button{width:100%}}
 </style>
 </head>
-<body class="dark">
+<body>
 <div class="wrap">
   <label id="label" for="input"></label>
   <div class="row">
@@ -50,6 +40,16 @@ function submit(){
   const submit_id=`${Date.now()}-${submitSeq}-${Math.random().toString(36).slice(2,8)}`;
   send('streamlit:setComponentValue',{value:{submit_id,value},dataType:'json'});
 }
+function applyTheme(theme){
+  const t=theme||{};
+  const light=t.base==='light';
+  const root=document.documentElement.style;
+  root.setProperty('--theme-primary',t.primaryColor||(light?'#0F766E':'#6FD6C4'));
+  root.setProperty('--theme-secondary',t.secondaryBackgroundColor||(light?'#ECFDF5':'#17312F'));
+  root.setProperty('--theme-text',t.textColor||(light?'#0F172A':'#F4FFFC'));
+  root.setProperty('--theme-border',light?'#CBD5E1':'#4E7771');
+  root.setProperty('--theme-muted',light?'#64748B':'#AFCAC5');
+}
 buttonEl.addEventListener('click',submit);
 inputEl.addEventListener('keydown',event=>{
   if(event.key==='Enter' && !event.isComposing){event.preventDefault();submit();}
@@ -57,8 +57,7 @@ inputEl.addEventListener('keydown',event=>{
 window.addEventListener('message',event=>{
   if(event.source!==parent || event.origin!==parentOrigin || event.data.type!=='streamlit:render') return;
   const args=event.data.args||{};
-  const mode=args.themeType==='light'?'light':'dark';
-  document.body.className=mode;
+  applyTheme(event.data.theme||{});
   labelEl.textContent=args.label||'';
   buttonEl.textContent=args.buttonLabel||'Lưu';
   inputEl.placeholder=args.placeholder||'';
