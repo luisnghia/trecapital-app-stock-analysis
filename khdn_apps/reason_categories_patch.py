@@ -15,6 +15,7 @@ def patch_source(source: str) -> str:
     # --- 1. Schema: category master + immutable task reason events ---
     old = '''        CREATE TABLE IF NOT EXISTS system_audit (\n            id INTEGER PRIMARY KEY AUTOINCREMENT,\n            actor_user_id INTEGER,\n            action TEXT NOT NULL,\n            object_type TEXT,\n            object_id TEXT,\n            detail TEXT,\n            created_at TEXT NOT NULL,\n            FOREIGN KEY(actor_user_id) REFERENCES users(id)\n        );\n'''
     new = '''        CREATE TABLE IF NOT EXISTS reason_categories (\n            id INTEGER PRIMARY KEY AUTOINCREMENT,\n            reason_type TEXT NOT NULL CHECK(reason_type IN ('RETURN','CANCEL')),\n            name TEXT NOT NULL,\n            active INTEGER NOT NULL DEFAULT 1,\n            created_by INTEGER,\n            created_at TEXT NOT NULL,\n            updated_at TEXT NOT NULL,\n            UNIQUE(reason_type,name),\n            FOREIGN KEY(created_by) REFERENCES users(id)\n        );\n        CREATE TABLE IF NOT EXISTS task_reason_events (\n            id INTEGER PRIMARY KEY AUTOINCREMENT,\n            task_id INTEGER NOT NULL,\n            actor_user_id INTEGER NOT NULL,\n            event_type TEXT NOT NULL CHECK(event_type IN ('RETURN','CANCEL')),\n            reason_category_id INTEGER NOT NULL,\n            reason_category_name TEXT NOT NULL,\n            reason_detail TEXT NOT NULL,\n            created_at TEXT NOT NULL,\n            FOREIGN KEY(task_id) REFERENCES tasks(id),\n            FOREIGN KEY(actor_user_id) REFERENCES users(id),\n            FOREIGN KEY(reason_category_id) REFERENCES reason_categories(id)\n        );\n        CREATE TABLE IF NOT EXISTS system_audit (\n            id INTEGER PRIMARY KEY AUTOINCREMENT,\n            actor_user_id INTEGER,\n            action TEXT NOT NULL,\n            object_type TEXT,\n            object_id TEXT,\n            detail TEXT,\n            created_at TEXT NOT NULL,\n            FOREIGN KEY(actor_user_id) REFERENCES users(id)\n        );\n'''
+    new = new.replace("actor_user_id NOT NULL,\\n            event_type", "actor_user_id NOT NULL,\\n            action TEXT NOT NULL,\\n            event_type")
     source = _replace_once(source, old, new, "schema tables")
 
     old = '''        CREATE INDEX IF NOT EXISTS idx_actions_action_task ON task_actions(action,task_id);\n        CREATE INDEX IF NOT EXISTS idx_eval_task_round ON evaluations(task_id,round_no);\n'''
@@ -70,6 +71,8 @@ def _reasoned_task_transition(task_id, actor_user_id, event_type, reason_categor
         cat_name=str(cat["name"])
         event_values=dict(task_id=int(task_id),actor_user_id=int(actor_user_id),event_type=kind,reason_category_id=int(reason_category_id),reason_category_name=cat_name,reason_detail=detail,created_at=ts)
         event_columns={r[1] for r in c.execute("PRAGMA table_info(task_reason_events)")}
+        if "action" in event_columns:
+            event_values["action"]=str(action)
         for legacy,current in (("reason_type","event_type"),("category_id","reason_category_id"),("category_name","reason_category_name"),("detail","reason_detail")):
             if legacy in event_columns:
                 event_values[legacy]=event_values[current]
