@@ -10,6 +10,7 @@ if _app_root not in sys.path:
 
 from khdn_apps.mobile_nav_patch import patch_source as mobile_patch
 from khdn_apps.reason_categories_patch import patch_source as reason_patch
+from khdn_apps.lunch_break_patch import patch_source as lunch_patch
 from khdn_apps.performance_patch import patch_source as performance_patch
 from khdn_apps.input_batch_patch import patch_source as input_batch_patch
 from khdn_apps.catalog_input_fast_patch import patch_source as catalog_fast_patch
@@ -18,7 +19,7 @@ from khdn_apps.catalog_input_fast_patch import patch_source as catalog_fast_patc
 def main():
     root=Path(__file__).resolve().parent
     payload="".join(p.read_text(encoding="ascii") for p in sorted((root/"_src").glob("*.txt")))
-    baseline=reason_patch(mobile_patch(gzip.decompress(base64.b64decode(payload)).decode("utf-8")))
+    baseline=reason_patch(mobile_patch(lunch_patch(gzip.decompress(base64.b64decode(payload)).decode("utf-8"))))
     source=catalog_fast_patch(input_batch_patch(performance_patch(baseline)))
     compile(source,"<khdn-speed-preflight>","exec")
 
@@ -70,6 +71,8 @@ def main():
             "g2_cbht_show" not in source
             and "_html_table(g2_cbht_show" not in source
         ),
+        "lunch_break_settings_ui": "Cài đặt giờ nghỉ trưa" in type_block and "save_lunch_break_settings" in type_block,
+        "lunch_break_math": "_elapsed_minutes_excluding_lunch" in source and "lunch_break_interval" in source,
         "qlkh_create_payload_batched": 'with st.form("qlkh_create_payload_form", clear_on_submit=False, enter_to_submit=False):' in source and 'st.form_submit_button("Giao hồ sơ cho Cán bộ hỗ trợ"' in source,
         "support_create_payload_batched": 'with st.form("support_create_payload_form", clear_on_submit=False, enter_to_submit=False):' in source and 'st.form_submit_button("Tạo tác nghiệp"' in source,
         "qlkh_note_same_native_widget": 'st.text_area("Ghi chú / yêu cầu xử lý (không bắt buộc)",key="ql_new_note")' in source,
