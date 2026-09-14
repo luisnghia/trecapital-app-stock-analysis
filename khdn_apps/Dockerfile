@@ -9,7 +9,7 @@ RUN apt-get update \
 COPY khdn_apps/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# Light is the deterministic default; users can switch the custom BIDV Light/Dark
+# Dark is the deterministic default; users can switch the custom BIDV Light/Dark
 # variants from Streamlit Settings without changing application data.
 COPY khdn_apps/.streamlit /app/.streamlit
 COPY khdn_apps /app/khdn_apps
@@ -23,6 +23,8 @@ RUN python /app/khdn_apps/install_branding.py \
     && python /app/khdn_apps/performance_benchmark.py \
     && python /app/khdn_apps/install_performance.py \
     && python /app/khdn_apps/install_theme.py \
+    && python /app/khdn_apps/theme_bridge_fix.py \
+    && python /app/khdn_apps/theme_bridge_qa.py \
     && python /app/khdn_apps/performance_install_qa.py
 
 ENV PYTHONUNBUFFERED=1 \
