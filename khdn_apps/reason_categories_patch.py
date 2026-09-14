@@ -19,7 +19,18 @@ def patch_source(source: str) -> str:
 
     old = '''        CREATE INDEX IF NOT EXISTS idx_actions_action_task ON task_actions(action,task_id);\n        CREATE INDEX IF NOT EXISTS idx_eval_task_round ON evaluations(task_id,round_no);\n'''
     new = '''        CREATE INDEX IF NOT EXISTS idx_actions_action_task ON task_actions(action,task_id);\n        CREATE INDEX IF NOT EXISTS idx_reason_categories_type_active ON reason_categories(reason_type,active,id);\n        CREATE INDEX IF NOT EXISTS idx_task_reason_events_task ON task_reason_events(task_id,event_type,id);\n        CREATE INDEX IF NOT EXISTS idx_eval_task_round ON evaluations(task_id,round_no);\n'''
+    new = new.replace('        CREATE INDEX IF NOT EXISTS idx_task_reason_events_task ON task_reason_events(task_id,event_type,id);\n', '')
     source = _replace_once(source, old, new, "schema indexes")
+    source = _replace_once(source, '        # migration from V1\n', '''        # Upgrade existing reason-event tables before creating their index.
+        for _col, _decl in (("event_type","TEXT"),("reason_category_id","INTEGER"),("reason_category_name","TEXT"),("reason_detail","TEXT")):
+            add_column_if_missing(c, "task_reason_events", _col, _decl)
+        _event_cols={r[1] for r in c.execute("PRAGMA table_info(task_reason_events)")}
+        for _dest, _legacy in (("event_type","reason_type"),("reason_category_id","category_id"),("reason_category_name","category_name"),("reason_detail","detail")):
+            if _legacy in _event_cols:
+                c.execute(f'UPDATE task_reason_events SET "{_dest}"="{_legacy}" WHERE "{_dest}" IS NULL')
+        c.execute("CREATE INDEX IF NOT EXISTS idx_task_reason_events_task_v2 ON task_reason_events(task_id,event_type,id)")
+        # migration from V1
+''', "legacy reason schema migration")
 
     # --- 2. Helpers: category selection, atomic workflow transition, admin maintenance ---
     old = '''def user_by_username(username, active_only=True):\n'''
@@ -57,8 +68,14 @@ def _reasoned_task_transition(task_id, actor_user_id, event_type, reason_categor
             raise ValueError("Trạng thái hồ sơ đã thay đổi. Vui lòng tải lại và thử lại.")
         ts=now_str()
         cat_name=str(cat["name"])
-        c.execute("""INSERT INTO task_reason_events(task_id,actor_user_id,event_type,reason_category_id,reason_category_name,reason_detail,created_at)
-                     VALUES(?,?,?,?,?,?,?)""",(int(task_id),int(actor_user_id),kind,int(reason_category_id),cat_name,detail,ts))
+        event_values=dict(task_id=int(task_id),actor_user_id=int(actor_user_id),event_type=kind,reason_category_id=int(reason_category_id),reason_category_name=cat_name,reason_detail=detail,created_at=ts)
+        event_columns={r[1] for r in c.execute("PRAGMA table_info(task_reason_events)")}
+        for legacy,current in (("reason_type","event_type"),("category_id","reason_category_id"),("category_name","reason_category_name"),("detail","reason_detail")):
+            if legacy in event_columns:
+                event_values[legacy]=event_values[current]
+        columns=','.join(event_values)
+        placeholders=','.join('?' for _ in event_values)
+        c.execute(f"INSERT INTO task_reason_events({columns}) VALUES({placeholders})",tuple(event_values.values()))
         full_detail=f"{action_prefix}; nhóm nguyên nhân={cat_name}; lý do={detail}"
         c.execute("INSERT INTO task_actions(task_id,actor_user_id,action,detail,created_at) VALUES(?,?,?,?,?)",(int(task_id),int(actor_user_id),str(action),full_detail,ts))
         c.execute("INSERT INTO system_audit(actor_user_id,action,object_type,object_id,detail,created_at) VALUES(?,?,?,?,?,?)",(int(actor_user_id),str(action),"task",str(task_id),full_detail,ts))
@@ -176,6 +193,7 @@ def _render_reason_category_manager(u):
     new = new.replace('("backup","💾","Sao lưu")]', '("backup","💾","Sao lưu")]')
     new = new.replace('_admin_default="reasons" if _reason_only else "users"', '_admin_default="types" if _leader_scope else "users"')
     source = _replace_once(source, old, new, "admin reason navigation")
+    source = source.replace('admin_view=st.session_state.get("admin_view","users")', 'admin_view=st.session_state.get("admin_view",_admin_default)')
 
     old = '''    if admin_view == "audit":\n'''
     new = '''    if admin_view == "reasons":\n        _render_reason_category_manager(u)\n\n    if admin_view == "audit":\n'''
