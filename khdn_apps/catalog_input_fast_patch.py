@@ -117,6 +117,56 @@ def _render_reason_category_manager(u):
     )
 
     task_type_block='''    if admin_view == "types":
+        st.markdown("### Cài đặt giờ nghỉ trưa")
+        st.caption("Khoảng thời gian này được trừ khỏi thời gian giao → tiếp nhận, thời gian xử lý và thời gian chờ đánh giá khi có phần giao nhau. Thiết lập dùng chung cho toàn phòng.")
+        _lunch_enabled, _lunch_start, _lunch_end = lunch_break_settings()
+        with st.form("lunch_break_settings_form", clear_on_submit=False, enter_to_submit=False):
+            _lunch_on = st.checkbox("Áp dụng giờ nghỉ trưa", value=bool(_lunch_enabled), key="lunch_break_enabled_input")
+            _lunch_c1, _lunch_c2 = st.columns(2)
+            _lunch_start_input = _lunch_c1.time_input("Bắt đầu nghỉ", value=_minutes_to_clock(_lunch_start), key="lunch_break_start_input")
+            _lunch_end_input = _lunch_c2.time_input("Kết thúc nghỉ", value=_minutes_to_clock(_lunch_end), key="lunch_break_end_input")
+            _lunch_save = st.form_submit_button("Lưu cài đặt giờ nghỉ trưa", type="primary")
+        if _lunch_save:
+            try:
+                save_lunch_break_settings(u["id"], _lunch_on, _lunch_start_input, _lunch_end_input)
+                st.success("Đã lưu giờ nghỉ trưa. Các chỉ số thời gian sẽ dùng thiết lập mới từ lần tải dữ liệu tiếp theo.")
+                st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
+
+
+        st.markdown("### Giờ kết thúc ngày làm việc")
+        st.caption("Cài đặt dùng chung cho toàn phòng. Khi bật, từng công việc được trừ phần giao với khoảng nghỉ từ giờ kết thúc đến giờ bắt đầu sáng hôm sau, kể cả hồ sơ đã kết thúc.")
+        _work_on, _work_start, _work_end = workday_settings()
+        with st.form("workday_settings_form", clear_on_submit=False, enter_to_submit=False):
+            _work_enabled = st.checkbox("Loại trừ thời gian nghỉ ngoài giờ làm việc", value=_work_on)
+            _work_end_input = st.time_input("Giờ kết thúc ngày làm việc", value=_minutes_to_clock(_work_end))
+            _work_start_input = st.time_input("Giờ bắt đầu ngày làm việc", value=_minutes_to_clock(_work_start))
+            _work_save = st.form_submit_button("Lưu giờ làm việc", type="primary")
+        if _work_save:
+            try:
+                save_workday_settings(u["id"], _work_enabled, _work_start_input, _work_end_input)
+                st.success("Đã lưu. Thống kê được tính lại từ thời điểm gốc của từng công việc.")
+                st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
+        st.caption("Giờ tính theo Việt Nam. Các khoảng nghỉ giao nhau chỉ được trừ một lần. Cấu hình này không tự loại trừ cả ngày cuối tuần hoặc ngày lễ.")
+        if st.button("Rà thời gian hồ sơ đã hoàn thành", key="office_calendar_history_review"):
+            _history = qdf("SELECT id,start_time,end_time FROM tasks WHERE end_time IS NOT NULL AND end_time<>'' AND status<>'CANCELLED' ORDER BY id")
+            if _history.empty:
+                st.info("Chưa có hồ sơ đã hoàn thành để đối chiếu.")
+            else:
+                _history["start_dt"] = pd.to_datetime(_history["start_time"], errors="coerce")
+                _history["end_dt"] = pd.to_datetime(_history["end_time"], errors="coerce")
+                _history["Phút gốc"] = _elapsed_series_excluding_lunch(_history["start_dt"], _history["end_dt"], None)
+                _history["Phút nghỉ trưa 11:30–13:30"] = _history["Phút gốc"] - _elapsed_series_excluding_lunch(_history["start_dt"], _history["end_dt"], (690,810))
+                _history["Phút tác nghiệp theo cài đặt"] = _elapsed_series_excluding_lunch(_history["start_dt"], _history["end_dt"], lunch_break_interval())
+                _invalid = _history["start_dt"].isna() | _history["end_dt"].isna() | (_history["end_dt"] < _history["start_dt"])
+                if _invalid.any():
+                    st.warning(f"Có {int(_invalid.sum())} hồ sơ thiếu hoặc sai mốc thời gian cần kiểm tra.")
+                st.write(f"Hồ sơ giao giờ nghỉ trưa: {int((_history['Phút nghỉ trưa 11:30–13:30'] > 0).sum())}; tổng phút nghỉ trưa: {_history['Phút nghỉ trưa 11:30–13:30'].sum():,.1f}.")
+                st.dataframe(_history[["id","start_time","end_time","Phút gốc","Phút nghỉ trưa 11:30–13:30","Phút tác nghiệp theo cài đặt"]], hide_index=True, use_container_width=True)
+        st.divider()
         # Exact V2.14 page order: table -> create -> edit. The create input itself
         # remains the zero-keystroke component to preserve the speed improvement.
         types=qdf("SELECT id,name,active,created_at,updated_at FROM task_types ORDER BY id")
@@ -152,22 +202,6 @@ def _render_reason_category_manager(u):
             if save_type:
                 execute("UPDATE task_types SET active=?,updated_at=? WHERE id=?",(int(nactive),now_str(),xid)); _active_task_types_cached.clear(); audit(u["id"],"UPDATE_TASK_TYPE","task_type",xid,f"active={nactive}"); st.success("Đã cập nhật."); st.rerun()
 
-        st.markdown("### Cài đặt giờ nghỉ trưa")
-        st.caption("Khoảng thời gian này được trừ khỏi thời gian giao → tiếp nhận, thời gian xử lý và thời gian chờ đánh giá khi có phần giao nhau. Thiết lập dùng chung cho toàn phòng.")
-        _lunch_enabled, _lunch_start, _lunch_end = lunch_break_settings()
-        with st.form("lunch_break_settings_form", clear_on_submit=False, enter_to_submit=False):
-            _lunch_on = st.checkbox("Áp dụng giờ nghỉ trưa", value=bool(_lunch_enabled), key="lunch_break_enabled_input")
-            _lunch_c1, _lunch_c2 = st.columns(2)
-            _lunch_start_input = _lunch_c1.time_input("Bắt đầu nghỉ", value=_minutes_to_clock(_lunch_start), key="lunch_break_start_input")
-            _lunch_end_input = _lunch_c2.time_input("Kết thúc nghỉ", value=_minutes_to_clock(_lunch_end), key="lunch_break_end_input")
-            _lunch_save = st.form_submit_button("Lưu cài đặt giờ nghỉ trưa", type="primary")
-        if _lunch_save:
-            try:
-                save_lunch_break_settings(u["id"], _lunch_on, _lunch_start_input, _lunch_end_input)
-                st.success("Đã lưu giờ nghỉ trưa. Các chỉ số thời gian sẽ dùng thiết lập mới từ lần tải dữ liệu tiếp theo.")
-                st.rerun()
-            except ValueError as exc:
-                st.error(str(exc))
 
 '''
     source=_replace_span(source,'    if admin_view == "types":\n','    if admin_view == "reasons":\n',task_type_block,'task type manager')
