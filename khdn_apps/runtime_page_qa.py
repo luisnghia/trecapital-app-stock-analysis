@@ -24,10 +24,10 @@ def run():
                      if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "task_type_block" for t in n.targets))
         settings = textwrap.dedent(block.split('if admin_view == "types":', 1)[1].split("# Exact V2.14", 1)[0])
         script = (
-            "import khdn_apps.app as m\\n"
-            "m.init_db()\\n"
-            "u = dict(m.qdf('SELECT * FROM users ORDER BY id LIMIT 1').iloc[0])\\n"
-            "exec(" + repr(settings) + ", dict(vars(m), u=u))\\n"
+            "import khdn_apps.app as m\n"
+            "m.init_db()\n"
+            "u = dict(m.qdf('SELECT * FROM users ORDER BY id LIMIT 1').iloc[0])\n"
+            "exec(" + repr(settings) + ", dict(vars(m), u=u))\n"
         )
         calendar = AppTest.from_string(script, default_timeout=30).run()
         assert not calendar.exception, [e.message for e in calendar.exception]
