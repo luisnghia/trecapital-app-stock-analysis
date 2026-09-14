@@ -231,19 +231,18 @@ def _render_workflow_staff_analysis(task_df):
     )
 
     # Dashboard task-type analytics: keep the task-type aggregate, then add a
-    # role-scoped breakdown so each task type is visible per CBHT. Operational
-    # users already receive analysis_f scoped to their own assignments, while
-    # QLKH/leadership see every CBHT permitted by their dashboard scope.
+    # role-scoped chart so each task type × CBHT pair is visible without the
+    # cramped mobile table. Operational users already receive analysis_f
+    # scoped to their own assignments, while QLKH/leadership see every CBHT
+    # permitted by their dashboard scope.
     task_type_staff_block = r'''
-        # Keep this heading as a first-class dashboard section so it cannot be
-        # mistaken for the aggregate task-type table above.  The preflight
-        # assertion below also makes a missing build-time injection fail fast.
         st.subheader("Chi tiết theo từng CBHT")
-        st.caption("Mỗi dòng là một cặp loại công việc × CBHT trong phạm vi bộ lọc hiện tại.")
-        if "support_name" not in analysis_f_stats.columns:
-            st.info("Chưa có cột CBHT để phân rã theo từng cán bộ.")
+        st.caption("Biểu đồ hiển thị từng cặp loại công việc × CBHT trong phạm vi bộ lọc hiện tại. CBHT = Cán bộ hỗ trợ.")
+        if "support_name" not in analysis_f_stats.columns or analysis_f_stats.empty:
+            st.info("Chưa có dữ liệu CBHT trong phạm vi bộ lọc hiện tại.")
         else:
             g2_cbht = analysis_f_stats.copy()
+            g2_cbht["task_type"] = g2_cbht["task_type"].fillna("—").astype(str)
             g2_cbht["support_name"] = g2_cbht["support_name"].fillna("—").astype(str)
             g2_cbht = g2_cbht.groupby(["task_type","support_name"], dropna=False).agg(
                 so_tac_nghiep=("id","count"),
@@ -254,20 +253,52 @@ def _render_workflow_staff_analysis(task_df):
                 lam_lai=("rework_count","sum"),
             ).reset_index()
             g2_cbht["gia_tri_ty"] = (g2_cbht["gia_tri_vnd"] / 1_000_000_000).round(1)
-            g2_cbht = g2_cbht.merge(week_goal,on="task_type",how="left").merge(month_goal,on="task_type",how="left")
             g2_cbht = g2_cbht.sort_values(["task_type","support_name"], kind="stable").reset_index(drop=True)
-            g2_cbht_show = g2_cbht.rename(columns={
-                "task_type":"Công việc", "support_name":"CBHT", "so_tac_nghiep":"Số TN",
-                "gia_tri_ty":"Giá trị (tỷ đồng)", "diem_tb":"Điểm TB",
-                "tg_tiep_nhan_tb":"TG giao→tiếp nhận (phút)", "tg_tb_phut":"TG xử lý TB (phút)",
-                "lam_lai":"Làm lại", "muc_tieu_tuan":"MT tuần", "muc_tieu_thang":"MT tháng",
-            })[["Công việc","CBHT","Số TN","Giá trị (tỷ đồng)","Điểm TB",
-                "TG giao→tiếp nhận (phút)","TG xử lý TB (phút)","MT tuần","MT tháng","Làm lại"]].copy()
-            g2_cbht_show["Giá trị (tỷ đồng)"] = g2_cbht_show["Giá trị (tỷ đồng)"].map(lambda x:fmt_billion(x,False))
-            g2_cbht_show["Điểm TB"] = g2_cbht_show["Điểm TB"].map(fmt_score)
-            for col in ["TG giao→tiếp nhận (phút)","TG xử lý TB (phút)","MT tuần","MT tháng"]:
-                g2_cbht_show[col] = g2_cbht_show[col].map(lambda x:f"{float(x):,.1f}".replace(",",".") if pd.notna(x) else "—")
-            _html_table(g2_cbht_show, max_height=620)
+            _chart_task_options = ["Tất cả"] + sorted(g2_cbht["task_type"].dropna().unique().tolist())
+            _chart_metric_map = {
+                "Số tác nghiệp": ("so_tac_nghiep", "Số tác nghiệp"),
+                "Giá trị (tỷ đồng)": ("gia_tri_ty", "Tỷ đồng"),
+                "TG giao→tiếp nhận (phút)": ("tg_tiep_nhan_tb", "Phút"),
+                "TG xử lý TB (phút)": ("tg_tb_phut", "Phút"),
+                "Làm lại": ("lam_lai", "Lần"),
+            }
+            # Detailed score comparisons are restricted to admin/leadership;
+            # QLKH/CBHT retain the operational volume/time view.
+            _show_cbht_score = bool(u.get("is_admin")) or u.get("role") == "Lãnh đạo phòng"
+            if _show_cbht_score:
+                _chart_metric_map["Điểm TB"] = ("diem_tb", "Điểm")
+            _chart_c1, _chart_c2 = st.columns(2)
+            with _chart_c1:
+                _chart_task = st.selectbox(
+                    "Loại công việc", _chart_task_options,
+                    key="dashboard_cbht_chart_task",
+                )
+            with _chart_c2:
+                _chart_metric = st.selectbox(
+                    "Chỉ số", list(_chart_metric_map.keys()),
+                    key="dashboard_cbht_chart_metric",
+                )
+            _chart_df = g2_cbht.copy()
+            if _chart_task != "Tất cả":
+                _chart_df = _chart_df[_chart_df["task_type"] == _chart_task].copy()
+            if _chart_df.empty:
+                st.info("Chưa có cặp loại công việc × CBHT cho lựa chọn này.")
+            else:
+                _metric_col, _metric_unit = _chart_metric_map[_chart_metric]
+                _chart_df[_metric_col] = pd.to_numeric(_chart_df[_metric_col], errors="coerce").fillna(0.0)
+                _chart_df = _chart_df.sort_values(_metric_col, ascending=False, kind="stable").reset_index(drop=True)
+                _chart_df["chart_label"] = _chart_df.apply(
+                    lambda _row: (
+                        f"{_row['task_type']} · {_row['support_name']}"
+                        if _chart_task == "Tất cả"
+                        else f"CBHT · {_row['support_name']}"
+                    ),
+                    axis=1,
+                )
+                _altair_bar(
+                    _chart_df, "chart_label", _metric_col,
+                    f"{_chart_metric} theo CBHT", _metric_unit,
+                )
 '''
     source = _replace_once(
         source,
