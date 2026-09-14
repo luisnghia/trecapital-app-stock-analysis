@@ -1,3 +1,4 @@
+# Release: Light contrast, per-task lunch exclusion, legacy cancellation migration.
 FROM python:3.11-slim
 
 WORKDIR /app
