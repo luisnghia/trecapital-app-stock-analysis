@@ -3,14 +3,15 @@ base = "dark"
 font = "sans serif"
 showSidebarBorder = true
 
-# Light mode mirrors the main Trecapital app palette.
+# Light mode follows the institutional Trecapital / Oaktree UI used by the
+# stock-analysis app. Dark values below are intentionally left unchanged.
 [theme.light]
-primaryColor = "#0F766E"
-backgroundColor = "#F8FAFC"
-secondaryBackgroundColor = "#ECFDF5"
-textColor = "#0F172A"
-borderColor = "#CBD5E1"
-dataframeHeaderBackgroundColor = "#ECFDF5"
+primaryColor = "#12362F"
+backgroundColor = "#F5F1E8"
+secondaryBackgroundColor = "#FFFDF8"
+textColor = "#17231F"
+borderColor = "#D7CFBE"
+dataframeHeaderBackgroundColor = "#F3EFE4"
 showWidgetBorder = true
 
 [theme.dark]
@@ -23,11 +24,11 @@ dataframeHeaderBackgroundColor = "#1B4540"
 showWidgetBorder = true
 
 [theme.light.sidebar]
-primaryColor = "#0F766E"
-backgroundColor = "#ECFDF5"
-secondaryBackgroundColor = "#F8FAFC"
-textColor = "#0F172A"
-borderColor = "#CBD5E1"
+primaryColor = "#12362F"
+backgroundColor = "#F3EFE4"
+secondaryBackgroundColor = "#FBF8F0"
+textColor = "#0B2A25"
+borderColor = "#D7CFBE"
 
 [theme.dark.sidebar]
 primaryColor = "#6FD6C4"
