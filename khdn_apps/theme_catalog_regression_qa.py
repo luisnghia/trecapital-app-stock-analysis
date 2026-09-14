@@ -29,7 +29,7 @@ def main():
         'catalog_cell_inline_grid': 'border:1px solid rgba(127,127,127,.55)' in catalog,
         'catalog_border_collapse': 'border-collapse:collapse' in catalog,
         'catalog_table_is_stable_html': 'st.html(table_html)' in catalog,
-        'theme_runtime_no_st_context': 'st.context.theme' not in theme,
+        'theme_runtime_no_st_context_api': 'getattr(st.context.theme' not in theme and 'getattr(st.context.theme' not in component_py,
         'theme_runtime_does_not_force_canvas': 'html,body,.stApp' not in theme,
         'theme_runtime_neutral_id': 'khdn-native-switchable-theme' in theme,
         'component_reads_live_render_theme': 'applyTheme(event.data.theme||{})' in component,
