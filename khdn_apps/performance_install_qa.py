@@ -1,4 +1,5 @@
 """Verify built image contains zero-keystroke catalog entry and selectable Dark/Trecapital Light styling."""
+# QA repeat run 2 - force uncached install verification
 from pathlib import Path
 import streamlit
 
