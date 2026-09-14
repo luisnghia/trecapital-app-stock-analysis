@@ -5,6 +5,10 @@ from pathlib import Path
 def install():
     app=Path(__file__).resolve().parent / "app.py"
     text=app.read_text(encoding="utf-8")
+    lunch=(
+        "from khdn_apps.lunch_break_patch import patch_source as _lunch_break_patch_source\n"
+        "_source = _lunch_break_patch_source(_source)\n"
+    )
     mobile=(
         "from khdn_apps.mobile_nav_patch import patch_source as _patch_source\n"
         "_source = _patch_source(_source)\n"
@@ -20,6 +24,8 @@ def install():
     )
     if mobile not in text:
         raise RuntimeError("Reason-category installer requires mobile patch marker")
+    if lunch not in text:
+        text=text.replace(mobile,lunch+mobile,1)
     old_reason=(
         "from khdn_apps.reason_categories_patch import patch_source as _reason_categories_patch_source\n"
         "_source = _reason_categories_patch_source(_source)\n"
