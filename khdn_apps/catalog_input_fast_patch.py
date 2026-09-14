@@ -2,8 +2,9 @@
 
 The catalog-name fields are isolated from Streamlit's widget tree while typing. The
 plain DOM input sends no value to Python until the user presses Enter or clicks Add.
-Catalog tables are rendered as stable st.html blocks before the component so component
-mounting cannot make a previously visible table appear to vanish.
+Catalog tables are rendered as stable st.html blocks before the component. Their grid
+lines are intrinsic inline styles so they remain visible in both Light and Dark themes
+without depending on runtime CSS ordering.
 """
 
 
@@ -25,7 +26,13 @@ def _catalog_static_table(df, columns):
     if df is None or df.empty:
         return
     _html=__import__("html")
-    head="".join(f"<th>{_html.escape(str(label))}</th>" for _,label in columns)
+    # Grid borders are inline by design. This makes them immune to Streamlit theme
+    # switches, CSS injection order and mobile-specific stylesheet changes.
+    _wrap_style="width:100%;overflow:auto;border:1px solid rgba(127,127,127,.70);border-radius:10px;margin:.45rem 0 1rem;background:transparent"
+    _table_style="width:100%;border-collapse:collapse;border-spacing:0;font-size:.88rem;color:inherit;background:transparent"
+    _th_style="text-align:left;font-weight:850;padding:9px 10px;border:1px solid rgba(127,127,127,.70);white-space:nowrap;background:rgba(15,118,110,.10);color:inherit"
+    _td_style="padding:8px 10px;border:1px solid rgba(127,127,127,.55);vertical-align:top;background:transparent;color:inherit"
+    head="".join(f'<th style="{_th_style}">{_html.escape(str(label))}</th>' for _,label in columns)
     body=[]
     for _,row in df.iterrows():
         cells=[]
@@ -33,9 +40,9 @@ def _catalog_static_table(df, columns):
             value=row.get(key,"")
             if value is None or (hasattr(pd,"isna") and pd.isna(value)):
                 value=""
-            cells.append(f"<td>{_html.escape(str(value))}</td>")
+            cells.append(f'<td style="{_td_style}">{_html.escape(str(value))}</td>')
         body.append("<tr>"+"".join(cells)+"</tr>")
-    table_html='<div class="khdn-catalog-table-wrap"><table class="khdn-catalog-table"><thead><tr>'+head+'</tr></thead><tbody>'+"".join(body)+'</tbody></table></div>'
+    table_html=f'<div class="khdn-catalog-table-wrap" style="{_wrap_style}"><table class="khdn-catalog-table" style="{_table_style}"><thead><tr>'+head+'</tr></thead><tbody>'+"".join(body)+'</tbody></table></div>'
     if hasattr(st,"html"):
         st.html(table_html)
     else:
@@ -50,8 +57,7 @@ def _render_reason_category_manager(u):
     title="Nhóm nguyên nhân trả lại" if kind=="RETURN" else "Nhóm nguyên nhân hủy"
     st.markdown(f"#### {title}")
 
-    # V2.14 order: list first, then create field, then edit controls. Rendering the
-    # table before the iframe prevents layout/component mounting from hiding it.
+    # V2.14 order: list first, then create field, then edit controls.
     df=qdf("SELECT id,name,active,created_at,updated_at FROM reason_categories WHERE reason_type=? ORDER BY id",(kind,))
     if df.empty:
         st.info("Chưa có nhóm nguyên nhân.")
@@ -155,6 +161,8 @@ def _render_reason_category_manager(u):
         'key=f"catalog_submit_only_reason_{kind}"',
         'class="khdn-catalog-table"',
         'st.html(table_html)',
+        'border:1px solid rgba(127,127,127,.70)',
+        'border:1px solid rgba(127,127,127,.55)',
         '# Exact V2.14 page order: table -> create -> edit.',
     ]
     for marker in required:
