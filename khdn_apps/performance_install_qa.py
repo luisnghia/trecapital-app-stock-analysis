@@ -84,3 +84,5 @@ def main():
 
 if __name__=="__main__":
     main()
+
+# Railway deployment marker: keep branch-head deployments observable after connector ref updates.
