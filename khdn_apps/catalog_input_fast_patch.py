@@ -151,21 +151,7 @@ def _render_reason_category_manager(u):
             except ValueError as exc:
                 st.error(str(exc))
         st.caption("Giờ tính theo Việt Nam. Các khoảng nghỉ giao nhau chỉ được trừ một lần. Cấu hình này không tự loại trừ cả ngày cuối tuần hoặc ngày lễ.")
-        if st.button("Rà thời gian hồ sơ đã hoàn thành", key="office_calendar_history_review"):
-            _history = qdf("SELECT id,start_time,end_time FROM tasks WHERE end_time IS NOT NULL AND end_time<>'' AND status<>'CANCELLED' ORDER BY id")
-            if _history.empty:
-                st.info("Chưa có hồ sơ đã hoàn thành để đối chiếu.")
-            else:
-                _history["start_dt"] = pd.to_datetime(_history["start_time"], errors="coerce")
-                _history["end_dt"] = pd.to_datetime(_history["end_time"], errors="coerce")
-                _history["Phút gốc"] = _elapsed_series_excluding_lunch(_history["start_dt"], _history["end_dt"], None)
-                _history["Phút nghỉ trưa 11:30–13:30"] = _history["Phút gốc"] - _elapsed_series_excluding_lunch(_history["start_dt"], _history["end_dt"], (690,810))
-                _history["Phút tác nghiệp theo cài đặt"] = _elapsed_series_excluding_lunch(_history["start_dt"], _history["end_dt"], lunch_break_interval())
-                _invalid = _history["start_dt"].isna() | _history["end_dt"].isna() | (_history["end_dt"] < _history["start_dt"])
-                if _invalid.any():
-                    st.warning(f"Có {int(_invalid.sum())} hồ sơ thiếu hoặc sai mốc thời gian cần kiểm tra.")
-                st.write(f"Hồ sơ giao giờ nghỉ trưa: {int((_history['Phút nghỉ trưa 11:30–13:30'] > 0).sum())}; tổng phút nghỉ trưa: {_history['Phút nghỉ trưa 11:30–13:30'].sum():,.1f}.")
-                st.dataframe(_history[["id","start_time","end_time","Phút gốc","Phút nghỉ trưa 11:30–13:30","Phút tác nghiệp theo cài đặt"]], hide_index=True, use_container_width=True)
+        st.caption("App tự động tính thời gian tác nghiệp theo giờ nghỉ trưa và giờ nghỉ cuối ngày đã được Admin/Lãnh đạo phòng bật và lưu, áp dụng cho từng công việc kể cả hồ sơ đã kết thúc.")
         st.divider()
         # Exact V2.14 page order: table -> create -> edit. The create input itself
         # remains the zero-keystroke component to preserve the speed improvement.
