@@ -38,6 +38,17 @@ def install():
             if exec_line not in text:
                 raise RuntimeError("Performance installer cannot find loader exec marker")
             text=text.replace(exec_line,perf+exec_line,1)
+    # inspect.getsource (used by Streamlit cache decorators) must see the final
+    # transformed source, not the older readable snapshot at the same filename.
+    source_cache = (
+        "import linecache as _source_linecache\n"
+        "_source_filename = str(_Path(__file__).resolve().parent / 'app_v223_source.py')\n"
+        "_source_linecache.cache[_source_filename] = (len(_source), None, _source.splitlines(keepends=True), _source_filename)\n"
+    )
+    if source_cache not in text:
+        if exec_line not in text:
+            raise RuntimeError("Cannot register transformed source before execution")
+        text=text.replace(exec_line,source_cache+exec_line,1)
     loader.write_text(text,encoding="utf-8")
 
     index = Path(streamlit.__file__).resolve().parent / "static" / "index.html"
