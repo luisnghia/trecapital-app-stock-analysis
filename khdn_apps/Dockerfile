@@ -19,6 +19,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && python /app/khdn_apps/reason_categories_semantic_qa.py \
     && python /app/khdn_apps/reason_categories_streamlit_smoke.py \
     && python /app/khdn_apps/install_reason_categories.py \
+    && python /app/khdn_apps/task_note_visibility_qa.py \
     && python /app/khdn_apps/performance_preflight.py \
     && python /app/khdn_apps/performance_benchmark.py \
     && python /app/khdn_apps/install_performance.py \
