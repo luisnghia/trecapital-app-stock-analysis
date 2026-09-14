@@ -9,15 +9,47 @@
 <script>
 const parentOrigin = new URL(document.referrer || location.href).origin;
 const send = (type, value) => parent.postMessage({isStreamlitMessage:true,type,...value}, parentOrigin);
+let lastBase='';
+function emitBase(base,theme){
+  const normalized=String(base||'').toLowerCase();
+  if(normalized!=='light' && normalized!=='dark') return false;
+  if(normalized===lastBase) return true;
+  lastBase=normalized;
+  const t=theme||{};
+  parent.postMessage({type:'khdn-theme-sync',base:normalized,backgroundColor:String(t.backgroundColor||''),textColor:String(t.textColor||'')}, parentOrigin);
+  return true;
+}
+function systemBase(){
+  try{return parent.matchMedia && parent.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';}
+  catch(_err){return '';}
+}
+function cachedBase(){
+  try{
+    const key=`stActiveTheme-${parent.location.pathname}-v2`;
+    const raw=parent.localStorage.getItem(key);
+    if(raw===null) return '';
+    const selection=JSON.parse(raw);
+    if(selection==='Light') return 'light';
+    if(selection==='Dark') return 'dark';
+    if(selection==='System') return systemBase();
+  }catch(_err){}
+  return '';
+}
+function syncCached(){
+  const base=cachedBase();
+  if(base) return emitBase(base,{});
+  return false;
+}
 function reportTheme(theme){
   const t=theme||{};
-  parent.postMessage({type:'khdn-theme-sync',base:String(t.base||''),backgroundColor:String(t.backgroundColor||''),textColor:String(t.textColor||'')}, parentOrigin);
+  if(!syncCached()) emitBase(String(t.base||''),t);
   send('streamlit:setFrameHeight',{height:0});
 }
 window.addEventListener('message',event=>{
   if(event.source!==parent || event.origin!==parentOrigin || event.data.type!=='streamlit:render') return;
   reportTheme(event.data.theme||{});
 });
+window.setInterval(syncCached,250);
 send('streamlit:componentReady',{apiVersion:1});
 send('streamlit:setFrameHeight',{height:0});
 </script>
