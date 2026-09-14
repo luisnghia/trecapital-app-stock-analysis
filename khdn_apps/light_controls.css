@@ -60,20 +60,34 @@ html.khdn-light div[class*="st-key-ops_alert_hot_"] button *{
   50%{box-shadow:0 0 0 4px rgba(244,180,26,.12)}
 }
 
-/* Streamlit 1.63 uses React Aria, with a hidden native range in each thumb.
-   Target its track and visible thumb; leave range dimensions and values alone. */
-html.khdn-light :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [data-orientation="horizontal"]>[data-orientation="horizontal"]>div:first-child{
+/* Streamlit 1.63 select_slider uses React Aria.  Include the persisted theme
+   attribute as well as the helper class: Streamlit can briefly reconcile the
+   class during a rerun, while data-khdn-theme remains authoritative. */
+html.khdn-light :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [data-orientation="horizontal"]>[data-orientation="horizontal"]>div:first-child,
+html[data-khdn-theme="light"] :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [data-orientation="horizontal"]>[data-orientation="horizontal"]>div:first-child,
+html[data-theme="light"] :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [data-orientation="horizontal"]>[data-orientation="horizontal"]>div:first-child,
+body[data-theme="light"] :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [data-orientation="horizontal"]>[data-orientation="horizontal"]>div:first-child,
+html.khdn-light :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [class*="react-aria-SliderTrack"]>div:first-child,
+html[data-khdn-theme="light"] :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [class*="react-aria-SliderTrack"]>div:first-child{
   background:#C62828!important;height:6px!important;border-radius:6px!important;
 }
-html.khdn-light :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] div:has(>[data-testid="stSliderThumbValue"]){
+html.khdn-light :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] div:has(>[data-testid="stSliderThumbValue"]),
+html[data-khdn-theme="light"] :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] div:has(>[data-testid="stSliderThumbValue"]),
+html[data-theme="light"] :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] div:has(>[data-testid="stSliderThumbValue"]),
+body[data-theme="light"] :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] div:has(>[data-testid="stSliderThumbValue"]),
+html.khdn-light :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [class*="react-aria-SliderThumb"],
+html[data-khdn-theme="light"] :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [class*="react-aria-SliderThumb"]{
   background:#C62828!important;border:2px solid #FFFFFF!important;
   box-shadow:0 0 0 2px #C62828!important;width:22px!important;height:22px!important;
 }
-html.khdn-light :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [data-focus-visible="true"]{
+html.khdn-light :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [data-focus-visible="true"],
+html[data-khdn-theme="light"] :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [data-focus-visible="true"]{
   outline:3px solid #F4B41A!important;outline-offset:5px!important;
 }
 html.khdn-light :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSliderThumbValue"],
-html.khdn-light :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSliderThumbValue"] *{
+html.khdn-light :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSliderThumbValue"] *,
+html[data-khdn-theme="light"] :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSliderThumbValue"],
+html[data-khdn-theme="light"] :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSliderThumbValue"] *{
   color:#C62828!important;-webkit-text-fill-color:#C62828!important;font-weight:850!important;
 }
 

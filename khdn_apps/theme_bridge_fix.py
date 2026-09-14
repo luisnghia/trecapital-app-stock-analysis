@@ -32,8 +32,13 @@ def install() -> None:
   const apply=(base)=>{
     const normalized=String(base||'').toLowerCase();
     if(normalized!=='light' && normalized!=='dark') return false;
-    if(lastApplied===normalized && root.dataset.khdnTheme===normalized) return true;
     const light=normalized==='light';
+    /* Streamlit may reconcile <html class> during a rerun.  Do not return early
+       solely because the cached theme value is unchanged: re-assert the custom
+       class whenever it was removed by the host shell. */
+    if(lastApplied===normalized && root.dataset.khdnTheme===normalized &&
+       root.classList.contains(light?'khdn-light':'khdn-dark') &&
+       !root.classList.contains(light?'khdn-dark':'khdn-light')) return true;
     root.classList.toggle('khdn-light',light);
     root.classList.toggle('khdn-dark',!light);
     root.dataset.khdnTheme=normalized;

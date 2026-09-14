@@ -14,6 +14,7 @@ def main():
     catalog=(root/"catalog_input_fast_patch.py").read_text(encoding="utf-8")
     component_py=(root/"fast_catalog_input.py").read_text(encoding="utf-8")
     component_html=(root/"fast_catalog_component"/"index.html").read_text(encoding="utf-8")
+    light_controls=(root/"light_controls.css").read_text(encoding="utf-8")
     probe_py=(root/"theme_probe.py").read_text(encoding="utf-8")
     probe_html=(root/"theme_probe_component"/"index.html").read_text(encoding="utf-8")
     config=(root/".streamlit"/"config.toml").read_text(encoding="utf-8")
@@ -28,6 +29,7 @@ def main():
         "device_schema_once": "_SCHEMA_READY" in sessions and "_ensure_schema(path)" in sessions,
         "global_dom_observer_removed": "new MutationObserver(scheduleGrid).observe(document.documentElement" not in index,
         "grid_observer_operational_only": "hasOpsGrid" in index and "gridObserver.disconnect()" in index,
+        "theme_bridge_reasserts_light_class": "root.classList.contains(light?'khdn-light':'khdn-dark')" in index,
         "typing_focus_listener_removed": 'id="khdn-typing-fastpath"' not in index,
         "sidebar_permanent_will_change_removed": ";will-change:transform,width" not in index and "will-change:transform,width;" not in index,
         "legacy_draft_callback_rewriter_removed": "draft_widgets = [" not in perf and "for old_widget, new_widget, label in draft_widgets" not in perf,
@@ -56,6 +58,10 @@ def main():
         "runtime_theme_css_present": 'id="khdn-native-switchable-theme"' in loader,
         "runtime_does_not_use_st_context_theme": "st.context.theme" not in loader,
         "runtime_light_is_class_scoped": "html.khdn-light .stApp" in loader and "html.khdn-light section[data-testid=\"stSidebar\"]" in loader,
+        "qlkh_slider_light_data_theme_fallback": 'html[data-khdn-theme="light"]' in light_controls,
+        "qlkh_slider_react_aria_track": "react-aria-SliderTrack" in light_controls,
+        "qlkh_slider_react_aria_thumb": "react-aria-SliderThumb" in light_controls,
+        "qlkh_slider_red": "#C62828!important" in light_controls,
         "runtime_oaktree_tokens": "--oak-pine:#12362F" in loader and "--oak-gold:#F4B41A" in loader and "--oak-cream:#FFFFFF" in loader and "--oak-line:#C9DCD3" in loader,
         "runtime_oaktree_buttons": "html.khdn-light div.stButton>button" in loader and "background:var(--oak-pine-2)!important" in loader,
         "runtime_oaktree_inputs": "html.khdn-light div[data-baseweb=\"select\"]>div" in loader and "border-color:var(--oak-gold)!important" in loader,
