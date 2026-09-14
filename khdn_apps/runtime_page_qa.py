@@ -10,6 +10,8 @@ def run():
         os.environ["KHDN_DATA_DIR"] = folder
         os.environ["KHDN_DB_PATH"] = str(Path(folder) / "qa.db")
         os.environ["KHDN_REQUIRE_VOLUME"] = "0"
+        import secrets
+        os.environ["KHDN_ADMIN_PASSWORD"] = secrets.token_urlsafe(24)
         from streamlit.testing.v1 import AppTest
         page = AppTest.from_file(str(root / "online_entry.py"), default_timeout=30).run()
         assert not page.exception, [e.message for e in page.exception]
