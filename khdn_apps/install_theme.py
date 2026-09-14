@@ -160,6 +160,16 @@ html.khdn-light .task-chip *{color:inherit!important;-webkit-text-fill-color:inh
 '''
     light_controls = (root / "light_controls.css").read_text(encoding="utf-8")
     runtime_theme = runtime_theme.replace("</style>", light_controls + "\n</style>", 1)
+    # online_entry imports app once, then calls app() on each Streamlit rerun.
+    # Emit the theme through inject_css(), which app() calls every time, so
+    # cached module imports cannot remove the CSS or the live theme probe.
+    import textwrap
+    runtime_theme = (
+        "_khdn_base_inject_css = inject_css\n"
+        "def inject_css():\n"
+        "    _khdn_base_inject_css()\n"
+        + textwrap.indent(runtime_theme, "    ")
+    )
     text = text[:start] + runtime_theme + text[end:]
     loader.write_text(text, encoding="utf-8")
 
