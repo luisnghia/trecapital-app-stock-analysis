@@ -152,6 +152,23 @@ def _render_reason_category_manager(u):
             if save_type:
                 execute("UPDATE task_types SET active=?,updated_at=? WHERE id=?",(int(nactive),now_str(),xid)); _active_task_types_cached.clear(); audit(u["id"],"UPDATE_TASK_TYPE","task_type",xid,f"active={nactive}"); st.success("Đã cập nhật."); st.rerun()
 
+        st.markdown("### Cài đặt giờ nghỉ trưa")
+        st.caption("Khoảng thời gian này được trừ khỏi thời gian giao → tiếp nhận, thời gian xử lý và thời gian chờ đánh giá khi có phần giao nhau. Thiết lập dùng chung cho toàn phòng.")
+        _lunch_enabled, _lunch_start, _lunch_end = lunch_break_settings()
+        with st.form("lunch_break_settings_form", clear_on_submit=False, enter_to_submit=False):
+            _lunch_on = st.checkbox("Áp dụng giờ nghỉ trưa", value=bool(_lunch_enabled), key="lunch_break_enabled_input")
+            _lunch_c1, _lunch_c2 = st.columns(2)
+            _lunch_start_input = _lunch_c1.time_input("Bắt đầu nghỉ", value=_minutes_to_clock(_lunch_start), key="lunch_break_start_input")
+            _lunch_end_input = _lunch_c2.time_input("Kết thúc nghỉ", value=_minutes_to_clock(_lunch_end), key="lunch_break_end_input")
+            _lunch_save = st.form_submit_button("Lưu cài đặt giờ nghỉ trưa", type="primary")
+        if _lunch_save:
+            try:
+                save_lunch_break_settings(u["id"], _lunch_on, _lunch_start_input, _lunch_end_input)
+                st.success("Đã lưu giờ nghỉ trưa. Các chỉ số thời gian sẽ dùng thiết lập mới từ lần tải dữ liệu tiếp theo.")
+                st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
+
 '''
     source=_replace_span(source,'    if admin_view == "types":\n','    if admin_view == "reasons":\n',task_type_block,'task type manager')
 
@@ -159,6 +176,8 @@ def _render_reason_category_manager(u):
         'from khdn_apps.fast_catalog_input import fast_catalog_input',
         'key="catalog_submit_only_task_type"',
         'key=f"catalog_submit_only_reason_{kind}"',
+        'Cài đặt giờ nghỉ trưa',
+        'save_lunch_break_settings(u["id"], _lunch_on, _lunch_start_input, _lunch_end_input)',
         'class="khdn-catalog-table"',
         'st.html(table_html)',
         'border:1px solid rgba(127,127,127,.70)',
