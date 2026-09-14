@@ -13,6 +13,9 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # variants from Streamlit Settings without changing application data.
 COPY khdn_apps/.streamlit /app/.streamlit
 COPY khdn_apps /app/khdn_apps
+# Fail the image build if the dashboard CBHT detail section is not present in
+# the source patch. This prevents a stale/cached image from reaching users.
+RUN grep -Fq 'st.subheader("Chi tiết theo từng CBHT")' /app/khdn_apps/mobile_nav_patch.py
 RUN python /app/khdn_apps/install_branding.py \
     && python /app/khdn_apps/admin_color_fix.py \
     && python /app/khdn_apps/reason_categories_preflight.py \
