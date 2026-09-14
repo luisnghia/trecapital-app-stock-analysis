@@ -40,7 +40,19 @@ const inputEl=document.getElementById('input');
 const buttonEl=document.getElementById('submit');
 let resetToken=null;
 let submitSeq=0;
-function fit(){send('streamlit:setFrameHeight',{height:document.documentElement.scrollHeight+2});}
+const wrapEl=document.querySelector('.wrap');
+let lastFrameHeight=0;
+function fit(){
+  // Measure content, not the iframe viewport: viewport + 2 grows on every render.
+  const height=Math.ceil(wrapEl.getBoundingClientRect().height)+2;
+  if(height>2 && height!==lastFrameHeight){
+    lastFrameHeight=height;
+    send('streamlit:setFrameHeight',{height});
+  }
+}
+window.addEventListener('resize',fit);
+if(window.ResizeObserver){new ResizeObserver(fit).observe(wrapEl);}
+if(document.fonts){document.fonts.ready.then(fit);}
 function submit(){
   const value=inputEl.value;
   submitSeq+=1;
