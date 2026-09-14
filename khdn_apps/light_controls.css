@@ -35,6 +35,130 @@ html.khdn-light div[class*="st-key-customer_search_"] [data-testid="stTextInput"
 }
 html.khdn-light :is(input,textarea)::placeholder{color:#547064!important;-webkit-text-fill-color:#547064!important}
 
+/* Native Streamlit menu and theme switcher.  The main menu is portalled under
+   <body>, so its controls need an explicit Light scope instead of inheriting
+   the app canvas colors.  Keep every label/icon pair dark on paper, with a
+   pale green selected state and a gold focus/hover state. */
+html.khdn-light [data-testid="stMainMenuButton"]{
+  background:#FFFFFF!important;color:#0B2A25!important;
+  -webkit-text-fill-color:#0B2A25!important;border:1px solid var(--oak-line)!important;
+  border-radius:5px!important;box-shadow:0 3px 10px rgba(18,54,47,.08)!important;
+}
+html.khdn-light [data-testid="stMainMenuButton"]:hover,
+html.khdn-light [data-testid="stMainMenuButton"]:focus-visible{
+  background:#FFF1C2!important;color:#0B2A25!important;
+  -webkit-text-fill-color:#0B2A25!important;border-color:#D89A00!important;
+  outline:3px solid rgba(244,180,26,.22)!important;outline-offset:2px!important;
+}
+html.khdn-light [data-testid="stMainMenuButton"] svg{
+  color:#0B2A25!important;fill:currentColor!important;stroke:currentColor!important;
+}
+html.khdn-light [data-testid="stMainMenuPopover"]{
+  background:#FFFFFF!important;color:#17231F!important;
+  -webkit-text-fill-color:#17231F!important;border:1px solid var(--oak-line)!important;
+  border-radius:6px!important;box-shadow:0 16px 36px rgba(18,54,47,.16)!important;
+}
+html.khdn-light [data-testid="stMainMenuPopover"] [data-testid="stMainMenuList"],
+html.khdn-light [data-testid="stMainMenuPopover"] [data-testid="stThemeSwitcher"]{
+  background:#FFFFFF!important;color:#17231F!important;
+  -webkit-text-fill-color:#17231F!important;
+}
+html.khdn-light [data-testid="stMainMenuPopover"] [data-testid="stThemeSwitcher"] button[role="menuitemradio"]{
+  min-height:64px!important;background:#FFFFFF!important;color:#0B2A25!important;
+  -webkit-text-fill-color:#0B2A25!important;border:1px solid transparent!important;
+  border-radius:5px!important;font-weight:780!important;opacity:1!important;
+}
+html.khdn-light [data-testid="stMainMenuPopover"] [data-testid="stThemeSwitcher"] button[role="menuitemradio"] *{
+  color:#0B2A25!important;-webkit-text-fill-color:#0B2A25!important;
+}
+html.khdn-light [data-testid="stMainMenuPopover"] [data-testid="stThemeSwitcher"] button[role="menuitemradio"] svg{
+  color:#0B2A25!important;fill:currentColor!important;stroke:currentColor!important;
+}
+html.khdn-light [data-testid="stMainMenuPopover"] [data-testid="stThemeSwitcher"] button[aria-checked="true"]{
+  background:#EAF5EC!important;color:#0B2A25!important;
+  -webkit-text-fill-color:#0B2A25!important;border-color:#C9DCD3!important;
+  box-shadow:inset 0 -3px 0 #F4B41A!important;
+}
+html.khdn-light [data-testid="stMainMenuPopover"] [data-testid="stThemeSwitcher"] button:hover,
+html.khdn-light [data-testid="stMainMenuPopover"] [data-testid="stThemeSwitcher"] button:focus-visible{
+  background:#FFF1C2!important;color:#0B2A25!important;
+  -webkit-text-fill-color:#0B2A25!important;border-color:#D89A00!important;
+  outline:2px solid rgba(244,180,26,.28)!important;outline-offset:1px!important;
+}
+html.khdn-light [data-testid="stMainMenuPopover"] [data-testid="stMainMenuDivider"]{
+  border-top-color:var(--oak-line)!important;opacity:1!important;
+}
+html.khdn-light [data-testid="stMainMenuPopover"] [role="menuitem"]{
+  background:#FFFFFF!important;color:#17231F!important;
+  -webkit-text-fill-color:#17231F!important;border:1px solid transparent!important;
+  border-radius:4px!important;font-weight:650!important;opacity:1!important;
+}
+html.khdn-light [data-testid="stMainMenuPopover"] [role="menuitem"] *{
+  color:#17231F!important;-webkit-text-fill-color:#17231F!important;
+}
+html.khdn-light [data-testid="stMainMenuPopover"] [role="menuitem"] svg{
+  color:#0B2A25!important;fill:currentColor!important;stroke:currentColor!important;
+}
+html.khdn-light [data-testid="stMainMenuPopover"] [role="menuitem"]:hover,
+html.khdn-light [data-testid="stMainMenuPopover"] [role="menuitem"]:focus-visible{
+  background:#F0F7F3!important;color:#0B2A25!important;
+  -webkit-text-fill-color:#0B2A25!important;border-color:#C9DCD3!important;
+  outline:2px solid rgba(18,54,47,.14)!important;outline-offset:1px!important;
+}
+html.khdn-light [data-testid="stMainMenuPopover"] [data-testid="stMainMenuItemLabel"],
+html.khdn-light [data-testid="stMainMenuPopover"] kbd,
+html.khdn-light [data-testid="stMainMenuPopover"] span{
+  color:#17231F!important;-webkit-text-fill-color:#17231F!important;opacity:1!important;
+}
+
+/* BaseWeb menus are also portalled outside the widget.  Cover their nested
+   option wrappers so selectbox/dropdown text cannot inherit a pale foreground. */
+html.khdn-light [data-baseweb="popover"],
+html.khdn-light [data-baseweb="popover"]>div,
+html.khdn-light [data-baseweb="menu"],
+html.khdn-light [data-baseweb="menu"]>div,
+html.khdn-light [role="listbox"]{
+  background:#FFFFFF!important;color:var(--oak-ink)!important;
+  -webkit-text-fill-color:var(--oak-ink)!important;border-color:var(--oak-line)!important;
+}
+html.khdn-light [data-baseweb="popover"] [role="option"],
+html.khdn-light [data-baseweb="menu"] [role="option"],
+html.khdn-light [role="listbox"] [role="option"],
+html.khdn-light [data-baseweb="option"],
+html.khdn-light [role="option"]{
+  background:#FFFFFF!important;color:var(--oak-ink)!important;
+  -webkit-text-fill-color:var(--oak-ink)!important;opacity:1!important;
+}
+html.khdn-light [data-baseweb="popover"] [role="option"] *,
+html.khdn-light [data-baseweb="menu"] [role="option"] *,
+html.khdn-light [role="listbox"] [role="option"] *,
+html.khdn-light [data-baseweb="option"] *{
+  color:var(--oak-ink)!important;-webkit-text-fill-color:var(--oak-ink)!important;opacity:1!important;
+}
+html.khdn-light [data-baseweb="popover"] [role="option"] svg,
+html.khdn-light [data-baseweb="menu"] [role="option"] svg,
+html.khdn-light [role="listbox"] [role="option"] svg{
+  color:var(--oak-pine-2)!important;fill:currentColor!important;stroke:currentColor!important;
+}
+html.khdn-light [data-baseweb="popover"] [role="option"]:hover,
+html.khdn-light [data-baseweb="popover"] [role="option"][aria-selected="true"],
+html.khdn-light [data-baseweb="menu"] [role="option"]:hover,
+html.khdn-light [data-baseweb="menu"] [role="option"][aria-selected="true"],
+html.khdn-light [role="listbox"] [role="option"]:hover,
+html.khdn-light [role="listbox"] [role="option"][aria-selected="true"],
+html.khdn-light [data-baseweb="option"]:hover,
+html.khdn-light [data-baseweb="option"][aria-selected="true"]{
+  background:#F0F7F3!important;color:var(--oak-pine-2)!important;
+  -webkit-text-fill-color:var(--oak-pine-2)!important;
+}
+html.khdn-light [role="tooltip"],
+html.khdn-light [data-testid="stTooltipContent"],
+html.khdn-light [data-testid="stPopover"],
+html.khdn-light [data-testid="stPopoverBody"]{
+  background:#FFFFFF!important;color:var(--oak-ink)!important;
+  -webkit-text-fill-color:var(--oak-ink)!important;border-color:var(--oak-line)!important;
+}
+
 /* Gold actions retain visible text even inside an expander or a form. */
 html.khdn-light div[class*="st-key-ops_create_"] button,
 html.khdn-light div[class*="st-key-ops_alert_create_"] button{
