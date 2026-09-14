@@ -16,11 +16,11 @@
   button:hover{filter:brightness(.92);border-color:#F4B41A}
   /* Light-only Trecapital/Oaktree treatment. Dark base styles above are unchanged. */
   body.light label{color:#17231F}
-  body.light input{border-radius:4px;background:#FFFFFF;color:#17231F;border:1px solid #D7CFBE;caret-color:#17231F}
-  body.light input:focus{border-color:#B68A3A;outline:none;box-shadow:0 0 0 3px rgba(182,138,58,.14)!important}
-  body.light input::placeholder{color:#7A817C}
+  body.light input{border-radius:4px;background:#FFFFFF;color:#17231F;border:1px solid #C9DCD3;caret-color:#17231F}
+  body.light input:focus{border-color:#F4B41A;outline:none;box-shadow:0 0 0 3px rgba(182,138,58,.14)!important}
+  body.light input::placeholder{color:#547064}
   body.light button{border-radius:4px;background:#0B2A25;color:#FFFFFF;border:1px solid #0B2A25}
-  body.light button:hover{filter:none;background:#FFFFFF;color:#0B2A25;border-color:#B68A3A;box-shadow:inset 0 -3px 0 #B68A3A!important}
+  body.light button:hover{filter:none;background:#FFFFFF;color:#0B2A25;border-color:#F4B41A;box-shadow:inset 0 -3px 0 #F4B41A!important}
   @media(max-width:520px){.row{gap:6px;flex-direction:column}button{width:100%}}
 </style>
 </head>
@@ -53,10 +53,10 @@ function applyTheme(theme){
   document.body.className=light?'light':'dark';
   const root=document.documentElement.style;
   root.setProperty('--theme-primary',t.primaryColor||(light?'#12362F':'#6FD6C4'));
-  root.setProperty('--theme-secondary',t.secondaryBackgroundColor||(light?'#FFFDF8':'#17312F'));
+  root.setProperty('--theme-secondary',t.secondaryBackgroundColor||(light?'#FFFFFF':'#17312F'));
   root.setProperty('--theme-text',t.textColor||(light?'#17231F':'#F4FFFC'));
-  root.setProperty('--theme-border',light?'#D7CFBE':'#4E7771');
-  root.setProperty('--theme-muted',light?'#5E6A64':'#AFCAC5');
+  root.setProperty('--theme-border',light?'#C9DCD3':'#4E7771');
+  root.setProperty('--theme-muted',light?'#47665A':'#AFCAC5');
 }
 buttonEl.addEventListener('click',submit);
 inputEl.addEventListener('keydown',event=>{

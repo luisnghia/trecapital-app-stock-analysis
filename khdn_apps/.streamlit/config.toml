@@ -7,11 +7,11 @@ showSidebarBorder = true
 # stock-analysis app. Dark values below are intentionally left unchanged.
 [theme.light]
 primaryColor = "#12362F"
-backgroundColor = "#F5F1E8"
-secondaryBackgroundColor = "#FFFDF8"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#FFFFFF"
 textColor = "#17231F"
-borderColor = "#D7CFBE"
-dataframeHeaderBackgroundColor = "#F3EFE4"
+borderColor = "#C9DCD3"
+dataframeHeaderBackgroundColor = "#F0F7F3"
 showWidgetBorder = true
 
 [theme.dark]
@@ -25,10 +25,10 @@ showWidgetBorder = true
 
 [theme.light.sidebar]
 primaryColor = "#12362F"
-backgroundColor = "#F3EFE4"
-secondaryBackgroundColor = "#FBF8F0"
+backgroundColor = "#F0F7F3"
+secondaryBackgroundColor = "#FFFFFF"
 textColor = "#0B2A25"
-borderColor = "#D7CFBE"
+borderColor = "#C9DCD3"
 
 [theme.dark.sidebar]
 primaryColor = "#6FD6C4"
