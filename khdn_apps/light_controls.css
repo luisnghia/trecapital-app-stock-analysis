@@ -33,7 +33,24 @@ html.khdn-light div[class*="st-key-customer_search_"] [data-testid="stTextInput"
 html.khdn-light div[class*="st-key-customer_search_"] [data-testid="stTextInput"] input{
   border-color:var(--oak-gold)!important;box-shadow:0 0 0 2px rgba(244,180,26,.14)!important;
 }
-html.khdn-light :is(input,textarea)::placeholder{color:#547064!important;-webkit-text-fill-color:#547064!important}
+html.khdn-light :is(input,textarea)::placeholder{color:#47665A!important;-webkit-text-fill-color:#47665A!important;opacity:1!important}
+html.khdn-light div[class*="st-key-customer_search_"] label p,
+html.khdn-light [data-testid="stWidgetLabel"] :is(p,span),
+html.khdn-light [data-testid="stExpander"] summary,
+html.khdn-light [data-testid="stExpander"] summary *,
+html.khdn-light [data-testid="stAlert"] [data-testid="stMarkdownContainer"] *{
+  color:#17231F!important;-webkit-text-fill-color:#17231F!important;
+}
+html.khdn-light div[class*="st-key-customer_search_"] input::placeholder{
+  color:#47665A!important;-webkit-text-fill-color:#47665A!important;opacity:1!important;
+}
+html.khdn-light :is(.task-pick-alert,.open-list-note,.annual-benchmark-note){
+  background:#FFF8DF!important;
+}
+html.khdn-light :is(.task-pick-alert,.open-list-note,.annual-benchmark-note),
+html.khdn-light :is(.task-pick-alert,.open-list-note,.annual-benchmark-note) *{
+  color:#17231F!important;-webkit-text-fill-color:#17231F!important;
+}
 
 /* Native Streamlit menu and theme switcher.  The main menu is portalled under
    <body>, so its controls need an explicit Light scope instead of inheriting
