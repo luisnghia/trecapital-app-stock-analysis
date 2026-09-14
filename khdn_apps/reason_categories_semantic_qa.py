@@ -19,13 +19,14 @@ if _app_root not in sys.path:
 
 from khdn_apps.mobile_nav_patch import patch_source as mobile_patch
 from khdn_apps.reason_categories_patch import patch_source as reason_patch
+from khdn_apps.lunch_break_patch import patch_source as lunch_patch
 
 
 def transformed_source():
     root=Path(__file__).resolve().parent
     payload="".join(p.read_text(encoding="ascii") for p in sorted((root/"_src").glob("*.txt")))
     source=gzip.decompress(base64.b64decode(payload)).decode("utf-8")
-    return reason_patch(mobile_patch(source))
+    return reason_patch(mobile_patch(lunch_patch(source)))
 
 
 def extract_transition(source):
