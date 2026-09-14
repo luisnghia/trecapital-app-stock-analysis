@@ -1,4 +1,4 @@
-"""Install the V2.38 reason-category transformer into the compressed production loader."""
+"""Install reason-category and task-note transformers into the compressed loader."""
 from pathlib import Path
 
 
@@ -14,6 +14,10 @@ def install():
         "_source = _reason_categories_patch_source(_source)\n"
         "_source = _source.replace('(\"reasons\",\"🧩\",\"Nhóm nguyên nhân\")', '(\"reasons\",\"🏷️\",\"Nhóm nguyên nhân\")')\n"
     )
+    note=(
+        "from khdn_apps.task_note_visibility_patch import patch_source as _task_note_visibility_patch_source\n"
+        "_source = _task_note_visibility_patch_source(_source)\n"
+    )
     if mobile not in text:
         raise RuntimeError("Reason-category installer requires mobile patch marker")
     old_reason=(
@@ -24,6 +28,10 @@ def install():
         text=text.replace(old_reason,reason,1)
     elif reason not in text:
         text=text.replace(mobile,mobile+reason,1)
+    if note not in text:
+        if reason not in text:
+            raise RuntimeError("Task-note installer requires reason-category transformer marker")
+        text=text.replace(reason,reason+note,1)
     app.write_text(text,encoding="utf-8")
 
 
