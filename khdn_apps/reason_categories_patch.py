@@ -166,11 +166,27 @@ def _render_reason_category_manager(u):
 
     old = '''def admin_page(u):\n    if not u["is_admin"]:\n        st.error("Bạn không có quyền quản trị.")\n        return\n    page_title("Quản trị hệ thống", "Quản lý người dùng, khách hàng CIF, loại công việc, audit và sao lưu dữ liệu.")\n    _admin_options=[("users","👥","Người dùng"),("customers","🏢","Khách hàng CIF"),("types","🧩","Loại công việc"),("audit","🧾","Audit"),("backup","💾","Sao lưu")]\n    _admin_values=[v for v,_,_ in _admin_options]\n    _admin_current=st.session_state.get("admin_view","users")\n    if _admin_current not in _admin_values: _admin_current="users"; st.session_state["admin_view"]="users"\n'''
     new = '''def admin_page(u):\n    _reason_only = bool(u["role"] == "Lãnh đạo phòng" and not u["is_admin"])\n    if not u["is_admin"] and u["role"] != "Lãnh đạo phòng":\n        st.error("Bạn không có quyền quản trị.")\n        return\n    page_title("Quản trị hệ thống", "Quản lý người dùng, khách hàng CIF, loại công việc, nhóm nguyên nhân, audit và sao lưu dữ liệu." if u["is_admin"] else "Quản lý danh mục nhóm nguyên nhân trả lại / hủy.")\n    _admin_options=[("reasons","🧩","Nhóm nguyên nhân")] if _reason_only else [("users","👥","Người dùng"),("customers","🏢","Khách hàng CIF"),("types","🧩","Loại công việc"),("reasons","🧩","Nhóm nguyên nhân"),("audit","🧾","Audit"),("backup","💾","Sao lưu")]\n    _admin_values=[v for v,_,_ in _admin_options]\n    _admin_default="reasons" if _reason_only else "users"\n    _admin_current=st.session_state.get("admin_view",_admin_default)\n    if _admin_current not in _admin_values: _admin_current=_admin_default; st.session_state["admin_view"]=_admin_default\n'''
+    # Leaders keep the established five navigation buttons, but their scope is
+    # limited to task-type/lunch/reason configuration; sensitive system data is
+    # guarded below.  Rewrite the compact block after the older patch template
+    # has been selected so future source snapshots remain easy to migrate.
+    new = new.replace('_reason_only = bool(u["role"] == "Lãnh đạo phòng" and not u["is_admin"])', '_leader_scope = bool(u["role"] == "Lãnh đạo phòng" and not u["is_admin"])')
+    new = new.replace('" if u["is_admin"] else "Quản lý danh mục nhóm nguyên nhân trả lại / hủy."', '" if u["is_admin"] else "Cấu hình loại công việc, giờ nghỉ trưa và nhóm nguyên nhân."')
+    new = new.replace('_admin_options=[("reasons","🧩","Nhóm nguyên nhân")] if _reason_only else [', '_admin_options=[')
+    new = new.replace('("backup","💾","Sao lưu")]', '("backup","💾","Sao lưu")]')
+    new = new.replace('_admin_default="reasons" if _reason_only else "users"', '_admin_default="types" if _leader_scope else "users"')
     source = _replace_once(source, old, new, "admin reason navigation")
 
     old = '''    if admin_view == "audit":\n'''
     new = '''    if admin_view == "reasons":\n        _render_reason_category_manager(u)\n\n    if admin_view == "audit":\n'''
     source = _replace_once(source, old, new, "admin reason content")
+
+    # The mobile navigation deliberately retains all five cards.  Non-admin
+    # leaders may select the other cards without seeing their underlying data.
+    for _view in ("users", "customers", "audit", "backup"):
+        _guard_old = f'    if admin_view == "{_view}":\n'
+        _guard_new = f'    if admin_view == "{_view}" and _leader_scope:\n        st.info("Lãnh đạo phòng chỉ được cấu hình Loại công việc, giờ nghỉ trưa và Nhóm nguyên nhân.")\n    if admin_view == "{_view}" and not _leader_scope:\n'
+        source = _replace_once(source, _guard_old, _guard_new, f"leader guard {_view}")
 
     # Build-time safety assertions. Reason manager must not be injected into leader_page.
     leader_start=source.find("def leader_page(u):")
