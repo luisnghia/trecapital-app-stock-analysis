@@ -51,6 +51,15 @@ def main():
         "catalog_table_uses_st_html": 'st.html(table_html)' in source,
         "reason_edit_same_page": 'with st.form(f"reason_edit_form_{kind}_{int(xid)}"' in reason_block,
         "reason_no_extra_mode": 'reason_catalog_mode_' not in reason_block and 'Danh sách / chỉnh sửa' not in reason_block,
+        "dashboard_cbht_breakdown_present": (
+            'Chi tiết theo từng CBHT' in source
+            and 'groupby(["task_type","support_name"]' in source
+            and '"CBHT"' in source
+        ),
+        "dashboard_cbht_breakdown_before_weekly": (
+            source.find("Chi tiết theo từng CBHT") >= 0
+            and source.find("Chi tiết theo từng CBHT") < source.find('st.subheader("Theo tuần calendar")')
+        ),
         "qlkh_create_payload_batched": 'with st.form("qlkh_create_payload_form", clear_on_submit=False, enter_to_submit=False):' in source and 'st.form_submit_button("Giao hồ sơ cho Cán bộ hỗ trợ"' in source,
         "support_create_payload_batched": 'with st.form("support_create_payload_form", clear_on_submit=False, enter_to_submit=False):' in source and 'st.form_submit_button("Tạo tác nghiệp"' in source,
         "qlkh_note_same_native_widget": 'st.text_area("Ghi chú / yêu cầu xử lý (không bắt buộc)",key="ql_new_note")' in source,

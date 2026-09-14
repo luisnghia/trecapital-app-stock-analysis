@@ -235,7 +235,10 @@ def _render_workflow_staff_analysis(task_df):
     # users already receive analysis_f scoped to their own assignments, while
     # QLKH/leadership see every CBHT permitted by their dashboard scope.
     task_type_staff_block = r'''
-        st.markdown("#### Chi tiết theo từng CBHT")
+        # Keep this heading as a first-class dashboard section so it cannot be
+        # mistaken for the aggregate task-type table above.  The preflight
+        # assertion below also makes a missing build-time injection fail fast.
+        st.subheader("Chi tiết theo từng CBHT")
         st.caption("Mỗi dòng là một cặp loại công việc × CBHT trong phạm vi bộ lọc hiện tại.")
         if "support_name" not in analysis_f_stats.columns:
             st.info("Chưa có cột CBHT để phân rã theo từng cán bộ.")
