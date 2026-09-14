@@ -18,6 +18,7 @@ COPY khdn_apps /app/khdn_apps
 RUN grep -Fq 'st.subheader("Chi tiết theo từng CBHT")' /app/khdn_apps/mobile_nav_patch.py
 RUN python /app/khdn_apps/install_branding.py \
     && python /app/khdn_apps/admin_color_fix.py \
+    && python /app/khdn_apps/lunch_break_preflight.py \
     && python /app/khdn_apps/reason_categories_preflight.py \
     && python /app/khdn_apps/reason_categories_semantic_qa.py \
     && python /app/khdn_apps/reason_categories_streamlit_smoke.py \
