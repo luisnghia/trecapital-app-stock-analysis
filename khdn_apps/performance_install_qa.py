@@ -62,6 +62,8 @@ def main():
         "qlkh_slider_react_aria_track": "react-aria-SliderTrack" in light_controls,
         "qlkh_slider_react_aria_thumb": "react-aria-SliderThumb" in light_controls,
         "qlkh_slider_red": "#C62828!important" in light_controls,
+        "qlkh_slider_both_themes_scope": 'html :is([class*="st-key-q_"],[class*="st-key-p_"])' in light_controls,
+        "qlkh_slider_dark_red": 'accent-color:#C62828!important' in light_controls and 'background:#C62828!important' in light_controls,
         "runtime_oaktree_tokens": "--oak-pine:#12362F" in loader and "--oak-gold:#F4B41A" in loader and "--oak-cream:#FFFFFF" in loader and "--oak-line:#C9DCD3" in loader,
         "runtime_oaktree_buttons": "html.khdn-light div.stButton>button" in loader and "background:var(--oak-pine-2)!important" in loader,
         "runtime_oaktree_inputs": "html.khdn-light div[data-baseweb=\"select\"]>div" in loader and "border-color:var(--oak-gold)!important" in loader,

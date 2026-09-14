@@ -91,6 +91,33 @@ html[data-khdn-theme="light"] :is([class*="st-key-q_"],[class*="st-key-p_"]) [da
   color:#C62828!important;-webkit-text-fill-color:#C62828!important;font-weight:850!important;
 }
 
+/* Score sliders are intentionally red in both switchable themes. Keep this
+   selector scoped to q_/p_ widgets so the rest of the Dark controls retain
+   their existing palette. */
+html :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] :is(
+  [data-orientation="horizontal"]>[data-orientation="horizontal"]>div:first-child,
+  [class*="react-aria-SliderTrack"]>div:first-child
+){
+  background:#C62828!important;height:6px!important;border-radius:6px!important;
+}
+html :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] :is(
+  [class*="react-aria-SliderThumb"],
+  div:has(>[data-testid="stSliderThumbValue"])
+){
+  background:#C62828!important;border:2px solid #FFFFFF!important;
+  box-shadow:0 0 0 2px #C62828!important;width:22px!important;height:22px!important;
+}
+html :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [data-focus-visible="true"]{
+  outline:3px solid #F4B41A!important;outline-offset:5px!important;
+}
+html :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [data-testid="stSliderThumbValue"],
+html :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] [data-testid="stSliderThumbValue"] *{
+  color:#C62828!important;-webkit-text-fill-color:#C62828!important;font-weight:850!important;
+}
+html :is([class*="st-key-q_"],[class*="st-key-p_"]) [data-testid="stSlider"] input[type="range"]{
+  accent-color:#C62828!important;
+}
+
 /* Read-only tables: remove the inherited dark foreground without masking numeric colors. */
 html.khdn-light table.bidv-html-table{background:#FFFFFF!important;color:var(--oak-ink)!important}
 html.khdn-light table.bidv-html-table thead th{

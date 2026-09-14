@@ -230,6 +230,49 @@ def _render_workflow_staff_analysis(task_df):
         "Dashboard workflow analysis before detail",
     )
 
+    # Dashboard task-type analytics: keep the task-type aggregate, then add a
+    # role-scoped breakdown so each task type is visible per CBHT. Operational
+    # users already receive analysis_f scoped to their own assignments, while
+    # QLKH/leadership see every CBHT permitted by their dashboard scope.
+    task_type_staff_block = r'''
+        st.markdown("#### Chi tiết theo từng CBHT")
+        st.caption("Mỗi dòng là một cặp loại công việc × CBHT trong phạm vi bộ lọc hiện tại.")
+        if "support_name" not in analysis_f_stats.columns:
+            st.info("Chưa có cột CBHT để phân rã theo từng cán bộ.")
+        else:
+            g2_cbht = analysis_f_stats.copy()
+            g2_cbht["support_name"] = g2_cbht["support_name"].fillna("—").astype(str)
+            g2_cbht = g2_cbht.groupby(["task_type","support_name"], dropna=False).agg(
+                so_tac_nghiep=("id","count"),
+                gia_tri_vnd=("amount_vnd","sum"),
+                diem_tb=("avg_score","mean"),
+                tg_tiep_nhan_tb=("assignment_to_accept_minutes","mean"),
+                tg_tb_phut=("duration_minutes","mean"),
+                lam_lai=("rework_count","sum"),
+            ).reset_index()
+            g2_cbht["gia_tri_ty"] = (g2_cbht["gia_tri_vnd"] / 1_000_000_000).round(1)
+            g2_cbht = g2_cbht.merge(week_goal,on="task_type",how="left").merge(month_goal,on="task_type",how="left")
+            g2_cbht = g2_cbht.sort_values(["task_type","support_name"], kind="stable").reset_index(drop=True)
+            g2_cbht_show = g2_cbht.rename(columns={
+                "task_type":"Công việc", "support_name":"CBHT", "so_tac_nghiep":"Số TN",
+                "gia_tri_ty":"Giá trị (tỷ đồng)", "diem_tb":"Điểm TB",
+                "tg_tiep_nhan_tb":"TG giao→tiếp nhận (phút)", "tg_tb_phut":"TG xử lý TB (phút)",
+                "lam_lai":"Làm lại", "muc_tieu_tuan":"MT tuần", "muc_tieu_thang":"MT tháng",
+            })[["Công việc","CBHT","Số TN","Giá trị (tỷ đồng)","Điểm TB",
+                "TG giao→tiếp nhận (phút)","TG xử lý TB (phút)","MT tuần","MT tháng","Làm lại"]].copy()
+            g2_cbht_show["Giá trị (tỷ đồng)"] = g2_cbht_show["Giá trị (tỷ đồng)"].map(lambda x:fmt_billion(x,False))
+            g2_cbht_show["Điểm TB"] = g2_cbht_show["Điểm TB"].map(fmt_score)
+            for col in ["TG giao→tiếp nhận (phút)","TG xử lý TB (phút)","MT tuần","MT tháng"]:
+                g2_cbht_show[col] = g2_cbht_show[col].map(lambda x:f"{float(x):,.1f}".replace(",",".") if pd.notna(x) else "—")
+            st.dataframe(g2_cbht_show,use_container_width=True,hide_index=True,height=_task_list_height(len(g2_cbht_show),620))
+'''
+    source = _replace_once(
+        source,
+        '        st.dataframe(gg,use_container_width=True,hide_index=True)\n',
+        '        st.dataframe(gg,use_container_width=True,hide_index=True)\n' + task_type_staff_block,
+        "Dashboard task type by CBHT breakdown",
+    )
+
     # Final CSS: support/QLKH use exactly the same ops_cards_* structure as the
     # working leader_view. Admin uses the same container layout but restores the
     # old subnav teal/dark color semantics and compact pill height.
