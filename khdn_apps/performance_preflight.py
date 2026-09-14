@@ -54,11 +54,21 @@ def main():
         "dashboard_cbht_breakdown_present": (
             'Chi tiết theo từng CBHT' in source
             and 'groupby(["task_type","support_name"]' in source
-            and '"CBHT"' in source
+            and 'CBHT' in source
         ),
         "dashboard_cbht_breakdown_before_weekly": (
             source.find("Chi tiết theo từng CBHT") >= 0
             and source.find("Chi tiết theo từng CBHT") < source.find('st.subheader("Theo tuần calendar")')
+        ),
+        "dashboard_cbht_chart_present": (
+            "dashboard_cbht_chart_task" in source
+            and "dashboard_cbht_chart_metric" in source
+            and "_altair_bar(" in source
+            and '"chart_label"' in source
+        ),
+        "dashboard_cbht_table_removed": (
+            "g2_cbht_show" not in source
+            and "_html_table(g2_cbht_show" not in source
         ),
         "qlkh_create_payload_batched": 'with st.form("qlkh_create_payload_form", clear_on_submit=False, enter_to_submit=False):' in source and 'st.form_submit_button("Giao hồ sơ cho Cán bộ hỗ trợ"' in source,
         "support_create_payload_batched": 'with st.form("support_create_payload_form", clear_on_submit=False, enter_to_submit=False):' in source and 'st.form_submit_button("Tạo tác nghiệp"' in source,
