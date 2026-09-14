@@ -38,7 +38,8 @@ def extract_transition(source):
 
 
 def run():
-    helper_code=extract_transition(transformed_source())
+    source=transformed_source()
+    helper_code=extract_transition(source)
     with tempfile.TemporaryDirectory(prefix="khdn_reason_qa_") as td:
         db=str(Path(td)/"qa.db")
         def get_conn():
@@ -57,7 +58,7 @@ def run():
             CREATE TABLE users(id INTEGER PRIMARY KEY);
             CREATE TABLE tasks(id INTEGER PRIMARY KEY, support_user_id INTEGER, qlkh_user_id INTEGER, status TEXT, returned_to_qlkh_at TEXT, accepted_at TEXT, first_accepted_at TEXT, cancelled_at TEXT, updated_at TEXT);
             CREATE TABLE reason_categories(id INTEGER PRIMARY KEY AUTOINCREMENT, reason_type TEXT NOT NULL, name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_by INTEGER, created_at TEXT, updated_at TEXT, UNIQUE(reason_type,name));
-            CREATE TABLE task_reason_events(id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, actor_user_id INTEGER NOT NULL, event_type TEXT NOT NULL, reason_category_id INTEGER NOT NULL, reason_category_name TEXT NOT NULL, reason_detail TEXT NOT NULL, created_at TEXT NOT NULL);
+            CREATE TABLE task_reason_events(id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, actor_user_id INTEGER NOT NULL, reason_type TEXT NOT NULL, category_id INTEGER NOT NULL, category_name TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL);
             CREATE TABLE task_actions(id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER, actor_user_id INTEGER, action TEXT, detail TEXT, created_at TEXT);
             CREATE TABLE system_audit(id INTEGER PRIMARY KEY AUTOINCREMENT, actor_user_id INTEGER, action TEXT, object_type TEXT, object_id TEXT, detail TEXT, created_at TEXT);
             INSERT INTO users VALUES(1); INSERT INTO users VALUES(2);
@@ -68,6 +69,20 @@ def run():
             INSERT INTO reason_categories(reason_type,name,active) VALUES('CANCEL','Khách hàng dừng nhu cầu',1);
             INSERT INTO reason_categories(reason_type,name,active) VALUES('RETURN','Nhóm khóa',0);
             ''')
+            c.commit()
+
+        # Exercise the same migration used by init_db against a legacy table,
+        # twice: deployment retries must preserve history and remain idempotent.
+        import textwrap
+        migration=source.split('        # Upgrade existing reason-event tables before creating their index.\n',1)[1].split('        # migration from V1',1)[0]
+        def add_column_if_missing(c, table, col, decl):
+            if col not in {r[1] for r in c.execute(f'PRAGMA table_info({table})')}:
+                c.execute(f'ALTER TABLE {table} ADD COLUMN {col} {decl}')
+        with get_conn() as c:
+            c.execute("INSERT INTO task_reason_events(task_id,actor_user_id,reason_type,category_id,category_name,detail,created_at) VALUES(99,1,'CANCEL',2,'Old category','Old detail','2026-01-01')")
+            for _ in range(2):
+                exec(textwrap.dedent(migration),{'c':c,'add_column_if_missing':add_column_if_missing})
+            assert tuple(c.execute('SELECT event_type,reason_category_name,reason_detail FROM task_reason_events WHERE task_id=99').fetchone())==('CANCEL','Old category','Old detail')
             c.commit()
 
         # A. CBHT return is atomic and auditable.
