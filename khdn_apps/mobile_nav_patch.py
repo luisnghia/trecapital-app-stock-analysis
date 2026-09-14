@@ -267,7 +267,7 @@ def _render_workflow_staff_analysis(task_df):
             g2_cbht_show["Điểm TB"] = g2_cbht_show["Điểm TB"].map(fmt_score)
             for col in ["TG giao→tiếp nhận (phút)","TG xử lý TB (phút)","MT tuần","MT tháng"]:
                 g2_cbht_show[col] = g2_cbht_show[col].map(lambda x:f"{float(x):,.1f}".replace(",",".") if pd.notna(x) else "—")
-            st.dataframe(g2_cbht_show,use_container_width=True,hide_index=True,height=_task_list_height(len(g2_cbht_show),620))
+            _html_table(g2_cbht_show, max_height=620)
 '''
     source = _replace_once(
         source,
