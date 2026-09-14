@@ -2,6 +2,10 @@
 from pathlib import Path
 import sys
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from khdn_apps.mobile_nav_patch import patch_source as mobile_patch
 from khdn_apps.reason_categories_patch import patch_source as reason_patch
 from khdn_apps.task_note_visibility_patch import patch_source as note_patch
