@@ -32,6 +32,8 @@ RUN python /app/khdn_apps/install_branding.py \
     && python /app/khdn_apps/theme_bridge_fix.py \
     && python /app/khdn_apps/performance_install_qa.py
 
+RUN PYTHONPATH=/app python /app/khdn_apps/runtime_page_qa.py
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     TZ=Asia/Ho_Chi_Minh \
