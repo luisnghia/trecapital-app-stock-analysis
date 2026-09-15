@@ -41,7 +41,7 @@ def patch_source(source: str) -> str:
     # Keep the helper insertion independent of the reason-category schema patch.
     source = _replace_once(source, 'def audit(actor_user_id, action, object_type="", object_id="", detail=""):\n', helpers + 'def audit(actor_user_id, action, object_type="", object_id="", detail=""):\n', "office-calendar helpers")
 
-    enrich = r'''def enrich_tasks(df):\n    if df.empty:\n        return df\n    out = df.copy()\n    out["avg_score"] = (pd.to_numeric(out["quality_score"], errors="coerce") + pd.to_numeric(out["progress_score"], errors="coerce")) / 2\n    out["start_dt"] = pd.to_datetime(out["start_time"], errors="coerce")\n    out["end_dt"] = pd.to_datetime(out["end_time"], errors="coerce")\n    for _c in ["assigned_at","accepted_at","first_accepted_at","returned_to_qlkh_at","cancelled_at","evaluated_at","last_rework_at","closed_time"]:\n        if _c in out.columns:\n            out[_c + "_dt"] = pd.to_datetime(out[_c], errors="coerce")\n\n    _lunch_interval = lunch_break_interval()\n    _duration = _elapsed_series_excluding_lunch(out["start_dt"], out["end_dt"], _lunch_interval)\n    # A few legacy queries only carry the SQL duration expression.  Keep it as\n    # a safe fallback, while all normal task frames use the calendar-aware path.\n    if "duration_hours" in out.columns:\n        _legacy_duration = pd.to_numeric(out["duration_hours"], errors="coerce") * 60.0\n        _duration = _duration.where(_duration.notna(), _legacy_duration)\n    out["duration_minutes"] = _duration\n    out["duration_hours"] = out["duration_minutes"] / 60.0\n\n    # Thời gian chờ tiếp nhận: từ lúc QLKH khởi tạo/giao ban đầu đến lần CBHT tiếp nhận đầu tiên.\n    if "assigned_at_dt" in out.columns and "first_accepted_at_dt" in out.columns:\n        _first_accept = out["first_accepted_at_dt"]\n        if "accepted_at_dt" in out.columns:\n            _first_accept = _first_accept.fillna(out["accepted_at_dt"])\n        out["assignment_to_accept_minutes"] = _elapsed_series_excluding_lunch(out["assigned_at_dt"], _first_accept, _lunch_interval)\n    elif "assigned_at_dt" in out.columns and "accepted_at_dt" in out.columns:\n        out["assignment_to_accept_minutes"] = _elapsed_series_excluding_lunch(out["assigned_at_dt"], out["accepted_at_dt"], _lunch_interval)\n    else:\n        out["assignment_to_accept_minutes"] = pd.NA\n    out["status_label"] = out["status"].map(STATUS_LABEL).fillna(out["status"])\n    if "amount_vnd" not in out.columns:\n        out["amount_vnd"] = pd.to_numeric(out.get("amount"), errors="coerce").fillna(0)\n    out["amount_vnd"] = pd.to_numeric(out["amount_vnd"], errors="coerce").fillna(0)\n    return out\n\n\n'''
+    enrich = r'''def enrich_tasks(df):\n    if df.empty:\n        return df\n    out = df.copy()\n    _scores = out.reindex(columns=["quality_score", "progress_score"])\n    out["avg_score"] = (pd.to_numeric(_scores["quality_score"], errors="coerce") + pd.to_numeric(_scores["progress_score"], errors="coerce")) / 2\n    out["start_dt"] = pd.to_datetime(out["start_time"], errors="coerce")\n    out["end_dt"] = pd.to_datetime(out["end_time"], errors="coerce")\n    for _c in ["assigned_at","accepted_at","first_accepted_at","returned_to_qlkh_at","cancelled_at","evaluated_at","last_rework_at","closed_time"]:\n        if _c in out.columns:\n            out[_c + "_dt"] = pd.to_datetime(out[_c], errors="coerce")\n\n    _lunch_interval = lunch_break_interval()\n    _duration = _elapsed_series_excluding_lunch(out["start_dt"], out["end_dt"], _lunch_interval)\n    # A few legacy queries only carry the SQL duration expression.  Keep it as\n    # a safe fallback, while all normal task frames use the calendar-aware path.\n    if "duration_hours" in out.columns:\n        _legacy_duration = pd.to_numeric(out["duration_hours"], errors="coerce") * 60.0\n        _duration = _duration.where(_duration.notna(), _legacy_duration)\n    out["duration_minutes"] = _duration\n    out["duration_hours"] = out["duration_minutes"] / 60.0\n\n    # Thời gian chờ tiếp nhận: từ lúc QLKH khởi tạo/giao ban đầu đến lần CBHT tiếp nhận đầu tiên.\n    if "assigned_at_dt" in out.columns and "first_accepted_at_dt" in out.columns:\n        _first_accept = out["first_accepted_at_dt"]\n        if "accepted_at_dt" in out.columns:\n            _first_accept = _first_accept.fillna(out["accepted_at_dt"])\n        out["assignment_to_accept_minutes"] = _elapsed_series_excluding_lunch(out["assigned_at_dt"], _first_accept, _lunch_interval)\n    elif "assigned_at_dt" in out.columns and "accepted_at_dt" in out.columns:\n        out["assignment_to_accept_minutes"] = _elapsed_series_excluding_lunch(out["assigned_at_dt"], out["accepted_at_dt"], _lunch_interval)\n    else:\n        out["assignment_to_accept_minutes"] = pd.NA\n    out["status_label"] = out["status"].map(STATUS_LABEL).fillna(out["status"])\n    if "amount_vnd" not in out.columns:\n        out["amount_vnd"] = pd.to_numeric(out.get("amount"), errors="coerce").fillna(0)\n    out["amount_vnd"] = pd.to_numeric(out["amount_vnd"], errors="coerce").fillna(0)\n    return out\n\n\n'''
     enrich = enrich.replace("\\n", "\n")
     source = _replace_span(source, 'def enrich_tasks(df):\n', '# ---------- UI helpers ----------', enrich, "calendar-aware task enrichment")
 
@@ -115,4 +115,26 @@ def patch_source(source: str) -> str:
         if actual != expected or elapsed(start, end, intervals) != actual:
             raise RuntimeError(f"Office calendar QA failed: {start}, {end}: {actual} != {expected}")
     print("KHDN_OFFICE_CALENDAR_QA PASS 8 overlap/overnight/recalculation cases", flush=True)
+
+    # History detail queries legitimately omit score columns (QLKH), while
+    # support history carries both. Missing scores must stay unknown, not zero.
+    wanted = {"enrich_tasks", "_elapsed_series_excluding_lunch"}
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in wanted]
+    ns.update({"lunch_break_interval": lambda: ((690, 810),),
+               "STATUS_LABEL": {"CLOSED": "Đã kết thúc", "CANCELLED": "Đã hủy"}})
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), "<history-enrichment-qa>", "exec"), ns)
+    base = pd.DataFrame([{"id": 7, "status": "CLOSED", "start_time": "2026-09-14 11:00",
+                          "end_time": "2026-09-14 14:00", "amount_vnd": 0}], index=[4])
+    qlkh = ns["enrich_tasks"](base)
+    assert pd.isna(qlkh.loc[4, "avg_score"])
+    assert qlkh.loc[4, "duration_minutes"] == 60
+    assert "avg_score" not in base.columns
+    support = ns["enrich_tasks"](base.assign(quality_score=8, progress_score=10))
+    assert support.loc[4, "avg_score"] == 9
+    for score in ("quality_score", "progress_score"):
+        assert pd.isna(ns["enrich_tasks"](base.assign(**{score: 10})).loc[4, "avg_score"])
+    assert ns["enrich_tasks"](base.iloc[:0]).empty
+    assert ns["enrich_tasks"](base.assign(status="CANCELLED")).loc[4, "status_label"] == "Đã hủy"
+    print("KHDN_HISTORY_ENRICH_QA PASS qlkh_missing_scores cbht_scores partial_scores empty cancelled lunch_duration")
+
     return source
