@@ -29,6 +29,18 @@ def install() -> None:
   const cacheKey=()=>`stActiveTheme-${window.location.pathname}-v2`;
   let lastApplied='';
 
+  // Seed the native Streamlit preference before its app bundle mounts.
+  // Keep explicit choices made by the user on subsequent visits.
+  try{
+    const saved=window.localStorage.getItem(cacheKey());
+    let selection=null;
+    try{ selection=JSON.parse(saved); }catch(_err){}
+    if(!['Light','Dark','System'].includes(selection)){
+      window.localStorage.setItem(cacheKey(),JSON.stringify('Dark'));
+    }
+  }catch(_err){ /* Storage may be unavailable; server theme.base stays dark. */ }
+
+
   const apply=(base)=>{
     const normalized=String(base||'').toLowerCase();
     if(normalized!=='light' && normalized!=='dark') return false;
