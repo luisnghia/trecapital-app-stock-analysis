@@ -33,7 +33,8 @@ RUN python /app/khdn_apps/install_branding.py \
     && python /app/khdn_apps/performance_install_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/amount_decimal_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/full_task_edit_qa.py \
-    && PYTHONPATH=/app python /app/khdn_apps/direct_task_edit_button_qa.py
+    && PYTHONPATH=/app python /app/khdn_apps/direct_task_edit_button_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/direct_task_edit_runtime_qa.py
 
 RUN PYTHONPATH=/app python /app/khdn_apps/runtime_page_qa.py
 
