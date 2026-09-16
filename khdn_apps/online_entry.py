@@ -11,6 +11,8 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 os.environ.setdefault("KHDN_CLOUD_MODE", "1")
 os.environ.setdefault("KHDN_DB_PATH", str(DATA_DIR / "khdn_ops.db"))
 
-from khdn_apps.app import app
+import khdn_apps.app as _app_module
+from khdn_apps.cbht_workload_patch import install as _install_v231
 
-app()
+_install_v231(_app_module.__dict__)
+_app_module.app()
