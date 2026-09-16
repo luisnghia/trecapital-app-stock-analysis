@@ -20,7 +20,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import khdn_apps.app as _app_module  # noqa: E402
+import khdn_apps.cbht_workload_patch as _workload_patch_module  # noqa: E402
 from khdn_apps.cbht_workload_patch import install as _install_v231  # noqa: E402
+from khdn_apps.leader_workload_match_patch import install as _install_v2311  # noqa: E402
 
 _install_v231(_app_module.__dict__)
+_install_v2311(_app_module.__dict__, _workload_patch_module)
 _app_module.app()
