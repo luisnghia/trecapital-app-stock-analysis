@@ -31,7 +31,8 @@ RUN python /app/khdn_apps/install_branding.py \
     && python /app/khdn_apps/install_theme.py \
     && python /app/khdn_apps/theme_bridge_fix.py \
     && python /app/khdn_apps/performance_install_qa.py \
-    && PYTHONPATH=/app python /app/khdn_apps/amount_decimal_qa.py
+    && PYTHONPATH=/app python /app/khdn_apps/amount_decimal_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/full_task_edit_qa.py
 
 RUN PYTHONPATH=/app python /app/khdn_apps/runtime_page_qa.py
 
