@@ -1,4 +1,4 @@
-"""Static QA for KHDN V2.31.4 direct full-edit action."""
+"""Static QA for KHDN V2.31.5 direct inline full-edit action."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -10,10 +10,12 @@ checks = {
     "leader_admin_guard": "bool(user.get(\"is_admin\")) or user.get(\"role\") == \"Lãnh đạo phòng\"" in patch,
     "prominent_button": "✏️ SỬA TOÀN BỘ THÔNG TIN HỒ SƠ" in patch,
     "history_wrapped": 'original_task_history = ns["task_history"]' in patch and 'ns["task_history"] = task_history_with_direct_edit' in patch,
-    "exact_task_target": 'st.session_state["full_edit_task_select"] = task_id' in patch,
-    "leader_route": 'st.session_state["leader_view"] = "full_edit"' in patch,
-    "admin_route": 'st.session_state["admin_view"] = "full_edit"' in patch,
-    "audited_editor_reused": "full_edit_module.render_full_task_editor" in patch,
+    "inline_target": 'direct_inline_full_edit_task_id' in patch and '_set_inline_target(st, task_id)' in patch,
+    "no_synthetic_leader_route": 'st.session_state["leader_view"] = "full_edit"' not in patch,
+    "no_synthetic_admin_route": 'st.session_state["admin_view"] = "full_edit"' not in patch,
+    "no_route_rerun_on_open": '_set_inline_target(st, task_id)\n            st.rerun()' not in patch,
+    "exact_task_form": 'full_edit_module._render_task_form(ns, user, task_id)' in patch,
+    "close_action": "✖ Đóng form sửa" in patch,
     "online_installed": "_install_v2314(_app_module.__dict__, _full_task_edit_module)" in online,
     "offline_installed": "_install_v2314(_app_module.__dict__, _full_task_edit_module)" in offline,
 }
