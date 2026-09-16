@@ -69,26 +69,17 @@ def parse_amount_text_locale(value: Any) -> float:
     parts = text.split(sep)
     if len(parts) == 2:
         left, right = parts
-        # Monetary entry: 1 or 2 trailing digits clearly means a decimal part.
         if len(right) in (1, 2):
             return as_number(left, right)
-        # 23.834 / 23,834 is overwhelmingly a thousands-grouping pattern here.
         if len(right) == 3:
             return as_number(left + right)
-        # Allow explicit higher-precision decimal only for a 0.x style amount;
-        # otherwise preserve the historical grouping interpretation.
         if (left in {"", "0"}) and right:
             return as_number(left, right)
         return as_number(left + right)
 
-    # More than one equal separator: standard grouped thousands if every tail
-    # block is 3 digits (1.234.567 / 1,234,567).
     if all(len(p) == 3 for p in parts[1:]):
         return as_number("".join(parts))
 
-    # Non-standard but still recoverable input such as 1.234.567,8 is handled by
-    # the mixed-separator branch above. For same-separator text, use a 1-2 digit
-    # final group as decimal and treat earlier separators as grouping.
     if len(parts[-1]) in (1, 2):
         return as_number("".join(parts[:-1]), parts[-1])
 
@@ -96,11 +87,7 @@ def parse_amount_text_locale(value: Any) -> float:
 
 
 def money_vi(value: Any) -> str:
-    """Format monetary values using dot thousands and comma decimals.
-
-    Integer values stay unchanged compared with prior KHDN output. Fractional
-    values retain two decimals, so 23834.18 is shown as ``23.834,18``.
-    """
+    """Format dot-thousands and comma-decimals, preserving cents when present."""
     try:
         number = float(value)
         if not math.isfinite(number):
@@ -123,6 +110,23 @@ def install(ns: dict[str, Any]) -> None:
     ns["parse_amount_text"] = parse_amount_text_locale
     ns["money"] = money_vi
     ns["APP_VERSION"] = PATCH_VERSION
+
+    # Keep the existing text-input workflow (best for locale punctuation), but
+    # make the two amount fields self-explanatory on both CBHT and QLKH screens.
+    st = ns.get("st")
+    if st is not None and hasattr(st, "text_input"):
+        original_text_input = st.text_input
+
+        def amount_aware_text_input(label, *args, **kwargs):
+            if kwargs.get("key") in {"new_amount", "ql_new_amount"}:
+                kwargs["placeholder"] = "VND: 1.000.000 · USD/EUR: 23.834,18"
+                kwargs.setdefault(
+                    "help",
+                    "Có thể nhập 23.834,18 hoặc 23834,18. App cũng nhận 23,834.18.",
+                )
+            return original_text_input(label, *args, **kwargs)
+
+        st.text_input = amount_aware_text_input
 
     logging.getLogger("khdn_ops").info(
         "PATCH_INSTALL version=%s amount_parser=locale_decimal", PATCH_VERSION
