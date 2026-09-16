@@ -12,7 +12,10 @@ os.environ.setdefault("KHDN_CLOUD_MODE", "1")
 os.environ.setdefault("KHDN_DB_PATH", str(DATA_DIR / "khdn_ops.db"))
 
 import khdn_apps.app as _app_module
+import khdn_apps.cbht_workload_patch as _workload_patch_module
 from khdn_apps.cbht_workload_patch import install as _install_v231
+from khdn_apps.leader_workload_match_patch import install as _install_v2311
 
 _install_v231(_app_module.__dict__)
+_install_v2311(_app_module.__dict__, _workload_patch_module)
 _app_module.app()
