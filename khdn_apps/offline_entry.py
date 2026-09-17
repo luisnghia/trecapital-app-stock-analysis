@@ -1,4 +1,4 @@
-"""Offline entrypoint for KHDN Ops V2.31.4.
+"""Offline entrypoint for KHDN Ops V2.31.6.
 
 Run from the repository/package root with:
     streamlit run khdn_apps/offline_entry.py
@@ -24,10 +24,12 @@ from khdn_apps.leader_workload_match_patch import install as _install_v2311
 from khdn_apps.amount_decimal_patch import install as _install_v2312
 from khdn_apps.full_task_edit_patch import install as _install_v2313
 from khdn_apps.direct_task_edit_button_patch import install as _install_v2314
+from khdn_apps.catalog_sync_patch import install as _install_v2316
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
 _install_v2312(_app_module.__dict__)
 _install_v2313(_app_module.__dict__)
 _install_v2314(_app_module.__dict__, _full_task_edit_module)
+_install_v2316(_app_module.__dict__)
 _app_module.app()
