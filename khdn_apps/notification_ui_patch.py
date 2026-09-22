@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 from khdn_apps import notifications as notify
 
-PATCH_VERSION = "2.32.0"
+PATCH_VERSION = "2.32.1"
 _INSTALL_FLAG = "_KHDN_NOTIFICATION_UI_V2320"
 
 
@@ -80,7 +80,12 @@ def _render_center(ns: dict[str, Any], user: dict[str, Any]) -> None:
         try:
             ticket = notify.issue_setup_ticket(uid)
             url = f"/_khdn/push-setup?ticket={quote(ticket)}"
-            st.link_button("📲 Cài/Bật Push Notification trên điện thoại", url, use_container_width=True)
+            # target=_self is essential on iOS: opening setup in a new Safari tab
+            # leaves standalone PWA mode, where iOS will not allow Home Screen Web Push.
+            st.markdown(
+                f'''<a href="{url}" target="_self" style="display:block;width:100%;box-sizing:border-box;text-align:center;text-decoration:none;padding:.72rem 1rem;border-radius:.55rem;background:#F4B41A;color:#2B2410;font-weight:850;border:1px solid #FFD45A;margin:.25rem 0 .5rem">📲 Cài/Bật Push Notification trên điện thoại</a>''',
+                unsafe_allow_html=True,
+            )
             st.caption("iPhone/iPad: thêm KHDN Apps vào Màn hình chính rồi mở từ icon KHDN để bật Push. Android/Chrome có thể bật trực tiếp.")
         except Exception as exc:
             st.warning(f"Push chưa sẵn sàng: {exc}")
