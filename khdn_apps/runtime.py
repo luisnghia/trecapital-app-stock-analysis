@@ -12,6 +12,7 @@ import sys
 import threading
 
 from .storage import atomic_json, daily_backup, prepare_storage, read_status
+from . import notifications
 
 
 def main() -> int:
@@ -50,8 +51,21 @@ def main() -> int:
                     logger.exception("BACKUP_STATUS_WRITE_FAILED")
             stop.wait(60)
 
-    worker = threading.Thread(target=backup_loop, name="khdn-daily-backup", daemon=True)
-    worker.start()
+    backup_worker = threading.Thread(target=backup_loop, name="khdn-daily-backup", daemon=True)
+    backup_worker.start()
+
+    # The notification worker is intentionally outside Streamlit. It continues to
+    # fan workflow events out and send iOS/Android Web Push even when no browser
+    # session is open. One worker is sufficient for the current single Railway
+    # replica and shares the same persistent SQLite volume.
+    notification_worker = threading.Thread(
+        target=notifications.worker_loop,
+        args=(db_path, stop),
+        name="khdn-notifications",
+        daemon=True,
+    )
+    notification_worker.start()
+
     child = None
     pending_signal = None
 
@@ -75,7 +89,8 @@ def main() -> int:
         return child.wait()
     finally:
         stop.set()
-        worker.join(timeout=2)
+        backup_worker.join(timeout=2)
+        notification_worker.join(timeout=2)
 
 
 if __name__ == "__main__":
