@@ -35,7 +35,8 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/full_task_edit_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/direct_task_edit_button_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/direct_task_edit_runtime_qa.py \
-    && PYTHONPATH=/app python /app/khdn_apps/catalog_sync_qa.py
+    && PYTHONPATH=/app python /app/khdn_apps/catalog_sync_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/notification_qa.py
 
 RUN PYTHONPATH=/app python /app/khdn_apps/runtime_page_qa.py
 
