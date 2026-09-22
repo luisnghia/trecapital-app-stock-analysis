@@ -20,6 +20,7 @@ from khdn_apps.amount_decimal_patch import install as _install_v2312
 from khdn_apps.full_task_edit_patch import install as _install_v2313
 from khdn_apps.direct_task_edit_button_patch import install as _install_v2314
 from khdn_apps.catalog_sync_patch import install as _install_v2316
+from khdn_apps.notification_ui_patch import install as _install_v2320
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -27,4 +28,5 @@ _install_v2312(_app_module.__dict__)
 _install_v2313(_app_module.__dict__)
 _install_v2314(_app_module.__dict__, _full_task_edit_module)
 _install_v2316(_app_module.__dict__)
+_install_v2320(_app_module.__dict__)
 _app_module.app()
