@@ -7,9 +7,11 @@ from logging.handlers import RotatingFileHandler
 import os
 from pathlib import Path
 import signal
+import sqlite3
 import subprocess
 import sys
 import threading
+import time
 
 from .storage import atomic_json, daily_backup, prepare_storage, read_status
 from . import notifications
@@ -54,13 +56,37 @@ def main() -> int:
     backup_worker = threading.Thread(target=backup_loop, name="khdn-daily-backup", daemon=True)
     backup_worker.start()
 
-    # The notification worker is intentionally outside Streamlit. It continues to
-    # fan workflow events out and send iOS/Android Web Push even when no browser
-    # session is open. One worker is sufficient for the current single Railway
-    # replica and shares the same persistent SQLite volume.
+    # The notification worker is intentionally outside Streamlit. On a brand-new
+    # database, however, the Streamlit child owns creation of the core workflow
+    # tables. Starting notification polling first produced a noisy race against
+    # task_actions/users/tasks. Wait quietly for those tables, then hand off to
+    # the normal notification worker. Existing databases pass this gate at once.
+    def notification_loop():
+        required = {"users", "tasks", "task_actions"}
+        last_notice = 0.0
+        while not stop.is_set():
+            try:
+                with sqlite3.connect(db_path, timeout=5) as c:
+                    present = {
+                        str(r[0]) for r in c.execute(
+                            "SELECT name FROM sqlite_master WHERE type='table'"
+                        ).fetchall()
+                    }
+                missing = sorted(required - present)
+                if not missing:
+                    logger.info("NOTIFICATION_CORE_SCHEMA_READY")
+                    notifications.worker_loop(db_path, stop)
+                    return
+                now_ts = time.monotonic()
+                if now_ts - last_notice >= 30:
+                    logger.info("NOTIFICATION_WORKER_WAIT_SCHEMA missing=%s", ",".join(missing))
+                    last_notice = now_ts
+            except Exception:
+                logger.exception("NOTIFICATION_SCHEMA_CHECK_FAILED")
+            stop.wait(2)
+
     notification_worker = threading.Thread(
-        target=notifications.worker_loop,
-        args=(db_path, stop),
+        target=notification_loop,
         name="khdn-notifications",
         daemon=True,
     )
