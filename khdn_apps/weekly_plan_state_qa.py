@@ -20,7 +20,8 @@ def main():
     assert 'text_area(' in source and 'key="wp_text"' in source
     assert 'st.session_state.wp_text=' not in source.replace(" ", "")
     assert 'request_quick_input_reset(st.session_state)' in source
-    assert source.index('apply_deferred_widget_resets(st.session_state)') < source.index('key="wp_text"')
+    # Compare against the executable text_area statement, not the explanatory docstring.
+    assert source.index('apply_deferred_widget_resets(st.session_state)') < source.index('text = st.text_area(')
     print("WEEKLY_PLAN_STATE_QA_PASS")
 
 
