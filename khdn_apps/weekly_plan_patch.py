@@ -1,10 +1,11 @@
 """Runtime integration for the Weekly Plan module.
 
-The legacy app dispatcher does not know a `weekly_plan` route.  To keep the
+The legacy app dispatcher does not know a `weekly_plan` route. To keep the
 production engine unchanged, this patch adds the sidebar choice and dispatches
 it through the existing dashboard branch, while preserving the real Dashboard.
 """
 from khdn_apps import weekly_plan
+from khdn_apps import weekly_plan_ui
 
 
 def install(ns):
@@ -31,10 +32,10 @@ def install(ns):
 
     def dashboard_page(u):
         if st.session_state.get("main_page")=="weekly_plan":
-            return weekly_plan.render_page(st,u,ns["get_conn"],page_title=ns.get("page_title"),logger=ns.get("LOGGER"))
+            return weekly_plan_ui.render_page(st,u,ns["get_conn"],page_title=ns.get("page_title"),logger=ns.get("LOGGER"))
         return original_dashboard(u)
 
     ns["sidebar_navigation"]=sidebar_navigation
     ns["dashboard_page"]=dashboard_page
     logger=ns.get("LOGGER")
-    if logger: logger.info("WEEKLY_PLAN_PATCH_INSTALLED version=%s",weekly_plan.VERSION)
+    if logger: logger.info("WEEKLY_PLAN_PATCH_INSTALLED core=%s ui=%s",weekly_plan.VERSION,weekly_plan_ui.VERSION)
