@@ -46,8 +46,11 @@ def profile_page(u):
     assert '("ops_admin","Quản trị")' in nav_src
     assert 'CUSTOM_PAGES.add("ops_admin")' in nav_src
     assert 'st.session_state["admin_scope"]="ops"' in nav_src
-    assert 'st.session_state["admin_scope"]="system"' in nav_src
+    assert nav_src.count('st.session_state["admin_scope"]="system"') >= 3
+    assert 'try:' in nav_src and 'finally:' in nav_src
+    assert 'if st.session_state.get("main_page")=="admin":' in nav_src
     assert 'role!="Lãnh đạo phòng" and not admin' in nav_src
+    assert 'system_route=admin' in nav_src
     print("OPS_ADMIN_SCOPE_QA_PASS")
 
 
