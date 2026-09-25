@@ -71,7 +71,9 @@ def install(ns):
         if page=="work_catalogs": return customer_work_ui.render_catalog_page(**kwargs)
         return previous_dashboard(u)
 
-    customer_work.ensure_schema(ns["get_conn"],ns.get("LOGGER"))
+    # Do not touch the database during patch installation. The legacy app owns
+    # init_db(); each Customer Work page calls ensure_schema only after login,
+    # when users/customers already exist. This also keeps runtime_page_qa clean.
     ns["sidebar_navigation"]=sidebar_navigation
     ns["dashboard_page"]=dashboard_page
     logger=ns.get("LOGGER")
