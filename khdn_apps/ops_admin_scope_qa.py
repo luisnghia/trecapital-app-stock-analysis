@@ -35,11 +35,12 @@ def profile_page(u):
 '''
     out=patch_source(sample)
     assert 'page_title("Quản trị tác nghiệp"' in out
-    assert 'page_title("Quản trị hệ thống", "Quản lý người dùng và khách hàng CIF.")' in out
+    assert 'page_title("Quản trị hệ thống", "Quản lý người dùng, khách hàng CIF và loại công việc.")' in out
     assert '_admin_scope=="ops"' in out
-    assert '[("types","🧩","Loại công việc"),("reasons","🧩","Nhóm nguyên nhân")] if _leader_scope' in out
+    assert '_admin_options=[("reasons","🧩","Nhóm nguyên nhân")] if _leader_scope' in out
     assert '("audit","🧾","Audit")' in out and '("backup","💾","Sao lưu")' in out
-    assert '_admin_options=[("users","👥","Người dùng"),("customers","🏢","Khách hàng CIF")]' in out
+    assert '_admin_options=[("users","👥","Người dùng"),("customers","🏢","Khách hàng CIF"),("types","🧩","Loại công việc")]' in out
+    assert '_admin_default="reasons" if _admin_scope=="ops" else "users"' in out
     assert 'Tác nghiệp → Quản trị → Nhóm nguyên nhân' in out
 
     nav_src=Path(ops_nav.__file__).read_text(encoding="utf-8")
