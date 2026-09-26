@@ -34,12 +34,13 @@ from khdn_apps.priority_today_patch import install as _install_priority_today
 from khdn_apps.potential_customer_patch import install as _install_potential_customer, _label as _potential_customer_label
 from khdn_apps.planning_priority_patch import install as _install_planning_priority_v2
 from khdn_apps.priority_workflow_patch import install as _install_priority_workflow_bridge
+from khdn_apps.catalog_edit_state_patch import install as _install_catalog_edit_state_fix
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
 _install_v2312(_app_module.__dict__)
 _install_v2313(_app_module.__dict__)
-_install_v2314(_app_module.__dict__, _full_task_edit_module)
+_install_v2314(_app_module.__dict__)
 _install_v2316(_app_module.__dict__)
 _install_v2320(_app_module.__dict__)
 _install_weekly_governance(_weekly_plan_module, _app_module.__dict__.get("LOGGER"))
@@ -76,6 +77,13 @@ _install_priority_workflow_bridge(
     _customer_work_ui_module,
     _weekly_plan_module,
     _weekly_plan_ui_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Install last so the catalog renderer keeps the final priority semantics while
+# fixing select-to-edit state synchronization for both catalog tabs.
+_install_catalog_edit_state_fix(
+    _customer_work_ui_module,
+    _customer_work_module,
     _app_module.__dict__.get("LOGGER"),
 )
 _app_module.app()
