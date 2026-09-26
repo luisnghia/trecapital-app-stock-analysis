@@ -3,9 +3,8 @@
 This transformer runs after the reason/catalog source patches. It does not change
 business logic or permissions; it only scopes which existing admin destinations
 are visible from each navigation entry:
-- Quản trị hệ thống: Người dùng + Khách hàng CIF (Admin only).
-- Tác nghiệp > Quản trị: Loại công việc + Nhóm nguyên nhân; Admin additionally
-  sees Audit + Sao lưu.
+- Quản trị hệ thống: Người dùng + Khách hàng CIF + Loại công việc (Admin only).
+- Tác nghiệp > Quản trị: Nhóm nguyên nhân; Admin additionally sees Audit + Sao lưu.
 """
 from __future__ import annotations
 
@@ -35,29 +34,29 @@ def patch_source(source: str) -> str:
     if '_leader_scope = bool(u["role"] == "Lãnh đạo phòng" and not u["is_admin"])' not in page:
         raise RuntimeError("Admin-scope patch expects leader-scope reason patch first")
 
-    # The title line is replaced with an explicit scope selector. Leaders can
-    # only reach operational administration; the system utility remains Admin-only.
+    # Leaders can reach operational administration only; System Admin remains
+    # Admin-only and now owns the shared Loại công việc catalog.
     page = _sub_once(
         page,
         r'^    page_title\("Quản trị hệ thống".*\)\n',
-        '''    _admin_scope=str(st.session_state.get("admin_scope","system") or "system")\n    if _admin_scope not in {"system","ops"}:\n        _admin_scope="system"; st.session_state["admin_scope"]="system"\n    if _leader_scope and _admin_scope!="ops":\n        _admin_scope="ops"; st.session_state["admin_scope"]="ops"\n    if _admin_scope=="ops":\n        page_title("Quản trị tác nghiệp", "Cấu hình loại công việc, nhóm nguyên nhân, audit và sao lưu dữ liệu." if u["is_admin"] else "Cấu hình loại công việc, giờ nghỉ trưa và nhóm nguyên nhân.")\n    else:\n        page_title("Quản trị hệ thống", "Quản lý người dùng và khách hàng CIF.")\n''',
+        '''    _admin_scope=str(st.session_state.get("admin_scope","system") or "system")\n    if _admin_scope not in {"system","ops"}:\n        _admin_scope="system"; st.session_state["admin_scope"]="system"\n    if _leader_scope and _admin_scope!="ops":\n        _admin_scope="ops"; st.session_state["admin_scope"]="ops"\n    if _admin_scope=="ops":\n        page_title("Quản trị tác nghiệp", "Cấu hình nhóm nguyên nhân, audit và sao lưu dữ liệu." if u["is_admin"] else "Cấu hình nhóm nguyên nhân tác nghiệp.")\n    else:\n        page_title("Quản trị hệ thống", "Quản lý người dùng, khách hàng CIF và loại công việc.")\n''',
         "admin page title",
     )
 
     page = _sub_once(
         page,
         r'^    _admin_options=.*\n',
-        '''    if _admin_scope=="ops":\n        _admin_options=[("types","🧩","Loại công việc"),("reasons","🧩","Nhóm nguyên nhân")] if _leader_scope else [("types","🧩","Loại công việc"),("reasons","🧩","Nhóm nguyên nhân"),("audit","🧾","Audit"),("backup","💾","Sao lưu")]\n    else:\n        _admin_options=[("users","👥","Người dùng"),("customers","🏢","Khách hàng CIF")]\n''',
+        '''    if _admin_scope=="ops":\n        _admin_options=[("reasons","🧩","Nhóm nguyên nhân")] if _leader_scope else [("reasons","🧩","Nhóm nguyên nhân"),("audit","🧾","Audit"),("backup","💾","Sao lưu")]\n    else:\n        _admin_options=[("users","👥","Người dùng"),("customers","🏢","Khách hàng CIF"),("types","🧩","Loại công việc")]\n''',
         "admin options",
     )
     page = _sub_once(
         page,
         r'^    _admin_default=.*\n',
-        '    _admin_default="types" if _admin_scope=="ops" else "users"\n',
+        '    _admin_default="reasons" if _admin_scope=="ops" else "users"\n',
         "admin default",
     )
 
-    # User-facing guidance must point to the new operational administration tab.
+    # User-facing guidance for reason categories stays under operational admin.
     source = source[:start] + page + source[end:]
     source = source.replace(
         "Admin/Lãnh đạo phòng cần tạo nhóm trong Quản trị hệ thống → Nhóm nguyên nhân trước khi thực hiện thao tác này.",
@@ -67,13 +66,14 @@ def patch_source(source: str) -> str:
     required = [
         'page_title("Quản trị tác nghiệp"',
         '_admin_scope=="ops"',
-        '("types","🧩","Loại công việc")',
         '("reasons","🧩","Nhóm nguyên nhân")',
         '("audit","🧾","Audit")',
         '("backup","💾","Sao lưu")',
-        'page_title("Quản trị hệ thống", "Quản lý người dùng và khách hàng CIF.")',
+        'page_title("Quản trị hệ thống", "Quản lý người dùng, khách hàng CIF và loại công việc.")',
         '("users","👥","Người dùng")',
         '("customers","🏢","Khách hàng CIF")',
+        '("types","🧩","Loại công việc")',
+        '_admin_default="reasons" if _admin_scope=="ops" else "users"',
     ]
     for marker in required:
         if marker not in source:
