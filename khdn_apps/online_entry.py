@@ -35,6 +35,7 @@ from khdn_apps.potential_customer_patch import install as _install_potential_cus
 from khdn_apps.planning_priority_patch import install as _install_planning_priority_v2
 from khdn_apps.priority_workflow_patch import install as _install_priority_workflow_bridge
 from khdn_apps.catalog_edit_state_patch import install as _install_catalog_edit_state_fix
+from khdn_apps.customer_work_refinement_patch import install as _install_customer_work_refinement
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -79,11 +80,19 @@ _install_priority_workflow_bridge(
     _weekly_plan_ui_module,
     _app_module.__dict__.get("LOGGER"),
 )
-# Install last so the catalog renderer keeps the final priority semantics while
-# fixing select-to-edit state synchronization for both catalog tabs.
+# Catalog state sync keeps select-to-edit reliable for both catalog tabs.
 _install_catalog_edit_state_fix(
     _customer_work_ui_module,
     _customer_work_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Install last: unify Customer Work type master, strengthen cards/default view,
+# and hard-isolate System Admin from Tác nghiệp Admin session state.
+_install_customer_work_refinement(
+    _app_module.__dict__,
+    _customer_work_patch_module,
+    _customer_work_module,
+    _customer_work_ui_module,
     _app_module.__dict__.get("LOGGER"),
 )
 _app_module.app()
