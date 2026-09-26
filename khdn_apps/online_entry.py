@@ -36,6 +36,8 @@ from khdn_apps.planning_priority_patch import install as _install_planning_prior
 from khdn_apps.priority_workflow_patch import install as _install_priority_workflow_bridge
 from khdn_apps.catalog_edit_state_patch import install as _install_catalog_edit_state_fix
 from khdn_apps.customer_work_refinement_patch import install as _install_customer_work_refinement
+from khdn_apps.customer_work_signature_fix import install as _install_customer_work_signature_fix
+from khdn_apps.auto_remember_login_patch import install as _install_auto_remember_login
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -86,8 +88,7 @@ _install_catalog_edit_state_fix(
     _customer_work_module,
     _app_module.__dict__.get("LOGGER"),
 )
-# Install last: unify Customer Work type master, strengthen cards/default view,
-# and hard-isolate System Admin from Tác nghiệp Admin session state.
+# Final Customer Work UX/data-source refinement.
 _install_customer_work_refinement(
     _app_module.__dict__,
     _customer_work_patch_module,
@@ -95,4 +96,12 @@ _install_customer_work_refinement(
     _customer_work_ui_module,
     _app_module.__dict__.get("LOGGER"),
 )
+# The custom-page dispatcher invokes render_cases_page with keyword ``st=``.
+# Normalize the final renderer signature after every Customer Work patch.
+_install_customer_work_signature_fix(
+    _customer_work_ui_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Successful logins automatically issue the existing 30-day device cookie.
+_install_auto_remember_login(_app_module.__dict__)
 _app_module.app()
