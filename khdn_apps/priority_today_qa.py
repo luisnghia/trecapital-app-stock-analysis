@@ -6,6 +6,7 @@ from pathlib import Path
 import khdn_apps.customer_work as customer_work
 import khdn_apps.priority_today_patch as patch
 import khdn_apps.weekly_plan as weekly_plan
+import khdn_apps.weekly_plan_ui as weekly_ui
 
 
 def main():
@@ -24,6 +25,12 @@ def main():
     for fn_src in (cw_src, wp_src):
         assert "FROM customers WHERE active=1" in fn_src
         assert "ORDER BY CASE WHEN qlkh_user_id=? THEN 0 ELSE 1 END,customer_name" in fn_src
+
+    ui_src = Path(weekly_ui.__file__).read_text(encoding="utf-8")
+    assert 'Khách hàng (danh mục CIF)' in ui_src
+    assert 'Quản trị hệ thống → Khách hàng CIF' in ui_src
+    assert 'x["customer_id"] = int(customer["id"])' in ui_src
+    assert 'x["customer_text"] = str(customer["customer_name"])' in ui_src
 
     # No second customer-master table is introduced by the Today patch.
     assert "CREATE TABLE" not in src
