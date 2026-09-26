@@ -33,6 +33,7 @@ from khdn_apps.operations_admin_nav_patch import install as _install_ops_admin_n
 from khdn_apps.priority_today_patch import install as _install_priority_today
 from khdn_apps.potential_customer_patch import install as _install_potential_customer, _label as _potential_customer_label
 from khdn_apps.planning_priority_patch import install as _install_planning_priority_v2
+from khdn_apps.priority_workflow_patch import install as _install_priority_workflow_bridge
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -62,10 +63,16 @@ _install_priority_today(
     _weekly_plan_module,
     _app_module.__dict__.get("LOGGER"),
 )
-# Install last so priority governance enhances the final Today/Dashboard/Approval
-# renderers and the governance-wrapped weekly-plan persistence functions.
+# Priority V2 owns heat dashboard, per-item persisted priority and leader approval editing.
 _install_planning_priority_v2(
     _customer_work_module,
+    _customer_work_ui_module,
+    _weekly_plan_module,
+    _weekly_plan_ui_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Final UX bridge adds the always-visible QLKH selector and Q1..Q4 quick-input override.
+_install_priority_workflow_bridge(
     _customer_work_ui_module,
     _weekly_plan_module,
     _weekly_plan_ui_module,
