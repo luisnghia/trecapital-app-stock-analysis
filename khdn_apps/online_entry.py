@@ -31,7 +31,7 @@ from khdn_apps.weekly_plan_patch import install as _install_weekly_plan
 from khdn_apps.customer_work_patch import install as _install_customer_work
 from khdn_apps.operations_admin_nav_patch import install as _install_ops_admin_nav
 from khdn_apps.priority_today_patch import install as _install_priority_today
-from khdn_apps.potential_customer_patch import install as _install_potential_customer
+from khdn_apps.potential_customer_patch import install as _install_potential_customer, _label as _potential_customer_label
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -51,6 +51,9 @@ _install_potential_customer(
     _weekly_plan_ui_module,
     _app_module.__dict__.get("LOGGER"),
 )
+# The weekly selector is the same customer master; make the prospect state explicit
+# rather than showing an empty CIF label.
+_weekly_plan_ui_module._customer_label = _potential_customer_label
 _install_weekly_plan(_app_module.__dict__)
 _install_customer_work(_app_module.__dict__)
 _install_ops_admin_nav(_customer_work_patch_module, _app_module.__dict__)
