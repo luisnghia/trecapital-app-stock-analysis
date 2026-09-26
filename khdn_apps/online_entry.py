@@ -104,6 +104,9 @@ _install_customer_work_signature_fix(
     _customer_work_ui_module,
     _app_module.__dict__.get("LOGGER"),
 )
+# Some headless/runtime checks import this entrypoint with a brand-new SQLite file.
+# Create the legacy core tables before extension schemas that reference users/task_types.
+_app_module.init_db()
 # Partition Loại công việc by module, require case contacts, and compact the card action.
 _install_worktype_contact_card(
     _app_module.__dict__,
