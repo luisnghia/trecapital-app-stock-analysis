@@ -20,6 +20,8 @@ import khdn_apps.customer_work as _customer_work_module
 import khdn_apps.customer_work_patch as _customer_work_patch_module
 import khdn_apps.customer_work_ui as _customer_work_ui_module
 import khdn_apps.customer_work_refinement_patch as _customer_work_refinement_module
+import khdn_apps.potential_customer_patch as _potential_customer_module
+import khdn_apps.worktype_contact_card_patch as _worktype_contact_card_module
 from khdn_apps.cbht_workload_patch import install as _install_v231
 from khdn_apps.leader_workload_match_patch import install as _install_v2311
 from khdn_apps.amount_decimal_patch import install as _install_v2312
@@ -41,6 +43,7 @@ from khdn_apps.customer_work_signature_fix import install as _install_customer_w
 from khdn_apps.auto_remember_login_patch import install as _install_auto_remember_login
 from khdn_apps.worktype_contact_card_patch import install as _install_worktype_contact_card
 from khdn_apps.worktype_contact_postfix import install as _install_worktype_contact_postfix
+from khdn_apps.planning_usability_v2_patch import install as _install_planning_usability_v2
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -121,6 +124,19 @@ _install_worktype_contact_postfix(
     _customer_work_module,
     _customer_work_ui_module,
     _customer_work_refinement_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Final planning usability layer: system-admin task types, blank required selectors,
+# Customer Work priority, button subnav, stronger prospect de-duplication and card UX.
+_install_planning_usability_v2(
+    _app_module.__dict__,
+    _customer_work_module,
+    _customer_work_ui_module,
+    _customer_work_refinement_module,
+    _worktype_contact_card_module,
+    _weekly_plan_module,
+    _weekly_plan_ui_module,
+    _potential_customer_module,
     _app_module.__dict__.get("LOGGER"),
 )
 # Successful logins automatically issue the existing 30-day device cookie.
