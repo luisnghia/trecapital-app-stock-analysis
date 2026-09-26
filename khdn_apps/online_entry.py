@@ -19,6 +19,7 @@ import khdn_apps.weekly_plan_ui as _weekly_plan_ui_module
 import khdn_apps.customer_work as _customer_work_module
 import khdn_apps.customer_work_patch as _customer_work_patch_module
 import khdn_apps.customer_work_ui as _customer_work_ui_module
+import khdn_apps.customer_work_refinement_patch as _customer_work_refinement_module
 from khdn_apps.cbht_workload_patch import install as _install_v231
 from khdn_apps.leader_workload_match_patch import install as _install_v2311
 from khdn_apps.amount_decimal_patch import install as _install_v2312
@@ -38,6 +39,7 @@ from khdn_apps.catalog_edit_state_patch import install as _install_catalog_edit_
 from khdn_apps.customer_work_refinement_patch import install as _install_customer_work_refinement
 from khdn_apps.customer_work_signature_fix import install as _install_customer_work_signature_fix
 from khdn_apps.auto_remember_login_patch import install as _install_auto_remember_login
+from khdn_apps.worktype_contact_card_patch import install as _install_worktype_contact_card
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -97,9 +99,17 @@ _install_customer_work_refinement(
     _app_module.__dict__.get("LOGGER"),
 )
 # The custom-page dispatcher invokes render_cases_page with keyword ``st=``.
-# Normalize the final renderer signature after every Customer Work patch.
+# Normalize the final renderer signature after every Customer Work page patch.
 _install_customer_work_signature_fix(
     _customer_work_ui_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Partition Loại công việc by module, require case contacts, and compact the card action.
+_install_worktype_contact_card(
+    _app_module.__dict__,
+    _customer_work_module,
+    _customer_work_ui_module,
+    _customer_work_refinement_module,
     _app_module.__dict__.get("LOGGER"),
 )
 # Successful logins automatically issue the existing 30-day device cookie.
