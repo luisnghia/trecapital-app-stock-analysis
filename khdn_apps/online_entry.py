@@ -44,6 +44,8 @@ from khdn_apps.auto_remember_login_patch import install as _install_auto_remembe
 from khdn_apps.worktype_contact_card_patch import install as _install_worktype_contact_card
 from khdn_apps.worktype_contact_postfix import install as _install_worktype_contact_postfix
 from khdn_apps.planning_usability_v2_patch import install as _install_planning_usability_v2
+from khdn_apps.planning_ui_admin_hotfix import install_pre as _install_planning_ui_pre
+from khdn_apps.planning_ui_admin_hotfix import install_post as _install_planning_ui_post
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -126,6 +128,9 @@ _install_worktype_contact_postfix(
     _customer_work_refinement_module,
     _app_module.__dict__.get("LOGGER"),
 )
+# Install the command-tab bridge before V2 so V2 captures the exact same visual
+# navigation function used by the main Kế hoạch command bar.
+_install_planning_ui_pre(_app_module.__dict__, _app_module.__dict__.get("LOGGER"))
 # Final planning usability layer: system-admin task types, blank required selectors,
 # Customer Work priority, button subnav, stronger prospect de-duplication and card UX.
 _install_planning_usability_v2(
@@ -137,6 +142,14 @@ _install_planning_usability_v2(
     _weekly_plan_module,
     _weekly_plan_ui_module,
     _potential_customer_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Last-mile fix: native System Admin task-type page, exact child command-tab styling,
+# and get_conn-compatible approval dispatcher signature.
+_install_planning_ui_post(
+    _app_module.__dict__,
+    _customer_work_ui_module,
+    _worktype_contact_card_module,
     _app_module.__dict__.get("LOGGER"),
 )
 # Successful logins automatically issue the existing 30-day device cookie.
