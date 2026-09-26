@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 
 from khdn_apps import weekly_plan as core
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 _CLEAR_TEXT_FLAG = "_wp_clear_text_next_run"
 
 
@@ -27,6 +27,12 @@ def request_quick_input_reset(session_state) -> None:
     session_state[_CLEAR_TEXT_FLAG] = True
     session_state.pop("wp_preview", None)
     session_state.pop("wp_preview_week", None)
+
+
+def _customer_label(x):
+    if x is None:
+        return "— Không gắn khách hàng —"
+    return f"{x.get('customer_name') or ''} · CIF {x.get('cif') or ''}"
 
 
 def render_page(st, u, get_conn, page_title=None, logger=None):
@@ -60,6 +66,7 @@ def render_page(st, u, get_conn, page_title=None, logger=None):
     n4.markdown(f"**{ws:%d/%m} – {(ws + timedelta(days=6)):%d/%m/%Y}**")
 
     with get_conn() as c:
+        # One shared customer master for the whole app: System administration -> Customer CIF.
         cs = core.customers(c, uid)
         items = core.load_items(c, uid, ws)
 
@@ -87,6 +94,10 @@ def render_page(st, u, get_conn, page_title=None, logger=None):
             st.caption(
                 "Mỗi dòng một việc. Ví dụ: T2 gặp Công ty A - tiền gửi; "
                 "T3 làm hạn mức Công ty B; T5 9h họp phòng."
+            )
+            st.caption(
+                f"🏢 Tên khách hàng được tự đối chiếu với Quản trị hệ thống → Khách hàng CIF "
+                f"({len(cs)} khách hàng đang hoạt động)."
             )
             text = st.text_area(
                 "Kế hoạch",
@@ -175,10 +186,16 @@ def render_page(st, u, get_conn, page_title=None, logger=None):
                     st.session_state.wp_add = dd.isoformat()
                     st.rerun()
                 if st.session_state.get("wp_add") == dd.isoformat():
+                    customer = st.selectbox(
+                        "Khách hàng (danh mục CIF)",
+                        [None] + cs,
+                        format_func=_customer_label,
+                        key=f"wpaddcustomer{dd}",
+                    )
                     txt = st.text_input(
                         "Việc cần làm",
                         key=f"wpaddtxt{dd}",
-                        placeholder="Gặp Công ty A - tiền gửi",
+                        placeholder="Gặp khách hàng - tiếp thị tiền gửi",
                     )
                     y1, y2 = st.columns(2)
                     if y1.button(
@@ -189,6 +206,9 @@ def render_page(st, u, get_conn, page_title=None, logger=None):
                     ):
                         x = core.parse_line(txt, ws, cs, dd)
                         if x:
+                            if customer is not None:
+                                x["customer_id"] = int(customer["id"])
+                                x["customer_text"] = str(customer["customer_name"])
                             core.save_items(get_conn, uid, ws, [x], logger)
                             st.session_state.pop("wp_add", None)
                             st.rerun()
