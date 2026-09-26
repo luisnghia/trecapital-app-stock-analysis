@@ -40,6 +40,7 @@ from khdn_apps.customer_work_refinement_patch import install as _install_custome
 from khdn_apps.customer_work_signature_fix import install as _install_customer_work_signature_fix
 from khdn_apps.auto_remember_login_patch import install as _install_auto_remember_login
 from khdn_apps.worktype_contact_card_patch import install as _install_worktype_contact_card
+from khdn_apps.worktype_contact_postfix import install as _install_worktype_contact_postfix
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -110,6 +111,13 @@ _app_module.init_db()
 # Partition Loại công việc by module, require case contacts, and compact the card action.
 _install_worktype_contact_card(
     _app_module.__dict__,
+    _customer_work_module,
+    _customer_work_ui_module,
+    _customer_work_refinement_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Replace only the create helper with a state-safe epoch reset implementation.
+_install_worktype_contact_postfix(
     _customer_work_module,
     _customer_work_ui_module,
     _customer_work_refinement_module,
