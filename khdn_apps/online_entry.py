@@ -47,6 +47,7 @@ from khdn_apps.planning_usability_v2_patch import install as _install_planning_u
 from khdn_apps.planning_ui_admin_hotfix import install_pre as _install_planning_ui_pre
 from khdn_apps.planning_ui_admin_hotfix import install_post as _install_planning_ui_post
 from khdn_apps.planning_usability_v3_patch import install as _install_planning_usability_v3
+from khdn_apps.planning_usability_v3_hotfix import install as _install_planning_usability_v3_hotfix
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -162,6 +163,17 @@ _install_planning_usability_v3(
     _customer_work_refinement_module,
     _worktype_contact_card_module,
     _customer_work_patch_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Bind child-navigation callbacks to Streamlit correctly. This is intentionally
+# installed after V3 so Customer Work and Catalog both use the same command-button
+# style as the main Kế hoạch strip without the V3 callback signature crash.
+_install_planning_usability_v3_hotfix(
+    _app_module.__dict__,
+    _customer_work_module,
+    _customer_work_ui_module,
+    _customer_work_refinement_module,
+    _worktype_contact_card_module,
     _app_module.__dict__.get("LOGGER"),
 )
 # Successful logins automatically issue the existing 30-day device cookie.
