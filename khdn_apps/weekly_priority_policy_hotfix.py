@@ -1,10 +1,70 @@
-"""Small runtime corrections for weekly_priority_policy_patch."""
+"""Runtime corrections for weekly_priority_policy_patch."""
 from __future__ import annotations
 
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 
 
 def install(policy, logger=None):
+    # Harden the schema independently of older priority patches and keep the Q2
+    # delay watch current for both weekly reschedules and carry-forwards.
+    original_ensure = policy._ensure_schema
+
+    def ensure_schema(core, get_conn, logger_arg=None):
+        original_ensure(core, get_conn, logger_arg or logger)
+        with get_conn() as c:
+            cols = policy._cols(c, "weekly_plan_items")
+            if "priority_quadrant" not in cols:
+                c.execute("ALTER TABLE weekly_plan_items ADD COLUMN priority_quadrant INTEGER")
+            c.executescript(
+                """
+                CREATE TRIGGER IF NOT EXISTS trg_weekly_q2_reschedule_watch
+                AFTER UPDATE OF reschedule_count ON weekly_plan_items
+                WHEN NEW.priority_quadrant=2 AND COALESCE(NEW.reschedule_count,0)>=2
+                BEGIN
+                    UPDATE weekly_plan_items SET q2_watch_flag=1 WHERE id=NEW.id;
+                END;
+                CREATE TRIGGER IF NOT EXISTS trg_weekly_q2_carry_watch
+                AFTER UPDATE OF carryover_count ON weekly_plan_items
+                WHEN NEW.priority_quadrant=2 AND COALESCE(NEW.carryover_count,0)>=2
+                BEGIN
+                    UPDATE weekly_plan_items SET q2_watch_flag=1 WHERE id=NEW.id;
+                END;
+                """
+            )
+
+    policy._ensure_schema = ensure_schema
+
+    # The formal lifecycle is TRA_LAI -> NHAP.  Do not let the user edit while the
+    # plan is still labeled TRA_LAI; one explicit action starts the new draft.
+    original_staff_week = policy._render_staff_week
+
+    def render_staff_week(st, u, core, get_conn, ws, plan, items, focus_rows, logger_arg=None):
+        if str(plan.get("workflow_status") or "") == "TRA_LAI":
+            policy._drift_warning(st, get_conn, int(policy._uget(u, "id")), ws)
+            policy._summary(st, items)
+            st.error("↩ Kế hoạch đã được Trưởng phòng trả lại và đang khóa cho đến khi cán bộ bắt đầu vòng điều chỉnh mới.")
+            if plan.get("return_note"):
+                st.write(f"**Lý do:** {plan.get('return_note')}")
+            for item in [x for x in items if x.get("status") != "CANCELLED"]:
+                policy._item_card(st, item)
+            if st.button("✏️ Bắt đầu điều chỉnh kế hoạch", key=f"return_to_draft_{plan['id']}", type="primary", use_container_width=True):
+                uid = int(policy._uget(u, "id"))
+                ts = policy._now()
+                with get_conn() as c:
+                    c.execute(
+                        "UPDATE weekly_plans SET workflow_status='NHAP',updated_at=? WHERE id=? AND user_id=?",
+                        (ts, int(plan["id"]), uid),
+                    )
+                    c.execute(
+                        "INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(NULL,?,'RETURN_TO_DRAFT',?,?)",
+                        (uid, f"week={ws.isoformat()}", ts),
+                    )
+                st.rerun()
+            return
+        return original_staff_week(st, u, core, get_conn, ws, plan, items, focus_rows, logger_arg or logger)
+
+    policy._render_staff_week = render_staff_week
+
     def inline_focus_create(st, u, get_conn, year, logger_arg=None):
         uid = int(policy._uget(u, "id"))
         with get_conn() as c:
@@ -49,6 +109,6 @@ def install(policy, logger=None):
                     st.error(str(exc))
 
     policy._inline_focus_create = inline_focus_create
-    policy.VERSION = "1.0.1"
+    policy.VERSION = VERSION
     if logger:
-        logger.info("WEEKLY_PRIORITY_POLICY_HOTFIX_INSTALLED version=%s", VERSION)
+        logger.info("WEEKLY_PRIORITY_POLICY_HOTFIX_INSTALLED version=%s lifecycle_return=1 q2_watch=1", VERSION)
