@@ -18,12 +18,16 @@ def run():
         page.run()
         assert not page.exception, [e.message for e in page.exception]
 
-        # Regression guard: catalog_edit_state_patch is re-invoked on every
-        # Streamlit script rerun.  The final planning hotfix must rebind the live
-        # Catalog renderer AFTER that legacy st.tabs renderer each time.
+        # Regression guard: the final runtime must own Catalog after reruns.  The
+        # Q2-first weekly policy intentionally supersedes the older V3 hotfix and
+        # renders the same native command-button navigation without st.tabs().
         from khdn_apps import customer_work_ui as customer_work_ui
         catalog_renderer = customer_work_ui.render_catalog_page
-        assert catalog_renderer.__module__ == "khdn_apps.planning_usability_v3_hotfix", (
+        allowed = {
+            "khdn_apps.planning_usability_v3_hotfix",
+            "khdn_apps.weekly_priority_policy_patch",
+        }
+        assert catalog_renderer.__module__ in allowed, (
             "Catalog renderer fell back after rerun",
             catalog_renderer.__module__,
             getattr(catalog_renderer, "__qualname__", ""),
