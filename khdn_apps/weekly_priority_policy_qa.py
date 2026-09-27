@@ -35,6 +35,16 @@ def main():
                     qlkh_user_id INTEGER,
                     active INTEGER DEFAULT 1
                 );
+                CREATE TABLE tasks(
+                    id INTEGER PRIMARY KEY,
+                    task_code TEXT,
+                    task_type TEXT,
+                    customer_id INTEGER,
+                    qlkh_user_id INTEGER,
+                    support_user_id INTEGER,
+                    status TEXT,
+                    due_time TEXT
+                );
                 INSERT INTO users(id,full_name,role,is_admin,active) VALUES
                     (1,'Trưởng phòng A','Lãnh đạo phòng',0,1),
                     (2,'CBQLKH A','Cán bộ QLKH',0,1),
@@ -42,6 +52,12 @@ def main():
                 """
             )
         policy._ensure_schema(core, get_conn)
+        # In production this column is already introduced by planning_priority_patch.
+        # Keep the isolated semantic fixture equivalent to the installed runtime stack.
+        with get_conn() as c:
+            cols = {str(r[1]) for r in c.execute("PRAGMA table_info(weekly_plan_items)").fetchall()}
+            if "priority_quadrant" not in cols:
+                c.execute("ALTER TABLE weekly_plan_items ADD COLUMN priority_quadrant INTEGER")
 
         # Rule table from the approved specification.
         assert policy._classify({"id": 1}, None, None)[0] == 2
