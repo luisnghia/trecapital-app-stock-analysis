@@ -18,6 +18,22 @@ def run():
         page.run()
         assert not page.exception, [e.message for e in page.exception]
 
+        # Regression guard: catalog_edit_state_patch is re-invoked on every
+        # Streamlit script rerun.  The final planning hotfix must rebind the live
+        # Catalog renderer AFTER that legacy st.tabs renderer each time.
+        from khdn_apps import customer_work_ui as customer_work_ui
+        catalog_renderer = customer_work_ui.render_catalog_page
+        assert catalog_renderer.__module__ == "khdn_apps.planning_usability_v3_hotfix", (
+            "Catalog renderer fell back after rerun",
+            catalog_renderer.__module__,
+            getattr(catalog_renderer, "__qualname__", ""),
+        )
+        print(
+            "KHDN_CATALOG_RERUN_NAV_QA PASS",
+            catalog_renderer.__module__,
+            getattr(catalog_renderer, "__qualname__", ""),
+        )
+
         # Render the actual generated settings section, then submit its form.
         import ast
         import textwrap
