@@ -1,20 +1,16 @@
 """Runtime hotfix for Planning Usability V3 child command navigation.
 
-Fixes a signature mismatch introduced by V3: the V2 page renderers call their
-``pill_nav`` callback as ``pill_nav(state_key, options, ...)`` while V3 passed a
-function whose first argument was ``st``.  The mismatch caused Customer Work to
-crash and prevented the Catalog child tabs from using the requested command-tab
-visual language.
-
-This hotfix binds the active Streamlit object in a closure and then delegates to
-the exact command-tab renderer used by the planning navigation theme.
+Fixes the V3 callback signature and then installs the V4 hard UI layer so Catalog
+child navigation cannot fall back to the legacy underline-tab appearance.  V4
+also exposes the executing officer role on Customer Work cards.
 """
 from __future__ import annotations
 
 from khdn_apps import planning_usability_v2_patch as v2
 from khdn_apps import planning_ui_admin_hotfix as ui_hotfix
+from khdn_apps import planning_ui_v4_patch as v4
 
-VERSION = "4.0.1"
+VERSION = "4.1.0"
 
 
 def _bound_child_nav(st):
@@ -68,10 +64,15 @@ def install(ns, customer_core, customer_ui, refinement, worktype, logger=None):
             logger or app_logger,
         )
 
-    # Install last so the live dispatcher always resolves these fixed renderers.
+    # First normalize V3 signatures.
     customer_ui.render_cases_page = render_cases_page
     customer_ui.render_catalog_page = render_catalog_page
     customer_ui._PLANNING_USABILITY_V3_HOTFIX_INSTALLED = True
+
+    # Then install the stronger final layer. It styles the individual child button
+    # widget keys directly (immune to legacy global tab CSS), forces the live
+    # work_catalogs dispatcher through that renderer, and enriches card owner role.
+    v4.install(ns, customer_core, customer_ui, refinement, worktype, app_logger)
 
     if app_logger:
         app_logger.info("PLANNING_USABILITY_V3_HOTFIX_INSTALLED version=%s", VERSION)
