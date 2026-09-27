@@ -22,6 +22,7 @@ import khdn_apps.customer_work_ui as _customer_work_ui_module
 import khdn_apps.customer_work_refinement_patch as _customer_work_refinement_module
 import khdn_apps.potential_customer_patch as _potential_customer_module
 import khdn_apps.worktype_contact_card_patch as _worktype_contact_card_module
+import khdn_apps.weekly_priority_policy_patch as _weekly_priority_policy_module
 from khdn_apps.cbht_workload_patch import install as _install_v231
 from khdn_apps.leader_workload_match_patch import install as _install_v2311
 from khdn_apps.amount_decimal_patch import install as _install_v2312
@@ -48,6 +49,8 @@ from khdn_apps.planning_ui_admin_hotfix import install_pre as _install_planning_
 from khdn_apps.planning_ui_admin_hotfix import install_post as _install_planning_ui_post
 from khdn_apps.planning_usability_v3_patch import install as _install_planning_usability_v3
 from khdn_apps.planning_usability_v3_hotfix import install as _install_planning_usability_v3_hotfix
+from khdn_apps.weekly_priority_policy_patch import install as _install_weekly_priority_policy
+from khdn_apps.weekly_priority_policy_hotfix import install as _install_weekly_priority_policy_hotfix
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -174,6 +177,20 @@ _install_planning_usability_v3_hotfix(
     _customer_work_ui_module,
     _customer_work_refinement_module,
     _worktype_contact_card_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Q2-first governance is installed last so no legacy free-choice priority or old
+# underline catalog renderer can override the approved weekly-plan policy.
+_install_weekly_priority_policy(
+    _app_module.__dict__,
+    _weekly_plan_module,
+    _weekly_plan_ui_module,
+    _customer_work_module,
+    _customer_work_ui_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+_install_weekly_priority_policy_hotfix(
+    _weekly_priority_policy_module,
     _app_module.__dict__.get("LOGGER"),
 )
 # Successful logins automatically issue the existing 30-day device cookie.
