@@ -11,11 +11,13 @@ from khdn_apps import planning_dashboard_consolidation_patch as _dashboard_conso
 from khdn_apps import planning_navigation_approval_parity_patch as _nav_approval_parity
 from khdn_apps import planning_room_dashboard_detail_patch as _room_dashboard
 from khdn_apps import weekly_performance_phase2_patch as _performance_phase2
+from khdn_apps import planning_operational_phase3_patch as _operational_phase3
 from khdn_apps import weekly_plan as _weekly_core
 from khdn_apps import customer_work as _customer_core
 from khdn_apps import customer_work_ui as _customer_ui
 from khdn_apps import customer_work_refinement_patch as _refinement
 from khdn_apps import worktype_contact_card_patch as _worktype
+from khdn_apps import app as _app_module
 
 VERSION = "2.1.0"
 _FLAG = "_WEEKLY_PRIORITY_POLICY_HOTFIX_VERSION"
@@ -132,8 +134,8 @@ def install(policy, logger=None):
 
     policy._inline_focus_create = inline_focus_create
 
-    # Final layers. Phase 2 is deliberately last so it extends the stable current
-    # UI rather than replacing Customer Work or landing-page behavior.
+    # Final layers. Phase 3 is deliberately last so realtime, detail acknowledgements,
+    # direct card updates and the manager weekday approval board win over older renderers.
     _form_refinement.install(policy, None, None, logger)
     _unified.install(policy, logger)
     _final_defaults.install(policy, logger)
@@ -144,11 +146,14 @@ def install(policy, logger=None):
     _nav_approval_parity.install(policy, _customer_core, _customer_ui, logger)
     _room_dashboard.install(policy, _weekly_core, _customer_core, _customer_ui, logger)
     _performance_phase2.install(policy, _weekly_core, _customer_ui, logger)
+    _operational_phase3.install(
+        _app_module.__dict__, policy, _weekly_core, _customer_core, _customer_ui, logger
+    )
 
     setattr(policy, _FLAG, VERSION)
     policy.VERSION = VERSION
     if logger:
         logger.info(
-            "WEEKLY_PRIORITY_POLICY_HOTFIX_INSTALLED version=%s lifecycle_return=1 q2_watch=1 form_refinement=1 unified=1 final_defaults=1 final_ux=1 week_board_focus=1 followup_ux=1 dashboard_consolidation=1 nav_approval_parity=1 room_dashboard_detail=1 performance_phase2=1",
+            "WEEKLY_PRIORITY_POLICY_HOTFIX_INSTALLED version=%s lifecycle_return=1 q2_watch=1 form_refinement=1 unified=1 final_defaults=1 final_ux=1 week_board_focus=1 followup_ux=1 dashboard_consolidation=1 nav_approval_parity=1 room_dashboard_detail=1 performance_phase2=1 operational_phase3=1",
             VERSION,
         )
