@@ -5,8 +5,13 @@ from khdn_apps import weekly_plan_form_refinement_patch as _form_refinement
 from khdn_apps import weekly_plan_unified_patch as _unified
 from khdn_apps import planning_final_defaults_patch as _final_defaults
 from khdn_apps import planning_final_ux_patch as _final_ux
+from khdn_apps import planning_week_board_focus_patch as _week_board_focus
+from khdn_apps import customer_work as _customer_core
+from khdn_apps import customer_work_ui as _customer_ui
+from khdn_apps import customer_work_refinement_patch as _refinement
+from khdn_apps import worktype_contact_card_patch as _worktype
 
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 _FLAG = "_WEEKLY_PRIORITY_POLICY_HOTFIX_VERSION"
 
 
@@ -122,16 +127,18 @@ def install(policy, logger=None):
     policy._inline_focus_create = inline_focus_create
 
     # Final layers: refined fields/data source, single-screen runtime contract,
-    # blank-default/card contract, then the last-mile UX corrections.
+    # blank-default/card contract, last-mile UX corrections, then the Monday-Friday
+    # board + focus-based Customer Work selector requested for the planning workflow.
     _form_refinement.install(policy, None, None, logger)
     _unified.install(policy, logger)
     _final_defaults.install(policy, logger)
     _final_ux.install(policy, logger)
+    _week_board_focus.install(policy, _customer_core, _customer_ui, _refinement, _worktype, logger)
 
     setattr(policy, _FLAG, VERSION)
     policy.VERSION = VERSION
     if logger:
         logger.info(
-            "WEEKLY_PRIORITY_POLICY_HOTFIX_INSTALLED version=%s lifecycle_return=1 q2_watch=1 form_refinement=1 unified=1 final_defaults=1 final_ux=1",
+            "WEEKLY_PRIORITY_POLICY_HOTFIX_INSTALLED version=%s lifecycle_return=1 q2_watch=1 form_refinement=1 unified=1 final_defaults=1 final_ux=1 week_board_focus=1",
             VERSION,
         )
