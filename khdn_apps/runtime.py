@@ -15,6 +15,7 @@ import time
 
 from .storage import atomic_json, daily_backup, prepare_storage, read_status
 from . import notifications
+from . import weekly_plan_notifications
 
 
 def main() -> int:
@@ -92,6 +93,17 @@ def main() -> int:
     )
     notification_worker.start()
 
+    # Weekly Plan has its own durable notification stream. It waits for the weekly
+    # tables internally, then alerts leaders about newly added work and alerts
+    # staff/leaders as expected-completion dates approach or become overdue.
+    weekly_notification_worker = threading.Thread(
+        target=weekly_plan_notifications.worker_loop,
+        args=(db_path, stop),
+        name="khdn-weekly-notifications",
+        daemon=True,
+    )
+    weekly_notification_worker.start()
+
     child = None
     pending_signal = None
 
@@ -117,6 +129,7 @@ def main() -> int:
         stop.set()
         backup_worker.join(timeout=2)
         notification_worker.join(timeout=2)
+        weekly_notification_worker.join(timeout=2)
 
 
 if __name__ == "__main__":
