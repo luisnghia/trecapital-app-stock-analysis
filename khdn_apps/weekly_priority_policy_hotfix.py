@@ -1,7 +1,9 @@
 """Runtime corrections for weekly_priority_policy_patch."""
 from __future__ import annotations
 
-VERSION = "1.1.0"
+from khdn_apps import weekly_plan_form_refinement_patch as _form_refinement
+
+VERSION = "1.2.0"
 
 
 def install(policy, logger=None):
@@ -109,6 +111,12 @@ def install(policy, logger=None):
                     st.error(str(exc))
 
     policy._inline_focus_create = inline_focus_create
+
+    # Install the final Weekly Plan UI/data refinement after all lifecycle wrappers
+    # above.  The extra positional placeholders are intentionally unused; they keep
+    # this call independent from online_entry wiring.
+    _form_refinement.install(policy, None, None, logger)
+
     policy.VERSION = VERSION
     if logger:
-        logger.info("WEEKLY_PRIORITY_POLICY_HOTFIX_INSTALLED version=%s lifecycle_return=1 q2_watch=1", VERSION)
+        logger.info("WEEKLY_PRIORITY_POLICY_HOTFIX_INSTALLED version=%s lifecycle_return=1 q2_watch=1 form_refinement=1", VERSION)
