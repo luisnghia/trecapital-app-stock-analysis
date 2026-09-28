@@ -1,0 +1,3 @@
+Offline backup requested before Phase 2 weekly performance rollout.
+Source branch snapshot: feature/khdn-weekly-plan-v1
+Requested local time: 2026-09-28 22:28 +07:00
