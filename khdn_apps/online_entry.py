@@ -2,6 +2,8 @@
 Use this entrypoint on Railway/Render; the Trecapital embedded page continues to use pages/KHDNApps.py.
 """
 import os
+import sqlite3
+import time
 from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent
@@ -115,6 +117,28 @@ _install_customer_work_signature_fix(
     _customer_work_ui_module,
     _app_module.__dict__.get("LOGGER"),
 )
+# Empty preview databases can be initialized by more than one Streamlit session at
+# the same time. The legacy bootstrap checks COUNT(*) before inserting the default
+# admin, so two sessions can race and the loser sees users.username UNIQUE failure.
+# Keep the legacy initializer unchanged, but retry only that known bootstrap race.
+if not getattr(_app_module, "_INIT_DB_RACE_SAFE_V1", False):
+    _original_init_db = _app_module.init_db
+
+    def _race_safe_init_db():
+        for attempt in range(3):
+            try:
+                return _original_init_db()
+            except sqlite3.IntegrityError as exc:
+                if "UNIQUE constraint failed: users.username" not in str(exc) or attempt >= 2:
+                    raise
+                logger = _app_module.__dict__.get("LOGGER")
+                if logger:
+                    logger.warning("INIT_DB_BOOTSTRAP_RACE_RETRY attempt=%s error=%s", attempt + 1, exc)
+                time.sleep(0.08 * (attempt + 1))
+
+    _app_module.init_db = _race_safe_init_db
+    _app_module._INIT_DB_RACE_SAFE_V1 = True
+
 # Some headless/runtime checks import this entrypoint with a brand-new SQLite file.
 # Create the legacy core tables before extension schemas that reference users/task_types.
 _app_module.init_db()
