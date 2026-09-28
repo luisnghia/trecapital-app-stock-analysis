@@ -4,7 +4,7 @@ core=(ROOT/'planning_operational_phase3_core.py').read_text(encoding='utf-8')
 weekly=(ROOT/'planning_operational_phase3_weekly.py').read_text(encoding='utf-8')
 dash=(ROOT/'planning_operational_phase3_dashboard.py').read_text(encoding='utf-8')
 patch=(ROOT/'planning_operational_phase3_patch.py').read_text(encoding='utf-8')
-entry=(ROOT/'online_entry.py').read_text(encoding='utf-8')
+hotfix=(ROOT/'weekly_priority_policy_hotfix.py').read_text(encoding='utf-8')
 checks={
  'realtime': all(x in core for x in ['_visible_task_change_token','customer_work_cases','weekly_plan_items','planning_attention_events']),
  'mandatory_stage_note': 'Bắt buộc nhập **Ghi chú chuyển bước**' in core and 'cw_stage_note_invalid_' in core,
@@ -21,7 +21,7 @@ checks={
  'room_lists': 'Theo mục công việc · danh sách khách hàng' in dash and 'Theo cán bộ · danh sách khách hàng' in dash,
  'attention_color': 'p3-watch-flags' in dash and '#F04438' in dash and '#F79009' in dash,
  'html_table': '.p3-table table' in dash and 'white-space:normal' in dash and 'overflow-wrap:anywhere' in dash,
- 'installed': '_install_planning_operational_phase3' in entry and 'dashboard.install_room_dashboard' in patch,
+ 'installed': '_operational_phase3.install' in hotfix and 'operational_phase3=1' in hotfix and 'dashboard.install_room_dashboard' in patch,
 }
 assert all(checks.values()),checks
 print('PLANNING_OPERATIONAL_PHASE3_QA_PASS',checks)
