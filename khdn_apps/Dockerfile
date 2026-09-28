@@ -50,6 +50,10 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_room_dashboard_detail_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/weekly_performance_phase2_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/weekly_phase2_notifications.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase3_core.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase3_weekly.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase3_dashboard.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase3_patch.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_plan_form_refinement_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_plan_unified_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_final_defaults_qa.py \
@@ -59,7 +63,8 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_dashboard_consolidation_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_navigation_approval_parity_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_room_dashboard_detail_qa.py \
-    && PYTHONPATH=/app python /app/khdn_apps/weekly_performance_phase2_qa.py
+    && PYTHONPATH=/app python /app/khdn_apps/weekly_performance_phase2_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/planning_operational_phase3_qa.py
 
 RUN PYTHONPATH=/app python /app/khdn_apps/runtime_page_qa.py
 
