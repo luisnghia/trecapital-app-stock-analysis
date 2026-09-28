@@ -9,13 +9,14 @@ from khdn_apps import planning_week_board_focus_patch as _week_board_focus
 from khdn_apps import planning_followup_ux_patch as _followup_ux
 from khdn_apps import planning_dashboard_consolidation_patch as _dashboard_consolidation
 from khdn_apps import planning_navigation_approval_parity_patch as _nav_approval_parity
+from khdn_apps import planning_room_dashboard_detail_patch as _room_dashboard
 from khdn_apps import weekly_plan as _weekly_core
 from khdn_apps import customer_work as _customer_core
 from khdn_apps import customer_work_ui as _customer_ui
 from khdn_apps import customer_work_refinement_patch as _refinement
 from khdn_apps import worktype_contact_card_patch as _worktype
 
-VERSION = "1.9.0"
+VERSION = "2.0.0"
 _FLAG = "_WEEKLY_PRIORITY_POLICY_HOTFIX_VERSION"
 
 
@@ -130,10 +131,9 @@ def install(policy, logger=None):
 
     policy._inline_focus_create = inline_focus_create
 
-    # Final layers: refined fields/data source, single-screen runtime contract,
-    # blank-default/card contract, last-mile UX corrections, Monday-Friday board,
-    # follow-up date/validation/navigation refinements, dashboard consolidation,
-    # then navigation-state + approval-card parity.
+    # Final layers. The room-dashboard layer is deliberately last because it
+    # consumes the final Customer Work card renderer and the final approval card
+    # parity layer, then replaces only the leader dashboard presentation.
     _form_refinement.install(policy, None, None, logger)
     _unified.install(policy, logger)
     _final_defaults.install(policy, logger)
@@ -142,11 +142,12 @@ def install(policy, logger=None):
     _followup_ux.install(policy, _customer_core, _customer_ui, _refinement, _worktype, logger)
     _dashboard_consolidation.install(policy, _weekly_core, _customer_core, _customer_ui, logger)
     _nav_approval_parity.install(policy, _customer_core, _customer_ui, logger)
+    _room_dashboard.install(policy, _weekly_core, _customer_core, _customer_ui, logger)
 
     setattr(policy, _FLAG, VERSION)
     policy.VERSION = VERSION
     if logger:
         logger.info(
-            "WEEKLY_PRIORITY_POLICY_HOTFIX_INSTALLED version=%s lifecycle_return=1 q2_watch=1 form_refinement=1 unified=1 final_defaults=1 final_ux=1 week_board_focus=1 followup_ux=1 dashboard_consolidation=1 nav_approval_parity=1",
+            "WEEKLY_PRIORITY_POLICY_HOTFIX_INSTALLED version=%s lifecycle_return=1 q2_watch=1 form_refinement=1 unified=1 final_defaults=1 final_ux=1 week_board_focus=1 followup_ux=1 dashboard_consolidation=1 nav_approval_parity=1 room_dashboard_detail=1",
             VERSION,
         )
