@@ -29,7 +29,7 @@ checks = {
         "Phê duyệt kế hoạch", "Trả lại điều chỉnh",
     ]),
     "hotfix_installs": "_dashboard_consolidation.install" in hotfix,
-    "hotfix_version": 'VERSION = "1.9.0"' in hotfix,
+    "hotfix_version": 'VERSION = "2.0.0"' in hotfix,
 }
 
 assert all(checks.values()), checks
