@@ -11,8 +11,8 @@ checks = {
     "approval_note_retained": "Ý kiến phê duyệt" in src,
     "approval_actions_retained": "approve_case_plan" in src and "Phê duyệt" in src and "Từ chối" in src,
     "consolidation_renderer_replaced": "consolidation._render_case_approval_card = render_case_approval_card" in src,
-    "installed_last": "_nav_approval_parity.install" in hotfix,
-    "hotfix_version": 'VERSION = "1.9.0"' in hotfix,
+    "nav_parity_installed": "_nav_approval_parity.install" in hotfix,
+    "hotfix_version": 'VERSION = "2.0.0"' in hotfix,
 }
 
 assert all(checks.values()), checks
