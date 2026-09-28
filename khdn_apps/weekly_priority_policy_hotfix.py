@@ -2,11 +2,18 @@
 from __future__ import annotations
 
 from khdn_apps import weekly_plan_form_refinement_patch as _form_refinement
+from khdn_apps import weekly_plan_unified_patch as _unified
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
+_FLAG = "_WEEKLY_PRIORITY_POLICY_HOTFIX_VERSION"
 
 
 def install(policy, logger=None):
+    # Streamlit reruns execute online_entry repeatedly inside the same process.
+    # Never stack lifecycle wrappers across reruns.
+    if getattr(policy, _FLAG, None) == VERSION:
+        return
+
     # Harden the schema independently of older priority patches and keep the Q2
     # delay watch current for both weekly reschedules and carry-forwards.
     original_ensure = policy._ensure_schema
@@ -36,7 +43,7 @@ def install(policy, logger=None):
 
     policy._ensure_schema = ensure_schema
 
-    # The formal lifecycle is TRA_LAI -> NHAP.  Do not let the user edit while the
+    # The formal lifecycle is TRA_LAI -> NHAP. Do not let the user edit while the
     # plan is still labeled TRA_LAI; one explicit action starts the new draft.
     original_staff_week = policy._render_staff_week
 
@@ -112,11 +119,15 @@ def install(policy, logger=None):
 
     policy._inline_focus_create = inline_focus_create
 
-    # Install the final Weekly Plan UI/data refinement after all lifecycle wrappers
-    # above.  The extra positional placeholders are intentionally unused; they keep
-    # this call independent from online_entry wiring.
+    # Final layers: refined fields/data source, then the single-screen runtime
+    # contract and logger compatibility.
     _form_refinement.install(policy, None, None, logger)
+    _unified.install(policy, logger)
 
+    setattr(policy, _FLAG, VERSION)
     policy.VERSION = VERSION
     if logger:
-        logger.info("WEEKLY_PRIORITY_POLICY_HOTFIX_INSTALLED version=%s lifecycle_return=1 q2_watch=1 form_refinement=1", VERSION)
+        logger.info(
+            "WEEKLY_PRIORITY_POLICY_HOTFIX_INSTALLED version=%s lifecycle_return=1 q2_watch=1 form_refinement=1 unified=1",
+            VERSION,
+        )
