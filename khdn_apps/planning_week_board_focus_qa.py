@@ -13,7 +13,7 @@ checks = {
     "attention_detail": "compact=False" in src and "original_card" in src,
     "focus_snapshot": "focus_name_snapshot" in src and "focus_category_id" in src,
     "hotfix_installs": "_week_board_focus.install" in hotfix,
-    "hotfix_version": 'VERSION = "2.0.0"' in hotfix or 'VERSION = "1.9.0"' in hotfix or 'VERSION = "1.8.0"' in hotfix or 'VERSION = "1.7.0"' in hotfix or 'VERSION = "1.6.0"' in hotfix,
+    "hotfix_version": 'VERSION = "2.1.0"' in hotfix or 'VERSION = "2.0.0"' in hotfix,
 }
 
 bad = [k for k, v in checks.items() if not v]
