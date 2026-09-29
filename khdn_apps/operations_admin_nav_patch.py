@@ -1,4 +1,8 @@
-"""Move operational administration under Tác nghiệp without changing rights."""
+"""Retire the separate Tác nghiệp > Quản trị route.
+
+Operational administration has moved into Admin-only Quản trị hệ thống. This
+runtime patch keeps stale sessions safe without exposing the old route.
+"""
 from __future__ import annotations
 
 
@@ -10,47 +14,37 @@ def install(nav_module, ns):
     original_ops_options=nav_module._ops_options
 
     def _ops_options(role,admin=False):
-        options=list(original_ops_options(role,admin))
-        if role=="Lãnh đạo phòng" or bool(admin):
-            if not any(route=="ops_admin" for route,_ in options):
-                options.append(("ops_admin","Quản trị"))
-        return options
+        return [(route,label) for route,label in original_ops_options(role,admin) if route!="ops_admin"]
 
     nav_module._ops_options=_ops_options
-    nav_module.CUSTOM_PAGES.add("ops_admin")
+    try:
+        nav_module.CUSTOM_PAGES.discard("ops_admin")
+    except Exception:
+        pass
 
     original_sidebar=ns["sidebar_navigation"]
     def sidebar_navigation(u):
-        # `Quản trị hệ thống` and `Tác nghiệp > Quản trị` deliberately share the
-        # legacy admin_page renderer but MUST NOT share scope. Streamlit's
-        # st.rerun() interrupts the current render immediately after a button
-        # click, so resetting scope only before original_sidebar() is not enough:
-        # if the user clicks System Admin while currently in ops_admin, the old
-        # `ops` scope can survive into the next render. The finally block runs
-        # even when Streamlit raises its internal rerun exception and therefore
-        # guarantees route=admin => scope=system.
+        if st.session_state.get("main_page")=="ops_admin":
+            if bool(u["is_admin"]):
+                st.session_state["main_page"]="admin"
+                st.session_state["admin_scope"]="system"
+            else:
+                st.session_state["main_section"]="plan"
+                st.session_state["main_page"]="work_dashboard" if str(u["role"])=="Lãnh đạo phòng" else "work_today"
         if st.session_state.get("main_page")=="admin":
             st.session_state["admin_scope"]="system"
-        try:
-            return original_sidebar(u)
-        finally:
-            if st.session_state.get("main_page")=="admin":
-                st.session_state["admin_scope"]="system"
+        return original_sidebar(u)
 
     original_dashboard=ns["dashboard_page"]
     def dashboard_page(u):
         if st.session_state.get("main_page")=="ops_admin":
-            role=str(u["role"])
-            admin=bool(u["is_admin"])
-            if role!="Lãnh đạo phòng" and not admin:
-                st.error("Bạn không có quyền quản trị tác nghiệp.")
+            if not bool(u["is_admin"]):
+                st.error("Chỉ Admin mới có quyền truy cập Quản trị hệ thống.")
                 return
-            st.session_state["admin_scope"]="ops"
+            st.session_state["main_page"]="admin"
+            st.session_state["admin_scope"]="system"
             return ns["admin_page"](u)
         if st.session_state.get("main_page")=="admin":
-            # Defense in depth: direct/legacy navigation to the system route must
-            # always render Người dùng + Khách hàng CIF, regardless of previous
-            # session state from operational administration.
             st.session_state["admin_scope"]="system"
         return original_dashboard(u)
 
@@ -59,4 +53,4 @@ def install(nav_module, ns):
     nav_module._OPS_ADMIN_NAV_INSTALLED=True
     logger=ns.get("LOGGER")
     if logger:
-        logger.info("OPS_ADMIN_NAV_PATCH_INSTALLED route=ops_admin system_route=admin")
+        logger.info("OPS_ADMIN_NAV_PATCH_INSTALLED legacy_route_retired=1 system_admin_only=1")
