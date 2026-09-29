@@ -13,7 +13,7 @@ checks = {
     "attention_detail": "compact=False" in src and "original_card" in src,
     "focus_snapshot": "focus_name_snapshot" in src and "focus_category_id" in src,
     "hotfix_installs": "_week_board_focus.install" in hotfix,
-    "hotfix_version": 'VERSION = "2.1.0"' in hotfix or 'VERSION = "2.0.0"' in hotfix,
+    "hotfix_version": any(f'VERSION = "{v}"' in hotfix for v in ("2.2.0", "2.1.0", "2.0.0")),
 }
 
 bad = [k for k, v in checks.items() if not v]
