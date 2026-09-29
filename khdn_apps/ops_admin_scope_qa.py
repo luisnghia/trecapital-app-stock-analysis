@@ -1,8 +1,5 @@
 from __future__ import annotations
-from pathlib import Path
-
 from khdn_apps.admin_scope_patch import patch_source
-import khdn_apps.operations_admin_nav_patch as ops_nav
 
 
 def main():
@@ -34,25 +31,23 @@ def profile_page(u):
     pass
 '''
     out=patch_source(sample)
-    assert 'page_title("Quản trị tác nghiệp"' in out
-    assert 'page_title("Quản trị hệ thống", "Quản lý người dùng, khách hàng CIF và loại công việc.")' in out
-    assert '_admin_scope=="ops"' in out
-    assert '_admin_options=[("reasons","🧩","Nhóm nguyên nhân")] if _leader_scope' in out
-    assert '("audit","🧾","Audit")' in out and '("backup","💾","Sao lưu")' in out
-    assert '_admin_options=[("users","👥","Người dùng"),("customers","🏢","Khách hàng CIF"),("types","🧩","Loại công việc")]' in out
-    assert '_admin_default="reasons" if _admin_scope=="ops" else "users"' in out
-    assert 'Tác nghiệp → Quản trị → Nhóm nguyên nhân' in out
-
-    nav_src=Path(ops_nav.__file__).read_text(encoding="utf-8")
-    assert '("ops_admin","Quản trị")' in nav_src
-    assert 'CUSTOM_PAGES.add("ops_admin")' in nav_src
-    assert 'st.session_state["admin_scope"]="ops"' in nav_src
-    assert nav_src.count('st.session_state["admin_scope"]="system"') >= 3
-    assert 'try:' in nav_src and 'finally:' in nav_src
-    assert 'if st.session_state.get("main_page")=="admin":' in nav_src
-    assert 'role!="Lãnh đạo phòng" and not admin' in nav_src
-    assert 'system_route=admin' in nav_src
-    print("OPS_ADMIN_SCOPE_QA_PASS")
+    assert 'if not bool(u["is_admin"])' in out
+    assert 'Chỉ Admin mới có quyền truy cập Quản trị hệ thống.' in out
+    assert 'st.session_state["admin_scope"]="system"' in out
+    assert 'page_title("Quản trị hệ thống"' in out
+    for marker in [
+        '("users","👥","Người dùng")',
+        '("customers","🏢","Khách hàng CIF")',
+        '("types","🧩","Loại công việc")',
+        '("reasons","🧩","Nhóm nguyên nhân tác nghiệp")',
+        '("audit","🧾","Audit")',
+        '("backup","💾","Sao lưu")',
+    ]:
+        assert marker in out, marker
+    assert '_admin_default="users"' in out
+    assert 'Quản trị hệ thống → Nhóm nguyên nhân tác nghiệp' in out
+    assert 'Quản trị tác nghiệp' not in out
+    print("OPS_ADMIN_SCOPE_QA_PASS unified_system_admin=1 admin_only=1 operational_admin_merged=1")
 
 
 if __name__=="__main__":
