@@ -16,6 +16,7 @@ from khdn_apps import planning_operational_phase4_patch as _operational_phase4
 from khdn_apps import planning_operational_phase5_patch as _operational_phase5
 from khdn_apps import planning_operational_phase6_patch as _operational_phase6
 from khdn_apps import planning_operational_phase7_patch as _operational_phase7
+from khdn_apps import planning_operational_phase8_patch as _operational_phase8
 from khdn_apps import weekly_plan as _weekly_core
 from khdn_apps import customer_work as _customer_core
 from khdn_apps import customer_work_ui as _customer_ui
@@ -23,7 +24,7 @@ from khdn_apps import customer_work_refinement_patch as _refinement
 from khdn_apps import worktype_contact_card_patch as _worktype
 from khdn_apps import app as _app_module
 
-VERSION = "2.2.0"
+VERSION = "2.3.0"
 _FLAG = "_WEEKLY_PRIORITY_POLICY_HOTFIX_VERSION"
 
 
@@ -138,9 +139,9 @@ def install(policy, logger=None):
 
     policy._inline_focus_create = inline_focus_create
 
-    # Final layers. Phase 7 is deliberately installed last so the restored
-    # System Admin cards, weekly-cancel approval lifecycle and Vietnamese
-    # progress history override every earlier renderer safely.
+    # Final layers. Phase 8 is deliberately installed last so restored Tác nghiệp
+    # backups, Customer Work -> Weekly Plan source fields and required cancel UX
+    # override every earlier renderer without disturbing the phase-7 lifecycle.
     _form_refinement.install(policy, None, None, logger)
     _unified.install(policy, logger)
     _final_defaults.install(policy, logger)
@@ -166,11 +167,14 @@ def install(policy, logger=None):
     _operational_phase7.install(
         _app_module.__dict__, policy, _weekly_core, _customer_core, _customer_ui, logger
     )
+    _operational_phase8.install(
+        _app_module.__dict__, policy, _weekly_core, _customer_core, _customer_ui, logger
+    )
 
     setattr(policy, _FLAG, VERSION)
     policy.VERSION = VERSION
     if logger:
         logger.info(
-            "WEEKLY_PRIORITY_POLICY_HOTFIX_INSTALLED version=%s lifecycle_return=1 q2_watch=1 form_refinement=1 unified=1 final_defaults=1 final_ux=1 week_board_focus=1 followup_ux=1 dashboard_consolidation=1 nav_approval_parity=1 room_dashboard_detail=1 performance_phase2=1 operational_phase3=1 operational_phase4=1 operational_phase5=1 operational_phase6=1 operational_phase7=1",
+            "WEEKLY_PRIORITY_POLICY_HOTFIX_INSTALLED version=%s lifecycle_return=1 q2_watch=1 form_refinement=1 unified=1 final_defaults=1 final_ux=1 week_board_focus=1 followup_ux=1 dashboard_consolidation=1 nav_approval_parity=1 room_dashboard_detail=1 performance_phase2=1 operational_phase3=1 operational_phase4=1 operational_phase5=1 operational_phase6=1 operational_phase7=1 operational_phase8=1",
             VERSION,
         )
