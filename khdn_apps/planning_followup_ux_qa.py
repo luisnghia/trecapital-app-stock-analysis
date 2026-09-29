@@ -15,7 +15,7 @@ checks = {
     "no_past_due": "min_value = max(today, old_min) if old_min else today" in src,
     "customer_due_guard": "weekboard._customer_create_form" in src and "_DueGuardProxy(st)" in src,
     "followup_installed": "_followup_ux.install" in hotfix,
-    "hotfix_version": any(f'VERSION = "{v}"' in hotfix for v in ("2.3.0", "2.2.0", "2.1.0")),
+    "hotfix_version": any(f'VERSION = "{v}"' in hotfix for v in ("2.4.0", "2.3.0", "2.2.0", "2.1.0")),
 }
 
 assert all(checks.values()), checks
