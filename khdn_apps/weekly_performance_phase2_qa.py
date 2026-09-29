@@ -42,7 +42,7 @@ checks = {
     "five_business_day_fallback": "process_quality_fallback" in notify and "_business_days_since" in notify,
     "worker_started": "weekly_phase2_notifications.worker_loop" in runtime,
     "phase2_installed_last": "_performance_phase2.install" in hotfix,
-    "hotfix_version": any(f'VERSION = "{v}"' in hotfix for v in ("2.3.0", "2.2.0", "2.1.0")),
+    "hotfix_version": any(f'VERSION = "{v}"' in hotfix for v in ("2.4.0", "2.3.0", "2.2.0", "2.1.0")),
 }
 assert all(checks.values()), checks
 print("WEEKLY_PERFORMANCE_PHASE2_QA_PASS", checks, {"progress":m["progress"], "quality":quality, "week":week_score, "grade":p2._grade(week_score)})
