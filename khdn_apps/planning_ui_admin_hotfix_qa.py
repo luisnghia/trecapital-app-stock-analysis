@@ -15,7 +15,9 @@ def main():
 
     checks = {
         "system_admin_has_types": '("types","🧩","Loại công việc")' in admin_src,
-        "ops_admin_has_no_types": '_admin_options=[("reasons","🧩","Nhóm nguyên nhân")] if _leader_scope' in admin_src,
+        "system_admin_has_operational_reasons": '("reasons","🧩","Nhóm nguyên nhân tác nghiệp")' in admin_src,
+        "system_admin_has_audit_backup": '("audit","🧾","Audit")' in admin_src and '("backup","💾","Sao lưu")' in admin_src,
+        "system_admin_admin_only": 'if not bool(u["is_admin"])' in admin_src and 'Chỉ Admin mới có quyền truy cập Quản trị hệ thống.' in admin_src,
         "system_type_renderer": 'def _render_system_task_types' in src,
         "module_scope_create": 'module_scope,created_at,updated_at' in src and 'Thuộc phân hệ *' in src,
         "module_scope_edit": 'UPDATE task_types SET name=?,module_scope=?,active=?,updated_at=?' in src,
