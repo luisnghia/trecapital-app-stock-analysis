@@ -15,7 +15,7 @@ checks = {
     "approval_actions_preserved": "decide_reschedule" in src and "RESCHEDULE_APPROVE" in src and "RESCHEDULE_REJECT" in src,
     "approval_center_preserved": all(x in src for x in ["Công việc khách hàng mới", "Kế hoạch tuần đã nộp", "Đề nghị dời công việc khách hàng", "Đề nghị dời kế hoạch tuần"]),
     "room_dashboard_installed_before_phase2": "_room_dashboard.install" in hotfix and hotfix.index("_room_dashboard.install") < hotfix.index("_performance_phase2.install"),
-    "hotfix_version": any(f'VERSION = "{v}"' in hotfix for v in ("2.2.0", "2.1.0")),
+    "hotfix_version": any(f'VERSION = "{v}"' in hotfix for v in ("2.3.0", "2.2.0", "2.1.0")),
 }
 
 assert all(checks.values()), checks
