@@ -30,7 +30,9 @@ checks = {
     "readable_classification": 'CLASSIFICATION_CHANGE' in src and 'Q4 · Giá trị thấp' in src and 'Lý do:' in src,
     "unique_quick_add": 'p3_quick_add_{uid}_{ws.isoformat()}_{idx}_{status}' in src,
     "phase3_alias_rebind": 'p3dash.weekly_card = _compact_weekly_card' in src,
-    "phase6_installed_last": '_operational_phase6.install' in hotfix and 'VERSION = "2.2.0"' in hotfix,
+    "phase6_installed": '_operational_phase6.install' in hotfix and any(
+        f'VERSION = "{v}"' in hotfix for v in ("2.3.0", "2.2.0")
+    ),
 }
 
 bad = [name for name, ok in checks.items() if not ok]
