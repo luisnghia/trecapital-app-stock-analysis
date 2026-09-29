@@ -22,7 +22,7 @@ from khdn_apps import customer_work_refinement_patch as _refinement
 from khdn_apps import worktype_contact_card_patch as _worktype
 from khdn_apps import app as _app_module
 
-VERSION = "2.3.0"
+VERSION = "2.2.0"
 _FLAG = "_WEEKLY_PRIORITY_POLICY_HOTFIX_VERSION"
 
 
