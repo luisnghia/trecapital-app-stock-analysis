@@ -7,13 +7,13 @@ Goals:
   Operations customer search, with duplicate protection and no fake CIF.
 - Apply the same behavior to CBHT, QLKH, Lanh dao phong and Admin/leader mode.
 
-This is a runtime/UI overlay. It does not rewrite existing tasks or customer IDs.
+This is a runtime/UI overlay. It does not rewrite existing tasks/customer IDs and
+it does not change the established rule that an Operations-only QLKH assignment
+must not silently rewrite the customer master.
 """
 from __future__ import annotations
 
-import json
-
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 _FLAG = "_PLANNING_OPERATIONAL_PHASE15_VERSION"
 
 
@@ -38,18 +38,21 @@ def _label(row):
 
 
 def _prospect_owner_id(u, key, state):
-    """Best owner for the shared master without impersonating another user."""
+    """Set master owner only where ownership is explicit before prospect creation."""
     role = str(_uget(u, "role", "") or "")
     uid = _uget(u, "id")
     if role == "Cán bộ QLKH" and uid:
         return int(uid)
-    # In the leader parity create screen the QLKH owner is chosen before customer.
+    # Leader parity chooses the QLKH owner before customer search, so this is an
+    # explicit master-owner choice rather than an inferred/impersonated identity.
     if str(key).startswith("leader_ql_new_cust"):
         owner = state.get("leader_ql_new_owner")
         try:
             return int(owner) if owner not in (None, "") else None
         except Exception:
             return None
+    # CBHT chooses QLKH for the task after customer selection. Preserve the old
+    # rule: that per-task choice does not modify customer master ownership.
     return None
 
 
@@ -102,46 +105,6 @@ def _search_customers(get_conn, query, limit=20):
     return [dict(r) for r in rows]
 
 
-def _bind_support_prospect_owner(st, u, key, row, get_conn, app_ns, logger=None):
-    """If CBHT chooses QLKH after creating a prospect, bind only blank master owner."""
-    if not row or str(_uget(u, "role", "") or "") != "Cán bộ hỗ trợ" or str(key) != "new_cust":
-        return row
-    if str(row.get("customer_status") or "") != "PROSPECT" or row.get("qlkh_user_id") not in (None, ""):
-        return row
-    state_key = f"new_task_qlkh_{int(row['id'])}"
-    qid = st.session_state.get(state_key)
-    if qid in (None, ""):
-        return row
-    try:
-        qid = int(qid)
-    except Exception:
-        return row
-    ts = app_ns["now_str"]()
-    with get_conn() as c:
-        c.execute(
-            "UPDATE customers SET qlkh_user_id=?,updated_at=? WHERE id=? AND customer_status='PROSPECT' AND qlkh_user_id IS NULL",
-            (qid, ts, int(row["id"])),
-        )
-        changed = int(c.execute("SELECT changes()").fetchone()[0] or 0)
-        if changed:
-            try:
-                c.execute(
-                    "INSERT INTO system_audit(actor_user_id,action,object_type,object_id,detail,created_at) VALUES(?,?,?,?,?,?)",
-                    (
-                        int(_uget(u, "id")), "PROSPECT_ASSIGN_QLKH_FROM_OPERATIONS", "customer",
-                        str(int(row["id"])), json.dumps({"qlkh_user_id": qid}, ensure_ascii=False), ts,
-                    ),
-                )
-            except Exception:
-                pass
-    if changed:
-        row = dict(row)
-        row["qlkh_user_id"] = qid
-        if logger:
-            logger.info("P15_PROSPECT_OWNER_BOUND customer=%s qlkh=%s actor=%s", row["id"], qid, _uget(u, "id"))
-    return row
-
-
 def _render_duplicate_choice(st, u, app_ns, potential, key, pending, duplicates, logger=None):
     selected_key = f"{key}_selected_id"
     st.warning("Có khách hàng có thể đã tồn tại. Hãy chọn bản ghi hiện có nếu đúng khách hàng.")
@@ -149,8 +112,7 @@ def _render_duplicate_choice(st, u, app_ns, potential, key, pending, duplicates,
         rid = int(row["id"])
         with st.container(border=True):
             st.markdown(f"**{_label(row)}**")
-            reason = str(row.get("match_reason") or "Có khả năng trùng")
-            st.caption(reason)
+            st.caption(str(row.get("match_reason") or "Có khả năng trùng"))
             if st.button("Dùng khách hàng này", key=f"{key}_dup_use_{rid}", use_container_width=True):
                 st.session_state[selected_key] = rid
                 st.session_state.pop(f"{key}_prospect_pending", None)
@@ -176,7 +138,6 @@ def _render_duplicate_choice(st, u, app_ns, potential, key, pending, duplicates,
 def _customer_selector(st, u, app_ns, potential, key="cust", required_message=None, logger=None):
     """Search-first selector with inline PROSPECT creation from the typed name."""
     get_conn = app_ns["get_conn"]
-    potential.ensure_customer_master(get_conn, logger)
     selected_key = f"{key}_selected_id"
     query_key = f"{key}_query"
     pending_key = f"{key}_prospect_pending"
@@ -188,7 +149,6 @@ def _customer_selector(st, u, app_ns, potential, key="cust", required_message=No
         if not chosen or not _eligible_customer(chosen.get("active"), chosen.get("customer_status")):
             st.session_state.pop(selected_key, None)
         else:
-            chosen = _bind_support_prospect_owner(st, u, key, chosen, get_conn, app_ns, logger)
             st.success(f"Đã chọn: **{_label(chosen)}**")
             if not str(chosen.get("cif") or "").strip():
                 st.caption("Khách hàng chưa có CIF · dùng chung với Kế hoạch. Admin có thể bổ sung CIF sau mà không đổi ID/lịch sử.")
@@ -237,8 +197,8 @@ def _customer_selector(st, u, app_ns, potential, key="cust", required_message=No
         else:
             st.info("Chưa có khách hàng phù hợp trong danh mục chung.")
 
-        # Use the search phrase itself as the new customer name. Optional fields
-        # stay compact so mobile users do not need a second name input.
+        # The typed search phrase is reused as the new customer name, matching the
+        # zero-detour Planning flow. Optional identity/contact fields stay compact.
         with st.expander("＋ Tạo khách hàng mới / chưa có CIF", expanded=not bool(hits)):
             st.caption(f"Tên sẽ tạo: **{q}** · Không sinh CIF giả.")
             a, b = st.columns(2)
@@ -287,6 +247,10 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
 
     from khdn_apps import potential_customer_patch as potential
 
+    # Potential-customer schema is already part of the shared Planning customer
+    # master. Ensure it once at install time rather than on every search keystroke.
+    potential.ensure_customer_master(app_ns["get_conn"], logger or app_ns.get("LOGGER"))
+
     original_support = app_ns.get("support_page")
     original_qlkh = app_ns.get("qlkh_page")
     original_leader = app_ns.get("leader_page")
@@ -322,5 +286,5 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
     app_ns[_FLAG] = VERSION
     if logger or app_ns.get("LOGGER"):
         (logger or app_ns.get("LOGGER")).info(
-            "PLANNING_OPERATIONAL_PHASE15_INSTALLED customer_search_parity=1 prospects_in_operations=1 roles=CBHT,QLKH,LEADER,ADMIN no_fake_cif=1 duplicate_guard=1"
+            "PLANNING_OPERATIONAL_PHASE15_INSTALLED customer_search_parity=1 prospects_in_operations=1 roles=CBHT,QLKH,LEADER,ADMIN no_fake_cif=1 duplicate_guard=1 no_task_rewrite=1"
         )
