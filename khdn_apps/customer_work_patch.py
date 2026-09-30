@@ -1,7 +1,7 @@
 """Runtime integration for Customer Work Pipeline.
 
 Navigation rule for every role:
-  1) Sidebar exposes only the two primary business areas: Tác nghiệp / Kế hoạch.
+  1) Sidebar exposes only the two primary business areas: Kế hoạch / Tác nghiệp.
   2) The active area's secondary screens are rendered as a horizontal command-tab
      bar at the top of the main content, inspired by Trecapital.
   3) Account/help/admin utilities stay collapsed at the bottom of the sidebar.
@@ -197,18 +197,9 @@ def install(ns):
             section="plan"
         st.session_state["main_section"]=section
 
-        # Sidebar: exactly two business-area buttons for every role.
+        # Sidebar: exactly two business-area buttons for every role, with
+        # Kế hoạch shown first to match the planning-first workflow.
         st.sidebar.markdown("#### Chức năng chính")
-        if st.sidebar.button(
-            "🧾  TÁC NGHIỆP",
-            key="mainsection_ops",
-            use_container_width=True,
-            type="primary" if section=="ops" else "secondary",
-        ):
-            st.session_state["main_section"]="ops"
-            st.session_state["main_page"]=ops_values[0]
-            st.rerun()
-
         if st.sidebar.button(
             "📅  KẾ HOẠCH",
             key="mainsection_plan",
@@ -217,6 +208,16 @@ def install(ns):
         ):
             st.session_state["main_section"]="plan"
             st.session_state["main_page"]=plan_landing
+            st.rerun()
+
+        if st.sidebar.button(
+            "🧾  TÁC NGHIỆP",
+            key="mainsection_ops",
+            use_container_width=True,
+            type="primary" if section=="ops" else "secondary",
+        ):
+            st.session_state["main_section"]="ops"
+            st.session_state["main_page"]=ops_values[0]
             st.rerun()
 
         st.sidebar.divider()
@@ -259,4 +260,4 @@ def install(ns):
     ns["sidebar_navigation"]=sidebar_navigation
     ns["dashboard_page"]=dashboard_page
     logger=ns.get("LOGGER")
-    if logger: logger.info("CUSTOMER_WORK_PATCH_INSTALLED core=%s ui=%s nav=two-sections-top-tabs",customer_work.VERSION,customer_work_ui.VERSION)
+    if logger: logger.info("CUSTOMER_WORK_PATCH_INSTALLED core=%s ui=%s nav=two-sections-top-tabs planning-first=1",customer_work.VERSION,customer_work_ui.VERSION)
