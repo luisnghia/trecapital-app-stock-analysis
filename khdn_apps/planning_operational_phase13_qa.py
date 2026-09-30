@@ -18,7 +18,9 @@ export_segment = src[src.index("def _install_room_export_bottom"):src.index("def
 
 checks = {
     "phase13_after_phase12": "phase13.install" in shim and shim.find("phase13.install") > shim.find("phase12.install"),
-    "single_weekday_row": "p13-day-strip" in board_segment and "p6-day-head" not in board_segment and "p3-day-head" not in board_segment,
+    # The board emits one strip via _weekday_strip and does not create any of the
+    # old per-column day-head blocks that caused the duplicated date row.
+    "single_weekday_row": "st.html(_weekday_strip(ws, live))" in board_segment and "day-head" not in board_segment,
     "top_row_counts": "_weekday_strip(ws, live)" in board_segment and "{counts[idx]} việc" in src,
     "quick_add_sets_exact_day": "_open_quick_add(st, ws, d, status)" in board_segment,
     "form_hidden_without_gate": 'if not gate or not selected_day_raw:' in form_segment,
@@ -31,7 +33,14 @@ checks = {
     "source_q4_no_questions": "_classification_from_source(q)" in form_segment and "_focus_picker" in form_segment,
     "progress_before_board": progress_segment.find("phase2._score_cards") < progress_segment.find("p3week.render_week_board"),
     "no_generic_emergent_button": "Thêm công việc mới trong tuần" not in progress_segment,
-    "export_bottom": "_p13_defer_room_export" in export_segment and export_segment.find("current_dashboard(") < export_segment.find("actual_export(st, get_conn"),
+    # The first actual_export call belongs to the deferred title callback. The
+    # final/rfind call must occur after current_dashboard returns, which proves
+    # the user-facing export block is placed at the bottom of Room Control.
+    "export_bottom": (
+        "_p13_defer_room_export" in export_segment
+        and export_segment.find("current_dashboard(") >= 0
+        and export_segment.rfind("actual_export(st, get_conn") > export_segment.find("current_dashboard(")
+    ),
     "four_waiting_tabs": all(x in src for x in [
         "✅ Phê duyệt kế hoạch / dời hạn", "🔄 Cập nhật tiến độ / vướng mắc",
         "🗑 Hủy kế hoạch tuần", "🗑 Hủy công việc KH",
@@ -59,6 +68,7 @@ assert p13._day_counts(ws, [
 ]) == [2, 1, 0, 0, 0]
 strip = p13._weekday_strip(ws, [{"work_date": "2026-09-30", "status": "PLANNED"}])
 assert strip.count("p13-day") >= 5 and "1 việc" in strip
+assert "p6-day-head" not in strip and "p3-day-head" not in strip
 
 # Semantic: legacy and Phase-13 quick-add gates are all removed together.
 state = {
