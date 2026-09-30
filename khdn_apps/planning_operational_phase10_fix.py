@@ -5,8 +5,9 @@ from khdn_apps import planning_operational_phase10_patch as phase10
 from khdn_apps import planning_operational_phase11_patch as phase11
 from khdn_apps import planning_operational_phase12_patch as phase12
 from khdn_apps import planning_operational_phase13_patch as phase13
+from khdn_apps import planning_operational_phase14_patch as phase14
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 
 def _safe_sync_customer_contacts(c, customer_id, contacts, actor_uid, ts, source_case_id=None):
@@ -32,5 +33,6 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
     phase11.install(app_ns, policy, weekly_core, customer_core, customer_ui, logger)
     phase12.install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger)
     phase13.install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger)
+    phase14.install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger)
     if logger:
-        logger.info("PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13_last=1")
+        logger.info("PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 phase14_last=1")
