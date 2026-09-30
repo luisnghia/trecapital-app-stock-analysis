@@ -18,9 +18,9 @@ checks = {
     "support_role_wrapped": 'app_ns["support_page"] = support_page' in SRC,
     "qlkh_role_wrapped": 'app_ns["qlkh_page"] = qlkh_page' in SRC,
     "leader_admin_wrapped": 'app_ns["leader_page"] = leader_page' in SRC,
-    "qlkh_owner_preserved": 'role == "Cán bộ QLKH"' in SRC,
+    "qlkh_owner_explicit": 'role == "Cán bộ QLKH"' in SRC,
     "leader_selected_owner": 'leader_ql_new_owner' in SRC,
-    "support_owner_binding": "PROSPECT_ASSIGN_QLKH_FROM_OPERATIONS" in SRC,
+    "support_master_unchanged": "UPDATE customers SET qlkh_user_id" not in SRC and "per-task choice does not modify customer master ownership" in SRC,
     "prospect_label": "Chưa có CIF" in SRC,
     "audit_log": "PLANNING_OPERATIONAL_PHASE15_INSTALLED" in SRC,
     "no_customer_id_rewrite": "UPDATE tasks SET customer_id" not in SRC,
@@ -40,4 +40,4 @@ assert p15._prospect_owner_id({"id": 7, "role": "Cán bộ QLKH"}, "ql_new_cust"
 assert p15._prospect_owner_id({"id": 2, "role": "Lãnh đạo phòng"}, "leader_ql_new_cust", {"leader_ql_new_owner": 9}) == 9
 assert p15._prospect_owner_id({"id": 3, "role": "Cán bộ hỗ trợ"}, "new_cust", {}) is None
 
-print("PLANNING_OPERATIONAL_PHASE15_QA_PASS", checks, "semantic_roles=PASS prospect_visibility=PASS no_data_rewrite=PASS")
+print("PLANNING_OPERATIONAL_PHASE15_QA_PASS", checks, "semantic_roles=PASS prospect_visibility=PASS master_ownership_preserved=PASS no_data_rewrite=PASS")
