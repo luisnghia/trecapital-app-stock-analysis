@@ -64,6 +64,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase10_fix.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase11_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase12_patch.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase13_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/backup_management_patch.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_plan_form_refinement_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_plan_unified_qa.py \
@@ -85,6 +86,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_operational_phase10_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_operational_phase11_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_operational_phase12_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/planning_operational_phase13_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/backup_management_qa.py
 
 RUN PYTHONPATH=/app python /app/khdn_apps/runtime_page_qa.py
