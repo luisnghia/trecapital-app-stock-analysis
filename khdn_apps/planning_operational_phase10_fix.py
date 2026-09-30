@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from khdn_apps import planning_operational_phase10_patch as phase10
+from khdn_apps import planning_operational_phase11_patch as phase11
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 
 def _safe_sync_customer_contacts(c, customer_id, contacts, actor_uid, ts, source_case_id=None):
@@ -26,5 +27,6 @@ def _safe_sync_customer_contacts(c, customer_id, contacts, actor_uid, ts, source
 def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger=None):
     phase10._sync_customer_contacts = _safe_sync_customer_contacts
     phase10.install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger)
+    phase11.install(app_ns, policy, weekly_core, customer_core, customer_ui, logger)
     if logger:
-        logger.info("PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1")
+        logger.info("PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11_last=1")
