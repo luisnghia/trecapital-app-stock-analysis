@@ -30,6 +30,8 @@ def main():
     src = Path(nav.__file__).read_text(encoding="utf-8")
     assert '"🧾  TÁC NGHIỆP"' in src
     assert '"📅  KẾ HOẠCH"' in src
+    assert src.index('"📅  KẾ HOẠCH"') < src.index('"🧾  TÁC NGHIỆP"')
+    assert 'planning-first=1' in src
     assert 'with st.sidebar.expander("⋯  Tiện ích"' in src
     assert 'st.sidebar.selectbox(' not in src
     assert 'def _render_command_tabs(' in src
@@ -38,7 +40,7 @@ def main():
     assert 'stBaseButton-primary' in src
     assert 'stBaseButton-secondary' in src
     assert 'nav=two-sections-top-tabs' in src
-    print("TWO_SECTION_NAV_QA_PASS")
+    print("TWO_SECTION_NAV_QA_PASS planning_first=1")
 
 
 if __name__ == "__main__":
