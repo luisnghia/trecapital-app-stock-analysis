@@ -11,6 +11,7 @@ FIX = (HERE / "planning_operational_phase10_fix.py").read_text(encoding="utf-8")
 
 checks = {
     "shared_customer_master": "potential_customer_patch" in SRC and "ensure_customer_master" in SRC,
+    "schema_ensure_install_only": SRC.count("ensure_customer_master") == 1,
     "search_official_and_prospect": "c.active=1 OR c.customer_status='PROSPECT'" in SRC,
     "typed_name_create": "Tạo & chọn khách hàng" in SRC and '"name": q' in SRC,
     "no_fake_cif": "Không sinh CIF giả" in SRC,
@@ -40,4 +41,4 @@ assert p15._prospect_owner_id({"id": 7, "role": "Cán bộ QLKH"}, "ql_new_cust"
 assert p15._prospect_owner_id({"id": 2, "role": "Lãnh đạo phòng"}, "leader_ql_new_cust", {"leader_ql_new_owner": 9}) == 9
 assert p15._prospect_owner_id({"id": 3, "role": "Cán bộ hỗ trợ"}, "new_cust", {}) is None
 
-print("PLANNING_OPERATIONAL_PHASE15_QA_PASS", checks, "semantic_roles=PASS prospect_visibility=PASS master_ownership_preserved=PASS no_data_rewrite=PASS")
+print("PLANNING_OPERATIONAL_PHASE15_QA_PASS", checks, "semantic_roles=PASS prospect_visibility=PASS master_ownership_preserved=PASS schema_hot_path=PASS no_data_rewrite=PASS")
