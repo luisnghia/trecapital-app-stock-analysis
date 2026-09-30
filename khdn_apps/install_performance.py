@@ -16,8 +16,18 @@ def install():
         "_source = _input_batch_patch_source(_source)\n"
         "from khdn_apps.catalog_input_fast_patch import patch_source as _catalog_input_fast_patch_source\n"
         "_source = _catalog_input_fast_patch_source(_source)\n"
+        "from khdn_apps.task_type_scope_source_patch import patch_source as _task_type_scope_patch_source\n"
+        "_source = _task_type_scope_patch_source(_source)\n"
     )
     old_variants = [
+        (
+            "from khdn_apps.performance_patch import patch_source as _performance_patch_source\n"
+            "_source = _performance_patch_source(_source)\n"
+            "from khdn_apps.input_batch_patch import patch_source as _input_batch_patch_source\n"
+            "_source = _input_batch_patch_source(_source)\n"
+            "from khdn_apps.catalog_input_fast_patch import patch_source as _catalog_input_fast_patch_source\n"
+            "_source = _catalog_input_fast_patch_source(_source)\n"
+        ),
         (
             "from khdn_apps.performance_patch import patch_source as _performance_patch_source\n"
             "_source = _performance_patch_source(_source)\n"
