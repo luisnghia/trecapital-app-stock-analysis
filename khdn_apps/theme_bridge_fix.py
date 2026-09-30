@@ -1,15 +1,4 @@
-"""Install a reliable client-side Light/Dark bridge for KHDN Ops.
-
-Streamlit persists the user's theme choice in localStorage under
-``stActiveTheme-${window.location.pathname}-v2`` with one of the selections
-``System``, ``Light`` or ``Dark``. The previous bridge depended primarily on a
-custom-component theme message; on some browsers that message is not emitted when
-only the theme changes, leaving the KHDN root class stuck on Dark even while native
-Streamlit widgets already switch to Light.
-
-This patch makes the persisted Streamlit selection authoritative, keeps the probe as
-fallback, and does not touch application data or the established Dark CSS.
-"""
+# Reliable Light/Dark bridge tuned so it never competes with mobile text entry.
 from __future__ import annotations
 
 from pathlib import Path
@@ -29,8 +18,6 @@ def install() -> None:
   const cacheKey=()=>`stActiveTheme-${window.location.pathname}-v2`;
   let lastApplied='';
 
-  // Seed the native Streamlit preference before its app bundle mounts.
-  // Keep explicit choices made by the user on subsequent visits.
   try{
     const saved=window.localStorage.getItem(cacheKey());
     let selection=null;
@@ -38,16 +25,12 @@ def install() -> None:
     if(!['Light','Dark','System'].includes(selection)){
       window.localStorage.setItem(cacheKey(),JSON.stringify('Dark'));
     }
-  }catch(_err){ /* Storage may be unavailable; server theme.base stays dark. */ }
-
+  }catch(_err){}
 
   const apply=(base)=>{
     const normalized=String(base||'').toLowerCase();
     if(normalized!=='light' && normalized!=='dark') return false;
     const light=normalized==='light';
-    /* Streamlit may reconcile <html class> during a rerun.  Do not return early
-       solely because the cached theme value is unchanged: re-assert the custom
-       class whenever it was removed by the host shell. */
     if(lastApplied===normalized && root.dataset.khdnTheme===normalized &&
        root.classList.contains(light?'khdn-light':'khdn-dark') &&
        !root.classList.contains(light?'khdn-dark':'khdn-light')) return true;
@@ -86,21 +69,29 @@ def install() -> None:
     return base ? apply(base) : false;
   };
 
-  /* Apply the persisted selection immediately, before the app finishes mounting.
-     Dark remains the deterministic fallback when Streamlit has no saved choice. */
+  const editingActive=()=>{
+    const el=document.activeElement;
+    if(!el) return false;
+    if(el.matches?.('input,textarea,select,[contenteditable="true"],[role="textbox"]')) return true;
+    return !!el.closest?.('input,textarea,select,[contenteditable="true"],[role="textbox"]');
+  };
+
   if(!syncFromStreamlitPreference()) apply('dark');
 
-  /* Same-window localStorage writes do not emit a storage event in that same window.
-     A tiny 250ms key read is therefore the most reliable cross-browser way to notice
-     Streamlit's Settings -> Theme choice without causing reruns or DOM churn. */
-  window.setInterval(syncFromStreamlitPreference,250);
+  /* iOS/Android regression guard: never poll while the user is typing. */
+  window.setInterval(()=>{
+    if(document.hidden || editingActive()) return;
+    syncFromStreamlitPreference();
+  },1500);
 
-  /* Other-tab changes are immediate. */
+  document.addEventListener('focusout',()=>{
+    window.setTimeout(syncFromStreamlitPreference,0);
+  },{passive:true});
+
   window.addEventListener('storage',event=>{
     if(event.key===cacheKey()) syncFromStreamlitPreference();
   });
 
-  /* System theme changes only matter when Streamlit's saved selection is System. */
   if(systemQuery){
     const onSystemChange=()=>{
       try{
@@ -112,8 +103,6 @@ def install() -> None:
     else if(typeof systemQuery.addListener==='function') systemQuery.addListener(onSystemChange);
   }
 
-  /* Keep the custom component message as a fallback for query/host theme cases where
-     Streamlit intentionally does not persist a localStorage preference. */
   window.addEventListener('message',event=>{
     const data=event.data;
     if(!data || data.type!=='khdn-theme-sync') return;
