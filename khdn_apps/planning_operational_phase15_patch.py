@@ -1,20 +1,21 @@
-"""Operational phase 15: Planning-style customer search for every Operations role.
+"""Operational phase 15: Planning-style customer picker for every Operations role.
 
-Goals:
-- Reuse the shared customer master used by Planning/Customer Work.
-- Search both official CIF customers and PROSPECT customers without CIF.
-- Let users type a customer name and create a shared PROSPECT directly from the
-  Operations customer search, with duplicate protection and no fake CIF.
-- Apply the same behavior to CBHT, QLKH, Lanh dao phong and Admin/leader mode.
+Requirements:
+- Use one searchable dropdown list like Weekly Planning instead of result cards.
+- Show official CIF customers and shared PROSPECT customers in the same list.
+- New/no-CIF customer creation asks for customer name only in Operations.
+- Additional identity/contact fields are completed later in Customer Work.
+- Apply to CBHT, QLKH, Lanh dao phong and Admin/leader mode.
 
 This is a runtime/UI overlay. It does not rewrite existing tasks/customer IDs and
-it does not change the established rule that an Operations-only QLKH assignment
-must not silently rewrite the customer master.
+it preserves the established rule that an Operations-only QLKH assignment must
+not silently rewrite the customer master.
 """
 from __future__ import annotations
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 _FLAG = "_PLANNING_OPERATIONAL_PHASE15_VERSION"
+_NEW = "__CREATE_NEW_PROSPECT__"
 
 
 def _uget(u, key, default=None):
@@ -34,7 +35,7 @@ def _eligible_customer(active, status):
 def _label(row):
     cif = str(row.get("cif") or "").strip()
     name = str(row.get("customer_name") or "").strip()
-    return f"{cif} — {name}" if cif else f"Chưa có CIF — {name}"
+    return f"{name} · CIF {cif}" if cif else f"{name} · Chưa có CIF"
 
 
 def _prospect_owner_id(u, key, state):
@@ -43,48 +44,18 @@ def _prospect_owner_id(u, key, state):
     uid = _uget(u, "id")
     if role == "Cán bộ QLKH" and uid:
         return int(uid)
-    # Leader parity chooses the QLKH owner before customer search, so this is an
-    # explicit master-owner choice rather than an inferred/impersonated identity.
     if str(key).startswith("leader_ql_new_cust"):
         owner = state.get("leader_ql_new_owner")
         try:
             return int(owner) if owner not in (None, "") else None
         except Exception:
             return None
-    # CBHT chooses QLKH for the task after customer selection. Preserve the old
-    # rule: that per-task choice does not modify customer master ownership.
+    # CBHT chooses QLKH for the task after customer selection. That per-task
+    # choice does not modify customer master ownership.
     return None
 
 
-def _row_dict(row):
-    if row is None:
-        return None
-    try:
-        return dict(row)
-    except Exception:
-        return row
-
-
-def _load_customer(get_conn, customer_id):
-    if not customer_id:
-        return None
-    with get_conn() as c:
-        row = c.execute(
-            """SELECT c.id,c.cif,c.customer_name,c.qlkh_user_id,c.active,
-                      c.customer_status,c.tax_id,c.contact_name,c.contact_phone,
-                      u.full_name AS qlkh_name
-               FROM customers c LEFT JOIN users u ON u.id=c.qlkh_user_id
-               WHERE c.id=? AND (c.active=1 OR c.customer_status='PROSPECT')""",
-            (int(customer_id),),
-        ).fetchone()
-    return _row_dict(row)
-
-
-def _search_customers(get_conn, query, limit=20):
-    q = str(query or "").strip().lower()
-    if not q:
-        return []
-    like = f"%{q}%"
+def _customer_rows(get_conn):
     with get_conn() as c:
         rows = c.execute(
             """SELECT c.id,c.cif,c.customer_name,c.qlkh_user_id,c.active,
@@ -92,32 +63,39 @@ def _search_customers(get_conn, query, limit=20):
                       u.full_name AS qlkh_name
                FROM customers c LEFT JOIN users u ON u.id=c.qlkh_user_id
                WHERE (c.active=1 OR c.customer_status='PROSPECT')
-                 AND (lower(COALESCE(CAST(c.cif AS TEXT),'')) LIKE ?
-                      OR lower(c.customer_name) LIKE ?)
-               ORDER BY
-                 CASE WHEN lower(COALESCE(CAST(c.cif AS TEXT),''))=? THEN 0
-                      WHEN lower(c.customer_name)=? THEN 1 ELSE 2 END,
-                 CASE WHEN c.customer_status='PROSPECT' THEN 1 ELSE 0 END,
-                 c.customer_name
-               LIMIT ?""",
-            (like, like, q, q, int(limit)),
+               ORDER BY CASE WHEN c.customer_status='PROSPECT' THEN 1 ELSE 0 END,
+                        c.customer_name,c.id"""
         ).fetchall()
     return [dict(r) for r in rows]
 
 
+def _clear_picker_state(st, key):
+    for suffix in (
+        "_selected_id", "_dropdown", "_new_name", "_prospect_pending", "_prospect_dups"
+    ):
+        st.session_state.pop(f"{key}{suffix}", None)
+    # Old Phase 15 search UI keys are removed as well so stale mobile sessions do
+    # not rehydrate the previous search-card state after deployment.
+    for suffix in ("_query", "_prospect_tax", "_prospect_phone", "_prospect_contact"):
+        st.session_state.pop(f"{key}{suffix}", None)
+
+
 def _render_duplicate_choice(st, u, app_ns, potential, key, pending, duplicates, logger=None):
     selected_key = f"{key}_selected_id"
-    st.warning("Có khách hàng có thể đã tồn tại. Hãy chọn bản ghi hiện có nếu đúng khách hàng.")
+    dropdown_key = f"{key}_dropdown"
+    st.warning("Có khách hàng có thể đã tồn tại. Hãy dùng bản ghi hiện có nếu đúng khách hàng.")
     for row in duplicates:
         rid = int(row["id"])
-        with st.container(border=True):
-            st.markdown(f"**{_label(row)}**")
-            st.caption(str(row.get("match_reason") or "Có khả năng trùng"))
-            if st.button("Dùng khách hàng này", key=f"{key}_dup_use_{rid}", use_container_width=True):
-                st.session_state[selected_key] = rid
-                st.session_state.pop(f"{key}_prospect_pending", None)
-                st.session_state.pop(f"{key}_prospect_dups", None)
-                st.rerun()
+        if st.button(
+            f"Dùng: {_label(row)}",
+            key=f"{key}_dup_use_{rid}",
+            use_container_width=True,
+        ):
+            st.session_state[selected_key] = rid
+            st.session_state[f"{key}_set_dropdown"] = rid
+            st.session_state.pop(f"{key}_prospect_pending", None)
+            st.session_state.pop(f"{key}_prospect_dups", None)
+            st.rerun()
     if st.button(
         f"Vẫn tạo mới: {str(pending.get('name') or '').strip()}",
         key=f"{key}_prospect_force",
@@ -125,118 +103,115 @@ def _render_duplicate_choice(st, u, app_ns, potential, key, pending, duplicates,
     ):
         owner = _prospect_owner_id(u, key, st.session_state)
         cid, _ = potential.create_prospect(
-            app_ns["get_conn"], int(_uget(u, "id")), qlkh_user_id=owner,
-            force=True, logger=logger, **pending,
+            app_ns["get_conn"], int(_uget(u, "id")), str(pending.get("name") or "").strip(),
+            qlkh_user_id=owner, force=True, logger=logger,
         )
         st.session_state[selected_key] = int(cid)
+        st.session_state[f"{key}_set_dropdown"] = int(cid)
         st.session_state.pop(f"{key}_prospect_pending", None)
         st.session_state.pop(f"{key}_prospect_dups", None)
-        st.toast("Đã tạo khách hàng mới chưa có CIF và chọn để tác nghiệp.", icon="✅")
+        st.toast("Đã tạo khách hàng chưa có CIF và chọn để tác nghiệp.", icon="✅")
         st.rerun()
 
 
 def _customer_selector(st, u, app_ns, potential, key="cust", required_message=None, logger=None):
-    """Search-first selector with inline PROSPECT creation from the typed name."""
-    get_conn = app_ns["get_conn"]
+    """Native searchable selectbox matching the Planning customer-list pattern."""
+    rows = _customer_rows(app_ns["get_conn"])
+    by_id = {int(r["id"]): r for r in rows}
+    ids = list(by_id)
     selected_key = f"{key}_selected_id"
-    query_key = f"{key}_query"
+    dropdown_key = f"{key}_dropdown"
     pending_key = f"{key}_prospect_pending"
     dup_key = f"{key}_prospect_dups"
 
-    selected_id = st.session_state.get(selected_key)
-    if selected_id:
-        chosen = _load_customer(get_conn, selected_id)
-        if not chosen or not _eligible_customer(chosen.get("active"), chosen.get("customer_status")):
-            st.session_state.pop(selected_key, None)
+    # After create/duplicate-selection we may need to move a pre-existing widget
+    # away from the NEW sentinel. This assignment occurs before widget creation.
+    forced = st.session_state.pop(f"{key}_set_dropdown", None)
+    if forced in by_id:
+        st.session_state[dropdown_key] = int(forced)
+
+    previous_id = st.session_state.get(selected_key)
+    if previous_id in by_id and dropdown_key not in st.session_state:
+        st.session_state[dropdown_key] = int(previous_id)
+
+    options = [None, _NEW] + ids
+
+    def _fmt(value):
+        if value is None:
+            return "— Chọn khách hàng —"
+        if value == _NEW:
+            return "＋ Tạo khách hàng mới / chưa có CIF"
+        row = by_id.get(int(value))
+        return _label(row) if row else "—"
+
+    choice = st.selectbox(
+        "Khách hàng *",
+        options,
+        index=0,
+        format_func=_fmt,
+        key=dropdown_key,
+        help="Danh sách dùng chung với Kế hoạch. Có thể gõ CIF hoặc tên ngay trong ô danh sách để lọc nhanh.",
+    )
+
+    if required_message and choice is None:
+        try:
+            app_ns["required_error"](required_message)
+        except Exception:
+            st.error(str(required_message))
+
+    if choice is None:
+        st.session_state.pop(selected_key, None)
+        st.session_state.pop(pending_key, None)
+        st.session_state.pop(dup_key, None)
+        return None
+
+    if choice != _NEW:
+        rid = int(choice)
+        st.session_state[selected_key] = rid
+        st.session_state.pop(pending_key, None)
+        st.session_state.pop(dup_key, None)
+        return by_id.get(rid)
+
+    # Operations intentionally collects NAME ONLY. MST/contact/phone belong to
+    # Customer Work, where users can complete richer customer information later.
+    st.session_state.pop(selected_key, None)
+    st.caption("Khách hàng chưa có CIF: tại Tác nghiệp chỉ cần nhập tên. Thông tin khác bổ sung sau ở Công việc khách hàng.")
+    name = st.text_input(
+        "Tên khách hàng mới *",
+        key=f"{key}_new_name",
+        placeholder="Nhập tên khách hàng",
+    )
+    if st.button(
+        "Tạo & chọn khách hàng",
+        key=f"{key}_prospect_create",
+        type="primary",
+        use_container_width=True,
+    ):
+        clean_name = str(name or "").strip()
+        if not clean_name:
+            st.error("Vui lòng nhập tên khách hàng.")
         else:
-            st.success(f"Đã chọn: **{_label(chosen)}**")
-            if not str(chosen.get("cif") or "").strip():
-                st.caption("Khách hàng chưa có CIF · dùng chung với Kế hoạch. Admin có thể bổ sung CIF sau mà không đổi ID/lịch sử.")
-            if st.button("Đổi khách hàng", key=f"{key}_clear"):
-                st.session_state.pop(selected_key, None)
-                st.session_state.pop(query_key, None)
+            with app_ns["get_conn"]() as c:
+                duplicates = potential.find_similar(c, clean_name)
+            st.session_state[pending_key] = {"name": clean_name}
+            st.session_state[dup_key] = duplicates
+            if not duplicates:
+                owner = _prospect_owner_id(u, key, st.session_state)
+                cid, _ = potential.create_prospect(
+                    app_ns["get_conn"], int(_uget(u, "id")), clean_name,
+                    qlkh_user_id=owner, force=True, logger=logger,
+                )
+                st.session_state[selected_key] = int(cid)
+                st.session_state[f"{key}_set_dropdown"] = int(cid)
                 st.session_state.pop(pending_key, None)
                 st.session_state.pop(dup_key, None)
+                st.toast("Đã tạo khách hàng chưa có CIF và chọn để tác nghiệp.", icon="✅")
                 st.rerun()
-            return chosen
 
-    with st.container(key=f"customer_search_{key}"):
-        query = st.text_input(
-            "🔎 Tìm theo CIF hoặc Tên khách hàng",
-            key=query_key,
-            placeholder="Nhập CIF hoặc tên; nếu chưa có CIF có thể nhập tên để tạo khách hàng mới…",
-        )
-        if required_message:
-            try:
-                app_ns["required_error"](required_message)
-            except Exception:
-                st.error(str(required_message))
-
-        q = str(query or "").strip()
-        if not q:
-            st.caption("Tìm khách hàng hiện có hoặc nhập tên khách hàng chưa có CIF để tạo mới.")
-            return None
-
-        hits = _search_customers(get_conn, q, limit=20)
-        if hits:
-            st.caption(f"Tìm thấy {len(hits)} kết quả. Khách hàng chưa có CIF được hiển thị cùng danh mục Kế hoạch.")
-            for row in hits:
-                rid = int(row["id"])
-                cif_text = str(row.get("cif") or "").strip() or "Chưa có CIF"
-                qlkh_text = str(row.get("qlkh_name") or "").strip()
-                c1, c2, c3 = st.columns([1.4, 4.8, 1.2])
-                c1.write(cif_text)
-                c2.write(str(row.get("customer_name") or ""))
-                if qlkh_text:
-                    c2.caption(f"QLKH: {qlkh_text}")
-                if c3.button("Chọn", key=f"{key}_pick_{rid}", use_container_width=True):
-                    st.session_state[selected_key] = rid
-                    st.session_state.pop(pending_key, None)
-                    st.session_state.pop(dup_key, None)
-                    st.rerun()
-        else:
-            st.info("Chưa có khách hàng phù hợp trong danh mục chung.")
-
-        # The typed search phrase is reused as the new customer name, matching the
-        # zero-detour Planning flow. Optional identity/contact fields stay compact.
-        with st.expander("＋ Tạo khách hàng mới / chưa có CIF", expanded=not bool(hits)):
-            st.caption(f"Tên sẽ tạo: **{q}** · Không sinh CIF giả.")
-            a, b = st.columns(2)
-            tax = a.text_input("MST (nếu có)", key=f"{key}_prospect_tax")
-            phone = b.text_input("SĐT liên hệ (nếu có)", key=f"{key}_prospect_phone")
-            contact = st.text_input("Người liên hệ (nếu có)", key=f"{key}_prospect_contact")
-            if st.button(
-                f"Tạo & chọn khách hàng: {q}",
-                key=f"{key}_prospect_create",
-                type="primary",
-                use_container_width=True,
-            ):
-                payload = {
-                    "name": q,
-                    "tax_id": str(tax or "").strip(),
-                    "contact_name": str(contact or "").strip(),
-                    "contact_phone": str(phone or "").strip(),
-                }
-                with get_conn() as c:
-                    duplicates = potential.find_similar(c, q, tax_id=tax)
-                st.session_state[pending_key] = payload
-                st.session_state[dup_key] = duplicates
-                if not duplicates:
-                    owner = _prospect_owner_id(u, key, st.session_state)
-                    cid, _ = potential.create_prospect(
-                        get_conn, int(_uget(u, "id")), qlkh_user_id=owner,
-                        force=True, logger=logger, **payload,
-                    )
-                    st.session_state[selected_key] = int(cid)
-                    st.session_state.pop(pending_key, None)
-                    st.session_state.pop(dup_key, None)
-                    st.toast("Đã tạo khách hàng mới chưa có CIF và chọn để tác nghiệp.", icon="✅")
-                    st.rerun()
-
-        pending = st.session_state.get(pending_key)
-        duplicates = st.session_state.get(dup_key) or []
-        if pending and duplicates:
-            _render_duplicate_choice(st, u, app_ns, potential, key, pending, duplicates, logger)
+    pending = st.session_state.get(pending_key)
+    duplicates = st.session_state.get(dup_key) or []
+    if pending and duplicates:
+        _render_duplicate_choice(st, u, app_ns, potential, key, pending, duplicates, logger)
     return None
 
 
@@ -247,8 +222,8 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
 
     from khdn_apps import potential_customer_patch as potential
 
-    # Potential-customer schema is already part of the shared Planning customer
-    # master. Ensure it once at install time rather than on every search keystroke.
+    # Shared no-CIF schema is prepared once at runtime installation, never on each
+    # selectbox keystroke/rerun.
     potential.ensure_customer_master(app_ns["get_conn"], logger or app_ns.get("LOGGER"))
 
     original_support = app_ns.get("support_page")
@@ -270,21 +245,30 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
 
     if original_support:
         def support_page(u, *args, **kwargs):
+            st = app_ns["st"]
+            if st.session_state.get("reset_new_task_fields"):
+                _clear_picker_state(st, "new_cust")
             return _run_with_selector(original_support, u, *args, **kwargs)
         app_ns["support_page"] = support_page
 
     if original_qlkh:
         def qlkh_page(u, *args, **kwargs):
+            st = app_ns["st"]
+            if st.session_state.get("reset_ql_create_fields"):
+                _clear_picker_state(st, "ql_new_cust")
             return _run_with_selector(original_qlkh, u, *args, **kwargs)
         app_ns["qlkh_page"] = qlkh_page
 
     if original_leader:
         def leader_page(u, *args, **kwargs):
+            st = app_ns["st"]
+            if st.session_state.get("leader_ql_reset_create"):
+                _clear_picker_state(st, "leader_ql_new_cust")
             return _run_with_selector(original_leader, u, *args, **kwargs)
         app_ns["leader_page"] = leader_page
 
     app_ns[_FLAG] = VERSION
     if logger or app_ns.get("LOGGER"):
         (logger or app_ns.get("LOGGER")).info(
-            "PLANNING_OPERATIONAL_PHASE15_INSTALLED customer_search_parity=1 prospects_in_operations=1 roles=CBHT,QLKH,LEADER,ADMIN no_fake_cif=1 duplicate_guard=1 no_task_rewrite=1"
+            "PLANNING_OPERATIONAL_PHASE15_INSTALLED dropdown_list=1 native_search=1 name_only_create=1 prospects_in_operations=1 roles=CBHT,QLKH,LEADER,ADMIN duplicate_guard=1 no_task_rewrite=1"
         )
