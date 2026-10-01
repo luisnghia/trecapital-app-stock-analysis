@@ -8,36 +8,16 @@ column on phones.
 """
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
-# v2 intentionally changes the component registration name so iPad/Safari cannot
-# keep serving the older iframe asset after a production deploy.  Business keys
-# and submit de-duplication remain unchanged.
+# v3 busts the iPad/Safari iframe cache for the contained native-date-picker
+# release. Business keys and submit de-duplication remain unchanged.
 _component = components.declare_component(
-    "khdn_legacy_fast_form_v2",
+    "khdn_legacy_fast_form_v3",
     path=str(Path(__file__).with_name("legacy_fast_form_component")),
 )
-
-
-def _normalize_customer_work_due_date(values, key):
-    """Convert the iPad-safe DD/MM/YYYY display value back to legacy ISO format."""
-    if not str(key).startswith("p17_customer_work_create_") or not isinstance(values, dict):
-        return values
-    raw = str(values.get("due_date") or "").strip()
-    if not raw:
-        return values
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
-        try:
-            values["due_date"] = datetime.strptime(raw, fmt).date().isoformat()
-            return values
-        except ValueError:
-            continue
-    # Keep invalid text unchanged so the existing business validator displays
-    # its standard "Ngày dự kiến hoàn thành không hợp lệ" message.
-    return values
 
 
 def legacy_fast_form(
@@ -70,7 +50,4 @@ def legacy_fast_form(
         return None
     st.session_state[seen_key] = submit_id
     values = result.get("values")
-    if not isinstance(values, dict):
-        return {}
-    values = dict(values)
-    return _normalize_customer_work_due_date(values, key)
+    return dict(values) if isinstance(values, dict) else {}
