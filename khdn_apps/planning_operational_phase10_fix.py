@@ -7,9 +7,10 @@ from khdn_apps import planning_operational_phase12_patch as phase12
 from khdn_apps import planning_operational_phase13_patch as phase13
 from khdn_apps import planning_operational_phase14_patch as phase14
 from khdn_apps import planning_operational_phase15_patch as phase15
+from khdn_apps import customer_cif_admin_patch as customer_cif_admin
 from khdn_apps import mobile_input_performance_patch as mobile_input_perf
 
-VERSION = "1.6.0"
+VERSION = "1.7.0"
 
 
 def _safe_sync_customer_contacts(c, customer_id, contacts, actor_uid, ts, source_case_id=None):
@@ -37,8 +38,13 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
     phase13.install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger)
     phase14.install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger)
     phase15.install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger)
-    # Must stay last: later planning/operations overlays introduced new native
+    customer_cif_admin.install(app_ns, logger)
+    # Must stay last: later planning/operations/admin overlays introduce native
     # inputs after the original V2.14 performance transformer had already run.
     mobile_input_perf.install(app_ns, policy, logger)
     if logger:
-        logger.info("PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 phase14=1 phase15=1 mobile_input_perf_last=1")
+        logger.info(
+            "PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED "
+            "null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 "
+            "phase14=1 phase15=1 customer_cif_admin=1 mobile_input_perf_last=1"
+        )
