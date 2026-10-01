@@ -9,6 +9,9 @@ FIX = (ROOT / "planning_operational_phase10_fix.py").read_text(encoding="utf-8")
 FORM = (ROOT / "legacy_fast_form_component" / "index.html").read_text(encoding="utf-8")
 BRIDGE = (ROOT / "legacy_fast_form.py").read_text(encoding="utf-8")
 FOCUS = (ROOT / "mobile_client_focus_install.py").read_text(encoding="utf-8")
+MOBILE = (ROOT / "mobile_input_performance_patch.py").read_text(encoding="utf-8")
+RUNTIME = (ROOT / "appwide_input_performance_runtime.py").read_text(encoding="utf-8")
+AUTO = (ROOT / "auto_remember_login_patch.py").read_text(encoding="utf-8")
 
 checks = {
     "six_routes_source": "phase7._ADMIN_OPTIONS" in PATCH,
@@ -38,6 +41,54 @@ checks = {
     "focus_guard_no_polling": "setInterval(" not in FOCUS and "requestAnimationFrame(" not in FOCUS,
     "installed_last": "mobile_legacy_ui_perf.install(" in FIX and FIX.find("mobile_legacy_ui_perf.install(") > FIX.find("mobile_admin_restore.install("),
     "fix_version_19": 'VERSION = "1.9.0"' in FIX,
+
+    # App-wide runtime activation: the previous release compiled/QA'd the fast
+    # layers but did not put them on online_entry's live execution path.
+    "runtime_hook_called_last": (
+        "appwide_input_performance_runtime" in AUTO
+        and "_install_appwide_input_performance(ns, ns.get(\"LOGGER\"))" in AUTO
+    ),
+    "runtime_stack_order": (
+        RUNTIME.find("mobile_input.install(") >= 0
+        and RUNTIME.find("mobile_admin.install(") > RUNTIME.find("mobile_input.install(")
+        and RUNTIME.find("legacy_ui.install(") > RUNTIME.find("mobile_admin.install(")
+        and RUNTIME.find("_install_task_type_scope_sort(") > RUNTIME.find("legacy_ui.install(")
+    ),
+    "runtime_stage_and_important_category_submit_only": (
+        "submit_only_stages=1" in RUNTIME
+        and "submit_only_important_categories=1" in RUNTIME
+        and "cw_stage_legacy_fast_p16_" in PATCH
+        and "cw_cat_legacy_fast_p16_" in PATCH
+    ),
+    "runtime_disables_periodic_refresh": (
+        "_disable_periodic_server_refresh(app_ns,log)" in MOBILE
+        and "periodic_refresh=0" in RUNTIME
+    ),
+    "runtime_all_heavy_catalog_fast_paths": all(
+        token in MOBILE
+        for token in [
+            "zero_keystroke_users=1",
+            "zero_keystroke_task_types=1",
+            "zero_keystroke_stages=1",
+            "zero_keystroke_focus=1",
+        ]
+    ),
+    "task_type_sorted_by_scope_then_name": (
+        "CASE module_scope" in RUNTIME
+        and "WHEN 'PLAN' THEN 0 WHEN 'OPS' THEN 1 ELSE 2 END" in RUNTIME
+        and "lower(trim(name)), id" in RUNTIME
+    ),
+    "task_type_sort_rewired_all_routes": all(
+        token in RUNTIME
+        for token in [
+            "legacy_ui._render_system_task_types_legacy_fast = sorted_renderer",
+            "mobile_input._render_system_task_types_fast = sorted_renderer",
+            "mobile_admin._render_system_task_types_fast = sorted_renderer",
+            "admin_hotfix._render_system_task_types =",
+        ]
+    ),
+    "runtime_source_compiles": bool(compile(RUNTIME, "appwide_input_performance_runtime.py", "exec")),
+    "auto_source_compiles": bool(compile(AUTO, "auto_remember_login_patch.py", "exec")),
 }
 
 print("MOBILE_LEGACY_UI_PERF_QA", checks)
@@ -46,5 +97,6 @@ if failed:
     raise SystemExit("MOBILE_LEGACY_UI_PERF_QA_FAIL " + ",".join(failed))
 print(
     "MOBILE_LEGACY_UI_PERF_QA_PASS admin_grid=2x3 task_table_old_order=1 "
-    "customer_stage_submit_only=1 customer_focus_submit_only=1 native_focus_guard=1 data_migration=0"
+    "customer_stage_submit_only=1 customer_focus_submit_only=1 native_focus_guard=1 "
+    "runtime_appwide=1 task_type_scope_sort=PLAN,OPS data_migration=0"
 )
