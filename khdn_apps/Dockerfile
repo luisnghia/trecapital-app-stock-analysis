@@ -1,4 +1,4 @@
-# Release: Light contrast, per-task lunch exclusion, legacy cancellation migration.
+# Release: mobile input isolation, scoped task types, planning/operations hardening.
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -40,6 +40,10 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/catalog_sync_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/notification_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_priority_policy_qa.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/fast_client_form.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/mobile_input_performance_patch.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/task_type_scope_source_patch.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/task_type_scope_runtime_fix.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/weekly_plan_form_refinement_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_final_defaults_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_final_ux_patch.py \
@@ -67,6 +71,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase13_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase14_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/backup_management_patch.py \
+    && PYTHONPATH=/app python /app/khdn_apps/mobile_input_performance_v2_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_plan_form_refinement_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_plan_unified_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_final_defaults_qa.py \
