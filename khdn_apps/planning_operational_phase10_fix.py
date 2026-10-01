@@ -14,7 +14,7 @@ from khdn_apps import mobile_legacy_ui_perf_patch as mobile_legacy_ui_perf
 from khdn_apps import task_type_scope_runtime_fix as task_type_scope_fix
 from khdn_apps import catalog_command_nav_restore_patch as catalog_nav_restore
 
-VERSION = "1.11.0"
+VERSION = "1.10.0"
 _LEGACY_IMPORT_GUARD = "_CUSTOMER_CIF_LEGACY_IMPORT_GUARD"
 
 
