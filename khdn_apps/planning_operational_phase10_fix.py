@@ -7,6 +7,7 @@ from khdn_apps import planning_operational_phase12_patch as phase12
 from khdn_apps import planning_operational_phase13_patch as phase13
 from khdn_apps import planning_operational_phase14_patch as phase14
 from khdn_apps import planning_operational_phase15_patch as phase15
+from khdn_apps import operations_owner_roster_patch as operations_owner_roster
 from khdn_apps import customer_cif_admin_patch as customer_cif_admin
 from khdn_apps import mobile_input_performance_patch as mobile_input_perf
 from khdn_apps import mobile_admin_restore_perf_patch as mobile_admin_restore
@@ -78,6 +79,10 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
     phase12.install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger)
     phase13.install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger)
     phase14.install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger)
+    # Expand the owner roster used by Phase 14's leader-side Tạo / giao hồ sơ:
+    # active QLKH + active Lãnh đạo phòng.  This only changes selectable user IDs;
+    # it never rewrites historical tasks or changes the task schema.
+    operations_owner_roster.install(app_ns, logger)
     phase15.install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger)
     # Patch task-type migration first so the legacy global UNIQUE(name) is rebuilt
     # safely before the transformed init_db() runs, then install zero-keystroke
@@ -101,5 +106,5 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
 
     if logger:
         logger.info(
-            "PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 phase14=1 phase15=1 task_type_scope_fix=1 mobile_input_perf=1 mobile_admin_restore=1 catalog_command_nav=1 mobile_legacy_ui_perf=1 customer_cif_admin=1 legacy_import_guard=1 customer_cif_admin_last=1"
+            "PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 phase14=1 operations_owner_roster=1 phase15=1 task_type_scope_fix=1 mobile_input_perf=1 mobile_admin_restore=1 catalog_command_nav=1 mobile_legacy_ui_perf=1 customer_cif_admin=1 legacy_import_guard=1 customer_cif_admin_last=1"
         )
