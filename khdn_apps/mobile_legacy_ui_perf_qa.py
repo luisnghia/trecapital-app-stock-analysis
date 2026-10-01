@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 PATCH = (ROOT / "mobile_legacy_ui_perf_patch.py").read_text(encoding="utf-8")
 FIX = (ROOT / "planning_operational_phase10_fix.py").read_text(encoding="utf-8")
+NAV = (ROOT / "catalog_command_nav_restore_patch.py").read_text(encoding="utf-8")
 FORM = (ROOT / "legacy_fast_form_component" / "index.html").read_text(encoding="utf-8")
 BRIDGE = (ROOT / "legacy_fast_form.py").read_text(encoding="utf-8")
 FOCUS = (ROOT / "mobile_client_focus_install.py").read_text(encoding="utf-8")
@@ -40,7 +41,24 @@ checks = {
     "native_table_isolation": "content-visibility:auto" in FOCUS and "contain-intrinsic-size" in FOCUS,
     "focus_guard_no_polling": "setInterval(" not in FOCUS and "requestAnimationFrame(" not in FOCUS,
     "installed_last": "mobile_legacy_ui_perf.install(" in FIX and FIX.find("mobile_legacy_ui_perf.install(") > FIX.find("mobile_admin_restore.install("),
-    "fix_version_19": 'VERSION = "1.9.0"' in FIX,
+    "fix_version_110": 'VERSION = "1.10.0"' in FIX,
+
+    # Catalog child navigation must keep the original command-button language and
+    # render only the active catalog panel. This also avoids reintroducing the
+    # eager two-panel cost of st.tabs on mobile.
+    "catalog_nav_patch_installed_before_legacy": (
+        "catalog_nav_restore.patch_legacy_installer(mobile_legacy_ui_perf" in FIX
+        and FIX.find("catalog_nav_restore.patch_legacy_installer") < FIX.find("mobile_legacy_ui_perf.install(")
+    ),
+    "catalog_nav_uses_command_buttons": (
+        "admin_hotfix._local_command_tabs(" in NAV
+        and '"Mục công việc / SLA"' in NAV
+        and '"Danh mục công việc quan trọng"' in NAV
+    ),
+    "catalog_nav_not_tabs": "st.tabs(" not in NAV,
+    "catalog_nav_active_only": 'if view == "stages"' in NAV and 'elif view == "important"' in NAV,
+    "catalog_nav_preserves_fast_forms": "cw_stage_legacy_fast_p16_" in NAV and "cw_cat_legacy_fast_p16_" in NAV,
+    "catalog_nav_no_data_migration": "data_migration=0" in NAV and "ALTER TABLE" not in NAV and "DROP TABLE" not in NAV,
 
     # App-wide runtime activation: the previous release compiled/QA'd the fast
     # layers but did not put them on online_entry's live execution path.
@@ -89,6 +107,7 @@ checks = {
     ),
     "runtime_source_compiles": bool(compile(RUNTIME, "appwide_input_performance_runtime.py", "exec")),
     "auto_source_compiles": bool(compile(AUTO, "auto_remember_login_patch.py", "exec")),
+    "catalog_nav_source_compiles": bool(compile(NAV, "catalog_command_nav_restore_patch.py", "exec")),
 }
 
 print("MOBILE_LEGACY_UI_PERF_QA", checks)
@@ -98,5 +117,5 @@ if failed:
 print(
     "MOBILE_LEGACY_UI_PERF_QA_PASS admin_grid=2x3 task_table_old_order=1 "
     "customer_stage_submit_only=1 customer_focus_submit_only=1 native_focus_guard=1 "
-    "runtime_appwide=1 task_type_scope_sort=PLAN,OPS data_migration=0"
+    "catalog_command_nav=1 active_only=1 runtime_appwide=1 task_type_scope_sort=PLAN,OPS data_migration=0"
 )
