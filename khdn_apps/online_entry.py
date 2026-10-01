@@ -54,6 +54,7 @@ from khdn_apps.planning_usability_v3_hotfix import install as _install_planning_
 from khdn_apps.weekly_priority_policy_patch import install as _install_weekly_priority_policy
 from khdn_apps.weekly_priority_policy_hotfix import install as _install_weekly_priority_policy_hotfix
 from khdn_apps.global_zero_keystroke_patch import install as _install_global_zero_keystroke
+from khdn_apps.customer_work_note_card_patch import install as _install_customer_work_note_cards
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -228,6 +229,12 @@ _install_global_zero_keystroke(
     _customer_work_module,
     _customer_work_ui_module,
     _worktype_contact_card_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Reassert the Customer Work note card after every renderer/hotfix binding above.
+# This is presentation-only: it reads the persisted case note and performs no data migration.
+_install_customer_work_note_cards(
+    _customer_work_ui_module,
     _app_module.__dict__.get("LOGGER"),
 )
 # Successful logins automatically issue the existing 30-day device cookie.
