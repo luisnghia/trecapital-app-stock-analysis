@@ -1,9 +1,9 @@
-"""Install a tiny event-driven iOS input performance guard into Streamlit shell.
+"""Install an event-driven iOS input performance guard into Streamlit shell.
 
-The fast client form reports only focus enter/leave (never keystrokes).  While a
-field is focused we suspend parent-page animation/filter/shadow work that otherwise
-gets repainted repeatedly when iOS changes the visual viewport for its keyboard.
-No polling, timers or backend messages are introduced.
+Both submit-only KHDN components and ordinary Streamlit inputs activate the same
+keyboard-time guard.  While an editable field is focused, expensive page effects
+are suspended and large static tables are paint/layout-contained.  No polling,
+timers, keystroke bridge messages or backend calls are introduced.
 """
 from __future__ import annotations
 
@@ -25,6 +25,13 @@ def install() -> None:
     )
     block = r'''
 <style id="khdn-fast-input-perf">
+/* Static catalog tables stay visible but do not force whole-page paint/layout. */
+.cw-table-wrap,.khdn-fast-admin-table,.khdn-catalog-table-wrap,
+[class*="khdn-fast-task-type-table"]{
+  contain:layout paint style!important;
+  content-visibility:auto;
+  contain-intrinsic-size:auto 360px;
+}
 html.khdn-fast-input-active .stApp *,
 html.khdn-fast-input-active .stApp *::before,
 html.khdn-fast-input-active .stApp *::after{
@@ -40,17 +47,41 @@ html.khdn-fast-input-active section[data-testid="stSidebar"]{
   backdrop-filter:none!important;
   box-shadow:none!important;
 }
+@media(max-width:768px){
+  /* 16px prevents Safari keyboard focus zoom/reflow on native Streamlit fields. */
+  .stApp input:not([type="checkbox"]):not([type="radio"]),
+  .stApp textarea,.stApp select,.stApp [contenteditable="true"]{
+    font-size:16px!important;
+    -webkit-text-size-adjust:100%!important;
+  }
+}
 </style>
 <script id="khdn-fast-input-perf-js">
 (()=>{
   const root=document.documentElement;
-  const clear=()=>root.classList.remove('khdn-fast-input-active');
+  const setActive=active=>root.classList.toggle('khdn-fast-input-active',!!active);
+  const clear=()=>setActive(false);
+  const editable=el=>!!(el&&el.matches&&el.matches(
+    'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]),textarea,select,[contenteditable="true"]'
+  ));
+
+  /* Messages are focus enter/leave only; custom components never report keys. */
   window.addEventListener('message',event=>{
     if(event.origin!==window.location.origin) return;
     const data=event.data||{};
     if(data.type!=='khdn-fast-input-focus') return;
-    root.classList.toggle('khdn-fast-input-active',!!data.active);
+    setActive(!!data.active);
   });
+
+  /* Native Streamlit controls use the same guard. Capture phase catches BaseWeb. */
+  document.addEventListener('focusin',event=>{
+    if(editable(event.target)) setActive(true);
+  },true);
+  document.addEventListener('focusout',event=>{
+    if(!editable(event.target)) return;
+    queueMicrotask(()=>{if(!editable(document.activeElement)) clear();});
+  },true);
+
   window.addEventListener('pagehide',clear,{passive:true});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)clear();},{passive:true});
 })();
