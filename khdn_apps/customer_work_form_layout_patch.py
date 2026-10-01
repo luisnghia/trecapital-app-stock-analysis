@@ -6,9 +6,8 @@ This adapter changes presentation only:
 - use a four-track desktop grid for the Customer Work create component;
 - give contact name more room (2/4) and phone/role 1/4 each;
 - render due-date/stage and owner/controller as balanced 50/50 rows;
-- avoid iPadOS/WebKit native date-input intrinsic-width overflow by rendering the
-  Customer Work due date as a normal text control (DD/MM/YYYY).  The form bridge
-  normalizes that display value back to ISO before existing business validation.
+- keep due date as a real date picker; the component contains the native iPadOS
+  date control inside a fixed shell so it cannot paint into the adjacent field.
 
 Business values, validation, submit-only behavior and database writes remain owned
 by global_zero_keystroke_patch and are not changed here.
@@ -18,7 +17,7 @@ from __future__ import annotations
 from khdn_apps.legacy_fast_form import legacy_fast_form as _base_legacy_fast_form
 from khdn_apps import global_zero_keystroke_patch as zero
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 _FLAG = "_CUSTOMER_WORK_FORM_LAYOUT_VERSION"
 _PREFIX = "p17_customer_work_create_"
 
@@ -52,14 +51,10 @@ def _layout_fields(fields):
             field.pop("full", None)
             field["span"] = 1
         elif name == "due_date":
-            # Safari/iPadOS date controls keep a native intrinsic width that can
-            # paint outside a CSS grid track.  A plain text control is stable and
-            # visually identical to the other fields; legacy_fast_form normalizes
-            # DD/MM/YYYY back to ISO before returning the submit payload.
             field.pop("full", None)
             field["span"] = 2
-            field["type"] = "text"
-            field["placeholder"] = "DD/MM/YYYY"
+            field["type"] = "date"
+            field.pop("placeholder", None)
         elif name in {"stage", "owner", "controller"}:
             field.pop("full", None)
             field["span"] = 2
@@ -121,20 +116,17 @@ def _self_check():
     assert [str(x.get("value")) for x in opts] == ["", "11", "12", "NONE"]
     assert sum(int(by_name[f"contact_1_{x}"].get("span", 1)) for x in ("name", "phone", "role")) == 4
     assert int(by_name["due_date"]["span"]) + int(by_name["stage"]["span"]) == 4
-    assert by_name["due_date"]["type"] == "text"
-    assert by_name["due_date"]["placeholder"] == "DD/MM/YYYY"
+    assert by_name["due_date"]["type"] == "date"
     assert int(by_name["owner"]["span"]) + int(by_name["controller"]["span"]) == 4
     return True
 
 
 def install(app_ns=None, logger=None):
     _self_check()
-    # Rebind the module-global function used by _customer_create_fast. This does
-    # not alter the generic legacy component for any other form.
     zero.legacy_fast_form = _customer_work_fast_form
     if isinstance(app_ns, dict):
         app_ns[_FLAG] = VERSION
     if logger:
         logger.info(
-            "CUSTOMER_WORK_FORM_LAYOUT_PATCH_INSTALLED priority_none_last=1 grid4=1 contact_2_1_1=1 pair_2_2=1 ipad_due_text=1 zero_keystroke_preserved=1 data_migration=0"
+            "CUSTOMER_WORK_FORM_LAYOUT_PATCH_INSTALLED priority_none_last=1 grid4=1 contact_2_1_1=1 pair_2_2=1 ipad_due_picker=1 zero_keystroke_preserved=1 data_migration=0"
         )
