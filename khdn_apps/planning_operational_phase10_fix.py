@@ -11,8 +11,9 @@ from khdn_apps import mobile_input_performance_patch as mobile_input_perf
 from khdn_apps import mobile_admin_restore_perf_patch as mobile_admin_restore
 from khdn_apps import mobile_legacy_ui_perf_patch as mobile_legacy_ui_perf
 from khdn_apps import task_type_scope_runtime_fix as task_type_scope_fix
+from khdn_apps import catalog_command_nav_restore_patch as catalog_nav_restore
 
-VERSION = "1.9.0"
+VERSION = "1.10.0"
 
 
 def _safe_sync_customer_contacts(c, customer_id, contacts, actor_uid, ts, source_case_id=None):
@@ -47,8 +48,14 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
     task_type_scope_fix.install(mobile_input_perf, app_ns, logger)
     mobile_input_perf.install(app_ns, policy, logger)
     mobile_admin_restore.install(app_ns, policy, logger)
+
+    # The mobile performance renderer must retain the original two command-button
+    # navigation (cream inactive, teal+gold active), not fall back to st.tabs.
+    # Patch the installer before both this call and the final rerun-safe
+    # global-zero-keystroke layer invoke it.
+    catalog_nav_restore.patch_legacy_installer(mobile_legacy_ui_perf, logger)
     mobile_legacy_ui_perf.install(app_ns, policy, customer_core, customer_ui, worktype, logger)
     if logger:
         logger.info(
-            "PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 phase14=1 phase15=1 task_type_scope_fix=1 mobile_input_perf=1 mobile_admin_restore=1 mobile_legacy_ui_perf_last=1"
+            "PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 phase14=1 phase15=1 task_type_scope_fix=1 mobile_input_perf=1 mobile_admin_restore=1 catalog_command_nav=1 mobile_legacy_ui_perf_last=1"
         )
