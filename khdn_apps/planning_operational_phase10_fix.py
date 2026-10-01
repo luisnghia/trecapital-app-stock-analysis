@@ -9,6 +9,7 @@ from khdn_apps import planning_operational_phase14_patch as phase14
 from khdn_apps import planning_operational_phase15_patch as phase15
 from khdn_apps import operations_owner_roster_patch as operations_owner_roster
 from khdn_apps import customer_cif_admin_patch as customer_cif_admin
+from khdn_apps import customer_cif_qlkh_refresh_patch as customer_cif_qlkh_refresh
 from khdn_apps import backup_management_patch as backup_management
 from khdn_apps import offline_export_patch as offline_export
 from khdn_apps import customer_work_form_layout_patch as customer_work_layout
@@ -19,7 +20,7 @@ from khdn_apps import mobile_legacy_ui_perf_patch as mobile_legacy_ui_perf
 from khdn_apps import task_type_scope_runtime_fix as task_type_scope_fix
 from khdn_apps import catalog_command_nav_restore_patch as catalog_nav_restore
 
-VERSION = "1.10.0"
+VERSION = "1.11.0"
 _LEGACY_IMPORT_GUARD = "_CUSTOMER_CIF_LEGACY_IMPORT_GUARD"
 
 
@@ -105,7 +106,10 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
 
     # Install Customer CIF tools after all Admin render overlays so the wrapper is
     # not replaced later. The legacy CIF-only importer is locked on this route.
+    # Existing CIF rows now treat the newest non-blank file QLKH as authoritative,
+    # while preserving Customer ID and all linked history.
     customer_cif_admin.install(app_ns, logger)
+    customer_cif_qlkh_refresh.install(app_ns, logger)
     _install_legacy_customer_import_guard(app_ns, logger)
 
     # Patch the backup renderer itself, so it works regardless of whether the
@@ -119,5 +123,5 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
 
     if logger:
         logger.info(
-            "PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 phase14=1 operations_owner_roster=1 phase15=1 task_type_scope_fix=1 mobile_input_perf=1 mobile_admin_restore=1 catalog_command_nav=1 mobile_legacy_ui_perf=1 customer_cif_admin=1 legacy_import_guard=1 offline_export=1 customer_work_layout=1 customer_work_stage_order=1 customer_cif_admin_last=1"
+            "PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 phase14=1 operations_owner_roster=1 phase15=1 task_type_scope_fix=1 mobile_input_perf=1 mobile_admin_restore=1 catalog_command_nav=1 mobile_legacy_ui_perf=1 customer_cif_admin=1 customer_cif_qlkh_refresh=1 legacy_import_guard=1 offline_export=1 customer_work_layout=1 customer_work_stage_order=1 customer_cif_admin_last=1"
         )
