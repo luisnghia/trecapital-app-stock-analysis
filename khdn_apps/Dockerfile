@@ -1,4 +1,4 @@
-# Release: legacy UI preserved with submit-only mobile catalog inputs and 2x3 Admin grid.
+# Release: rerun-safe zero-keystroke forms across heavy input pages.
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -43,6 +43,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_priority_policy_qa.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/fast_client_form.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/legacy_fast_form.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/global_zero_keystroke_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/mobile_input_performance_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/mobile_admin_restore_perf_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/mobile_legacy_ui_perf_patch.py \
@@ -80,6 +81,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/mobile_input_performance_v2_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/mobile_admin_restore_perf_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/mobile_legacy_ui_perf_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/global_zero_keystroke_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_plan_form_refinement_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_plan_unified_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_final_defaults_qa.py \
