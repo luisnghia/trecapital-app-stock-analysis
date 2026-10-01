@@ -1,0 +1,216 @@
+name: Export KHDN Offline Package
+
+on:
+  push:
+    branches:
+      - export/offline-2026-10-01
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+
+      - name: Build offline archive folder
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="KHDN_App_Offline_Backup_2026-10-01"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          cp -a khdn_apps "$ROOT/"
+          mkdir -p "$ROOT/khdn_apps/data" "$ROOT/offline_backups"
+
+          # Never bundle runtime/business databases or secrets into the source archive.
+          find "$ROOT/khdn_apps" -type f \( -name '*.db' -o -name '*.db-wal' -o -name '*.db-shm' \) -delete
+          find "$ROOT/khdn_apps" -type f \( -name '.env' -o -name '*.pem' -o -name '*.key' \) -delete
+
+          cat > "$ROOT/CAI_DAT_LAN_DAU_WINDOWS.bat" <<'BAT'
+          @echo off
+          setlocal
+          cd /d "%~dp0"
+          set PYTHONUTF8=1
+          set PYTHONIOENCODING=utf-8
+
+          where py >nul 2>nul
+          if errorlevel 1 (
+            echo [LOI] Khong tim thay Python Launcher ^(py.exe^).
+            echo Hay cai Python 3.11 x64, sau do chay lai file nay.
+            pause
+            exit /b 1
+          )
+
+          py -3.11 -c "import sys; print(sys.version)" >nul 2>nul
+          if errorlevel 1 (
+            echo [LOI] Khong tim thay Python 3.11.
+            echo Hay cai Python 3.11 x64, sau do chay lai file nay.
+            pause
+            exit /b 1
+          )
+
+          if not exist ".venv\Scripts\python.exe" (
+            echo [KHDN] Tao moi truong .venv...
+            py -3.11 -m venv .venv
+            if errorlevel 1 exit /b 1
+          )
+
+          echo [KHDN] Cai thu vien can thiet. Buoc nay can Internet o lan cai dau tien...
+          ".venv\Scripts\python.exe" -m pip install --upgrade pip
+          if errorlevel 1 exit /b 1
+          ".venv\Scripts\python.exe" -m pip install -r "khdn_apps\requirements.txt"
+          if errorlevel 1 exit /b 1
+
+          echo.
+          echo [OK] Cai dat xong. Tu lan sau co the ngat Internet va chay CHAY_OFFLINE_WINDOWS.bat
+          pause
+          endlocal
+          BAT
+
+          cat > "$ROOT/CHAY_OFFLINE_WINDOWS.bat" <<'BAT'
+          @echo off
+          setlocal
+          cd /d "%~dp0"
+          set PYTHONUTF8=1
+          set PYTHONIOENCODING=utf-8
+
+          if not exist ".venv\Scripts\python.exe" (
+            echo [KHDN] Chua co moi truong Python cuc bo. Chay cai dat lan dau...
+            call "%~dp0CAI_DAT_LAN_DAU_WINDOWS.bat"
+            if errorlevel 1 exit /b 1
+          )
+
+          echo [KHDN] Dang khoi dong app OFFLINE tai http://127.0.0.1:8501
+          start "" http://127.0.0.1:8501
+          ".venv\Scripts\python.exe" -m streamlit run "khdn_apps\offline_entry.py" --server.address 127.0.0.1 --server.port 8501 --browser.gatherUsageStats false
+          endlocal
+          BAT
+
+          cat > "$ROOT/SAO_LUU_DU_LIEU_OFFLINE_WINDOWS.bat" <<'BAT'
+          @echo off
+          setlocal
+          cd /d "%~dp0"
+          if exist ".venv\Scripts\python.exe" (
+            ".venv\Scripts\python.exe" backup_local.py
+          ) else (
+            py -3.11 backup_local.py
+          )
+          if errorlevel 1 (
+            echo.
+            echo [LOI] Sao luu khong thanh cong.
+            pause
+            exit /b 1
+          )
+          echo.
+          echo [OK] Da tao ban sao luu an toan trong thu muc offline_backups.
+          pause
+          endlocal
+          BAT
+
+          cat > "$ROOT/backup_local.py" <<'PY'
+          from __future__ import annotations
+          import sqlite3
+          from datetime import datetime
+          from pathlib import Path
+
+          root = Path(__file__).resolve().parent
+          src = root / "khdn_apps" / "data" / "khdn_ops.db"
+          out_dir = root / "offline_backups"
+          out_dir.mkdir(parents=True, exist_ok=True)
+          if not src.exists():
+              raise SystemExit(f"Chua co CSDL offline de sao luu: {src}")
+          stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+          dst = out_dir / f"khdn_ops_{stamp}.db"
+          with sqlite3.connect(src) as source, sqlite3.connect(dst) as target:
+              source.backup(target)
+          with sqlite3.connect(dst) as check:
+              result = check.execute("PRAGMA integrity_check").fetchone()[0]
+          if str(result).lower() != "ok":
+              dst.unlink(missing_ok=True)
+              raise SystemExit(f"Backup khong dat integrity_check: {result}")
+          meta = out_dir / f"khdn_ops_{stamp}.txt"
+          meta.write_text(
+              "KHDN offline SQLite backup\n"
+              f"Source: {src}\n"
+              f"Backup: {dst}\n"
+              f"Created: {datetime.now().isoformat(timespec='seconds')}\n"
+              "Integrity check: ok\n",
+              encoding="utf-8",
+          )
+          print(f"BACKUP_OK {dst}")
+          PY
+
+          cat > "$ROOT/README_OFFLINE_VI.txt" <<EOF
+          KHDN APPS - GOI CHAY OFFLINE & SAO LUU
+          =====================================
+
+          Phien ban ma nguon: commit ${GITHUB_SHA}
+          Nguon: branch production tai thoi diem dong goi 01/10/2026
+
+          1. MUC DICH
+          - Luu tru tron bo ma nguon KHDN Apps tai dung commit neu tren.
+          - Chay app cuc bo tren Windows bang entrypoint offline cua repository.
+          - Sao luu CSDL SQLite offline bang SQLite Online Backup API.
+
+          2. CAI DAT LAN DAU
+          - Giai nen ZIP vao mot thu muc rieng.
+          - Cai Python 3.11 x64.
+          - Chay CAI_DAT_LAN_DAU_WINDOWS.bat khi may co Internet.
+          - Buoc nay tao .venv va cai requirements cua app.
+
+          3. CHAY OFFLINE
+          - Chay CHAY_OFFLINE_WINDOWS.bat.
+          - Trinh duyet mo http://127.0.0.1:8501
+          - Du lieu offline nam tai khdn_apps\\data\\khdn_ops.db
+
+          4. MUON DUNG DU LIEU ONLINE HIEN TAI
+          - Goi nay KHONG kem CSDL production de tranh sao chep/ghi de ngoai y muon.
+          - Tren app online: Quan tri he thong -> Sao luu -> tai SQLite day du.
+          - Dong app offline.
+          - Doi ten ban backup thanh khdn_ops.db va dat vao khdn_apps\\data\\khdn_ops.db
+          - Nen giu mot ban backup goc rieng truoc khi thay the.
+
+          5. SAO LUU DU LIEU OFFLINE
+          - Chay SAO_LUU_DU_LIEU_OFFLINE_WINDOWS.bat.
+          - Ban sao luu nam trong offline_backups\\.
+          - Script dung sqlite3.backup va PRAGMA integrity_check.
+
+          6. LUU Y
+          - Khong mo dong thoi mot file khdn_ops.db tu nhieu ban app.
+          - Cap nhat ty gia/Push Notification co the can Internet.
+          - Goi source nay khong chua database production, .env, private key/pem.
+          EOF
+
+          cat > "$ROOT/OFFLINE_BACKUP_INFO.txt" <<EOF
+          KHDN Apps offline archival package
+          Source commit: ${GITHUB_SHA}
+          Source branch: export/offline-2026-10-01 (created from production commit 071f39eb1ade87935890bd77c4ba7c682f6ea062)
+          Packaged UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          Production database included: NO
+          Offline database path: khdn_apps/data/khdn_ops.db
+          EOF
+
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root = Path('KHDN_App_Offline_Backup_2026-10-01')
+          lines=[]
+          for p in sorted(root.rglob('*')):
+              if not p.is_file() or p.name == 'SHA256SUMS.txt':
+                  continue
+              h=hashlib.sha256(p.read_bytes()).hexdigest()
+              lines.append(f"{h}  {p.relative_to(root).as_posix()}")
+          (root/'SHA256SUMS.txt').write_text('\n'.join(lines)+'\n',encoding='utf-8')
+          PY
+
+      - name: Upload offline package
+        uses: actions/upload-artifact@v4
+        with:
+          name: KHDN-App-Offline-Backup-071f39e
+          path: KHDN_App_Offline_Backup_2026-10-01
+          if-no-files-found: error
+          compression-level: 9
+          retention-days: 30
