@@ -17,6 +17,7 @@ from .storage import atomic_json, daily_backup, prepare_storage, read_status
 from . import notifications
 from . import weekly_plan_notifications
 from . import weekly_phase2_notifications
+from . import task_type_scope_runtime_fix
 
 
 def main() -> int:
@@ -34,6 +35,17 @@ def main() -> int:
     logger.addHandler(handler)
     logger.addHandler(logging.StreamHandler())
     logger.info("STORAGE_READY id=%s mounted=%s", status["storage_id"], status["volume_mounted"])
+
+    # Data-contract migration runs before any worker or HTTP server can touch the
+    # database. It is backup-first and idempotent; a failure aborts this release so
+    # Railway keeps the previous healthy deployment serving users.
+    try:
+        scope_state = task_type_scope_runtime_fix.migrate_db_path(db_path, data_dir, logger)
+        logger.info("TASK_TYPE_SCOPE_STARTUP_CHECK state=%s", scope_state)
+    except Exception:
+        logger.exception("TASK_TYPE_SCOPE_STARTUP_FAILED")
+        raise
+
     stop = threading.Event()
 
     def backup_loop():
