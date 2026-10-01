@@ -4,6 +4,7 @@ import sqlite3
 from pathlib import Path
 
 from khdn_apps import customer_cif_admin_patch as patch
+from khdn_apps import customer_cif_qlkh_refresh_patch as qlkh_refresh
 
 
 c = sqlite3.connect(":memory:")
@@ -51,6 +52,7 @@ CREATE TABLE system_audit(
 )
 
 c.execute("INSERT INTO users VALUES(1,'ql1','QL 1','Cán bộ QLKH',1)")
+c.execute("INSERT INTO users VALUES(2,'ql2','QL 2','Cán bộ QLKH',1)")
 c.execute(
     "INSERT INTO customers(cif,customer_name,active,created_at,customer_status,tax_id) "
     "VALUES(NULL,'CÔNG TY ABC',0,'2026-01-01','PROSPECT','040123')"
@@ -75,8 +77,54 @@ r = c.execute("SELECT * FROM customers WHERE id=?", (prospect_id,)).fetchone()
 assert r["cif"] == "00012345"
 assert r["customer_status"] == "ACTIVE_CIF"
 assert r["active"] == 1
+assert r["qlkh_user_id"] == 1
 assert c.execute("SELECT customer_id FROM tasks WHERE id=1").fetchone()[0] == prospect_id
 assert c.execute("SELECT customer_id FROM weekly_plan_items WHERE id=1").fetchone()[0] == prospect_id
+
+# New safe-import rule: an existing CIF adopts the newest non-blank QLKH from file.
+qlkh_refresh.install()
+cid2, result2 = patch.apply_cif_row(
+    c,
+    1,
+    cif="00012345",
+    name="CÔNG TY ABC",
+    tax_id="040123",
+    qlkh_raw="ql2 - QL 2",
+)
+assert cid2 == prospect_id and result2 == "UPDATED"
+r = c.execute("SELECT * FROM customers WHERE id=?", (prospect_id,)).fetchone()
+assert r["qlkh_user_id"] == 2
+assert r["qlkh_source_text"] == "ql2 - QL 2"
+# Existing workflow links and Customer ID are never rewritten.
+assert c.execute("SELECT customer_id FROM tasks WHERE id=1").fetchone()[0] == prospect_id
+assert c.execute("SELECT customer_id FROM weekly_plan_items WHERE id=1").fetchone()[0] == prospect_id
+
+# Blank QLKH means no new ownership information, so the current assignment stays.
+patch.apply_cif_row(
+    c,
+    1,
+    cif="00012345",
+    name="CÔNG TY ABC",
+    qlkh_raw="",
+)
+r = c.execute("SELECT * FROM customers WHERE id=?", (prospect_id,)).fetchone()
+assert r["qlkh_user_id"] == 2
+assert r["qlkh_source_text"] == "ql2 - QL 2"
+
+# Non-blank but unresolved QLKH must block instead of silently keeping stale owner.
+try:
+    patch.apply_cif_row(
+        c,
+        1,
+        cif="00012345",
+        name="CÔNG TY ABC",
+        qlkh_raw="CAN BO KHONG TON TAI",
+    )
+    raise AssertionError("unresolved QLKH should block safe import")
+except ValueError as exc:
+    assert "không xác định được duy nhất Cán bộ QLKH" in str(exc)
+r = c.execute("SELECT * FROM customers WHERE id=?", (prospect_id,)).fetchone()
+assert r["qlkh_user_id"] == 2
 
 # Duplicate row can be merged into the historic id while linked workflow moves.
 c.execute(
@@ -125,6 +173,17 @@ for token in [
 ]:
     assert token in src, token
 
+refresh_src = Path(qlkh_refresh.__file__).read_text(encoding="utf-8")
+for token in [
+    "qlkh_refresh_from_latest_file",
+    "old_qlkh_user_id",
+    "new_qlkh_user_id",
+    "unresolved_blocks=1",
+    "customer_id_preserved=1",
+    "data_migration=0",
+]:
+    assert token in refresh_src, token
+
 fix_src = Path(patch.__file__).with_name("planning_operational_phase10_fix.py").read_text(encoding="utf-8")
 for token in [
     "_install_legacy_customer_import_guard",
@@ -132,11 +191,14 @@ for token in [
     'kwargs["disabled"] = True',
     "Nạp/Đồng bộ khách hàng (đã thay bằng Nạp CIF an toàn)",
     "legacy_import_guard=1",
+    "customer_cif_qlkh_refresh.install(app_ns, logger)",
+    "customer_cif_qlkh_refresh=1",
     "mobile_input_perf.install(app_ns, policy, logger)",
 ]:
     assert token in fix_src, token
 
 print(
     "CUSTOMER_CIF_ADMIN_PATCH_QA_PASS "
-    "preserve_id=1 merge_fk=1 bulk_delete_guard=1 safe_import=1 weekly_fk=1 legacy_import_locked=1"
+    "preserve_id=1 merge_fk=1 bulk_delete_guard=1 safe_import=1 weekly_fk=1 "
+    "legacy_import_locked=1 existing_cif_qlkh_refresh=1 blank_qlkh_preserves=1 unresolved_qlkh_blocks=1"
 )
