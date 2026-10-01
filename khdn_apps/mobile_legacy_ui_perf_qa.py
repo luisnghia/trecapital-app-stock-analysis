@@ -59,6 +59,16 @@ checks = {
     "catalog_nav_active_only": 'if view == "stages"' in NAV and 'elif view == "important"' in NAV,
     "catalog_nav_preserves_fast_forms": "cw_stage_legacy_fast_p16_" in NAV and "cw_cat_legacy_fast_p16_" in NAV,
     "catalog_nav_no_data_migration": "data_migration=0" in NAV and "ALTER TABLE" not in NAV and "DROP TABLE" not in NAV,
+    "catalog_widget_reset_deferred": (
+        '_schedule_widget_reset(st, "cw_stage_edit")' in NAV
+        and '_schedule_widget_reset(st, "cw_cat_edit")' in NAV
+        and 'st.session_state["cw_stage_edit"] = None' not in NAV
+        and 'st.session_state["cw_cat_edit"] = None' not in NAV
+    ),
+    "catalog_widget_reset_before_instantiation": (
+        0 <= NAV.find('_apply_widget_reset(st, "cw_stage_edit")') < NAV.find('key="cw_stage_edit"')
+        and 0 <= NAV.find('_apply_widget_reset(st, "cw_cat_edit")') < NAV.find('key="cw_cat_edit"')
+    ),
 
     # App-wide runtime activation: the previous release compiled/QA'd the fast
     # layers but did not put them on online_entry's live execution path.
@@ -117,5 +127,6 @@ if failed:
 print(
     "MOBILE_LEGACY_UI_PERF_QA_PASS admin_grid=2x3 task_table_old_order=1 "
     "customer_stage_submit_only=1 customer_focus_submit_only=1 native_focus_guard=1 "
-    "catalog_command_nav=1 active_only=1 runtime_appwide=1 task_type_scope_sort=PLAN,OPS data_migration=0"
+    "catalog_command_nav=1 active_only=1 deferred_widget_reset=1 runtime_appwide=1 "
+    "task_type_scope_sort=PLAN,OPS data_migration=0"
 )
