@@ -125,7 +125,18 @@ for token in [
 ]:
     assert token in src, token
 
+fix_src = Path(patch.__file__).with_name("planning_operational_phase10_fix.py").read_text(encoding="utf-8")
+for token in [
+    "_install_legacy_customer_import_guard",
+    'str(label) == "Nạp/Đồng bộ khách hàng"',
+    'kwargs["disabled"] = True',
+    "Nạp/Đồng bộ khách hàng (đã thay bằng Nạp CIF an toàn)",
+    "legacy_import_guard=1",
+    "mobile_input_perf.install(app_ns, policy, logger)",
+]:
+    assert token in fix_src, token
+
 print(
     "CUSTOMER_CIF_ADMIN_PATCH_QA_PASS "
-    "preserve_id=1 merge_fk=1 bulk_delete_guard=1 safe_import=1 weekly_fk=1"
+    "preserve_id=1 merge_fk=1 bulk_delete_guard=1 safe_import=1 weekly_fk=1 legacy_import_locked=1"
 )
