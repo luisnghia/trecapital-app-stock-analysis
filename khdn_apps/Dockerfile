@@ -1,4 +1,4 @@
-# Release: rerun-safe zero-keystroke forms across heavy input pages.
+# Release: safe Customer CIF reconciliation, merge and bulk delete for Admin.
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -77,6 +77,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase13_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase14_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase15_patch.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/customer_cif_admin_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/backup_management_patch.py \
     && PYTHONPATH=/app python /app/khdn_apps/mobile_input_performance_v2_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/mobile_admin_restore_perf_qa.py \
@@ -104,6 +105,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_operational_phase12_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_operational_phase13_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_operational_phase14_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/customer_cif_admin_patch_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/backup_management_qa.py
 
 RUN PYTHONPATH=/app python /app/khdn_apps/runtime_page_qa.py
