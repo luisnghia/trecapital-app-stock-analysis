@@ -31,7 +31,7 @@ install_src = inspect.getsource(patch.install)
 consolidation_src = inspect.getsource(consolidation)
 
 checks = {
-    "canonical_note": "x.get(\"note\")" in src,
+    "canonical_note": '.get("note")' in src,
     "label": "📝 <b>Ghi chú:</b>" in src,
     "wrapped": "white-space:pre-wrap" in src and "overflow-wrap:anywhere" in src,
     "html_escape": "html.escape(raw)" in src,
