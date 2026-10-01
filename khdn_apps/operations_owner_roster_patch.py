@@ -127,10 +127,11 @@ def install(app_ns, logger=None):
     def prospect_owner_id(u, key, state):
         if str(key).startswith("ql_new_cust"):
             owner = state.get("ql_new_owner")
-            try:
-                return int(owner) if owner not in (None, "") else None
-            except Exception:
-                return None
+            if owner not in (None, ""):
+                try:
+                    return int(owner)
+                except Exception:
+                    pass
         return original_prospect_owner(u, key, state)
 
     def customer_selector(st, u, ns, potential, key="cust", required_message=None, logger=None):
