@@ -12,8 +12,11 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
+# v2 intentionally changes the component registration name so iPad/Safari cannot
+# keep serving the older iframe asset after a production deploy.  Business keys
+# and submit de-duplication remain unchanged.
 _component = components.declare_component(
-    "khdn_legacy_fast_form",
+    "khdn_legacy_fast_form_v2",
     path=str(Path(__file__).with_name("legacy_fast_form_component")),
 )
 
