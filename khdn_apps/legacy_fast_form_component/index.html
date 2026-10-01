@@ -17,9 +17,11 @@ body{contain:layout style paint;overscroll-behavior:contain}
 label{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;font-size:16px;font-weight:650;line-height:1.25;margin:0 0 7px;color:var(--text,#F4FFFC)}
 input,textarea,select{display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0;inline-size:100%;max-inline-size:100%;min-inline-size:0;border-radius:8px;padding:11px 14px;font-size:16px;line-height:1.3;outline:none;transition:none!important;box-shadow:none!important;background:var(--secondary,#17312F);color:var(--text,#F4FFFC);border:1px solid var(--border,#4E7771);caret-color:var(--text,#F4FFFC);touch-action:manipulation}
 input,select{height:52px}textarea{min-height:92px;resize:none}
-input[type="date"]{display:block;width:100%;max-width:100%;min-width:0;inline-size:100%;max-inline-size:100%;min-inline-size:0;overflow:hidden}
-input[type="date"]::-webkit-date-and-time-value{min-width:0;max-width:100%;text-align:left}
-input[type="date"]::-webkit-datetime-edit{min-width:0;max-width:100%;overflow:hidden}
+.date-control{position:relative;width:100%;max-width:100%;min-width:0;height:52px;overflow:hidden;border-radius:8px;border:1px solid var(--border,#4E7771);background:var(--secondary,#17312F)}
+.date-display{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 14px;pointer-events:none;font-size:16px;line-height:1.3;color:var(--text,#F4FFFC);white-space:nowrap;overflow:hidden}
+.date-display.empty{color:var(--muted,#AFCAC5)}.date-text{min-width:0;overflow:hidden;text-overflow:ellipsis}.date-icon{flex:0 0 auto;opacity:.9}
+.date-native{position:absolute!important;inset:0!important;width:100%!important;max-width:100%!important;min-width:0!important;inline-size:100%!important;max-inline-size:100%!important;min-inline-size:0!important;height:52px!important;margin:0!important;padding:0!important;border:0!important;border-radius:8px!important;opacity:0!important;z-index:2!important;-webkit-appearance:auto!important;appearance:auto!important;cursor:pointer!important}
+.date-control:focus-within{border-color:var(--focus,#79D8C8);outline:1px solid var(--focus,#79D8C8)}
 input:focus,textarea:focus,select:focus{border-color:var(--focus,#79D8C8);outline:1px solid var(--focus,#79D8C8)}
 input::placeholder,textarea::placeholder{color:var(--muted,#AFCAC5);opacity:.82}
 input:disabled,select:disabled,textarea:disabled{opacity:.82;cursor:not-allowed}
@@ -31,6 +33,7 @@ input:disabled,select:disabled,textarea:disabled{opacity:.82;cursor:not-allowed}
 .submit-button{width:100%;min-height:52px;margin-top:14px;border-radius:9px;padding:10px 14px;font-size:17px;font-weight:850;cursor:pointer;transition:none!important;box-shadow:none!important;background:var(--primary,#69D2C3);color:var(--submitText,#FFFFFF);border:1px solid var(--primary,#69D2C3);touch-action:manipulation}.submit-button:active{filter:brightness(.94)}
 body.light{--text:#17231F;--muted:#47665A;--secondary:#FFFFFF;--border:#C9DCD3;--focus:#D8A420;--primary:#0B2A25;--submitText:#FFFFFF}
 body.light input,body.light textarea,body.light select,body.light .step-button{background:#FFFFFF;color:#17231F;border-color:#C9DCD3}
+body.light .date-control{background:#FFFFFF;border-color:#C9DCD3}body.light .date-control:focus-within{border-color:#D8A420;outline:1px solid #D8A420}
 body.light input:focus,body.light textarea:focus,body.light select:focus{border-color:#D8A420;outline:1px solid #D8A420}
 body.light .submit-button{background:#0B2A25;color:#FFFFFF;border-color:#0B2A25}
 @media(max-width:700px){.grid{grid-template-columns:1fr!important;gap:12px}.field,.field.full,.section{grid-column:1/-1!important}.number-control{grid-template-columns:minmax(0,1fr) 54px 54px}.step-button{height:52px}}
@@ -62,6 +65,12 @@ function tuneInput(input,type,name){
   if(type==='number')input.setAttribute('inputmode','decimal');
   if(type==='password')input.setAttribute('autocomplete','new-password');
 }
+function formatDate(iso){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||''));return m?`${m[3]}/${m[2]}/${m[1]}`:'';}
+function updateDateDisplay(input){
+  if(!input||!input._dateDisplay||!input._dateText)return;
+  const text=formatDate(input.value);input._dateText.textContent=text||'— Chọn ngày —';
+  input._dateDisplay.classList.toggle('empty',!text);
+}
 function clampNumber(input,delta){
   const step=Number(input.step||1)||1,min=input.min===''?-Infinity:Number(input.min),max=input.max===''?Infinity:Number(input.max);
   let cur=input.value===''?0:Number(input.value);if(!Number.isFinite(cur))cur=0;
@@ -89,17 +98,24 @@ function createField(f){
   else if(type==='select'){
     input=document.createElement('select');for(const opt of (f.options||[])){const o=document.createElement('option');if(opt&&typeof opt==='object'){o.value=String(opt.value??'');o.textContent=String(opt.label??opt.value??'');}else{o.value=String(opt??'');o.textContent=String(opt??'');}input.appendChild(o);}
   } else {input=document.createElement('input');input.type=type==='password'?'password':type==='number'?'number':type==='date'?'date':'text';}
-  input.id='f_'+escName(name);input.dataset.name=name;input.placeholder=String(f.placeholder||'');tuneInput(input,type,name);input.disabled=!!f.disabled;
+  input.id='f_'+escName(name);input.dataset.name=name;input.placeholder=String(f.placeholder||'');tuneInput(input,type,name);input.disabled=!!f.disabled;input.setAttribute('aria-label',String(f.label||name));
   if(type==='number'){if(f.min!==undefined&&f.min!==null)input.min=String(f.min);if(f.max!==undefined&&f.max!==null)input.max=String(f.max);if(f.step!==undefined&&f.step!==null)input.step=String(f.step);}
   if(type==='date'){if(f.min)input.min=String(f.min);if(f.max)input.max=String(f.max);}
   if(f.required)input.required=true;input.value=String(f.default??'');state[name]=input;
-  if(type==='number'){
+  if(type==='date'){
+    const ctl=document.createElement('div');ctl.className='date-control';
+    const display=document.createElement('div');display.className='date-display';
+    const text=document.createElement('span');text.className='date-text';
+    const icon=document.createElement('span');icon.className='date-icon';icon.textContent='📅';
+    display.append(text,icon);input.classList.add('date-native');input._dateDisplay=display;input._dateText=text;
+    input.addEventListener('change',()=>updateDateDisplay(input));ctl.append(display,input);box.appendChild(ctl);updateDateDisplay(input);
+  }else if(type==='number'){
     const ctl=document.createElement('div');ctl.className='number-control';const minus=document.createElement('button'),plus=document.createElement('button');minus.type=plus.type='button';minus.className=plus.className='step-button';minus.textContent='−';plus.textContent='+';minus.disabled=plus.disabled=!!f.disabled;minus.setAttribute('aria-label','Giảm');plus.setAttribute('aria-label','Tăng');minus.addEventListener('click',()=>clampNumber(input,-1));plus.addEventListener('click',()=>clampNumber(input,1));ctl.append(input,minus,plus);box.appendChild(ctl);
   }else box.appendChild(input);
   return box;
 }
 function rebuild(fields){grid.replaceChildren();for(const k of Object.keys(state))delete state[k];for(const f of fields||[]){const node=createField(f||{});if(node)grid.appendChild(node);}fit();}
-function applyDefaults(fields){for(const f of fields||[]){const el=state[String(f.name||'')];if(!el)continue;if(String(f.type||'')==='checkbox')el.checked=!!f.default;else el.value=String(f.default??'');}}
+function applyDefaults(fields){for(const f of fields||[]){const el=state[String(f.name||'')];if(!el)continue;if(String(f.type||'')==='checkbox')el.checked=!!f.default;else{el.value=String(f.default??'');if(el.type==='date')updateDateDisplay(el);}}}
 function values(){const out={};for(const [name,el] of Object.entries(state)){if(el.type==='checkbox')out[name]=!!el.checked;else if(el.type==='number')out[name]=el.value===''?null:Number(el.value);else out[name]=el.value;}return out;}
 function applyTheme(theme){const t=theme||{},light=t.base==='light';document.body.className=light?'light':'dark';const root=document.documentElement.style;root.setProperty('--primary',t.primaryColor||(light?'#0B2A25':'#69D2C3'));root.setProperty('--secondary',t.secondaryBackgroundColor||(light?'#FFFFFF':'#17312F'));root.setProperty('--text',t.textColor||(light?'#17231F':'#F4FFFC'));root.setProperty('--border',light?'#C9DCD3':'#4E7771');root.setProperty('--muted',light?'#47665A':'#AFCAC5');}
 form.addEventListener('focusin',event=>{if(event.target.matches('input,textarea,select'))signalFocus(true);});
