@@ -13,7 +13,25 @@ from __future__ import annotations
 from khdn_apps.legacy_fast_form import legacy_fast_form
 from khdn_apps import planning_ui_admin_hotfix as admin_hotfix
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
+
+
+def _schedule_widget_reset(st, key: str):
+    """Defer resetting a widget until the next rerun.
+
+    Streamlit forbids mutating ``st.session_state[key]`` after the widget with
+    that key has already been instantiated in the current run.  Save/delete
+    actions happen after the selectbox is rendered, so they only set a separate
+    pending flag here.  The actual widget key is cleared at the start of the
+    next run, before the selectbox is created again.
+    """
+    st.session_state[f"_pending_reset__{key}"] = True
+
+
+def _apply_widget_reset(st, key: str):
+    pending_key = f"_pending_reset__{key}"
+    if st.session_state.pop(pending_key, False):
+        st.session_state.pop(key, None)
 
 
 def _install_customer_catalog_command_nav(legacy_ui, customer_core, customer_ui, logger=None):
@@ -55,6 +73,7 @@ def _install_customer_catalog_command_nav(legacy_ui, customer_core, customer_ui,
                 ] for s in stages],
             )
             opts = [None] + stages
+            _apply_widget_reset(st, "cw_stage_edit")
             edit = st.selectbox(
                 "Chọn mục công việc để sửa",
                 opts,
@@ -89,14 +108,14 @@ def _install_customer_catalog_command_nav(legacy_ui, customer_core, customer_ui,
                         bool(payload.get("done")), bool(payload.get("active")), logger,
                     )
                     st.toast("Đã cập nhật mục công việc." if edit else "Đã tạo mục công việc.", icon="✅")
-                    st.session_state["cw_stage_edit"] = None
+                    _schedule_widget_reset(st, "cw_stage_edit")
                     st.rerun()
                 except Exception as exc:
                     st.error(str(exc))
             if edit and st.button("Xóa/Ngưng sử dụng mục này", key="cw_stage_del"):
                 mode = customer_core.delete_stage_catalog(get_conn, uid, edit["id"], logger)
                 st.toast("Đã xóa." if mode == "DELETE" else "Mục đã có lịch sử nên được ngưng sử dụng thay vì xóa dữ liệu cũ.")
-                st.session_state["cw_stage_edit"] = None
+                _schedule_widget_reset(st, "cw_stage_edit")
                 st.rerun()
 
         elif view == "important":
@@ -115,6 +134,7 @@ def _install_customer_catalog_command_nav(legacy_ui, customer_core, customer_ui,
                 ] for x in cats],
             )
             opts = [None] + cats
+            _apply_widget_reset(st, "cw_cat_edit")
             edit = st.selectbox(
                 "Chọn danh mục để sửa",
                 opts,
@@ -145,14 +165,14 @@ def _install_customer_catalog_command_nav(legacy_ui, customer_core, customer_ui,
                         max(1, int(payload.get("order") or 1)), bool(payload.get("active")), logger,
                     )
                     st.toast("Đã cập nhật danh mục quan trọng." if edit else "Đã tạo danh mục quan trọng.", icon="✅")
-                    st.session_state["cw_cat_edit"] = None
+                    _schedule_widget_reset(st, "cw_cat_edit")
                     st.rerun()
                 except Exception as exc:
                     st.error(str(exc))
             if edit and st.button("Xóa/Ngừng áp dụng danh mục", key="cw_cat_del"):
                 mode = customer_core.delete_important_category(get_conn, uid, edit["id"], logger)
                 st.toast("Đã xóa." if mode == "DELETE" else "Danh mục đã được dùng nên được ngưng sử dụng để giữ lịch sử.")
-                st.session_state["cw_cat_edit"] = None
+                _schedule_widget_reset(st, "cw_cat_edit")
                 st.rerun()
 
         customer_ui._glossary(st)
