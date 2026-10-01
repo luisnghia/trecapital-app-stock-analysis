@@ -6,6 +6,8 @@ import sqlite3
 import tempfile
 
 from khdn_apps import mobile_input_performance_patch as p
+from khdn_apps import task_type_scope_runtime_fix as scope_fix
+from khdn_apps.task_type_scope_source_patch import patch_source
 
 ROOT=Path(__file__).resolve().parent
 SRC=(ROOT/'mobile_input_performance_patch.py').read_text(encoding='utf-8')
@@ -14,6 +16,8 @@ HTML=(ROOT/'fast_client_form_component'/'index.html').read_text(encoding='utf-8'
 PROBE=(ROOT/'theme_probe_component'/'index.html').read_text(encoding='utf-8')
 BRIDGE=(ROOT/'theme_bridge_fix.py').read_text(encoding='utf-8')
 P10FIX=(ROOT/'planning_operational_phase10_fix.py').read_text(encoding='utf-8')
+SCOPE_FIX=(ROOT/'task_type_scope_runtime_fix.py').read_text(encoding='utf-8')
+RAW=(ROOT/'app_v223_source.py').read_text(encoding='utf-8')
 
 checks={
     'version_v2': 'VERSION = "2.0.0"' in SRC,
@@ -27,12 +31,14 @@ checks={
     'stage_fast': 'zero_keystroke_stages=1' in SRC and 'cw_stage_fast_v2_' in SRC,
     'focus_fast': 'zero_keystroke_focus=1' in SRC and 'focus_catalog_fast_v2_' in SRC,
     'realtime_disabled': 'MOBILE_INPUT_PERIODIC_REFRESH_DISABLED seconds=0' in SRC and 'def realtime_refresh_watch(_u): return None' in SRC,
-    'task_type_scope_index': 'ux_task_types_scope_name_norm' in SRC and 'module_scope, lower(trim(name))' in SRC,
     'scope_specific_create_guard': 'WHERE module_scope=? AND lower(trim(name))=lower(trim(?))' in SRC,
     'scope_specific_edit_guard': 'WHERE module_scope=? AND lower(trim(name))=lower(trim(?)) AND id<>?' in SRC,
     'probe_no_poll': 'setInterval' not in PROBE,
     'bridge_no_poll_source': 'setInterval' not in BRIDGE,
-    'installed_last': 'mobile_input_perf.install(app_ns, policy, logger)' in P10FIX and P10FIX.index('mobile_input_perf.install')>P10FIX.index('phase15.install'),
+    'runtime_scope_unique': 'ux_task_types_scope_name' in SCOPE_FIX and 'UNIQUE(module_scope,name)' in SCOPE_FIX,
+    'source_scope_unique': 'UNIQUE(module_scope,name)' in patch_source(RAW),
+    'source_scope_bootstrap': 'ON CONFLICT(module_scope,name) DO NOTHING' in patch_source(RAW),
+    'installed_last': 'mobile_input_perf.install(app_ns, policy, logger)' in P10FIX and P10FIX.index('mobile_input_perf.install')>P10FIX.index('task_type_scope_fix.install')>P10FIX.index('phase15.install'),
 }
 assert all(checks.values()),checks
 
@@ -57,7 +63,7 @@ with tempfile.TemporaryDirectory() as td:
         x=sqlite3.connect(db); x.row_factory=sqlite3.Row; x.execute('PRAGMA foreign_keys=ON'); return x
     old=os.environ.get('KHDN_DATA_DIR'); os.environ['KHDN_DATA_DIR']=str(root)
     try:
-        p._migrate_task_type_scope_uniqueness({'get_conn':get_conn,'DB_PATH':str(db)},None)
+        scope_fix.migrate({'get_conn':get_conn,'DB_PATH':str(db)},None)
     finally:
         if old is None: os.environ.pop('KHDN_DATA_DIR',None)
         else: os.environ['KHDN_DATA_DIR']=old
@@ -67,12 +73,14 @@ with tempfile.TemporaryDirectory() as td:
         c.execute("INSERT INTO task_types(name,sla_hours,active,created_at,updated_at,module_scope) VALUES('Giải ngân',8,1,'2026-01-02','2026-01-02','PLAN')")
         duplicate_blocked=False
         try:
-            c.execute("INSERT INTO task_types(name,sla_hours,active,created_at,updated_at,module_scope) VALUES('  giải NGÂN  ',8,1,'2026-01-03','2026-01-03','OPS')")
+            c.execute("INSERT INTO task_types(name,sla_hours,active,created_at,updated_at,module_scope) VALUES('Giải ngân',8,1,'2026-01-03','2026-01-03','OPS')")
         except sqlite3.IntegrityError:
             duplicate_blocked=True
         assert duplicate_blocked
-        scopes=[r[0] for r in c.execute("SELECT module_scope FROM task_types WHERE lower(trim(name))=lower(trim('Giải ngân')) ORDER BY module_scope").fetchall()]
+        scopes=[r[0] for r in c.execute("SELECT module_scope FROM task_types WHERE name='Giải ngân' ORDER BY module_scope").fetchall()]
         assert scopes==['OPS','PLAN'],scopes
+        c.execute("INSERT INTO task_types(name,sla_hours,active,module_scope,created_at,updated_at) VALUES('Giải ngân',8,1,'OPS','2026-01-04','2026-01-04') ON CONFLICT(module_scope,name) DO NOTHING")
+        assert c.execute("SELECT COUNT(*) FROM task_types WHERE name='Giải ngân' AND module_scope='OPS'").fetchone()[0]==1
     assert (root/'backups'/'pre_task_type_scope_unique_v2.db').exists()
 
-print('MOBILE_INPUT_PERFORMANCE_V2_QA_PASS',checks,'cross_scope_duplicate=PASS same_scope_duplicate_block=PASS migration_backup=PASS')
+print('MOBILE_INPUT_PERFORMANCE_V2_QA_PASS',checks,'cross_scope_duplicate=PASS same_scope_duplicate_block=PASS bootstrap_conflict=PASS migration_backup=PASS')
