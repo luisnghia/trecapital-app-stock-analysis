@@ -8,9 +8,10 @@ from khdn_apps import planning_operational_phase13_patch as phase13
 from khdn_apps import planning_operational_phase14_patch as phase14
 from khdn_apps import planning_operational_phase15_patch as phase15
 from khdn_apps import mobile_input_performance_patch as mobile_input_perf
+from khdn_apps import mobile_admin_restore_perf_patch as mobile_admin_restore
 from khdn_apps import task_type_scope_runtime_fix as task_type_scope_fix
 
-VERSION = "1.7.0"
+VERSION = "1.8.0"
 
 
 def _safe_sync_customer_contacts(c, customer_id, contacts, actor_uid, ts, source_case_id=None):
@@ -38,11 +39,11 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
     phase13.install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger)
     phase14.install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger)
     phase15.install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger)
-    # Must stay last: later planning/operations overlays introduced new native
-    # inputs after the original V2.14 performance transformer had already run.
-    # Patch its task-type migration first so the legacy global UNIQUE(name) is
-    # rebuilt safely before the transformed init_db() runs.
+    # Patch task-type migration first so the legacy global UNIQUE(name) is rebuilt
+    # safely before the transformed init_db() runs, then install zero-keystroke
+    # forms. The final restore owns System Admin navigation/render load.
     task_type_scope_fix.install(mobile_input_perf, app_ns, logger)
     mobile_input_perf.install(app_ns, policy, logger)
+    mobile_admin_restore.install(app_ns, policy, logger)
     if logger:
-        logger.info("PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 phase14=1 phase15=1 task_type_scope_fix=1 mobile_input_perf_last=1")
+        logger.info("PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 phase14=1 phase15=1 task_type_scope_fix=1 mobile_input_perf=1 mobile_admin_restore_last=1")
