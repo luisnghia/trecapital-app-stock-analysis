@@ -53,6 +53,7 @@ from khdn_apps.planning_usability_v3_patch import install as _install_planning_u
 from khdn_apps.planning_usability_v3_hotfix import install as _install_planning_usability_v3_hotfix
 from khdn_apps.weekly_priority_policy_patch import install as _install_weekly_priority_policy
 from khdn_apps.weekly_priority_policy_hotfix import install as _install_weekly_priority_policy_hotfix
+from khdn_apps.global_zero_keystroke_patch import install as _install_global_zero_keystroke
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -215,6 +216,18 @@ _install_weekly_priority_policy(
 )
 _install_weekly_priority_policy_hotfix(
     _weekly_priority_policy_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# This final binding intentionally runs on EVERY Streamlit rerun. Earlier runtime
+# hotfixes rebind Customer Work/Catalog renderers each run; without this step the
+# submit-only input component can be replaced by native widgets after the first
+# interaction, reintroducing typing lag on pages that also contain long tables.
+_install_global_zero_keystroke(
+    _app_module.__dict__,
+    _weekly_priority_policy_module,
+    _customer_work_module,
+    _customer_work_ui_module,
+    _worktype_contact_card_module,
     _app_module.__dict__.get("LOGGER"),
 )
 # Successful logins automatically issue the existing 30-day device cookie.
