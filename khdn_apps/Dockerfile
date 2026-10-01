@@ -1,4 +1,4 @@
-# Release: mobile input isolation, scoped task types, planning/operations hardening.
+# Release: mobile input isolation, scoped task types, six-route admin restore.
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -32,6 +32,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && python /app/khdn_apps/install_admin_scope.py \
     && python /app/khdn_apps/install_theme.py \
     && python /app/khdn_apps/theme_bridge_fix.py \
+    && python /app/khdn_apps/mobile_client_focus_install.py \
     && python /app/khdn_apps/performance_install_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/amount_decimal_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/full_task_edit_qa.py \
@@ -42,6 +43,8 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_priority_policy_qa.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/fast_client_form.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/mobile_input_performance_patch.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/mobile_admin_restore_perf_patch.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/mobile_client_focus_install.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/task_type_scope_source_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/task_type_scope_runtime_fix.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/weekly_plan_form_refinement_patch.py \
@@ -72,6 +75,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase14_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/backup_management_patch.py \
     && PYTHONPATH=/app python /app/khdn_apps/mobile_input_performance_v2_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/mobile_admin_restore_perf_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_plan_form_refinement_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_plan_unified_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_final_defaults_qa.py \
