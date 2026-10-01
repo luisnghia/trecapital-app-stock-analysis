@@ -12,6 +12,7 @@ from khdn_apps import customer_cif_admin_patch as customer_cif_admin
 from khdn_apps import backup_management_patch as backup_management
 from khdn_apps import offline_export_patch as offline_export
 from khdn_apps import customer_work_form_layout_patch as customer_work_layout
+from khdn_apps import customer_work_stage_order_patch as customer_work_stage_order
 from khdn_apps import mobile_input_performance_patch as mobile_input_perf
 from khdn_apps import mobile_admin_restore_perf_patch as mobile_admin_restore
 from khdn_apps import mobile_legacy_ui_perf_patch as mobile_legacy_ui_perf
@@ -111,11 +112,12 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
     # backup admin wrapper is installed before or after this operational stack.
     offline_export.install(backup_management, logger)
 
-    # Presentation-only adapter for the final zero-keystroke Customer Work form:
-    # priority fallback last + balanced desktop rows. No data migration/write.
+    # Presentation-only adapters: keep the final zero-keystroke Customer Work
+    # form balanced and render the room stage matrix in configured catalog order.
     customer_work_layout.install(app_ns, logger)
+    customer_work_stage_order.install(app_ns, customer_core, logger)
 
     if logger:
         logger.info(
-            "PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 phase14=1 operations_owner_roster=1 phase15=1 task_type_scope_fix=1 mobile_input_perf=1 mobile_admin_restore=1 catalog_command_nav=1 mobile_legacy_ui_perf=1 customer_cif_admin=1 legacy_import_guard=1 offline_export=1 customer_work_layout=1 customer_cif_admin_last=1"
+            "PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 phase14=1 operations_owner_roster=1 phase15=1 task_type_scope_fix=1 mobile_input_perf=1 mobile_admin_restore=1 catalog_command_nav=1 mobile_legacy_ui_perf=1 customer_cif_admin=1 legacy_import_guard=1 offline_export=1 customer_work_layout=1 customer_work_stage_order=1 customer_cif_admin_last=1"
         )
