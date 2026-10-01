@@ -52,7 +52,7 @@ checks = {
         RUNTIME.find("mobile_input.install(") >= 0
         and RUNTIME.find("mobile_admin.install(") > RUNTIME.find("mobile_input.install(")
         and RUNTIME.find("legacy_ui.install(") > RUNTIME.find("mobile_admin.install(")
-        and RUNTIME.find("_install_task_type_scope_sort(") > RUNTIME.find("legacy_ui.install(")
+        and RUNTIME.find("_install_task_type_scope_sort(app_ns, log)") > RUNTIME.find("legacy_ui.install(")
     ),
     "runtime_stage_and_important_category_submit_only": (
         "submit_only_stages=1" in RUNTIME
