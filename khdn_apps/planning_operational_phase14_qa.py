@@ -44,6 +44,10 @@ if not all(checks.values()) or not semantic:
     raise SystemExit(f"PLANNING_OPERATIONAL_PHASE14_QA_FAIL {checks} semantic={semantic}")
 print(f"PLANNING_OPERATIONAL_PHASE14_QA_PASS {checks} semantic_scope=PASS no_data_migration=PASS")
 
+# Leader-side task ownership may also be assigned to an active Lãnh đạo phòng.
+# Importing the dedicated semantic QA keeps this behavior in the normal Docker gate.
+import khdn_apps.operations_owner_roster_patch_qa  # noqa: E402,F401
+
 # Phase 15 is the final Operations customer-search overlay. Importing its QA here
 # keeps the existing Docker QA chain authoritative without changing older gates.
 import khdn_apps.planning_operational_phase15_qa  # noqa: E402,F401
