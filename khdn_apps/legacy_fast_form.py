@@ -1,8 +1,10 @@
-"""Submit-only browser form that keeps the legacy KHDN input layout on mobile.
+"""Submit-only browser form that keeps the legacy KHDN input layout.
 
-Draft values live entirely in the browser component while the user types.  Python
-receives one payload only after the explicit save button, so long catalog pages do
-not participate in the iOS keyboard hot path.
+Draft values live entirely in the browser component while the user types. Python
+receives one payload only after the explicit save button, so long pages/tables do
+not participate in the keyboard hot path.  ``columns`` is presentation-only and
+lets larger forms keep their familiar desktop layout while collapsing to one
+column on phones.
 """
 from __future__ import annotations
 
@@ -16,13 +18,23 @@ _component = components.declare_component(
 )
 
 
-def legacy_fast_form(fields, button_label, key, *, reset_token="", title="", help_text=""):
+def legacy_fast_form(
+    fields,
+    button_label,
+    key,
+    *,
+    reset_token="",
+    title="",
+    help_text="",
+    columns=1,
+):
     result = _component(
         fields=list(fields or []),
         buttonLabel=str(button_label or "Lưu"),
         resetToken=str(reset_token or ""),
         title=str(title or ""),
         helpText=str(help_text or ""),
+        columns=max(1, min(4, int(columns or 1))),
         key=str(key),
         default=None,
     )
