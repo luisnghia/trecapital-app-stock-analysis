@@ -3,8 +3,11 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import pandas as pd
+
 from khdn_apps import customer_cif_admin_patch as patch
 from khdn_apps import customer_cif_qlkh_refresh_patch as qlkh_refresh
+from khdn_apps import customer_cif_import_reliability_patch as reliable
 
 
 c = sqlite3.connect(":memory:")
@@ -81,7 +84,7 @@ assert r["qlkh_user_id"] == 1
 assert c.execute("SELECT customer_id FROM tasks WHERE id=1").fetchone()[0] == prospect_id
 assert c.execute("SELECT customer_id FROM weekly_plan_items WHERE id=1").fetchone()[0] == prospect_id
 
-# New safe-import rule: an existing CIF adopts the newest non-blank QLKH from file.
+# Previous refresh behavior remains valid.
 qlkh_refresh.install()
 cid2, result2 = patch.apply_cif_row(
     c,
@@ -95,36 +98,66 @@ assert cid2 == prospect_id and result2 == "UPDATED"
 r = c.execute("SELECT * FROM customers WHERE id=?", (prospect_id,)).fetchone()
 assert r["qlkh_user_id"] == 2
 assert r["qlkh_source_text"] == "ql2 - QL 2"
-# Existing workflow links and Customer ID are never rewritten.
 assert c.execute("SELECT customer_id FROM tasks WHERE id=1").fetchone()[0] == prospect_id
 assert c.execute("SELECT customer_id FROM weekly_plan_items WHERE id=1").fetchone()[0] == prospect_id
 
-# Blank QLKH means no new ownership information, so the current assignment stays.
-patch.apply_cif_row(
-    c,
-    1,
-    cif="00012345",
-    name="CÔNG TY ABC",
-    qlkh_raw="",
-)
+# Final reliability layer is the active importer owner.
+reliable.install()
+assert patch.apply_cif_row is reliable._apply_cif_row
+assert patch._render_safe_import is reliable._render_safe_import
+assert patch._resolve_qlkh is reliable._resolve_qlkh
+
+# Blank QLKH preserves current ownership.
+patch.apply_cif_row(c, 1, cif="00012345", name="CÔNG TY ABC", qlkh_raw="")
 r = c.execute("SELECT * FROM customers WHERE id=?", (prospect_id,)).fetchone()
 assert r["qlkh_user_id"] == 2
 assert r["qlkh_source_text"] == "ql2 - QL 2"
 
-# Non-blank but unresolved QLKH must block instead of silently keeping stale owner.
-try:
-    patch.apply_cif_row(
-        c,
-        1,
-        cif="00012345",
-        name="CÔNG TY ABC",
-        qlkh_raw="CAN BO KHONG TON TAI",
-    )
-    raise AssertionError("unresolved QLKH should block safe import")
-except ValueError as exc:
-    assert "không xác định được duy nhất Cán bộ QLKH" in str(exc)
-r = c.execute("SELECT * FROM customers WHERE id=?", (prospect_id,)).fetchone()
-assert r["qlkh_user_id"] == 2
+# Flexible header and QLKH parsing.
+df = pd.DataFrame([
+    {"Mã CIF": "00012345", "Tên khách hàng": "CÔNG TY ABC", "CBQLKH phụ trách": "ql1 - QL 1"}
+])
+plan, cols = reliable._build_plan(df, c)
+assert cols["cif"] == "Mã CIF"
+assert cols["name"] == "Tên khách hàng"
+assert cols["qlkh"] == "CBQLKH phụ trách"
+assert plan[0]["action"] == "UPDATE"
+assert reliable._resolve_qlkh(c, "ql1 - QL 1") == 1
+assert reliable._resolve_qlkh(c, "QL 2") == 2
+
+# Excel-like CIF values normalize consistently.
+assert reliable._clean_cif("12345.0") == "12345"
+assert reliable._clean_cif("1.2345E+4") == "12345"
+assert reliable._clean_cif("'00012345") == "00012345"
+
+# Mixed old/new file: valid rows commit even when another row has bad QLKH.
+items = [
+    {
+        "row": 0, "cif": "00012345", "name": "CÔNG TY ABC", "tax": "040123",
+        "qlkh_raw": "ql1 - QL 1", "contact_name": "", "contact_phone": "",
+        "action": "UPDATE", "target": prospect_id, "candidates": [],
+    },
+    {
+        "row": 1, "cif": "00099999", "name": "CÔNG TY MỚI", "tax": "040999",
+        "qlkh_raw": "QL 2", "contact_name": "", "contact_phone": "",
+        "action": "CREATE", "target": None, "candidates": [],
+    },
+    {
+        "row": 2, "cif": "00088888", "name": "CÔNG TY LỖI", "tax": "040888",
+        "qlkh_raw": "CAN BO KHONG TON TAI", "contact_name": "", "contact_phone": "",
+        "action": "CREATE", "target": None, "candidates": [],
+    },
+]
+done, errors = reliable.apply_import_items(c, 1, items, {})
+assert done["UPDATED"] == 1
+assert done["CREATED"] == 1
+assert done["FAILED"] == 1
+assert len(errors) == 1 and errors[0]["CIF"] == "00088888"
+r = c.execute("SELECT * FROM customers WHERE cif='00012345'").fetchone()
+assert r["id"] == prospect_id and r["qlkh_user_id"] == 1
+new_row = c.execute("SELECT * FROM customers WHERE cif='00099999'").fetchone()
+assert new_row is not None and new_row["qlkh_user_id"] == 2
+assert c.execute("SELECT COUNT(*) FROM customers WHERE cif='00088888'").fetchone()[0] == 0
 
 # Duplicate row can be merged into the historic id while linked workflow moves.
 c.execute(
@@ -154,9 +187,9 @@ assert c.execute("SELECT COUNT(*) FROM customers WHERE id=?", (prospect_id,)).fe
 # Exact MST candidate is deterministic and eligible for preserve-ID activation.
 c.execute(
     "INSERT INTO customers(cif,customer_name,active,created_at,customer_status,tax_id) "
-    "VALUES(NULL,'XYZ',0,'2026-01-04','PROSPECT','040999')"
+    "VALUES(NULL,'XYZ',0,'2026-01-04','PROSPECT','040777')"
 )
-cands = patch._prospect_candidates(c, "XYZ COMPANY", "040999")
+cands = patch._prospect_candidates(c, "XYZ COMPANY", "040777")
 assert len(cands) >= 1
 assert cands[0]["_reason"].startswith("trùng MST")
 
@@ -173,16 +206,18 @@ for token in [
 ]:
     assert token in src, token
 
-refresh_src = Path(qlkh_refresh.__file__).read_text(encoding="utf-8")
+reliable_src = Path(reliable.__file__).read_text(encoding="utf-8")
 for token in [
-    "qlkh_refresh_from_latest_file",
-    "old_qlkh_user_id",
-    "new_qlkh_user_id",
-    "unresolved_blocks=1",
+    "mixed_file=1",
+    "normalized_cif=1",
+    "qlkh_refresh=1",
+    "row_savepoint=1",
     "customer_id_preserved=1",
-    "data_migration=0",
+    "SAVEPOINT",
+    "CBQLKH",
+    "Một dòng lỗi không làm mất các dòng hợp lệ",
 ]:
-    assert token in refresh_src, token
+    assert token in reliable_src, token
 
 fix_src = Path(patch.__file__).with_name("planning_operational_phase10_fix.py").read_text(encoding="utf-8")
 for token in [
@@ -192,7 +227,8 @@ for token in [
     "Nạp/Đồng bộ khách hàng (đã thay bằng Nạp CIF an toàn)",
     "legacy_import_guard=1",
     "customer_cif_qlkh_refresh.install(app_ns, logger)",
-    "customer_cif_qlkh_refresh=1",
+    "customer_cif_import_reliability.install(app_ns, logger)",
+    "customer_cif_import_reliability=1",
     "mobile_input_perf.install(app_ns, policy, logger)",
 ]:
     assert token in fix_src, token
@@ -200,5 +236,6 @@ for token in [
 print(
     "CUSTOMER_CIF_ADMIN_PATCH_QA_PASS "
     "preserve_id=1 merge_fk=1 bulk_delete_guard=1 safe_import=1 weekly_fk=1 "
-    "legacy_import_locked=1 existing_cif_qlkh_refresh=1 blank_qlkh_preserves=1 unresolved_qlkh_blocks=1"
+    "legacy_import_locked=1 existing_cif_qlkh_refresh=1 mixed_old_new=1 new_cif_create=1 "
+    "row_error_isolated=1 normalized_cif=1 flexible_qlkh_header=1 customer_id_preserved=1"
 )
