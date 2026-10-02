@@ -36,7 +36,7 @@ assert "Lãnh đạo phòng" in patch._owner_label(active, 20)
 
 patch.install(ns)
 assert ns.get("_OPERATIONS_OWNER_ROSTER_PATCH_VERSION") == patch.VERSION
-assert patch.VERSION == "1.1.0"
+assert patch.VERSION == "1.2.0"
 assert phase14._active_qlkh(ns).id.astype(int).tolist() == [10, 20]
 assert set(phase14._all_qlkh(ns).id.astype(int).tolist()) == {10, 11, 20, 21}
 
@@ -61,6 +61,8 @@ checks = {
     "qlkh_owner_field": '"Cán bộ QLKH phụ trách *"' in source and '"ql_new_owner"' in source,
     "qlkh_owner_persisted_to_task": "seq[2] = owner_id" in source,
     "qlkh_prospect_owner_sync": "phase15._prospect_owner_id = prospect_owner_id" in source,
+    "no_post_widget_owner_write": 'st.session_state["ql_new_owner"] = int(selected)' not in source,
+    "widget_key_is_owner_state": '_render_owner_select(st, roster, "ql_new_owner"' in source,
     "actor_not_impersonated": "Never replace actor_user_id" in source,
     "no_schema_ddl": "ALTER TABLE" not in upper and "DROP TABLE" not in upper,
     "no_historical_task_rewrite": "UPDATE TASKS" not in upper and "DELETE FROM TASKS" not in upper,
@@ -70,5 +72,6 @@ assert all(checks.values()), checks
 print(
     "OPERATIONS_OWNER_ROSTER_PATCH_QA_PASS "
     "cbht=1 qlkh=1 leader=1 admin=1 active_qlkh=1 active_leader=1 "
-    "owner_task_write=1 actor_preserved=1 prospect_owner_sync=1 data_migration=0"
+    "owner_task_write=1 actor_preserved=1 prospect_owner_sync=1 "
+    "post_widget_state_write=0 data_migration=0"
 )
