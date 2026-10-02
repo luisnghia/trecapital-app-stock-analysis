@@ -92,3 +92,7 @@ print(
     "today_keys=1 all_roles=1 qlkh_owner=1 exact_room_card=1 room_detail_route=1 "
     "processing=1 today=1 detail=1 room=1 escaped=1 wrapped=1 blank_hidden=1 data_migration=0"
 )
+
+# Run the manager-note/approval-history semantic regression suite as part of the
+# existing Customer Work build gate, so Dockerfile wiring remains stable.
+import khdn_apps.customer_work_manager_note_history_qa  # noqa: E402,F401
