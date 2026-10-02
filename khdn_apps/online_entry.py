@@ -55,6 +55,7 @@ from khdn_apps.weekly_priority_policy_patch import install as _install_weekly_pr
 from khdn_apps.weekly_priority_policy_hotfix import install as _install_weekly_priority_policy_hotfix
 from khdn_apps.global_zero_keystroke_patch import install as _install_global_zero_keystroke
 from khdn_apps.customer_work_note_card_patch import install as _install_customer_work_note_cards
+from khdn_apps.customer_work_manager_note_history_patch import install as _install_customer_work_manager_note_history
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -235,6 +236,13 @@ _install_global_zero_keystroke(
 # This is presentation-only: it reads the persisted case note and performs no data migration.
 _install_customer_work_note_cards(
     _customer_work_ui_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Final Customer Work governance layer: manager/admin may edit the canonical note;
+# approval/change history shows the exact leader/admin comment captured at decision time.
+_install_customer_work_manager_note_history(
+    _customer_work_ui_module,
+    _customer_work_module,
     _app_module.__dict__.get("LOGGER"),
 )
 # Successful logins automatically issue the existing 30-day device cookie.
