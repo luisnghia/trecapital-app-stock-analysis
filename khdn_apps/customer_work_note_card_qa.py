@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import inspect
 
+import pandas as pd
+
 from khdn_apps import customer_work_note_card_patch as patch
 from khdn_apps import customer_work_ui
+from khdn_apps import operations_owner_roster_patch as owner_patch
 from khdn_apps import planning_dashboard_consolidation_patch as consolidation
 from khdn_apps import planning_final_ux_patch as finalux
 from khdn_apps import planning_room_dashboard_detail_patch as room
@@ -11,25 +14,37 @@ from khdn_apps import planning_usability_v2_patch as v2
 from khdn_apps import planning_usability_v3_patch as v3
 
 
+# Safe persisted note rendering.
 escaped = patch._note_html({"note": "Dòng 1\n<script>alert(1)</script>"})
 assert "📝 <b>Ghi chú:</b>" in escaped
 assert "Dòng 1" in escaped
 assert "&lt;script&gt;" in escaped and "<script>" not in escaped
 assert patch._note_html({"note": "   "}) == ""
 
-# The new overlay must preserve the original proven renderers rather than copy them.
-assert patch._BASE_CUSTOMER_CARD is not patch._customer_card
-assert patch._BASE_ROOM_CASE_CARD is not patch._room_case_card
+# Owner roster must preserve all operational role paths and both eligible owner roles.
+def _fake_all_users(role, active_only=True):
+    if role == "Cán bộ QLKH":
+        return pd.DataFrame([{"id": 1, "full_name": "QLKH A", "username": "a", "role": role}])
+    if role == "Lãnh đạo phòng":
+        return pd.DataFrame([{"id": 2, "full_name": "Lãnh đạo B", "username": "b", "role": role}])
+    return pd.DataFrame()
 
+roster = owner_patch._combined_owner_roster({"all_users": _fake_all_users}, True)
+assert roster.id.astype(int).tolist() == [1, 2]
+assert roster.role.tolist() == ["Cán bộ QLKH", "Lãnh đạo phòng"]
+
+# Final rerun-safe install owns every active Customer Work card entry point.
 patch.install(customer_work_ui)
 assert v2._card is patch._customer_card
 assert v3._card is patch._customer_card
 assert finalux._customer_card is patch._customer_card
+assert finalux._render_context is patch._stable_render_context
 assert customer_work_ui._case_card is patch._case_card_bridge
 assert room._room_case_card is patch._room_case_card
 
 src = inspect.getsource(patch)
 install_src = inspect.getsource(patch.install)
+owner_src = inspect.getsource(owner_patch)
 consolidation_src = inspect.getsource(consolidation)
 
 checks = {
@@ -39,18 +54,26 @@ checks = {
     "html_escape": "html.escape(raw)" in src,
     "blank_hidden": "if not raw:" in src,
     "base_customer_preserved": "_BASE_CUSTOMER_CARD = finalux._customer_card" in src,
-    "base_room_preserved": "_BASE_ROOM_CASE_CARD = room._room_case_card" in src,
     "safe_html_renderer": "return st.html(transformed)" in src,
     "markdown_restored": "finally:" in src and "st.markdown = original_markdown" in src,
-    "room_injection_inside_card": 'marker = "\\n        </div>\\n        <style>"' in src,
-    "old_detail_button": "st-key-room_case_detail_" in src and "#F4B41A" in src and "#FFD45A" in src and "border-radius:999px" in src,
+    "today_duplicate_key_fixed": "finalux._render_context = _stable_render_context" in install_src,
+    "note_overlay_skipped_in_context": "os.path.basename(__file__)" in src,
+    "context_uses_external_callsite": "frame.function" in src and "frame.lineno" in src,
+    "room_uses_exact_customer_card": "return _customer_card(" in inspect.getsource(patch._room_case_card),
+    "room_has_no_separate_card_template": "rd-card" not in inspect.getsource(patch._room_case_card),
     "processing_today_detail_bridge": "customer_ui._case_card = _case_card_bridge" in install_src,
     "v2_v3_rebound": "v2._card = _customer_card" in install_src and "v3._card = _customer_card" in install_src,
     "room_rebound": "room._room_case_card = _room_case_card" in install_src,
     "rerun_safe": "No early return by design" in install_src,
+    "qlkh_no_post_widget_state_write": 'st.session_state["ql_new_owner"] = int(selected)' not in owner_src,
+    "qlkh_widget_key_is_state": '_render_owner_select(st, roster, "ql_new_owner"' in owner_src,
+    "role_cbht_covered": 'app_ns["support_page"] = support_page' in owner_src,
+    "role_qlkh_covered": 'app_ns["qlkh_page"] = qlkh_page' in owner_src,
+    "role_leader_admin_covered": "phase14._active_qlkh = active_owners" in owner_src and "phase14._all_qlkh = all_owners" in owner_src,
+    "owner_roles_both_present": 'for role in ("Cán bộ QLKH", "Lãnh đạo phòng")' in owner_src,
     "approval_note_existing": '("Ghi chú", x.get("note") or "—")' in consolidation_src,
     "move_note_existing": '("Ghi chú công việc", case.get("note") or "—")' in consolidation_src,
-    "no_install_sql_write": all(token not in install_src for token in ["execute(", "ALTER TABLE", "UPDATE ", "INSERT ", "DELETE "]),
+    "no_note_install_sql_write": all(token not in install_src for token in ["execute(", "ALTER TABLE", "UPDATE ", "INSERT ", "DELETE "]),
 }
 
 print("CUSTOMER_WORK_NOTE_CARD_QA", checks)
@@ -60,6 +83,6 @@ if failed:
 
 print(
     "CUSTOMER_WORK_NOTE_CARD_QA_PASS "
-    "processing=1 today=1 detail=1 room=1 reschedule=1 approvals=1 "
-    "html_tail_fixed=1 old_detail_button=1 escaped=1 wrapped=1 blank_hidden=1 data_migration=0"
+    "today_keys=1 all_roles=1 qlkh_owner=1 exact_room_card=1 processing=1 today=1 "
+    "detail=1 room=1 escaped=1 wrapped=1 blank_hidden=1 data_migration=0"
 )
