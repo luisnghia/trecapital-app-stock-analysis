@@ -11,6 +11,7 @@ from khdn_apps import operations_owner_roster_patch as operations_owner_roster
 from khdn_apps import customer_cif_admin_patch as customer_cif_admin
 from khdn_apps import customer_cif_qlkh_refresh_patch as customer_cif_qlkh_refresh
 from khdn_apps import customer_cif_import_reliability_patch as customer_cif_import_reliability
+from khdn_apps import customer_cif_unresolved_qlkh_fallback_patch as customer_cif_unresolved_qlkh_fallback
 from khdn_apps import backup_management_patch as backup_management
 from khdn_apps import offline_export_patch as offline_export
 from khdn_apps import customer_work_form_layout_patch as customer_work_layout
@@ -106,12 +107,13 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
     mobile_legacy_ui_perf.install(app_ns, policy, customer_core, customer_ui, worktype, logger)
 
     # Install Customer CIF tools after all Admin render overlays so the wrapper is
-    # not replaced later.  The final reliability layer owns the safe importer:
-    # mixed old/new CIF files are row-isolated, CIF values are normalized, and
-    # existing CIF rows adopt the newest non-blank QLKH from the uploaded file.
+    # not replaced later. The final fallback policy is deliberately installed
+    # after the reliability layer: unresolved QLKH no longer blocks the customer
+    # row. Existing CIF keeps its current QLKH; new CIF is imported with QLKH blank.
     customer_cif_admin.install(app_ns, logger)
     customer_cif_qlkh_refresh.install(app_ns, logger)
     customer_cif_import_reliability.install(app_ns, logger)
+    customer_cif_unresolved_qlkh_fallback.install(app_ns, logger)
     _install_legacy_customer_import_guard(app_ns, logger)
 
     # Patch the backup renderer itself, so it works regardless of whether the
@@ -125,5 +127,5 @@ def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, l
 
     if logger:
         logger.info(
-            "PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 phase14=1 operations_owner_roster=1 phase15=1 task_type_scope_fix=1 mobile_input_perf=1 mobile_admin_restore=1 catalog_command_nav=1 mobile_legacy_ui_perf=1 customer_cif_admin=1 customer_cif_qlkh_refresh=1 customer_cif_import_reliability=1 legacy_import_guard=1 offline_export=1 customer_work_layout=1 customer_work_stage_order=1 customer_cif_admin_last=1"
+            "PLANNING_OPERATIONAL_PHASE10_FIX_INSTALLED null_actor_for_legacy_migration=1 phase11=1 phase12=1 phase13=1 phase14=1 operations_owner_roster=1 phase15=1 task_type_scope_fix=1 mobile_input_perf=1 mobile_admin_restore=1 catalog_command_nav=1 mobile_legacy_ui_perf=1 customer_cif_admin=1 customer_cif_qlkh_refresh=1 customer_cif_import_reliability=1 customer_cif_unresolved_qlkh_fallback=1 legacy_import_guard=1 offline_export=1 customer_work_layout=1 customer_work_stage_order=1 customer_cif_admin_last=1"
         )
