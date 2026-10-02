@@ -35,6 +35,7 @@ assert roster.role.tolist() == ["Cán bộ QLKH", "Lãnh đạo phòng"]
 
 # Final rerun-safe install owns every active Customer Work card entry point.
 patch.install(customer_work_ui)
+assert patch.VERSION == "1.3.0"
 assert v2._card is patch._customer_card
 assert v3._card is patch._customer_card
 assert finalux._customer_card is patch._customer_card
@@ -44,6 +45,7 @@ assert room._room_case_card is patch._room_case_card
 
 src = inspect.getsource(patch)
 install_src = inspect.getsource(patch.install)
+room_src = inspect.getsource(patch._room_case_card)
 owner_src = inspect.getsource(owner_patch)
 consolidation_src = inspect.getsource(consolidation)
 
@@ -59,8 +61,12 @@ checks = {
     "today_duplicate_key_fixed": "finalux._render_context = _stable_render_context" in install_src,
     "note_overlay_skipped_in_context": "os.path.basename(__file__)" in src,
     "context_uses_external_callsite": "frame.function" in src and "frame.lineno" in src,
-    "room_uses_exact_customer_card": "return _customer_card(" in inspect.getsource(patch._room_case_card),
-    "room_has_no_separate_card_template": "rd-card" not in inspect.getsource(patch._room_case_card),
+    "room_uses_exact_customer_card": "return _customer_card(" in room_src,
+    "room_has_no_separate_card_template": "rd-card" not in room_src,
+    "room_detail_button_intercepted": 'str(label).strip() == "🔎 Chi tiết"' in room_src,
+    "room_detail_routes_to_plan": 'st.session_state["main_section"] = "plan"' in room_src,
+    "room_detail_routes_to_customer_work": 'st.session_state["main_page"] = "customer_work"' in room_src,
+    "room_button_restored": "st.button = original_button" in room_src and "finally:" in room_src,
     "processing_today_detail_bridge": "customer_ui._case_card = _case_card_bridge" in install_src,
     "v2_v3_rebound": "v2._card = _customer_card" in install_src and "v3._card = _customer_card" in install_src,
     "room_rebound": "room._room_case_card = _room_case_card" in install_src,
@@ -83,6 +89,6 @@ if failed:
 
 print(
     "CUSTOMER_WORK_NOTE_CARD_QA_PASS "
-    "today_keys=1 all_roles=1 qlkh_owner=1 exact_room_card=1 processing=1 today=1 "
-    "detail=1 room=1 escaped=1 wrapped=1 blank_hidden=1 data_migration=0"
+    "today_keys=1 all_roles=1 qlkh_owner=1 exact_room_card=1 room_detail_route=1 "
+    "processing=1 today=1 detail=1 room=1 escaped=1 wrapped=1 blank_hidden=1 data_migration=0"
 )
