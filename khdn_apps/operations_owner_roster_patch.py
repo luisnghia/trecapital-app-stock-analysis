@@ -19,7 +19,7 @@ import pandas as pd
 from khdn_apps import planning_operational_phase14_patch as phase14
 from khdn_apps import planning_operational_phase15_patch as phase15
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 _FLAG = "_OPERATIONS_OWNER_ROSTER_PATCH_VERSION"
 
 
@@ -139,9 +139,10 @@ def install(app_ns, logger=None):
             if st.session_state.get("reset_ql_create_fields"):
                 st.session_state.pop("ql_new_owner", None)
             roster = _combined_owner_roster(ns, active_only=True, all_users_fn=base_all_users)
-            selected = _render_owner_select(st, roster, "ql_new_owner", default_id=_uget(u, "id"))
-            if selected is not None:
-                st.session_state["ql_new_owner"] = int(selected)
+            # Streamlit automatically persists the selectbox value into the key.
+            # Never assign st.session_state["ql_new_owner"] after instantiation:
+            # Streamlit 1.63 raises StreamlitWidgetAlreadyInstantiatedError.
+            _render_owner_select(st, roster, "ql_new_owner", default_id=_uget(u, "id"))
         return original_phase15_selector(st, u, ns, potential, key, required_message, logger)
 
     phase15._prospect_owner_id = prospect_owner_id
