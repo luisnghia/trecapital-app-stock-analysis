@@ -1,7 +1,7 @@
 """Final rerun-safe Customer Work card note overlay.
 
 Adds persisted Customer Work notes without replacing the proven Customer Work
-card renderer.  It also owns the final render-context resolver so the note
+card renderer. It also owns the final render-context resolver so the note
 wrapper never collapses multiple cards onto the same Streamlit key, and the
 room dashboard reuses the exact Customer Work card format/content.
 """
@@ -18,10 +18,10 @@ from khdn_apps import planning_room_dashboard_detail_patch as room
 from khdn_apps import planning_usability_v2_patch as v2
 from khdn_apps import planning_usability_v3_patch as v3
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 _FLAG = "_CUSTOMER_WORK_NOTE_CARD_VERSION"
 
-# Capture the proven Customer Work renderer once.  The overlay only injects the
+# Capture the proven Customer Work renderer once. The overlay only injects the
 # persisted note and otherwise delegates layout/actions/business behavior to it.
 _BASE_CUSTOMER_CARD = finalux._customer_card
 
@@ -30,7 +30,7 @@ def _stable_render_context():
     """Return the real external card call-site, ignoring renderer/overlay frames.
 
     The previous resolver could stop at this module's lambda, so the same case
-    rendered in two Today sections received the same ``cwux_card_*`` key.  That
+    rendered in two Today sections received the same ``cwux_card_*`` key. That
     produced StreamlitDuplicateElementKey for every role using the Today page.
     """
     skip = {
@@ -103,24 +103,38 @@ def _customer_card(st, customer_ui, refinement_module, x, get_conn, uid, manager
 
 
 def _room_case_card(st, customer_ui, x):
-    """Room dashboard uses the exact Customer Work card format and content.
+    """Exact Customer Work card plus room -> Customer Work detail navigation.
 
-    It is intentionally read-only here (manager=False): the room dashboard has
-    its dedicated approval center below, while the card itself is identical to
-    the Customer Work page including Created/Owner/Controller/Stage/Due/Issue/
-    Priority/Contact/Note and the same Detail button.
+    The final exact-card overlay delegates to the normal Customer Work renderer,
+    whose Detail button only sets ``cw_case_id``. On the Customer Work page that
+    is enough, but the room dashboard must also switch the outer navigation to
+    ``plan/customer_work`` before the renderer reruns. The historical room card
+    already did this; preserve that routing while keeping the exact card layout.
     """
-    return _customer_card(
-        st,
-        customer_ui,
-        refinement,
-        x,
-        None,
-        0,
-        False,
-        None,
-        False,
-    )
+    original_button = st.button
+
+    def room_button(label, *args, **kwargs):
+        clicked = original_button(label, *args, **kwargs)
+        if clicked and str(label).strip() == "🔎 Chi tiết":
+            st.session_state["main_section"] = "plan"
+            st.session_state["main_page"] = "customer_work"
+        return clicked
+
+    st.button = room_button
+    try:
+        return _customer_card(
+            st,
+            customer_ui,
+            refinement,
+            x,
+            None,
+            0,
+            False,
+            None,
+            False,
+        )
+    finally:
+        st.button = original_button
 
 
 def _case_card_bridge(st, x, get_conn, uid, manager, logger=None, compact=False):
@@ -143,6 +157,6 @@ def install(customer_ui, logger=None):
     setattr(customer_ui, _FLAG, VERSION)
     if logger:
         logger.info(
-            "CUSTOMER_WORK_NOTE_CARD_REBOUND version=%s stable_keys=1 exact_room_card=1 safe_html=1 processing=1 today=1 detail=1 room=1 data_migration=0",
+            "CUSTOMER_WORK_NOTE_CARD_REBOUND version=%s stable_keys=1 exact_room_card=1 room_detail_route=1 safe_html=1 processing=1 today=1 detail=1 room=1 data_migration=0",
             VERSION,
         )
