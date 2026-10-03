@@ -39,6 +39,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/direct_task_edit_runtime_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/catalog_sync_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/notification_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/weekly_push_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_priority_policy_qa.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/weekly_plan_form_refinement_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_final_defaults_patch.py \

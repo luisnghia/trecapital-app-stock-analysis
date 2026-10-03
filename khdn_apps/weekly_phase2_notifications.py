@@ -11,8 +11,10 @@ import logging
 from pathlib import Path
 import sqlite3
 import threading
+import time
 
 from khdn_apps import notifications as notify
+from khdn_apps import weekly_push
 from khdn_apps.weekly_performance_phase2_patch import _metrics, _quality, _week_score, _grade
 
 LOGGER = logging.getLogger("khdn_weekly_phase2_notifications")
@@ -26,7 +28,7 @@ def _connect(db_path):
 
 
 def _now():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return weekly_push.local_now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _table(c, name):
@@ -38,7 +40,7 @@ def _cols(c, table):
 
 
 def ensure_schema(db_path):
-    notify.ensure_schema(db_path)
+    weekly_push.ensure_schema(db_path)
     with _connect(db_path) as c:
         if not _table(c, "weekly_plans") or not _table(c, "weekly_plan_items") or not _table(c, "users"):
             return False
@@ -64,33 +66,21 @@ def ensure_schema(db_path):
     return True
 
 
-def _insert(c, uid, title, body, event_key="update"):
+def _insert(c, uid, title, body, event_key="weekly_reminder", event_code="PLAN_REMINDER"):
+    return weekly_push.enqueue(c, uid, title, body,
+                               event_key=event_key, event_code=event_code)
+
+
+def _emit_once(c, code, subject, uid, title, body, event_key="weekly_reminder"):
     cur = c.execute(
-        """INSERT INTO notifications(user_id,task_id,event_key,source_action_id,title,body,created_at,push_status)
-           VALUES(?,NULL,?,NULL,?,?,?,'PENDING')""",
-        (int(uid), str(event_key), str(title), str(body), _now()),
-    )
-    nid = int(cur.lastrowid)
-    try:
-        c.execute("UPDATE notifications SET deep_link=? WHERE id=?", (f"/?khdn_notification={nid}", nid))
-    except Exception:
-        pass
-    return nid
-
-
-def _emit_once(c, code, subject, uid, title, body, event_key="update"):
-    exists = c.execute(
-        "SELECT 1 FROM weekly_cycle_notification_events WHERE event_code=? AND subject_key=? AND user_id=?",
-        (str(code), str(subject), int(uid)),
-    ).fetchone()
-    if exists:
-        return False
-    _insert(c, uid, title, body, event_key)
-    c.execute(
         "INSERT OR IGNORE INTO weekly_cycle_notification_events(event_code,subject_key,user_id,created_at) VALUES(?,?,?,?)",
         (str(code), str(subject), int(uid), _now()),
     )
-    return True
+    if not cur.rowcount:
+        return False
+    if code in {"PLAN_WAITING_APPROVAL", "QUALITY_FALLBACK", "MANAGER_REVIEW_PENDING"}:
+        event_key = "weekly_update"
+    return bool(_insert(c, uid, title, body, event_key, event_code=code))
 
 
 def _monday(d):
@@ -99,7 +89,7 @@ def _monday(d):
 
 def _staff(c):
     ucols = _cols(c, "users")
-    where = ["active=1", "COALESCE(role,'')<>'Lãnh đạo phòng'"]
+    where = ["active=1", "role IN ('Cán bộ QLKH','Cán bộ hỗ trợ')"]
     if "is_admin" in ucols:
         where.append("COALESCE(is_admin,0)=0")
     return [dict(r) for r in c.execute("SELECT id,full_name,role FROM users WHERE " + " AND ".join(where) + " ORDER BY full_name").fetchall()]
@@ -146,7 +136,7 @@ def _business_days_since(start_date, end_date):
 def process_cycle_reminders(db_path, now=None):
     if not ensure_schema(db_path):
         return 0
-    now = now or datetime.now()
+    now = now or weekly_push.local_now()
     today = now.date(); created = 0
     current_ws = _monday(today)
     with _connect(db_path) as c:
@@ -178,7 +168,18 @@ def process_cycle_reminders(db_path, now=None):
         for p in pending:
             leader = _leader_for_staff(c, p["user_id"])
             if leader:
-                created += int(_emit_once(c, "PLAN_WAITING_APPROVAL", str(p["id"]), leader, "✅ Có kế hoạch tuần chờ duyệt", f"{p.get('full_name') or 'Cán bộ'} đã nộp kế hoạch tuần {_dmy(p.get('week_start'))}."))
+                subject = f"{p['id']}:{p.get('submitted_at') or 'initial'}"
+                # Carry the old dedupe marker forward once. A later resubmission
+                # uses its own timestamp and can alert the leader again.
+                c.execute("""INSERT OR IGNORE INTO weekly_cycle_notification_events
+                    (event_code,subject_key,user_id,created_at)
+                    SELECT event_code,?,user_id,created_at FROM weekly_cycle_notification_events
+                    WHERE event_code='PLAN_WAITING_APPROVAL' AND subject_key=? AND user_id=?""",
+                    (subject, str(p["id"]), int(leader)))
+                c.execute("""DELETE FROM weekly_cycle_notification_events
+                    WHERE event_code='PLAN_WAITING_APPROVAL' AND subject_key=? AND user_id=?""",
+                    (str(p["id"]), int(leader)))
+                created += int(_emit_once(c, "PLAN_WAITING_APPROVAL", subject, leader, "✅ Có kế hoạch tuần chờ duyệt", f"{p.get('full_name') or 'Cán bộ'} đã nộp kế hoạch tuần {_dmy(p.get('week_start'))}."))
 
         # Friday 14:00 close-week reminder.
         if now.weekday() == 4 and (now.hour, now.minute) >= (14, 0):
@@ -215,7 +216,7 @@ def process_quality_fallback(db_path, now=None):
     """
     if not ensure_schema(db_path):
         return 0
-    now = now or datetime.now(); changed = 0
+    now = now or weekly_push.local_now(); changed = 0
     with _connect(db_path) as c:
         rows = [dict(r) for r in c.execute(
             """SELECT * FROM weekly_plans WHERE workflow_status='DA_CHOT'
@@ -248,10 +249,20 @@ def process_once(db_path):
 
 
 def worker_loop(db_path: str | Path, stop_event: threading.Event, poll_seconds: float = 60.0):
-    LOGGER.info("WEEKLY_PHASE2_NOTIFICATION_WORKER_START db=%s", db_path)
+    LOGGER.info("WEEKLY_PHASE2_NOTIFICATION_WORKER_START timezone=Asia/Ho_Chi_Minh")
+    schema_ready = False
+    last_schema_notice = 0.0
     while not stop_event.is_set():
         try:
-            process_once(db_path)
+            if not ensure_schema(db_path):
+                if time.monotonic() - last_schema_notice >= 60:
+                    LOGGER.info("WEEKLY_PHASE2_NOTIFICATION_WAIT_SCHEMA")
+                    last_schema_notice = time.monotonic()
+            else:
+                if not schema_ready:
+                    LOGGER.info("WEEKLY_PHASE2_NOTIFICATION_SCHEMA_READY")
+                    schema_ready = True
+                process_once(db_path)
         except sqlite3.Error:
             LOGGER.debug("WEEKLY_PHASE2_SCHEMA_WAIT", exc_info=True)
         except Exception:

@@ -34,6 +34,17 @@ def main() -> int:
     logger.addHandler(handler)
     logger.addHandler(logging.StreamHandler())
     logger.info("STORAGE_READY id=%s mounted=%s", status["storage_id"], status["volume_mounted"])
+    # Planning delivery logs remain visible on Railway and on the data volume.
+    weekly_handler = RotatingFileHandler(data_dir / "logs" / "weekly_notifications.log",
+                                        maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+    weekly_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+    for name in ("khdn_weekly_push", "khdn_weekly_notifications", "khdn_weekly_phase2_notifications"):
+        weekly_logger = logging.getLogger(name)
+        weekly_logger.setLevel(logging.INFO)
+        weekly_logger.addHandler(weekly_handler)
+        weekly_logger.addHandler(logging.StreamHandler())
+        weekly_logger.propagate = False
+
     stop = threading.Event()
 
     def backup_loop():

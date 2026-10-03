@@ -36,6 +36,9 @@ EVENT_LABELS = {
     "cancellation": "Hủy hồ sơ",
     "close": "Kết thúc hồ sơ",
     "sla": "Cảnh báo thời gian/SLA",
+    "weekly_update": "Kế hoạch: duyệt, trả lại và cập nhật",
+    "weekly_reminder": "Kế hoạch: nhắc lập, nộp và chốt tuần",
+    "weekly_deadline": "Kế hoạch: đến hạn và quá hạn",
 }
 
 ACTION_CATEGORY = {
