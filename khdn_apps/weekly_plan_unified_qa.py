@@ -6,12 +6,14 @@ root = Path(__file__).resolve().parent
 unified = (root / "weekly_plan_unified_patch.py").read_text(encoding="utf-8")
 hotfix = (root / "weekly_priority_policy_hotfix.py").read_text(encoding="utf-8")
 weekly_notify = (root / "weekly_plan_notifications.py").read_text(encoding="utf-8")
+weekly_push = (root / "weekly_push.py").read_text(encoding="utf-8")
 runtime = (root / "runtime.py").read_text(encoding="utf-8")
 
 for name in (
     "weekly_plan_unified_patch.py",
     "weekly_priority_policy_hotfix.py",
     "weekly_plan_notifications.py",
+    "weekly_push.py",
     "runtime.py",
 ):
     py_compile.compile(str(root / name), doraise=True)
@@ -29,7 +31,7 @@ checks = {
     "due_tomorrow_notification": "DUE_TOMORROW" in weekly_notify,
     "due_today_notification": "DUE_TODAY" in weekly_notify,
     "overdue_notification": "OVERDUE" in weekly_notify and "controller_user_id" in weekly_notify,
-    "push_delivery": "_send_notification_push" in weekly_notify and "flush_pending_push" in weekly_notify,
+    "push_delivery": "weekly_push.flush" in weekly_notify and "notify._send_notification_push" in weekly_push,
     "runtime_worker": "weekly_plan_notifications.worker_loop" in runtime and "khdn-weekly-notifications" in runtime,
 }
 

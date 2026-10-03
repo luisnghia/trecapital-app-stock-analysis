@@ -16,11 +16,15 @@ from __future__ import annotations
 
 import html
 import json
+import logging
 from datetime import date, datetime, time, timedelta
 
 from khdn_apps import planning_ui_v4_patch as nav4
 from khdn_apps import planning_usability_v2_patch as priority_v2
 from khdn_apps import catalog_edit_state_patch as catalog_state
+from khdn_apps import weekly_push
+
+NOTIFICATION_LOGGER = logging.getLogger("khdn_weekly_push")
 
 VERSION = "1.0.0"
 
@@ -120,18 +124,19 @@ def _direct_scope_ok(c, leader_uid, staff_uid, admin=False):
 
 
 def _notify(c, user_id, title, body):
+    if not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='notifications'").fetchone():
+        NOTIFICATION_LOGGER.warning("WEEKLY_NOTIFICATION_SCHEMA_NOT_READY user_id=%s", user_id)
+        return
+    c.execute("SAVEPOINT khdn_plan_notification")
     try:
-        exists = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='notifications'").fetchone()
-        if not exists:
-            return
-        c.execute(
-            "INSERT INTO notifications(user_id,event_key,title,body,created_at,push_status) "
-            "VALUES(?,'update',?,?,?,'PENDING')",
-            (int(user_id), str(title), str(body), _now()),
-        )
+        nid = weekly_push.enqueue(c, int(user_id), title, body)
+        c.execute("RELEASE SAVEPOINT khdn_plan_notification")
+        return nid
     except Exception:
-        # Notification must never roll back the business transaction.
-        pass
+        c.execute("ROLLBACK TO SAVEPOINT khdn_plan_notification")
+        c.execute("RELEASE SAVEPOINT khdn_plan_notification")
+        NOTIFICATION_LOGGER.exception("WEEKLY_NOTIFICATION_ENQUEUE_FAILED user_id=%s", user_id)
+        return None
 
 
 def _ensure_schema(core, get_conn, logger=None):

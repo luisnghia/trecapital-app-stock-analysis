@@ -46,6 +46,17 @@ def main() -> int:
         logger.exception("TASK_TYPE_SCOPE_STARTUP_FAILED")
         raise
 
+    # Planning delivery logs remain visible on Railway and on the data volume.
+    weekly_handler = RotatingFileHandler(data_dir / "logs" / "weekly_notifications.log",
+                                        maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+    weekly_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+    for name in ("khdn_weekly_push", "khdn_weekly_notifications", "khdn_weekly_phase2_notifications"):
+        weekly_logger = logging.getLogger(name)
+        weekly_logger.setLevel(logging.INFO)
+        weekly_logger.addHandler(weekly_handler)
+        weekly_logger.addHandler(logging.StreamHandler())
+        weekly_logger.propagate = False
+
     stop = threading.Event()
 
     def backup_loop():

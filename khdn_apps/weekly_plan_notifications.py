@@ -11,9 +11,11 @@ import logging
 from pathlib import Path
 import sqlite3
 import threading
+import time
 from typing import Any
 
 from khdn_apps import notifications as notify
+from khdn_apps import weekly_push
 
 LOGGER = logging.getLogger("khdn_weekly_notifications")
 
@@ -27,7 +29,7 @@ def _connect(db_path: str | Path) -> sqlite3.Connection:
 
 
 def _now() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return weekly_push.local_now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _table_exists(c: sqlite3.Connection, name: str) -> bool:
@@ -67,7 +69,7 @@ def _state_set(c: sqlite3.Connection, key: str, value: Any) -> None:
 
 def ensure_schema(db_path: str | Path) -> bool:
     """Return False until Weekly Plan tables exist; never races core bootstrap."""
-    notify.ensure_schema(db_path)
+    weekly_push.ensure_schema(db_path)
     with _connect(db_path) as c:
         if not _table_exists(c, "weekly_plan_items") or not _table_exists(c, "weekly_plans"):
             return False
@@ -87,28 +89,10 @@ def ensure_schema(db_path: str | Path) -> bool:
     return True
 
 
-def _insert_notification(
-    c: sqlite3.Connection,
-    *,
-    user_id: int,
-    event_key: str,
-    title: str,
-    body: str,
-) -> int | None:
-    if not _pref_enabled(c, int(user_id), event_key):
-        return None
-    cur = c.execute(
-        """INSERT INTO notifications(
-               user_id,task_id,event_key,source_action_id,title,body,created_at,push_status
-           ) VALUES(?,NULL,?,NULL,?,?,?,'PENDING')""",
-        (int(user_id), str(event_key), str(title), str(body), _now()),
-    )
-    nid = int(cur.lastrowid)
-    c.execute(
-        "UPDATE notifications SET deep_link=? WHERE id=?",
-        (f"/?khdn_notification={nid}", nid),
-    )
-    return nid
+def _insert_notification(c, *, user_id: int, event_key: str, title: str,
+                         body: str, event_code: str) -> int | None:
+    return weekly_push.enqueue(c, user_id, title, body,
+                               event_key=event_key, event_code=event_code)
 
 
 def _short(value: Any, limit: int = 180) -> str:
@@ -160,7 +144,8 @@ def process_new_work(db_path: str | Path) -> list[int]:
                     nid = _insert_notification(
                         c,
                         user_id=leader,
-                        event_key="update",
+                        event_key="weekly_update",
+                        event_code="NEW_WORK",
                         title="🆕 Công việc kế hoạch mới",
                         body=body,
                     )
@@ -180,7 +165,7 @@ def process_due_work(db_path: str | Path) -> list[int]:
     if not ensure_schema(db_path):
         return []
     created: list[int] = []
-    today = date.today()
+    today = weekly_push.local_now().date()
     with _connect(db_path) as c:
         cols = _columns(c, "weekly_plan_items")
         required = {"expected_complete_date", "controller_user_id"}
@@ -238,7 +223,8 @@ def process_due_work(db_path: str | Path) -> list[int]:
                 nid = _insert_notification(
                     c,
                     user_id=uid,
-                    event_key="sla",
+                    event_key="weekly_deadline",
+                    event_code=code,
                     title=title,
                     body=body,
                 )
@@ -253,36 +239,34 @@ def process_due_work(db_path: str | Path) -> list[int]:
 
 
 def flush_pending_push(db_path: str | Path, limit: int = 80) -> int:
-    """Also delivers policy-created weekly approval/return notifications."""
-    notify.ensure_schema(db_path)
-    with _connect(db_path) as c:
-        ids = [int(r[0]) for r in c.execute(
-            "SELECT id FROM notifications WHERE push_status='PENDING' ORDER BY id LIMIT ?",
-            (max(1, min(int(limit), 500)),),
-        ).fetchall()]
-    for nid in ids:
-        try:
-            notify._send_notification_push(db_path, nid)
-        except Exception:
-            LOGGER.exception("WEEKLY_NOTIFICATION_PUSH_FAILED id=%s", nid)
-    return len(ids)
+    """The only dispatcher for planning notifications, never operations alerts."""
+    return weekly_push.flush(db_path, limit)
 
 
 def process_once(db_path: str | Path) -> int:
     created = []
     created.extend(process_new_work(db_path))
     created.extend(process_due_work(db_path))
-    # Sending all pending messages covers both the alerts above and the Weekly
-    # Plan policy's existing approve/return/classification notifications.
+    # Deliver only the planning queue, including policy and cycle reminders.
     flush_pending_push(db_path)
     return len(created)
 
 
 def worker_loop(db_path: str | Path, stop_event: threading.Event, poll_seconds: float = 60.0) -> None:
-    LOGGER.info("WEEKLY_NOTIFICATION_WORKER_START db=%s", db_path)
+    LOGGER.info("WEEKLY_NOTIFICATION_WORKER_START push_configured=%s timezone=Asia/Ho_Chi_Minh", notify.push_available())
+    schema_ready = False
+    last_schema_notice = 0.0
     while not stop_event.is_set():
         try:
-            process_once(db_path)
+            if not ensure_schema(db_path):
+                if time.monotonic() - last_schema_notice >= 60:
+                    LOGGER.info("WEEKLY_NOTIFICATION_WAIT_SCHEMA")
+                    last_schema_notice = time.monotonic()
+            else:
+                if not schema_ready:
+                    LOGGER.info("WEEKLY_NOTIFICATION_SCHEMA_READY")
+                    schema_ready = True
+                process_once(db_path)
         except sqlite3.Error:
             # Core/weekly schemas may still be bootstrapping on a brand-new DB.
             LOGGER.debug("WEEKLY_NOTIFICATION_SCHEMA_WAIT", exc_info=True)

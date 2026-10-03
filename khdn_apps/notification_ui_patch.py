@@ -10,6 +10,20 @@ PATCH_VERSION = "2.32.1"
 _INSTALL_FLAG = "_KHDN_NOTIFICATION_UI_V2320"
 
 
+def _is_plan_notification(item: dict[str, Any]) -> bool:
+    return not item.get("task_id") and (
+        str(item.get("event_key") or "").startswith("weekly_")
+        or item.get("event_key") in {"update", "sla"}
+    )
+
+
+def _notification_route(user: dict[str, Any], item: dict[str, Any]) -> str | None:
+    role = str(user.get("role") or "")
+    if _is_plan_notification(item):
+        return "work_approvals" if role == "Lãnh đạo phòng" or user.get("is_admin") else "weekly_plan"
+    return {"Cán bộ hỗ trợ": "support", "Cán bộ QLKH": "qlkh", "Lãnh đạo phòng": "leader"}.get(role)
+
+
 def _task_detail(ns: dict[str, Any], user: dict[str, Any], task_id: int) -> None:
     st = ns["st"]
     df = ns["qdf"](
@@ -118,7 +132,8 @@ def _render_center(ns: dict[str, Any], user: dict[str, Any]) -> None:
             st.write(item["body"])
             st.caption(f"{ns['fmt_dt'](item['created_at'])} · Push: {item.get('push_status') or '—'}")
             c1, c2 = st.columns([2, 1])
-            if c1.button("Mở đúng hồ sơ", key=f"notif_open_{item['id']}", use_container_width=True, disabled=not bool(item.get("task_id"))):
+            plan_item = _is_plan_notification(item)
+            if c1.button("Xem thông báo kế hoạch" if plan_item else "Mở đúng hồ sơ", key=f"notif_open_{item['id']}", use_container_width=True, disabled=not (plan_item or bool(item.get("task_id")))):
                 notify.mark_read(db, int(item["id"]), uid)
                 st.session_state["_khdn_notification_selected"] = int(item["id"])
                 st.rerun()
@@ -147,16 +162,15 @@ def install(ns: dict[str, Any]) -> None:
                 raw = raw[0] if raw else None
             if raw:
                 nid = int(raw)
-                if notify.get_notification(ns["DB_PATH"], nid, uid):
+                item = notify.get_notification(ns["DB_PATH"], nid, uid)
+                if item:
                     st.session_state["_khdn_notification_selected"] = nid
                     st.session_state["_khdn_notification_dialog_open"] = True
-                    role = str(user.get("role") or "")
-                    if role == "Cán bộ hỗ trợ":
-                        st.session_state["main_page"] = "support"
-                    elif role == "Cán bộ QLKH":
-                        st.session_state["main_page"] = "qlkh"
-                    elif role == "Lãnh đạo phòng":
-                        st.session_state["main_page"] = "leader"
+                    route = _notification_route(user, item)
+                    if route:
+                        st.session_state["main_page"] = route
+                        if _is_plan_notification(item):
+                            st.session_state["main_section"] = "plan"
                 try:
                     del st.query_params["khdn_notification"]
                 except Exception:
