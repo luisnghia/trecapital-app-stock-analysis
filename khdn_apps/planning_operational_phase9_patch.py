@@ -108,16 +108,14 @@ def _install_full_room_dashboard(customer_ui, customer_core, policy, weekly_core
         # This is an ACTION queue, so retain its existing direct-scope checks.
         p3dash._attention_dashboard(st, u, policy, customer_core, get_conn, active_logger)
 
+        st.caption(p3dash.WORKLOAD_GROUP_NOTE)
         st.subheader("Theo mục công việc · toàn phòng")
         stage_rows = []
         for name in sorted({x.get("stage_name") for x in data if x.get("stage_name")}):
             arr = [x for x in data if x.get("stage_name") == name]
             stage_rows.append([
                 name,
-                p3dash._list_items(arr),
-                p3dash._list_items(arr, lambda z: bool(z.get("is_stage_delayed"))),
-                p3dash._list_items(arr, lambda z: int(z.get("open_issue_count") or 0) > 0),
-                p3dash._list_items(arr, lambda z: bool(z.get("is_overdue"))),
+                *p3dash._workload_lists(arr),
             ])
         p3dash._matrix_table(st, ["Mục công việc", "Đang xử lý", "Bị chậm", "Có vướng mắc", "Quá hạn"], stage_rows)
 
@@ -127,10 +125,7 @@ def _install_full_room_dashboard(customer_ui, customer_core, policy, weekly_core
             arr = [x for x in data if (x.get("owner_name") or "—") == name]
             staff_rows.append([
                 name,
-                p3dash._list_items(arr),
-                p3dash._list_items(arr, lambda z: bool(z.get("is_stage_delayed"))),
-                p3dash._list_items(arr, lambda z: bool(z.get("is_overdue"))),
-                p3dash._list_items(arr, lambda z: int(z.get("open_issue_count") or 0) > 0),
+                *p3dash._workload_lists(arr, ("PROCESSING", "DELAYED", "OVERDUE", "ISSUES")),
             ])
         p3dash._matrix_table(st, ["Cán bộ", "Đang xử lý", "Bị chậm", "Quá hạn", "Có vướng mắc"], staff_rows)
         room_dashboard._render_room_priority(st, customer_ui, data)
@@ -147,7 +142,7 @@ def _install_full_room_dashboard(customer_ui, customer_core, policy, weekly_core
 
     customer_ui.render_leader_dashboard = render_leader_dashboard
     if logger:
-        logger.info("P9_LEADER_FULL_ROOM_READ_INSTALLED customer_work=all weekly_today=all approval_scope=unchanged")
+        logger.info("P9_LEADER_FULL_ROOM_READ_INSTALLED customer_work=all weekly_today=all approval_scope=unchanged exclusive_workload_columns=1 priority=overdue,issues,delayed,processing")
 
 
 def _install_weekly_room_read_overlay(policy, weekly_core, logger=None):

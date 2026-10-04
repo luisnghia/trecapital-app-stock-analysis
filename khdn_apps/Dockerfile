@@ -43,6 +43,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_priority_policy_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_important_categories_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_compliance_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/room_workload_partition_qa.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/weekly_plan_form_refinement_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_final_defaults_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_final_ux_patch.py \
