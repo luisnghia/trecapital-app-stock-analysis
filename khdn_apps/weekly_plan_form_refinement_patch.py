@@ -10,7 +10,7 @@ import html
 
 from khdn_apps import planning_ui_v4_patch as nav4
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 
 def _table_exists(c, name):
@@ -204,7 +204,10 @@ def install(policy, weekly_core, get_conn, logger=None):
         cols = st.columns(4)
         for col, q in zip(cols, policy.PRIORITY_ORDER):
             pct = counts[q] / total * 100 if live else 0
-            col.metric(policy.PRIORITY_SHORT[q], counts[q], f"{pct:.0f}% số việc · MT {targets[q]}")
+            value = f"{policy._q2_focus_count(live)} mục" if q == 2 else counts[q]
+            detail = f"{counts[q]} việc · " if q == 2 else ""
+            col.metric(policy.PRIORITY_SHORT[q], value, f"{detail}{pct:.0f}% số việc · MT {targets[q]}")
+        st.caption("Mỗi mục công việc trọng tâm Q2 chỉ tính một lần trong tuần. Tỷ trọng Q1–Q4 tính theo số đầu việc.")
         if live and counts[4] / len(live) > .20:
             st.warning("⚠ Tỷ trọng số việc Q4 vượt 20%. Hãy rà soát xem có việc nào thực chất thuộc danh mục trọng tâm không. Đây là cảnh báo mềm.")
         # Preserve the caller contract, but zero hours disables the legacy hour-based warning.
