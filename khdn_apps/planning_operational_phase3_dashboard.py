@@ -120,6 +120,33 @@ def _list_items(arr, flag=None):
     return out
 
 
+WORKLOAD_GROUP_NOTE = (
+    "Mỗi công việc chỉ xuất hiện ở một cột. Khi có nhiều cảnh báo, ưu tiên: "
+    "Quá hạn → Có vướng mắc → Bị chậm → Đang xử lý. "
+    "Đang xử lý là công việc chưa có các cảnh báo trên."
+)
+
+
+def _workload_bucket(case):
+    """Choose one table column; all original warning flags stay available."""
+    if case.get("is_overdue"):
+        return "OVERDUE"
+    if int(case.get("open_issue_count") or 0) > 0:
+        return "ISSUES"
+    if case.get("is_stage_delayed"):
+        return "DELAYED"
+    return "PROCESSING"
+
+
+def _workload_lists(arr, order=("PROCESSING", "DELAYED", "ISSUES", "OVERDUE")):
+    groups = {key: [] for key in order}
+    for case in arr:
+        groups[_workload_bucket(case)].append(case)
+    # Partition by work identity, never by rendered text: separate works can
+    # legitimately have the same customer, title and owner.
+    return [_list_items(groups[key]) for key in order]
+
+
 def _matrix_table(st, heads, rows):
     def cell(v):
         if isinstance(v,list):
@@ -232,17 +259,18 @@ def install_room_dashboard(customer_ui, customer_core, policy, weekly_core, logg
         delayed=[x for x in data if x.get("is_stage_delayed")]; overdue=[x for x in data if x.get("is_overdue")]; blocked=[x for x in data if int(x.get("open_issue_count") or 0)>0]
         a,b,c,d,e=st.columns(5); a.metric("Đang xử lý",len(data)); b.metric("Kế hoạch hôm nay",len(wp_today)); c.metric("Quá hạn",len(overdue)); d.metric("Mục bị chậm",len(delayed)); e.metric("Chờ phê duyệt",len(plans)+len(reschedules)+wp_plan+wp_move)
         _attention_dashboard(st,u,policy,customer_core,get_conn,logger)
+        st.caption(WORKLOAD_GROUP_NOTE)
         st.subheader("Theo mục công việc · danh sách khách hàng")
         stage_rows=[]
         for name in sorted({x.get("stage_name") for x in data if x.get("stage_name")}):
             arr=[x for x in data if x.get("stage_name")==name]
-            stage_rows.append([name,_list_items(arr),_list_items(arr,lambda z:bool(z.get('is_stage_delayed'))),_list_items(arr,lambda z:int(z.get('open_issue_count') or 0)>0),_list_items(arr,lambda z:bool(z.get('is_overdue')))])
+            stage_rows.append([name,*_workload_lists(arr)])
         _matrix_table(st,["Mục công việc","Đang xử lý","Bị chậm","Có vướng mắc","Quá hạn"],stage_rows)
         st.subheader("Theo cán bộ · danh sách khách hàng")
         staff_rows=[]
         for name in sorted({x.get("owner_name") or "—" for x in data}):
             arr=[x for x in data if (x.get("owner_name") or "—")==name]
-            staff_rows.append([name,_list_items(arr),_list_items(arr,lambda z:bool(z.get('is_stage_delayed'))),_list_items(arr,lambda z:bool(z.get('is_overdue'))),_list_items(arr,lambda z:int(z.get('open_issue_count') or 0)>0)])
+            staff_rows.append([name,*_workload_lists(arr,("PROCESSING","DELAYED","OVERDUE","ISSUES"))])
         _matrix_table(st,["Cán bộ","Đang xử lý","Bị chậm","Quá hạn","Có vướng mắc"],staff_rows)
         room_dashboard._render_room_priority(st,customer_ui,data)
         if overdue or delayed or blocked:
