@@ -15,6 +15,7 @@ import time
 
 from khdn_apps import notifications as notify
 from khdn_apps import weekly_push
+from khdn_apps import planning_compliance
 from khdn_apps.weekly_performance_phase2_patch import _metrics, _quality, _week_score, _grade
 
 LOGGER = logging.getLogger("khdn_weekly_phase2_notifications")
@@ -261,7 +262,9 @@ def process_quality_fallback(db_path, now=None):
 
 
 def process_once(db_path):
-    return process_cycle_reminders(db_path) + process_quality_fallback(db_path)
+    created = process_cycle_reminders(db_path) + process_quality_fallback(db_path)
+    planning_compliance.capture_db(db_path)
+    return created
 
 
 def worker_loop(db_path: str | Path, stop_event: threading.Event, poll_seconds: float = 60.0):
