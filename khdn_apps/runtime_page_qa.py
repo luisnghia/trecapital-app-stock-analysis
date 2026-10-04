@@ -150,6 +150,9 @@ def run():
 
         _weekly_focus_submission_ui()
 
+        from khdn_apps.planning_compliance_qa import installed_dashboard_ui
+        installed_dashboard_ui()
+
         print("KHDN_RUNTIME_PAGE_QA PASS initial_open rerun isolated_database")
 
 
