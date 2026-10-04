@@ -17,6 +17,7 @@ from typing import Any
 
 from khdn_apps import notifications as notify
 from khdn_apps import weekly_push
+from khdn_apps import weekly_phase2_notifications as cycle
 
 LOGGER = logging.getLogger("khdn_weekly_notifications")
 
@@ -102,7 +103,7 @@ def _short(value: Any, limit: int = 180) -> str:
 
 
 def process_new_work(db_path: str | Path) -> list[int]:
-    """Notify the responsible leader for weekly work added after worker baseline."""
+    """Notify the responsible and admin room leaders after worker baseline."""
     if not ensure_schema(db_path):
         return []
     created: list[int] = []
@@ -130,7 +131,9 @@ def process_new_work(db_path: str | Path) -> list[int]:
             iid = int(r["id"])
             leader = int(r["controller_user_id"] or 0)
             owner = int(r["user_id"] or 0)
-            if leader > 0 and leader != owner:
+            for leader in cycle._manager_recipients(c, leader):
+                if leader == owner:
+                    continue
                 exists = c.execute(
                     "SELECT 1 FROM weekly_notification_events WHERE item_id=? AND user_id=? AND event_code='NEW_WORK'",
                     (iid, leader),
@@ -255,8 +258,6 @@ def process_once(db_path: str | Path) -> int:
 
 def delivery_health(db_path: str | Path) -> dict[str, Any]:
     """Read-only delivery diagnostics; exclude identities, content and keys."""
-    from khdn_apps import weekly_phase2_notifications as cycle
-
     users, pending = [], []
     with _connect(db_path) as c:
         roles = {"Lãnh đạo phòng": "LEADER", "Cán bộ QLKH": "QLKH", "Cán bộ hỗ trợ": "SUPPORT"}
@@ -282,6 +283,7 @@ def delivery_health(db_path: str | Path) -> dict[str, Any]:
             pending.append({"plan_id": int(row["id"]), "owner_id": int(row["user_id"]),
                             "state": str(row["workflow_status"]),
                             "leader_id": cycle._leader_for_staff(c, row["user_id"]) or 0,
+                            "recipient_ids": cycle._manager_recipients(c, cycle._leader_for_staff(c, row["user_id"])),
                             "controllers": controllers})
     return {"users": users, "pending_plans": pending}
 

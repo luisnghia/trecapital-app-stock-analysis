@@ -116,6 +116,22 @@ def _leader_for_staff(c, uid):
     return int(leaders[0][0]) if len(leaders) == 1 else None
 
 
+def _manager_recipients(c, direct_leader=None):
+    """Direct controller plus active room leaders with existing admin scope.
+
+    Approval UI grants admin leaders access to every pending plan. Include that
+    same oversight scope in business alerts, while excluding technical admins.
+    """
+    recipients = set()
+    if direct_leader:
+        row = c.execute("SELECT id FROM users WHERE id=? AND active=1 AND role='Lãnh đạo phòng'", (int(direct_leader),)).fetchone()
+        if row:
+            recipients.add(int(row[0]))
+    if "is_admin" in _cols(c, "users"):
+        recipients.update(int(r[0]) for r in c.execute("SELECT id FROM users WHERE active=1 AND role='Lãnh đạo phòng' AND COALESCE(is_admin,0)=1"))
+    return sorted(recipients)
+
+
 def _plan(c, uid, ws):
     row = c.execute("SELECT * FROM weekly_plans WHERE user_id=? AND week_start=? ORDER BY id DESC LIMIT 1", (int(uid), ws.isoformat())).fetchone()
     return dict(row) if row else None
@@ -160,14 +176,14 @@ def process_cycle_reminders(db_path, now=None):
                     if (now.hour, now.minute) >= (9, 30):
                         created += int(_emit_once(c, "PLAN_OVERDUE", current_ws.isoformat(), person["id"], "🔴 Chưa nộp kế hoạch tuần", "Đã quá 09:30 Thứ 2 nhưng kế hoạch tuần vẫn chưa được nộp."))
                         leader = _leader_for_staff(c, person["id"])
-                        if leader:
+                        for leader in _manager_recipients(c, leader):
                             created += int(_emit_once(c, "PLAN_OVERDUE_LEADER", f"{current_ws.isoformat()}:{person['id']}", leader, "🔴 Cán bộ chưa nộp kế hoạch", f"{person.get('full_name') or 'Cán bộ'} chưa nộp kế hoạch tuần {current_ws:%d/%m/%Y}."))
 
-        # Submitted plans notify the direct leader promptly (worker <= 60s).
+        # Match approval visibility: direct leader and admin room oversight.
         pending = [dict(r) for r in c.execute("SELECT p.*,u.full_name FROM weekly_plans p JOIN users u ON u.id=p.user_id WHERE p.workflow_status='DA_NOP'").fetchall()]
         for p in pending:
             leader = _leader_for_staff(c, p["user_id"])
-            if leader:
+            for leader in _manager_recipients(c, leader):
                 subject = f"{p['id']}:{p.get('submitted_at') or 'initial'}"
                 # Carry the old dedupe marker forward once. A later resubmission
                 # uses its own timestamp and can alert the leader again.
@@ -192,7 +208,7 @@ def process_cycle_reminders(db_path, now=None):
             closed = [dict(r) for r in c.execute("SELECT p.*,u.full_name FROM weekly_plans p JOIN users u ON u.id=p.user_id WHERE p.workflow_status='DA_CHOT'").fetchall()]
             for p in closed:
                 leader = _leader_for_staff(c, p["user_id"])
-                if leader:
+                for leader in _manager_recipients(c, leader):
                     created += int(_emit_once(c, "MANAGER_REVIEW_PENDING", str(p["id"]), leader, "⭐ Tuần chờ nhận xét", f"{p.get('full_name') or 'Cán bộ'} đang chờ nhận xét/chấm điểm tuần {_dmy(p.get('week_start'))}."))
 
         c.commit()

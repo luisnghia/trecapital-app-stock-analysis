@@ -324,6 +324,43 @@ class PlanningPushQA(unittest.TestCase):
         self.assertEqual(notify.get_notification(self.db, nid, 2)["push_status"], "PENDING")
         self.assertEqual(self.calls, [])
 
+    def test_admin_room_leader_receives_pending_plans_without_duplicates(self):
+        with notify._connect(self.db) as c:
+            c.executemany("INSERT INTO users VALUES(?,?,?,?,?,NULL)", [
+                (7, "Room leader", "Lãnh đạo phòng", 1, 1),
+                (8, "Inactive room leader", "Lãnh đạo phòng", 0, 1),
+                (9, "Technical admin", "Cán bộ QLKH", 1, 1),
+            ])
+        notify.save_subscription(self.db, 7, {"endpoint": "https://push.example.test/7",
+                                             "keys": {"p256dh": "fake-key", "auth": "fake-auth"}})
+        self.plan(21, 2, "2026-10-05", "DA_NOP", submitted="2026-10-04 06:50:00")
+        sunday = datetime(2026, 10, 4, 7)
+        self.assertEqual(cycle.process_cycle_reminders(self.db, sunday), 2)
+        self.assertEqual(cycle.process_cycle_reminders(self.db, sunday), 0)
+        self.assertEqual(self.events(), [("PLAN_WAITING_APPROVAL", 1), ("PLAN_WAITING_APPROVAL", 7)])
+        self.assertEqual(push.flush(self.db), 2)
+        self.assertEqual({call[0] for call in self.calls}, {"https://push.example.test/1", "https://push.example.test/7"})
+        self.assertEqual(len(notify.list_notifications(self.db, 7)), 1)
+        self.assertEqual(notify.list_notifications(self.db, 8), [])
+        self.assertEqual(notify.list_notifications(self.db, 9), [])
+        self.assertEqual(work.delivery_health(self.db)["pending_plans"][0]["recipient_ids"], [1, 7])
+        # Fresh work also follows existing room oversight; the baseline prevents
+        # replaying historical new-work alerts on this rollout.
+        self.assertEqual(work.process_new_work(self.db), [])
+        with notify._connect(self.db) as c:
+            c.execute("INSERT INTO weekly_plan_items(id,plan_id,user_id,controller_user_id,title,work_date,is_emergent) VALUES(1,21,2,1,'New work','2026-10-05',0)")
+        self.assertEqual(len(work.process_new_work(self.db)), 2)
+        self.assertEqual(work.process_new_work(self.db), [])
+        self.assertEqual(push.flush(self.db), 2)
+        with notify._connect(self.db) as c:
+            c.execute("UPDATE weekly_plans SET workflow_status='DA_CHOT' WHERE id=21")
+        monday = datetime(2026, 10, 5, 10)
+        cycle.process_cycle_reminders(self.db, monday)
+        self.assertIn(("PLAN_OVERDUE_LEADER", 7), self.events())
+        self.assertIn(("MANAGER_REVIEW_PENDING", 7), self.events())
+        self.assertIn(("MANAGER_REVIEW_PENDING", 1), self.events())
+        self.assertEqual(cycle.process_cycle_reminders(self.db, monday), 0)
+
 
 if __name__ == "__main__":
     result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(PlanningPushQA))
