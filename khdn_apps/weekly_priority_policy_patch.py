@@ -8,7 +8,7 @@ Implements the approved specification:
   DA_CHOT -> DA_DANH_GIA.
 - Manager override is audited; classification locks at DA_CHOT and Admin can
   unlock with a reason.
-- Controls: minimum 3 Q2 to submit, Q4 hour warning, Q2 carry-over watch,
+- Controls: minimum 3 distinct Q2 focus categories to submit, Q4 hour warning, Q2 carry-over watch,
   manager-removal drift warning, stale focus-catalog reminder, emergent work,
   and carry-forward.
 """
@@ -26,7 +26,7 @@ from khdn_apps import weekly_push
 
 NOTIFICATION_LOGGER = logging.getLogger("khdn_weekly_push")
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 PRIORITY = {
     2: "🟠 Q2 · Trọng tâm",
@@ -347,6 +347,17 @@ def _classification_form(st, focus_rows, prefix, initial=None):
     return None, None, None, None
 
 
+def _q2_focus_count(items):
+    """Count catalog categories once, regardless of task title/customer/day."""
+    return len({
+        int(x["focus_category_id"])
+        for x in items
+        if x.get("status") != "CANCELLED"
+        and int(x.get("priority_quadrant") or 4) == 2
+        and int(x.get("focus_category_id") or 0) > 0
+    })
+
+
 def _summary(st, items):
     live = [x for x in items if x.get("status") != "CANCELLED"]
     total_hours = sum(float(x.get("estimated_hours") or 0) for x in live)
@@ -356,7 +367,10 @@ def _summary(st, items):
     cols = st.columns(4)
     for col, q in zip(cols, PRIORITY_ORDER):
         pct = hours[q] / total_hours * 100 if total_hours else 0
-        col.metric(PRIORITY_SHORT[q], counts[q], f"{hours[q]:.1f}h · {pct:.0f}% · MT {targets[q]}")
+        value = f"{_q2_focus_count(live)} mục" if q == 2 else counts[q]
+        detail = f"{counts[q]} việc · " if q == 2 else ""
+        col.metric(PRIORITY_SHORT[q], value, f"{detail}{hours[q]:.1f}h · {pct:.0f}% · MT {targets[q]}")
+    st.caption("Mỗi mục công việc trọng tâm Q2 chỉ tính một lần trong tuần, kể cả khi có nhiều đầu việc cùng mục.")
     return counts, hours, total_hours
 
 
@@ -529,15 +543,18 @@ def _render_staff_week(st, u, core, get_conn, ws, plan, items, focus_rows, logge
             _carry_forward_ui(st, u, core, get_conn, ws, focus_rows, len(regular), logger)
         else:
             st.info("Đã đủ 7 công việc kế hoạch. Công việc phát sinh trong tuần không bị giới hạn 7 việc.")
-        can_submit = len(regular) <= 7 and counts[2] >= 3 and len(regular) > 0
-        if counts[2] < 3:
-            st.error(f"Chưa thể nộp kế hoạch: cần tối thiểu 3 công việc Q2 · Trọng tâm; hiện có {counts[2]}.")
-        if st.button("📤 Nộp kế hoạch", type="primary", use_container_width=True, disabled=not can_submit, key=f"submit_{plan['id']}"):
+        q2_focus_count = _q2_focus_count(items)
+        can_submit = len(regular) <= 7 and q2_focus_count >= 3 and len(regular) > 0
+        if q2_focus_count < 3:
+            st.error(f"Chưa thể nộp kế hoạch: cần tối thiểu 3 mục công việc trọng tâm Q2 khác nhau; hiện có {q2_focus_count} mục.")
+        if st.button("📤 Nộp kế hoạch", type="primary", use_container_width=True, disabled=not can_submit, key=f"submit_{plan['id']}") and can_submit:
             ts = _now()
             with get_conn() as c:
                 c.execute("UPDATE weekly_plans SET workflow_status='DA_NOP',submitted_at=?,return_note=NULL,updated_at=? WHERE id=?", (ts, ts, int(plan["id"])))
                 c.execute("UPDATE weekly_plan_items SET approval_status='PENDING' WHERE plan_id=? AND status<>'CANCELLED'", (int(plan["id"]),))
                 c.execute("INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(NULL,?,'PLAN_SUBMIT',?,?)", (uid, f"week={ws.isoformat()}", ts))
+            if logger:
+                logger.info("WEEKLY_PLAN_SUBMIT user=%s plan=%s q2_focus_categories=%s q2_items=%s", uid, plan["id"], q2_focus_count, counts[2])
             st.toast("Đã nộp kế hoạch cho Trưởng phòng.", icon="✅"); st.rerun()
     elif status == "DA_NOP":
         st.info("Kế hoạch đã nộp và đang khóa chỉnh sửa trong khi chờ duyệt.")
