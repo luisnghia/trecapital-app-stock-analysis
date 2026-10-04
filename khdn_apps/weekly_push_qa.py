@@ -303,6 +303,27 @@ class PlanningPushQA(unittest.TestCase):
         self.assertEqual(len(self.calls), 1)
         self.assertTrue(any("WEEKLY_NOTIFICATION_SCHEMA_READY" in line for line in logs.output))
 
+    def test_delivery_health_is_read_only_and_excludes_private_data(self):
+        self.plan(21, 2, "2026-10-05", "DA_NOP")
+        nid = self.enqueue()
+        statements = []
+        original_connect = work._connect
+        def traced(db):
+            conn = original_connect(db)
+            conn.set_trace_callback(statements.append)
+            return conn
+        with patch.object(work, "_connect", side_effect=traced):
+            health = work.delivery_health(self.db)
+        user = next(u for u in health["users"] if u["user_id"] == 2)
+        self.assertEqual((user["devices"], user["inbox_plan"], user["last_plan_push"]), (1, 1, "PENDING"))
+        self.assertEqual(health["pending_plans"][0]["leader_id"], 1)
+        self.assertFalse(any(s.lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE", "CREATE", "ALTER")) for s in statements))
+        serialized = json.dumps(health)
+        for private in ("Staff A", "Leader A", "Planning title", "Planning body", "push.example", "fake-key", "fake-auth"):
+            self.assertNotIn(private, serialized)
+        self.assertEqual(notify.get_notification(self.db, nid, 2)["push_status"], "PENDING")
+        self.assertEqual(self.calls, [])
+
 
 if __name__ == "__main__":
     result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(PlanningPushQA))

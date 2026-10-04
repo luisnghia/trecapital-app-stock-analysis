@@ -7,6 +7,7 @@ for newly added weekly work and approaching/overdue completion dates.
 from __future__ import annotations
 
 from datetime import date, datetime
+import json
 import logging
 from pathlib import Path
 import sqlite3
@@ -252,10 +253,45 @@ def process_once(db_path: str | Path) -> int:
     return len(created)
 
 
+def delivery_health(db_path: str | Path) -> dict[str, Any]:
+    """Read-only delivery diagnostics; exclude identities, content and keys."""
+    from khdn_apps import weekly_phase2_notifications as cycle
+
+    users, pending = [], []
+    with _connect(db_path) as c:
+        roles = {"Lãnh đạo phòng": "LEADER", "Cán bộ QLKH": "QLKH", "Cán bộ hỗ trợ": "SUPPORT"}
+        ucols = _columns(c, "users")
+        for row in c.execute("SELECT * FROM users WHERE active=1 ORDER BY id").fetchall():
+            uid = int(row["id"])
+            subs = c.execute("SELECT COUNT(*),SUM(CASE WHEN last_success_at IS NOT NULL THEN 1 ELSE 0 END) FROM push_subscriptions WHERE user_id=? AND active=1", (uid,)).fetchone()
+            inbox = c.execute("SELECT COUNT(*),SUM(CASE WHEN task_id IS NULL AND (event_key LIKE 'weekly_%' OR event_key IN ('update','sla')) THEN 1 ELSE 0 END) FROM notifications WHERE user_id=?", (uid,)).fetchone()
+            latest = c.execute("SELECT push_status FROM notifications WHERE user_id=? AND task_id IS NULL AND (event_key LIKE 'weekly_%' OR event_key IN ('update','sla')) ORDER BY id DESC LIMIT 1", (uid,)).fetchone()
+            status = str(latest[0] or "PENDING") if latest else "NONE"
+            if status not in {"NONE", "PENDING", "SENT", "NO_DEVICE", "DISABLED", "ERROR", "EXPIRED", "SKIPPED"}:
+                status = "OTHER"
+            users.append({"user_id": uid, "role": roles.get(str(row["role"]), "OTHER"),
+                          "admin": int(bool(row["is_admin"])) if "is_admin" in ucols else 0,
+                          "devices": int(subs[0] or 0), "successful_devices": int(subs[1] or 0),
+                          "inbox_all": int(inbox[0] or 0), "inbox_plan": int(inbox[1] or 0),
+                          "last_plan_push": status})
+        icols = _columns(c, "weekly_plan_items")
+        for row in c.execute("SELECT id,user_id,workflow_status FROM weekly_plans WHERE workflow_status IN ('DA_NOP','DA_CHOT') ORDER BY id").fetchall():
+            controllers = []
+            if "controller_user_id" in icols:
+                controllers = [int(r[0]) for r in c.execute("SELECT DISTINCT controller_user_id FROM weekly_plan_items WHERE plan_id=? AND controller_user_id IS NOT NULL AND controller_user_id>0 ORDER BY controller_user_id", (int(row["id"]),))]
+            pending.append({"plan_id": int(row["id"]), "owner_id": int(row["user_id"]),
+                            "state": str(row["workflow_status"]),
+                            "leader_id": cycle._leader_for_staff(c, row["user_id"]) or 0,
+                            "controllers": controllers})
+    return {"users": users, "pending_plans": pending}
+
+
 def worker_loop(db_path: str | Path, stop_event: threading.Event, poll_seconds: float = 60.0) -> None:
     LOGGER.info("WEEKLY_NOTIFICATION_WORKER_START push_configured=%s timezone=Asia/Ho_Chi_Minh", notify.push_available())
     schema_ready = False
     last_schema_notice = 0.0
+    last_health_check = 0.0
+    last_health = None
     while not stop_event.is_set():
         try:
             if not ensure_schema(db_path):
@@ -267,6 +303,17 @@ def worker_loop(db_path: str | Path, stop_event: threading.Event, poll_seconds: 
                     LOGGER.info("WEEKLY_NOTIFICATION_SCHEMA_READY")
                     schema_ready = True
                 process_once(db_path)
+                if time.monotonic() - last_health_check >= 300 or last_health is None:
+                    try:
+                        health = delivery_health(db_path)
+                        if health != last_health:
+                            for user in health["users"]:
+                                LOGGER.info("WEEKLY_NOTIFICATION_HEALTH_USER %s", json.dumps(user, sort_keys=True))
+                            LOGGER.info("WEEKLY_NOTIFICATION_HEALTH_PENDING %s", json.dumps(health["pending_plans"], sort_keys=True))
+                            last_health = health
+                        last_health_check = time.monotonic()
+                    except sqlite3.Error:
+                        LOGGER.debug("WEEKLY_NOTIFICATION_HEALTH_SCHEMA_WAIT")
         except sqlite3.Error:
             # Core/weekly schemas may still be bootstrapping on a brand-new DB.
             LOGGER.debug("WEEKLY_NOTIFICATION_SCHEMA_WAIT", exc_info=True)
