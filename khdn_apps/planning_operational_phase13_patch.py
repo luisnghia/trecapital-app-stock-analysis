@@ -113,6 +113,7 @@ def _clear_add_state(state, ws):
 
 
 def _open_quick_add(st, ws, day, status):
+    st.session_state.pop("_weekly_entry_edit", None)
     emergent = str(status or "") == "DA_DUYET"
     # New epoch guarantees that a previous date_input widget cannot retain a
     # different day when the officer clicks another weekday.
@@ -146,7 +147,7 @@ def _single_week_board(st, policy, weekly_core, get_conn, uid, ws, items, status
         with col:
             if not manager_edit and str(status or "") in {"NHAP", "DA_DUYET"}:
                 key = f"p13_quick_add_{uid}_{ws.isoformat()}_{idx}_{status}"
-                if st.button("＋ Thêm công việc", key=key, use_container_width=True):
+                if st.button(f"＋ Thêm việc {weekly_core.day_label(d)}", key=key, use_container_width=True):
                     _open_quick_add(st, ws, d, status)
                     st.rerun()
             if not arr:
@@ -158,6 +159,10 @@ def _single_week_board(st, policy, weekly_core, get_conn, uid, ws, items, status
                     can_update=(str(status or "") == "DA_DUYET" and not manager_edit),
                     can_edit=manager_edit,
                 )
+                if not manager_edit and str(status or "") in {"NHAP", "TRA_LAI"}:
+                    if st.button("✏️ Sửa công việc", key=f"weekly_draft_edit_{uid}_{ws.isoformat()}_{x['id']}", use_container_width=True):
+                        from khdn_apps import weekly_entry_edit_patch as entry
+                        entry.open_editor(st, get_conn, uid, ws, int(x["id"]))
                 if not manager_edit and str(status or "") == "NHAP" and not int(x.get("is_emergent") or 0):
                     if st.button("🗑 Bỏ", key=f"p13_remove_{uid}_{x['id']}", use_container_width=True):
                         with get_conn() as c:
@@ -170,6 +175,10 @@ def _single_week_board(st, policy, weekly_core, get_conn, uid, ws, items, status
                                 (int(x["id"]), uid, policy._now()),
                             )
                         st.rerun()
+
+
+    from khdn_apps import weekly_entry_edit_patch as entry
+    entry.render_weekend(st, policy, weekly_core, get_conn, uid, ws, live, str(status or ""), manager_edit)
 
 
 def _install_single_week_board(weekly_core, logger=None):
