@@ -169,7 +169,8 @@ function applyTheme(theme){const t=theme||{},light=t.base==='light';document.bod
 form.addEventListener('focusin',event=>{if(event.target.matches('input,textarea,select'))signalFocus(true);});
 form.addEventListener('focusout',()=>{queueMicrotask(()=>{if(!form.contains(document.activeElement))signalFocus(false);});});
 window.addEventListener('pagehide',()=>signalFocus(false),{once:true});
-window.addEventListener('resize',fit);
+// Keep the iframe height stable while the phone keyboard opens or closes.
+// Calendar actions and Streamlit render messages fit the form explicitly.
 form.addEventListener('submit',e=>{e.preventDefault();if(!datesValid()||!form.reportValidity())return;signalFocus(false);submitSeq+=1;send('streamlit:setComponentValue',{value:{submit_id:`${Date.now()}-${submitSeq}-${Math.random().toString(36).slice(2,8)}`,values:values()},dataType:'json'});});
 window.addEventListener('message',event=>{
   if(event.source!==parent||event.origin!==parentOrigin||event.data.type!=='streamlit:render')return;
