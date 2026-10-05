@@ -16,7 +16,7 @@ import threading
 
 from khdn_apps import weekly_push
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 LOGGER = logging.getLogger("khdn.weekly_schedule_export")
 ROLES = {"Cán bộ hỗ trợ", "Cán bộ QLKH", "Lãnh đạo phòng"}
 DAYS = ("Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ nhật")
@@ -55,6 +55,11 @@ def _date(value):
     if not value:
         return None
     return date.fromisoformat(str(value)[:10])
+
+
+def _day_fill(day):
+    # Every row for a date keeps its color, including page continuations.
+    return "F0F7F5" if day.weekday() % 2 == 0 else "FFFFFF"
 
 
 def read_schedule(get_conn, actor, week, scope="SELF", selected=None, include_cancelled=False):
@@ -96,7 +101,7 @@ def read_schedule(get_conn, actor, week, scope="SELF", selected=None, include_ca
     persons = [x for x in roster if int(x["id"]) in ids]
     report = {"viewer_id":int(u["id"]), "viewer_role":u["role"], "viewer_admin":bool(u["is_admin"]),
               "week":ws, "scope":scope, "selected":selected, "include_cancelled":bool(include_cancelled),
-              "people":persons, "rows":rows}
+              "people":persons, "rows":rows, "export_version":VERSION}
     report["signature"] = hashlib.sha256(json.dumps(report,ensure_ascii=False,sort_keys=True,default=str).encode()).hexdigest()
     report["as_of"] = weekly_push.local_now()
     report["scope_label"] = u["full_name"] if scope == "SELF" else "Toàn phòng" if not selected else ", ".join(x["full_name"] for x in persons)
@@ -193,7 +198,7 @@ def export_excel(get_conn, actor, report):
                 cell=ws.cell(rn,col,value);cell.data_type="s"
             for cell in ws[rn]:
                 cell.font=Font(name="Arial",size=11,color="183B38")
-                cell.fill=PatternFill("solid",fgColor="F0F7F5" if day.weekday()%2==0 else "FFFFFF")
+                cell.fill=PatternFill("solid",fgColor=_day_fill(day))
                 cell.alignment=Alignment(wrap_text=True,vertical="top",horizontal="left")
                 cell.border=Border(bottom=Side(style="hair",color="D6E5E2"))
             ws.row_dimensions[rn].height=max(38,lines*15+9);rn+=1
@@ -232,13 +237,18 @@ def export_excel(get_conn, actor, report):
     for cell in detail[1]:
         cell.font=Font(name="Arial",size=11,bold=True,color="FFFFFF")
         cell.fill=PatternFill("solid",fgColor="006B68");cell.alignment=Alignment(wrap_text=True,vertical="center")
+    detail_day=None
     for row in detail.iter_rows(min_row=2):
+        if row[1].value:
+            detail_day=_date(row[1].value)
         lines=1
         for cell in row:
             if isinstance(cell.value,str):cell.data_type="s"
             if columns[cell.column-1][1]=="customer_cif":cell.number_format="@"
             if isinstance(cell.value,date):cell.number_format="dd/mm/yyyy"
             cell.font=Font(name="Arial",size=11,color="008A75" if isinstance(cell.value,int) and cell.value>0 else "183B38")
+            if detail_day:
+                cell.fill=PatternFill("solid",fgColor=_day_fill(detail_day))
             cell.alignment=Alignment(wrap_text=True,vertical="top",horizontal="left" if isinstance(cell.value,(date,str)) else "right")
             width=55 if columns[cell.column-1][1] in {"title","note"} else 19
             lines=max(lines,sum(max(1,math.ceil(len(line)/max(8,width-3))) for line in str(cell.value or "").split("\n")))
@@ -283,15 +293,18 @@ def export_pdf(get_conn, actor, report):
            p(f"{report['week']:%d/%m/%Y} - {report['week']+timedelta(days=6):%d/%m/%Y}. Phạm vi: {report['scope_label']}"),
            p(f"Dữ liệu tại {report['as_of']:%d/%m/%Y %H:%M:%S} (giờ Việt Nam). {len(report['rows'])} công việc."),Spacer(1,10)]
     data=[[p(x,white) for x in ("Ngày / Giờ","Cán bộ","Công việc / Khách hàng","Hạn / Trạng thái","Trọng tâm / Ghi chú")]]
+    backgrounds=[]
     for day,fields in calendar_rows(report):
         time,owner,work,state,details=fields
         label=f"{DAYS[day.weekday()]}\n{day:%d/%m/%Y}"+("\n"+time if time else "")
         data.append([p(label),p(owner),p(work),p(state),p(details)])
+        rn=len(data)-1
+        backgrounds.append(("BACKGROUND",(0,rn),(-1,rn),colors.HexColor("#"+_day_fill(day))))
     table=LongTable(data,colWidths=[79,91,235,131,size[0]-48-79-91-235-131],repeatRows=1,splitByRow=1,splitInRow=1,hAlign="LEFT")
     table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#006B68")),
         ("VALIGN",(0,0),(-1,-1),"TOP"),("LEFTPADDING",(0,0),(-1,-1),7),("RIGHTPADDING",(0,0),(-1,-1),7),
         ("TOPPADDING",(0,0),(-1,-1),7),("BOTTOMPADDING",(0,0),(-1,-1),7),
-        ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.HexColor("#F0F7F5"),colors.white]),
+        *backgrounds,
         ("LINEBELOW",(0,0),(-1,0),.5,colors.white),("LINEBELOW",(0,1),(-1,-1),.3,colors.HexColor("#D6E5E2"))]))
     story.append(table)
     def footer(canvas,doc):
