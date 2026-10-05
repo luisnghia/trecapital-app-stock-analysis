@@ -12,7 +12,7 @@ from __future__ import annotations
 import html
 import sqlite3
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 _FLAG = "_PLANNING_OPERATIONAL_PHASE14_VERSION"
 
 
@@ -257,7 +257,7 @@ def _review_tasks(st, app_ns, u, pending, logger=None):
         st.success("Không có công việc đang chờ đánh giá trong phạm vi đã chọn.")
         return
     pending = pending.sort_values(["end_dt", "cif"], ascending=[True, True], kind="stable")
-    app_ns["attention_banner"]("Chọn hồ sơ bên dưới rồi bấm Đánh giá công việc")
+    app_ns["attention_banner"]("Chọn trực tiếp dòng công việc cần đánh giá ở bảng bên dưới")
     row = app_ns["selectable_task_table"](
         pending, "leader_ql_eval_task_table", include_phase=True,
         height=app_ns["_task_list_height"](len(pending), 540),
@@ -448,7 +448,7 @@ def _assigned_tasks(st, app_ns, u, scope_df, logger=None):
         if focus == "returned":
             st.warning("🔔 Có hồ sơ CBHT trả lại. Lãnh đạo có thể giao lại/điều phối như QLKH.")
         returned_df = returned_df.sort_values(["returned_to_qlkh_at_dt", "cif"], ascending=[True, True], kind="stable", na_position="last")
-        app_ns["attention_banner"]("Chọn hồ sơ CBHT trả lại ở danh sách phía trên bảng để xử lý")
+        app_ns["attention_banner"]("Chọn trực tiếp dòng hồ sơ CBHT trả lại ở bảng bên dưới để xử lý")
         rret = app_ns["selectable_task_table"](
             returned_df, "leader_qlkh_returned_table", include_phase=True,
             height=app_ns["_task_list_height"](len(returned_df), 520),
@@ -464,7 +464,7 @@ def _assigned_tasks(st, app_ns, u, scope_df, logger=None):
     tg = app_ns["_workflow_delay_targets"]()
     ordered["_phase_start"] = [app_ns["_phase_delay_info"](r, tg)["start"] for _, r in ordered.iterrows()]
     ordered = ordered.sort_values(["_phase_start", "cif"], ascending=[True, True], na_position="last")
-    app_ns["attention_banner"]("Chọn hồ sơ đang theo dõi ở danh sách phía trên bảng để xem mốc thời gian / lịch sử")
+    app_ns["attention_banner"]("Chọn trực tiếp dòng hồ sơ ở bảng bên dưới để xem mốc thời gian / lịch sử")
     rsel = app_ns["selectable_task_table"](
         ordered, "leader_qlkh_assigned_table", include_phase=True,
         height=app_ns["_task_list_height"](len(ordered), 560),
@@ -535,10 +535,10 @@ def _history(st, app_ns, scope_df):
         "progress_score": "Tiến độ", "comment": "Góp ý", "created_at": "Thời gian",
     })
     display = display[[
-        "Mã TN", "CIF", "Khách hàng", "CB QLKH", "CB hỗ trợ", "Công việc", "Vòng",
+        "CIF", "Khách hàng", "CB QLKH", "CB hỗ trợ", "Công việc", "Vòng",
         "Chất lượng", "Tiến độ", "Điểm TB", "Góp ý", "Người đánh giá", "Thời gian",
     ]]
-    app_ns["attention_banner"]("Chọn hồ sơ ở danh sách phía trên bảng để xem toàn bộ lịch sử")
+    app_ns["attention_banner"]("Chọn trực tiếp dòng hồ sơ ở bảng bên dưới để xem toàn bộ lịch sử")
     from khdn_apps.operational_review_table import choose_row
     rr = choose_row(st, raw, display, "leader_qlkh_history_table", id_columns=("task_id", "round_no"),
                     height=app_ns["_history_table_height"](len(display), 620),
