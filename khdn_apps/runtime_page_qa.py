@@ -163,6 +163,9 @@ def run():
         installed_entry_ui()
         installed_customer_date_ui()
 
+        from khdn_apps.operational_review_table_qa import installed_review_ui
+        installed_review_ui()
+
         print("KHDN_RUNTIME_PAGE_QA PASS initial_open rerun isolated_database")
 
 

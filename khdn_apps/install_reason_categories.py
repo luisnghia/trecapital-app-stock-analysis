@@ -22,6 +22,10 @@ def install():
         "from khdn_apps.task_note_visibility_patch import patch_source as _task_note_visibility_patch_source\n"
         "_source = _task_note_visibility_patch_source(_source)\n"
     )
+    task_table=(
+        "from khdn_apps.operational_review_table import patch_source as _operational_table_patch_source\n"
+        "_source = _operational_table_patch_source(_source)\n"
+    )
     if mobile not in text:
         raise RuntimeError("Reason-category installer requires mobile patch marker")
     if lunch not in text:
@@ -38,6 +42,8 @@ def install():
         if reason not in text:
             raise RuntimeError("Task-note installer requires reason-category transformer marker")
         text=text.replace(reason,reason+note,1)
+    if task_table not in text:
+        text=text.replace(note,note+task_table,1)
     app.write_text(text,encoding="utf-8")
 
 
