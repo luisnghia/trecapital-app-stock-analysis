@@ -4,7 +4,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates tzdata \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY khdn_apps/requirements.txt /app/requirements.txt
@@ -45,6 +45,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_important_categories_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_compliance_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/room_workload_partition_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/weekly_schedule_export_qa.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/fast_client_form.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/legacy_fast_form.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/global_zero_keystroke_patch.py \

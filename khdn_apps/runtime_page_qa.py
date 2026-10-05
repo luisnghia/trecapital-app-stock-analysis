@@ -156,6 +156,9 @@ def run():
         from khdn_apps.room_workload_partition_qa import installed_dashboard_ui as room_workload_ui
         room_workload_ui()
 
+        from khdn_apps.weekly_schedule_export_qa import installed_weekly_ui
+        installed_weekly_ui()
+
         print("KHDN_RUNTIME_PAGE_QA PASS initial_open rerun isolated_database")
 
 

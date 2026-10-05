@@ -12,6 +12,7 @@ from khdn_apps import planning_navigation_approval_parity_patch as _nav_approval
 from khdn_apps import planning_room_dashboard_detail_patch as _room_dashboard
 from khdn_apps import weekly_performance_phase2_patch as _performance_phase2
 from khdn_apps import planning_compliance_ui as _compliance_ui
+from khdn_apps import weekly_schedule_export as _schedule_export
 from khdn_apps import planning_operational_phase3_patch as _operational_phase3
 from khdn_apps import planning_operational_phase4_patch as _operational_phase4
 from khdn_apps import planning_operational_phase5_patch as _operational_phase5
@@ -180,6 +181,7 @@ def install(policy, logger=None):
         _app_module.__dict__, policy, _weekly_core, _customer_core, _customer_ui, _worktype, logger
     )
     _compliance_ui.install(_customer_ui, logger)
+    _schedule_export.install(policy, logger)
 
     setattr(policy, _FLAG, VERSION)
     policy.VERSION = VERSION
