@@ -33,7 +33,7 @@ from khdn_apps import planning_week_board_focus_patch as weekfocus
 from khdn_apps import weekly_performance_phase2_patch as phase2
 from khdn_apps import weekly_plan_form_refinement_patch as form
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 _FLAG = "_PLANNING_OPERATIONAL_PHASE13_VERSION"
 
 _Q_LABEL = {
@@ -726,10 +726,10 @@ def _install_room_export_bottom(customer_ui, policy, logger=None):
         return
     actual_export = p11._render_customer_work_export
 
-    def deferred_export(st, get_conn, logger_arg=None):
+    def deferred_export(st, get_conn, actor, logger_arg=None):
         if st.session_state.get("_p13_defer_room_export"):
             return None
-        return actual_export(st, get_conn, logger_arg or logger)
+        return actual_export(st, get_conn, actor, logger_arg or logger)
 
     # Phase 11's title callback resolves this module global at render time.
     p11._render_customer_work_export = deferred_export
@@ -745,20 +745,22 @@ def _install_room_export_bottom(customer_ui, policy, logger=None):
             )
         finally:
             st.session_state.pop("_p13_defer_room_export", None)
-        if policy._manager(u):
+        if p11._customer_work_export_allowed(get_conn, u):
             st.divider()
             try:
-                actual_export(st, get_conn, active_logger)
+                actual_export(st, get_conn, u, active_logger)
             except Exception as exc:
                 if active_logger:
                     active_logger.exception("P13_CUSTOMER_WORK_EXPORT_BOTTOM_FAILED")
                 st.error(f"Không thể chuẩn bị file Excel Công việc khách hàng: {exc}")
+        else:
+            st.session_state.pop("p11_customer_work_excel_cache", None)
         return result
 
     customer_ui.render_leader_dashboard = render_leader_dashboard
     customer_ui._P13_EXPORT_BOTTOM = True
     if logger:
-        logger.info("P13_ROOM_EXPORT_BOTTOM_INSTALLED top_export_suppressed=1 bottom_export=1")
+        logger.info("P13_ROOM_EXPORT_BOTTOM_INSTALLED top_export_suppressed=1 bottom_export=1 admin_only=1")
 
 
 def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype=None, logger=None):

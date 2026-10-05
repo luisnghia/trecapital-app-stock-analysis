@@ -56,12 +56,12 @@ def _tables(c):
 
 
 def authorize(c, actor):
-    """Use the current DB account, including revoked/deactivated permissions."""
+    """Statistics/export are Admin-only; recheck the current DB account."""
     uid = int(actor["id"])
     row = c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
     u = dict(row) if row else {}
-    if not u.get("active") or not (u.get("is_admin") or u.get("role") == "Lãnh đạo phòng"):
-        raise PermissionError("Chỉ Lãnh đạo phòng/Admin đang hoạt động được xem và xuất thống kê cán bộ.")
+    if not u.get("active") or not u.get("is_admin"):
+        raise PermissionError("Chỉ Admin đang hoạt động được xem và xuất thống kê cán bộ.")
     return u
 
 

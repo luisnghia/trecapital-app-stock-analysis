@@ -1,4 +1,4 @@
-"""Manager-only planning statistics and on-demand Excel export in the existing app."""
+"""Admin-only planning statistics and on-demand Excel export in the existing app."""
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
@@ -9,7 +9,7 @@ import re
 
 from khdn_apps import planning_compliance as core
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 SOURCES = {"LIVE":"Theo dõi trước hạn", "PLAN":"Kế hoạch được tạo trong tuần", "REMINDER":"Cảnh báo chưa nộp đã lưu",
            "ACTION":"Nhật ký nộp", "PLAN_TIMESTAMP":"Thời điểm nộp đã lưu", "NEW":"Ghi từ khi tạo mới",
            "BASELINE":"Mốc chụp dữ liệu cũ", "CHANGE":"Thay đổi đã ghi nhận", "DELETE":"Nhật ký xóa",
@@ -169,13 +169,14 @@ def export_excel(get_conn, actor, report):
 
 
 def render_report(st, u, get_conn):
+    uid = int(u["id"]); key=f"planning_compliance_report_{uid}"
     try:
         with get_conn() as c: core.authorize(c,u)
     except PermissionError:
+        st.session_state.pop(key,None)
         return
-    uid = int(u["id"]); key=f"planning_compliance_report_{uid}"
     with st.expander("📋 Thống kê nộp kế hoạch & trễ công việc · xuất Excel",expanded=False):
-        st.caption("Lãnh đạo phòng/Admin xem và xuất dữ liệu toàn phòng. Chọn thời gian rồi bấm Xem thống kê; báo cáo ghi rõ thời điểm cập nhật.")
+        st.caption("Admin xem và xuất dữ liệu toàn phòng. Chọn thời gian rồi bấm Xem thống kê; báo cáo ghi rõ thời điểm cập nhật.")
         now = core.weekly_push.local_now(); ws=core.monday(now.date())
         with get_conn() as c:
             people=[dict(r) for r in c.execute("SELECT id,full_name,role,active FROM users ORDER BY full_name,id")]
@@ -229,12 +230,20 @@ def install(customer_ui, logger=None):
     original=customer_ui.render_leader_dashboard
     def dashboard(st,u,get_conn,page_title=None,logger=None,**kwargs):
         with get_conn() as c:
-            try: core.authorize(c,u)
-            except PermissionError: return
-        result=original(st=st,u=u,get_conn=get_conn,page_title=page_title,logger=logger,**kwargs)
-        st.divider()
-        render_report(st,u,get_conn)
+            row=c.execute("SELECT * FROM users WHERE id=?",(int(u["id"]),)).fetchone()
+            viewer=dict(row) if row else {}
+        # Room control remains available to leaders; only these statistics
+        # and their download are restricted to Admin.
+        if not viewer.get("active") or not (viewer.get("is_admin") or viewer.get("role")=="Lãnh đạo phòng"):
+            st.session_state.pop(f'planning_compliance_report_{int(u["id"])}',None)
+            return
+        result=original(st=st,u=viewer,get_conn=get_conn,page_title=page_title,logger=logger,**kwargs)
+        if viewer.get("is_admin"):
+            st.divider()
+            render_report(st,viewer,get_conn)
+        else:
+            st.session_state.pop(f'planning_compliance_report_{int(viewer["id"])}',None)
         return result
     customer_ui.render_leader_dashboard=dashboard
     customer_ui._PLANNING_COMPLIANCE_UI_VERSION=VERSION
-    if logger: logger.info("PLANNING_COMPLIANCE_UI_INSTALLED version=%s leaders_admin_export=1",VERSION)
+    if logger: logger.info("PLANNING_COMPLIANCE_UI_INSTALLED version=%s admin_only_export=1 leader_room_dashboard=1",VERSION)

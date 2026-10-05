@@ -29,7 +29,7 @@ from khdn_apps import planning_dashboard_consolidation_patch as consolidation
 from khdn_apps import planning_operational_phase10_patch as phase10
 from khdn_apps import planning_week_board_focus_patch as weekfocus
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 _FLAG = "_PLANNING_OPERATIONAL_PHASE11_VERSION"
 
 _EXPORT_TABLES = (
@@ -497,8 +497,18 @@ def _export_signature(get_conn):
     return "|".join(parts)
 
 
-def _render_customer_work_export(st, get_conn, logger=None):
+def _customer_work_export_allowed(get_conn, actor):
+    """A stale role/profile must not retain a full-room download."""
+    with get_conn() as c:
+        row=c.execute("SELECT active,is_admin FROM users WHERE id=?",(int(actor["id"]),)).fetchone()
+    return bool(row and row["active"] and row["is_admin"])
+
+
+def _render_customer_work_export(st, get_conn, actor, logger=None):
     cache_key = "p11_customer_work_excel_cache"
+    if not _customer_work_export_allowed(get_conn, actor):
+        st.session_state.pop(cache_key, None)
+        return
     signature = _export_signature(get_conn)
     cached = st.session_state.get(cache_key)
     if not isinstance(cached, dict) or cached.get("signature") != signature:
@@ -546,9 +556,9 @@ def _install_room_export(customer_ui, policy, logger=None):
                 st.title(f"📊 {title}")
                 if subtitle:
                     st.caption(subtitle)
-            if policy._manager(u):
+            if _customer_work_export_allowed(get_conn, u):
                 try:
-                    _render_customer_work_export(st, get_conn, active_logger)
+                    _render_customer_work_export(st, get_conn, u, active_logger)
                 except Exception as exc:
                     if active_logger:
                         active_logger.exception("P11_CUSTOMER_WORK_EXPORT_FAILED")
@@ -566,7 +576,7 @@ def _install_room_export(customer_ui, policy, logger=None):
     customer_ui.render_leader_dashboard = render_leader_dashboard
     customer_ui._P11_CUSTOMER_WORK_EXPORT = True
     if logger:
-        logger.info("P11_CUSTOMER_WORK_EXPORT_INSTALLED room_dashboard=1 full_detail=1")
+        logger.info("P11_CUSTOMER_WORK_EXPORT_INSTALLED room_dashboard=1 full_detail=1 admin_only=1")
 
 
 def install(app_ns, policy, weekly_core, customer_core, customer_ui, logger=None):

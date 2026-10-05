@@ -207,7 +207,7 @@ class EntryQA(unittest.TestCase):
 def installed_entry_ui():
     """Exercise installed role routes and the real submit/de-duplication wrapper."""
     from streamlit.testing.v1 import AppTest
-    from khdn_apps import app
+    from khdn_apps import app, customer_work, potential_customer_patch as prospects
     script = """
 import streamlit as st
 from datetime import date
@@ -251,6 +251,8 @@ with patch.object(bridge,'_component',component),patch.object(policy,'_default_w
         fields = page.session_state['_entry_ui_fields']
         data = {x['name']: x.get('default', '') for x in fields}
         for name in ('controller', 'focus'):
+            if name not in data:  # Linked work inherits its classification.
+                continue
             if not str(data.get(name) or '').isdigit():
                 field = next(x for x in fields if x['name'] == name)
                 data[name] = next(x['value'] for x in field['options'] if x['value'].isdigit())
@@ -277,14 +279,29 @@ with patch.object(bridge,'_component',component),patch.object(policy,'_default_w
             uid = int(item['user_id'])
             count = c.execute('SELECT COUNT(*) FROM weekly_plan_items WHERE user_id=?', (uid,)).fetchone()[0]
         assert item['work_date'] == '2026-10-09'
+        # Reproduce the reported order: weekly work exists first, then a new
+        # Customer Work/customer is created, then the weekly work is edited.
+        customer_name='ENTRY_LINK_CUSTOMER_'+name
+        cid,_=prospects.create_prospect(app.get_conn,uid,customer_name,force=True,logger=app.LOGGER)
+        case_id,_=customer_work.create_case(app.get_conn,uid,cid,'ENTRY_LINK_CASE_'+name,
+                                           '2026-11-12 17:00:00',owner_uid=uid,logger=app.LOGGER)
+        with app.get_conn() as c:
+            c.execute('UPDATE customer_work_cases SET controller_user_id=?,priority_quadrant=4 WHERE id=?',
+                      (item['controller_user_id'],case_id))
+            assert c.execute('SELECT active FROM customers WHERE id=?',(cid,)).fetchone()[0]==0
         key = f"weekly_draft_edit_{uid}_2026-10-05_{item['id']}"
         next(x for x in page.button if x.key == key).click().run(); check()
+        customer_pick=next(x for x in page.selectbox if x.label=='Khách hàng')
+        customer_pick.select_index(next(n for n,label in enumerate(customer_pick.options) if label.startswith(customer_name))).run(); check()
+        case_pick=next(x for x in page.selectbox if x.label=='Liên kết Công việc khách hàng (không bắt buộc)')
+        case_pick.select_index(1).run(); check()
         assert next(x for x in page.session_state['_entry_ui_fields'] if x['name'] == 'title')['default'] == item['title']
         payload(title='ENTRY_UI_EDITED_'+name, work_date='2026-10-06', due_date='2026-10-08')
         with app.get_conn() as c:
             after = dict(c.execute('SELECT * FROM weekly_plan_items WHERE id=?', (item['id'],)).fetchone())
             assert c.execute('SELECT COUNT(*) FROM weekly_plan_items WHERE user_id=?', (uid,)).fetchone()[0] == count
             assert (after['title'], after['work_date']) == ('ENTRY_UI_EDITED_'+name, '2026-10-06')
+            assert (after['customer_id'],after['linked_case_id'])==(cid,case_id)
             c.execute("UPDATE weekly_plans SET workflow_status='TRA_LAI',return_note='Điều chỉnh QA' WHERE id=?", (item['plan_id'],))
         page.run(); check()
         next(x for x in page.button if x.key == key).click().run(); check()
@@ -301,7 +318,60 @@ with patch.object(bridge,'_component',component),patch.object(policy,'_default_w
             c.execute("UPDATE weekly_plans SET workflow_status='DA_NOP' WHERE id=?", (item['plan_id'],))
         page.run(); check()
         assert not any(x.label == '✏️ Sửa công việc' for x in page.button), name
-    print('WEEKLY_ENTRY_INSTALLED_UI_QA_PASS support qlkh leader admin exact_clicked_day choose_other_day draft_edit returned_edit weekend rerun locked_submit no_duplicate actual_DB')
+    print('WEEKLY_ENTRY_INSTALLED_UI_QA_PASS support qlkh leader admin new_customer_after_plan prospect_visible linked_case_saved exact_clicked_day draft_edit returned_edit weekend rerun locked_submit no_duplicate actual_DB')
+
+
+def installed_manager_customer_ui():
+    """The live adjustment form sees prospects created after it was opened."""
+    from streamlit.testing.v1 import AppTest
+    from khdn_apps import app, customer_work, potential_customer_patch as prospects
+    script="""
+import streamlit as st
+from datetime import date
+from khdn_apps import app, weekly_plan as core, weekly_priority_policy_patch as policy
+from khdn_apps import planning_operational_phase3_weekly as board
+app.init_db();policy._ensure_schema(core,app.get_conn,app.LOGGER)
+ws=date(2026,10,5);ts=policy._now()
+name=st.session_state.get('manager_customer_actor','leader')
+with app.get_conn() as c:
+    u=dict(c.execute('SELECT * FROM users WHERE username=?',('entry_ui_'+name,)).fetchone())
+    pid=core.ensure_plan(c,u['id'],ws)
+    title='MANAGER_CUSTOMER_WEEK_'+name
+    row=c.execute('SELECT * FROM weekly_plan_items WHERE title=?',(title,)).fetchone()
+if not row:
+    core.save_items(app.get_conn,u['id'],ws,[{'work_date':ws.isoformat(),'title':title}])
+    with app.get_conn() as c:
+        leader=c.execute("SELECT id FROM users WHERE active=1 AND role='Lãnh đạo phòng' ORDER BY id LIMIT 1").fetchone()[0]
+        c.execute("UPDATE weekly_plan_items SET expected_complete_date='2026-11-12',controller_user_id=?,priority_quadrant=4 WHERE title=?",(leader,title))
+with app.get_conn() as c:
+    item=dict(c.execute('SELECT * FROM weekly_plan_items WHERE title=?',(title,)).fetchone())
+    plan=dict(c.execute('SELECT * FROM weekly_plans WHERE id=?',(pid,)).fetchone())
+    focus=policy._focus_categories(c,policy._scope_key(c,u['id']),ws.year,False)
+st.session_state['manager_customer_item_id']=item['id']
+st.session_state['manager_customer_user_id']=u['id']
+board.manager_edit_item(st,u,policy,core,app.get_conn,plan,item,focus,app.LOGGER)
+"""
+    page=AppTest.from_string(script,default_timeout=30).run()
+    for actor in ('leader','admin'):
+        page.session_state['manager_customer_actor']=actor;page.run()
+        assert not page.exception,[x.message for x in page.exception]
+        iid=page.session_state['manager_customer_item_id'];uid=page.session_state['manager_customer_user_id']
+        label='MANAGER_NEW_CUSTOMER_'+actor
+        assert not any(label in str(x) for x in next(x for x in page.selectbox if x.label=='Khách hàng').options)
+        cid,_=prospects.create_prospect(app.get_conn,uid,label,force=True,logger=app.LOGGER)
+        customer_work.create_case(app.get_conn,uid,cid,'MANAGER_NEW_CASE_'+actor,
+                                  '2026-11-12 17:00:00',owner_uid=uid,logger=app.LOGGER)
+        page.run()
+        assert not page.exception,[x.message for x in page.exception]
+        customer=next(x for x in page.selectbox if x.label=='Khách hàng')
+        customer.select_index(next(n for n,x in enumerate(customer.options) if x.startswith(label))).run()
+        next(x for x in page.button if x.key==f'p3_mgr_save_{iid}').click().run()
+        assert not page.exception,[x.message for x in page.exception]
+        with app.get_conn() as c:
+            item=dict(c.execute('SELECT * FROM weekly_plan_items WHERE id=?',(iid,)).fetchone())
+            assert (item['customer_id'],item['customer_text'])==(cid,label)
+            assert c.execute("SELECT COUNT(*) FROM weekly_plan_actions WHERE item_id=? AND actor_user_id=? AND action='MANAGER_EDIT_PHASE3'",(iid,uid)).fetchone()[0]==1
+    print('WEEKLY_MANAGER_CUSTOMER_UI_QA_PASS leader admin prospect_created_after_open fresh_options customer_assignment_saved audit')
 
 
 def installed_customer_date_ui():
