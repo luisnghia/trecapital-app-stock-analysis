@@ -245,6 +245,9 @@ _install_customer_work_manager_note_history(
     _customer_work_module,
     _app_module.__dict__.get("LOGGER"),
 )
+# Prominent action results across planning, operations and all role pages.
+from khdn_apps.action_feedback_patch import install as _install_action_feedback
+_install_action_feedback(_app_module.__dict__, _app_module.__dict__.get("LOGGER"))
 # Successful logins automatically issue the existing 30-day device cookie.
 _install_auto_remember_login(_app_module.__dict__)
 _app_module.app()

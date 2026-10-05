@@ -84,6 +84,10 @@ def run():
         page.run()
         assert not page.exception, [e.message for e in page.exception]
 
+        from khdn_apps.action_feedback_qa import run_feedback_qa, installed_feedback_ui
+        run_feedback_qa()
+        installed_feedback_ui()
+
         # Regression guard: the final runtime must own Catalog after reruns.
         # The final zero-keystroke layer deliberately rebinds the catalog after
         # older rerun hotfixes. The command-nav restore patch now owns that final
