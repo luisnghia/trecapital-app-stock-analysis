@@ -115,9 +115,9 @@ def _install_full_room_dashboard(customer_ui, customer_core, policy, weekly_core
             arr = [x for x in data if x.get("stage_name") == name]
             stage_rows.append([
                 name,
-                *p3dash._workload_lists(arr),
+                *p3dash._workload_lists(arr, ("PROCESSING", "DELAYED", "OVERDUE", "ISSUES")),
             ])
-        p3dash._matrix_table(st, ["Mục công việc", "Đang xử lý", "Bị chậm", "Có vướng mắc", "Quá hạn"], stage_rows)
+        p3dash._matrix_table(st, ["Mục công việc", "Đang xử lý", "Bị chậm", "Quá hạn", "Có vướng mắc"], stage_rows)
 
         st.subheader("Theo cán bộ · toàn phòng")
         staff_rows = []
@@ -142,7 +142,7 @@ def _install_full_room_dashboard(customer_ui, customer_core, policy, weekly_core
 
     customer_ui.render_leader_dashboard = render_leader_dashboard
     if logger:
-        logger.info("P9_LEADER_FULL_ROOM_READ_INSTALLED customer_work=all weekly_today=all approval_scope=unchanged exclusive_workload_columns=1 priority=overdue,issues,delayed,processing")
+        logger.info("P9_LEADER_FULL_ROOM_READ_INSTALLED customer_work=all weekly_today=all approval_scope=unchanged exclusive_workload_columns=1 priority=overdue,issues,delayed,processing stage_column_order=processing,delayed,overdue,issues")
 
 
 def _install_weekly_room_read_overlay(policy, weekly_core, logger=None):

@@ -264,8 +264,8 @@ def install_room_dashboard(customer_ui, customer_core, policy, weekly_core, logg
         stage_rows=[]
         for name in sorted({x.get("stage_name") for x in data if x.get("stage_name")}):
             arr=[x for x in data if x.get("stage_name")==name]
-            stage_rows.append([name,*_workload_lists(arr)])
-        _matrix_table(st,["Mục công việc","Đang xử lý","Bị chậm","Có vướng mắc","Quá hạn"],stage_rows)
+            stage_rows.append([name,*_workload_lists(arr,("PROCESSING","DELAYED","OVERDUE","ISSUES"))])
+        _matrix_table(st,["Mục công việc","Đang xử lý","Bị chậm","Quá hạn","Có vướng mắc"],stage_rows)
         st.subheader("Theo cán bộ · danh sách khách hàng")
         staff_rows=[]
         for name in sorted({x.get("owner_name") or "—" for x in data}):
