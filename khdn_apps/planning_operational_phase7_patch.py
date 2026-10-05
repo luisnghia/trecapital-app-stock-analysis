@@ -47,6 +47,7 @@ _ACTION_VI = {
     "PHAT_SINH": "Công việc phát sinh",
     "CLASSIFICATION_CHANGE": "Điều chỉnh phân loại",
     "DRAFT_REMOVE": "Bỏ khỏi bản nháp",
+    "DRAFT_EDIT": "Sửa công việc bản nháp",
     "CANCEL_REQUEST": "Đề nghị hủy công việc",
     "CANCEL_APPROVE": "Hủy công việc được phê duyệt",
     "CANCEL_REJECT": "Đề nghị hủy bị từ chối",
@@ -84,6 +85,22 @@ def _fmt_action_vi(action, detail):
         return label, raw or "—"
     if not isinstance(obj, dict):
         return label, raw or "—"
+
+    if action == "DRAFT_EDIT":
+        before, after = obj.get("before") or {}, obj.get("after") or {}
+        fields = {"title": "Công việc", "work_date": "Ngày thực hiện", "expected_complete_date": "Ngày hoàn thành",
+                  "customer_text": "Khách hàng", "controller_name_snapshot": "Lãnh đạo phụ trách",
+                  "focus_name_snapshot": "Mục trọng tâm", "note": "Ghi chú"}
+        parts = []
+        for field, caption in fields.items():
+            old, new = before.get(field), after.get(field)
+            if old != new:
+                if field in {"work_date", "expected_complete_date"}:
+                    old, new = p3dash.dmy(old), p3dash.dmy(new)
+                parts.append(f"{caption}: {old or '—'} → {new or '—'}")
+        if before.get("priority_quadrant") != after.get("priority_quadrant"):
+            parts.append(f"Ưu tiên: Q{before.get('priority_quadrant') or '—'} → Q{after.get('priority_quadrant') or '—'}")
+        return label, " · ".join(parts) or "Đã lưu nội dung bản nháp"
 
     if action == "CANCEL_REQUEST":
         before = _status_vi(obj.get("status_before") or obj.get("old_status"))

@@ -159,6 +159,10 @@ def run():
         from khdn_apps.weekly_schedule_export_qa import installed_weekly_ui
         installed_weekly_ui()
 
+        from khdn_apps.weekly_entry_edit_qa import installed_entry_ui, installed_customer_date_ui
+        installed_entry_ui()
+        installed_customer_date_ui()
+
         print("KHDN_RUNTIME_PAGE_QA PASS initial_open rerun isolated_database")
 
 

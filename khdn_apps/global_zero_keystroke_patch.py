@@ -17,14 +17,20 @@ from __future__ import annotations
 
 from datetime import date, datetime, time
 import json
+import importlib.util
 
 from khdn_apps.legacy_fast_form import legacy_fast_form
-from khdn_apps import mobile_legacy_ui_perf_patch as legacy_ui
+if importlib.util.find_spec("khdn_apps.mobile_legacy_ui_perf_patch"):
+    from khdn_apps import mobile_legacy_ui_perf_patch as legacy_ui
+else:
+    # The preview has a smaller admin stack; keep its existing catalog renderer.
+    legacy_ui = None
 from khdn_apps import planning_operational_phase10_patch as p10
 from khdn_apps import planning_usability_v2_patch as v2
 from khdn_apps import planning_usability_v3_patch as v3
 from khdn_apps import planning_week_board_focus_patch as weekfocus
 from khdn_apps import potential_customer_patch as prospects
+from khdn_apps import weekly_entry_edit_patch as weekly_entry
 
 VERSION = "1.0.0"
 
@@ -345,7 +351,8 @@ def install(app_ns, policy, customer_core, customer_ui, worktype, logger=None):
 
     # The V3 hotfix rebinds this renderer on every rerun. Re-assert the submit-only
     # catalog renderer after it, every time, so native text inputs cannot return.
-    legacy_ui._install_customer_catalog(customer_core, customer_ui, log)
+    if legacy_ui is not None:
+        legacy_ui._install_customer_catalog(customer_core, customer_ui, log)
 
     # Quick-add is shared by Customer Work and other planning entry points.
     prospects.render_quick_add = _fast_quick_add
@@ -363,6 +370,8 @@ def install(app_ns, policy, customer_core, customer_ui, worktype, logger=None):
     weekfocus._customer_create_form = lambda policy_arg, st, u, get_conn_arg, core, ui, refinement_arg, worktype_arg, logger=None: _customer_create_fast(
         policy, st, u, get_conn_arg, core, ui, refinement_arg, worktype_arg, logger or log
     )
+
+    weekly_entry.install(policy, log)
 
     app_ns["_GLOBAL_ZERO_KEYSTROKE_VERSION"] = VERSION
     if log:

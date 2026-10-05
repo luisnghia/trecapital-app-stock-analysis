@@ -6,8 +6,8 @@ This adapter changes presentation only:
 - use a four-track desktop grid for the Customer Work create component;
 - give contact name more room (2/4) and phone/role 1/4 each;
 - render due-date/stage and owner/controller as balanced 50/50 rows;
-- keep due date as a real date picker; the component contains the native iPadOS
-  date control inside a fixed shell so it cannot paint into the adjacent field.
+- keep due date as a visible browser-local calendar that also works in an iframe
+  on iPad/iPhone, with its selected value shown as DD/MM/YYYY.
 
 Business values, validation, submit-only behavior and database writes remain owned
 by global_zero_keystroke_patch and are not changed here.
@@ -17,7 +17,7 @@ from __future__ import annotations
 from khdn_apps.legacy_fast_form import legacy_fast_form as _base_legacy_fast_form
 from khdn_apps import global_zero_keystroke_patch as zero
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 _FLAG = "_CUSTOMER_WORK_FORM_LAYOUT_VERSION"
 _PREFIX = "p17_customer_work_create_"
 
@@ -128,5 +128,5 @@ def install(app_ns=None, logger=None):
         app_ns[_FLAG] = VERSION
     if logger:
         logger.info(
-            "CUSTOMER_WORK_FORM_LAYOUT_PATCH_INSTALLED priority_none_last=1 grid4=1 contact_2_1_1=1 pair_2_2=1 ipad_due_picker=1 zero_keystroke_preserved=1 data_migration=0"
+            "CUSTOMER_WORK_FORM_LAYOUT_PATCH_INSTALLED priority_none_last=1 grid4=1 contact_2_1_1=1 pair_2_2=1 visible_calendar=1 zero_keystroke_preserved=1 data_migration=0"
         )

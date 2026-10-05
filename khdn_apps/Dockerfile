@@ -46,6 +46,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_compliance_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/room_workload_partition_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_schedule_export_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/weekly_entry_edit_qa.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/fast_client_form.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/legacy_fast_form.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/global_zero_keystroke_patch.py \

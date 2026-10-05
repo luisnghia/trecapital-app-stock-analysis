@@ -12,10 +12,10 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
-# v3 busts the iPad/Safari iframe cache for the contained native-date-picker
-# release. Business keys and submit de-duplication remain unchanged.
+# v4 refreshes cached iframes for the visible, browser-local calendar.
+# Business keys and submit de-duplication remain unchanged.
 _component = components.declare_component(
-    "khdn_legacy_fast_form_v3",
+    "khdn_legacy_fast_form_v4",
     path=str(Path(__file__).with_name("legacy_fast_form_component")),
 )
 
