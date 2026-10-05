@@ -2,6 +2,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parent
 core=(ROOT/'planning_operational_phase3_core.py').read_text(encoding='utf-8')
 weekly=(ROOT/'planning_operational_phase3_weekly.py').read_text(encoding='utf-8')
+manager=(ROOT/'weekly_manager_edit.py').read_text(encoding='utf-8')
 dash=(ROOT/'planning_operational_phase3_dashboard.py').read_text(encoding='utf-8')
 patch=(ROOT/'planning_operational_phase3_patch.py').read_text(encoding='utf-8')
 hotfix=(ROOT/'weekly_priority_policy_hotfix.py').read_text(encoding='utf-8')
@@ -14,7 +15,7 @@ checks={
  'weekday_board': 'st.columns(5' in weekly and 'Kế hoạch Thứ 2 → Thứ 6' in weekly,
  'card_progress': '🔄 Cập nhật tiến độ' in weekly and 'p3_update_week_item' in weekly,
  'old_progress_replaced': 'Cập nhật tiến độ trực tiếp trên từng card công việc' in weekly,
- 'manager_edit_all': all(x in weekly for x in ['Khách hàng','Công việc *','Ngày thực hiện *','Ngày dự kiến hoàn thành *','Lãnh đạo kiểm soát *','Nhóm công việc','Nguồn / nội dung gốc','Kết quả đầu ra','Ghi chú']),
+ 'manager_edit_all': 'from khdn_apps.weekly_manager_edit import render' in weekly and all(x in manager for x in ['Khách hàng','Liên kết Công việc khách hàng','Công việc','Ngày thực hiện','Ngày dự kiến hoàn thành','Lãnh đạo kiểm soát','Nhóm công việc','Nguồn / nội dung gốc','Kết quả đầu ra','Ghi chú']),
  'today_rich': 'Công việc theo kế hoạch hôm nay' in dash and 'weekly_card(' in dash,
  'ack': '✓ Đã xem' in dash and '✓ Đã xử lý' in dash,
  'approval_weekday': 'manager_edit=True' in dash and 'Kế hoạch tuần đã nộp' in dash,

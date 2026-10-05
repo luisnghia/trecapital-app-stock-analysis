@@ -330,6 +330,9 @@ import streamlit as st
 from datetime import date
 from khdn_apps import app, weekly_plan as core, weekly_priority_policy_patch as policy
 from khdn_apps import planning_operational_phase3_weekly as board
+from unittest.mock import patch
+import importlib
+bridge=importlib.import_module('khdn_apps.legacy_fast_form')
 app.init_db();policy._ensure_schema(core,app.get_conn,app.LOGGER)
 ws=date(2026,10,5);ts=policy._now()
 name=st.session_state.get('manager_customer_actor','leader')
@@ -349,9 +352,27 @@ with app.get_conn() as c:
     focus=policy._focus_categories(c,policy._scope_key(c,u['id']),ws.year,False)
 st.session_state['manager_customer_item_id']=item['id']
 st.session_state['manager_customer_user_id']=u['id']
-board.manager_edit_item(st,u,policy,core,app.get_conn,plan,item,focus,app.LOGGER)
+def component(**kwargs):
+    if str(kwargs.get('key') or '').startswith('weekly_manager_edit_'):
+        st.session_state['_manager_customer_fields']=kwargs['fields']
+        st.session_state['_manager_customer_columns']=kwargs.get('columns')
+        data=st.session_state.pop('_manager_customer_payload',None)
+        if data is not None:
+            seq=int(st.session_state.get('_manager_customer_seq',0))+1
+            st.session_state['_manager_customer_seq']=seq
+            return {'submit_id':f'manager-qa-{seq}','values':data}
+    return None
+with patch.object(bridge,'_component',component):
+    board.manager_edit_item(st,u,policy,core,app.get_conn,plan,item,focus,app.LOGGER)
 """
     page=AppTest.from_string(script,default_timeout=30).run()
+
+    def save():
+        fields=page.session_state['_manager_customer_fields']
+        page.session_state['_manager_customer_payload']={x['name']:x.get('default','') for x in fields}
+        page.run()
+        assert not page.exception,[x.message for x in page.exception]
+
     for actor in ('leader','admin'):
         page.session_state['manager_customer_actor']=actor;page.run()
         assert not page.exception,[x.message for x in page.exception]
@@ -359,19 +380,55 @@ board.manager_edit_item(st,u,policy,core,app.get_conn,plan,item,focus,app.LOGGER
         label='MANAGER_NEW_CUSTOMER_'+actor
         assert not any(label in str(x) for x in next(x for x in page.selectbox if x.label=='Khách hàng').options)
         cid,_=prospects.create_prospect(app.get_conn,uid,label,force=True,logger=app.LOGGER)
-        customer_work.create_case(app.get_conn,uid,cid,'MANAGER_NEW_CASE_'+actor,
-                                  '2026-11-12 17:00:00',owner_uid=uid,logger=app.LOGGER)
+        case_id,_=customer_work.create_case(app.get_conn,uid,cid,'MANAGER_NEW_CASE_'+actor,
+                                            '2026-11-12 17:00:00',owner_uid=uid,logger=app.LOGGER)
+        with app.get_conn() as c:
+            ts=policy._now()
+            important_id=int(c.execute('INSERT INTO important_categories(name,active,created_at,updated_at) VALUES(?,1,?,?)',('MANAGER_LINK_FOCUS_'+actor,ts,ts)).lastrowid)
+            controller=c.execute('SELECT controller_user_id FROM weekly_plan_items WHERE id=?',(iid,)).fetchone()[0]
+            # Resolve the owner's catalog after its case controller is saved:
+            # legacy users derive their room scope from Customer Work.
+            c.execute('UPDATE customer_work_cases SET controller_user_id=?,important_category_id=?,priority_quadrant=2 WHERE id=?',(controller,important_id,case_id))
+            focus_id=int(c.execute('''INSERT INTO weekly_focus_categories(department_key,apply_year,code,name,active,legacy_category_id,created_at,updated_at)
+                VALUES(?,2026,?,?,1,?,?,?)''',(policy._scope_key(c,uid),'MGRLINK_'+actor,'MANAGER_LINK_FOCUS_'+actor,important_id,ts,ts)).lastrowid)
+            focus=dict(c.execute('SELECT * FROM weekly_focus_categories WHERE id=?',(focus_id,)).fetchone())
         page.run()
         assert not page.exception,[x.message for x in page.exception]
         customer=next(x for x in page.selectbox if x.label=='Khách hàng')
         customer.select_index(next(n for n,x in enumerate(customer.options) if x.startswith(label))).run()
-        next(x for x in page.button if x.key==f'p3_mgr_save_{iid}').click().run()
-        assert not page.exception,[x.message for x in page.exception]
+        linked=next(x for x in page.selectbox if x.label=='Liên kết Công việc khách hàng (không bắt buộc)')
+        assert any('MANAGER_NEW_CASE_'+actor in x for x in linked.options)
+        linked.select_index(1).run()
+        fields={x['name']:x for x in page.session_state['_manager_customer_fields']}
+        assert fields['title']['default']=='MANAGER_CUSTOMER_WEEK_'+actor
+        assert fields['due_date']['default']=='2026-11-12' and fields['due_date']['disabled']
+        assert fields['controller']['default']==str(controller) and fields['controller']['disabled']
+        assert 'focus' not in fields and 'nonfocus_q' not in fields
+        assert page.session_state['_manager_customer_columns']==2 and not page.text_input and not page.text_area
+        save()
         with app.get_conn() as c:
             item=dict(c.execute('SELECT * FROM weekly_plan_items WHERE id=?',(iid,)).fetchone())
             assert (item['customer_id'],item['customer_text'])==(cid,label)
+            actual=(item['linked_case_id'],item['expected_complete_date'],item['controller_user_id'],item['priority_quadrant'],item['focus_category_id'])
+            expected=(case_id,'2026-11-12',controller,2,focus['id'])
+            assert actual==expected,(actor,actual,expected)
             assert c.execute("SELECT COUNT(*) FROM weekly_plan_actions WHERE item_id=? AND actor_user_id=? AND action='MANAGER_EDIT_PHASE3'",(iid,uid)).fetchone()[0]==1
-    print('WEEKLY_MANAGER_CUSTOMER_UI_QA_PASS leader admin prospect_created_after_open fresh_options customer_assignment_saved audit')
+        page.run()
+        assert next(x for x in page.selectbox if x.label=='Liên kết Công việc khách hàng (không bắt buộc)').value['id']==case_id
+        next(x for x in page.selectbox if x.label=='Liên kết Công việc khách hàng (không bắt buộc)').select_index(0).run()
+        save()
+        with app.get_conn() as c:
+            assert c.execute('SELECT linked_case_id FROM weekly_plan_items WHERE id=?',(iid,)).fetchone()[0] is None
+        # Restore the relation, then changing the customer must clear it.
+        next(x for x in page.selectbox if x.label=='Liên kết Công việc khách hàng (không bắt buộc)').select_index(1).run()
+        save()
+        next(x for x in page.selectbox if x.label=='Khách hàng').select_index(0).run()
+        save()
+        with app.get_conn() as c:
+            item=dict(c.execute('SELECT * FROM weekly_plan_items WHERE id=?',(iid,)).fetchone())
+            assert (item['customer_id'],item['linked_case_id'])==(None,None)
+            assert c.execute('SELECT COUNT(*) FROM weekly_plan_items WHERE title=?',('MANAGER_CUSTOMER_WEEK_'+actor,)).fetchone()[0]==1
+    print('WEEKLY_MANAGER_CUSTOMER_UI_QA_PASS leader admin new_customer_after_plan explicit_case_pick source_due_controller_Q2 persisted_link reopened_same_link unlink change_customer stable_item audit zero_keystroke_form')
 
 
 def installed_customer_date_ui():
