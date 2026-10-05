@@ -1,9 +1,12 @@
-"""Exercise the installed leader review and history with an isolated QA database."""
+"""Exercise direct row events and real scoring with an isolated QA database."""
 from __future__ import annotations
 
 
 def installed_review_ui():
+    import json
+    import re
     from streamlit.testing.v1 import AppTest
+    from streamlit.components.v2.bidi_component.main import _make_trigger_id
     from khdn_apps import app
     script = '''
 import streamlit as st
@@ -39,6 +42,9 @@ with app.get_conn() as c:
     u=users[actor]
 if actor in ['leader','admin']:
     app.leader_page(u)
+elif actor == 'owner' and st.session_state.get('ops_review_qa_native_qlkh'):
+    st.session_state['qlkh_view'] = 'review'
+    app.qlkh_page(u)
 else:
     sql,params=app.visible_tasks_sql(u)
     rows=app.enrich_tasks(app.qdf(sql,params))
@@ -52,50 +58,68 @@ else:
         assert not page.exception, [e.message for e in page.exception]
         assert len(page.dataframe) == 0, 'Review/history still invokes the failing DataFrame component'
 
-    def selector(page):
-        return next(x for x in page.selectbox if x.label == 'Chọn công việc cần đánh giá')
+    def bridge(page, key="leader_ql_eval_task_table"):
+        return next(x for x in page.get('bidi_component') if x.key == key + '_row_click')
 
-    def open_button(page):
-        return next(x for x in page.button if x.label == '⭐ Đánh giá công việc')
+    def click_row(page, row_identity, key="leader_ql_eval_task_table", **overrides):
+        component = bridge(page, key)
+        data = json.loads(component.proto.json)
+        payload = {**data, 'identity': str(row_identity), 'round': 1, **overrides}
+        widgets = page._tree.get_widget_states()
+        widgets.widgets.add(id=_make_trigger_id(component.proto.id, 'events'),
+                            json_trigger_value=json.dumps([{'event': 'row_clicked', 'value': payload}]))
+        page._run(widgets)
+        check(page)
 
-    def check_controls_before_table(page):
-        # Check the actual emitted UI order: the primary action must be available
-        # before the large list, independently of the viewport or row count.
-        elements=list(page.main)
-        picker=next(i for i,x in enumerate(elements) if x.type=='selectbox' and x.label=='Chọn công việc cần đánh giá')
-        button=next(i for i,x in enumerate(elements) if x.type=='button' and x.label=='⭐ Đánh giá công việc')
-        table=next(i for i,x in enumerate(elements) if x.type=='html' and "class='ops-review-table'" in x.proto.body)
-        assert picker < button < table, (picker,button,table)
+    def table(page):
+        return next(x.proto.body for x in page.get('html') if "class='ops-review-table'" in x.proto.body)
+
+    def check_no_menu(page):
+        assert not any(x.label in ['Chọn công việc cần đánh giá', 'Chọn công việc để thao tác',
+                                  'Chọn hồ sơ và vòng đánh giá để xem lịch sử'] for x in page.selectbox)
+        assert not any(x.label == '⭐ Đánh giá công việc' for x in page.button)
+        body = table(page)
+        assert 'Mã tác nghiệp</th>' not in body and 'Mã TN</th>' not in body
+        assert "tabindex='0'" in body and 'data-ops-row=' in body
+        return body
 
     check(page)
     ids = list(page.session_state['ops_review_qa_ids'])
-    assert len(selector(page).options) == 3 and selector(page).value is None
-    assert open_button(page).disabled and len(page.select_slider)==0
-    check_controls_before_table(page)
-    table = next(x.proto.body for x in page.get('html') if "class='ops-review-table'" in x.proto.body)
-    assert 'Khách hàng &lt;script&gt;QA&lt;/script&gt;' in table and '<script>QA</script>' not in table
-    assert 'Giá trị (tỷ đồng)' in table and '>2</td>' in table
-    selector(page).set_value(str(ids[0])).run(); check(page)
-    assert not open_button(page).disabled and len(page.select_slider)==0
-    open_button(page).click().run(); check(page)
+    assert len(page.select_slider) == 0
+    body = check_no_menu(page)
+    assert len(re.findall("data-ops-row=", body)) == 3
+    assert 'Khách hàng &lt;script&gt;QA&lt;/script&gt;' in body and '<script>QA</script>' not in body
+    assert 'Giá trị (tỷ đồng)' in body and '>2</td>' in body
+    assert 'OPS_REVIEW_QA_0' not in body
+    click_row(page, ids[0], identity=[str(ids[0])])
+    assert len(page.select_slider) == 0
+    click_row(page, ids[0])
     assert len(page.select_slider) == 2
-    review_list=next(x for x in page.expander if x.label.startswith('Danh sách công việc chờ đánh giá'))
-    assert not review_list.proto.expanded, 'The long table still separates the action from the score form'
-    check_controls_before_table(page)
-    # Preserve the selected database ID when order changes, then clear it when
-    # the owner filter removes the task instead of scoring a row at that position.
+    assert page.session_state['leader_ql_eval_task_table_selected_row'] == (str(ids[0]), 1)
+    assert "aria-selected='true'" in check_no_menu(page)
+    # A row's identity remains stable when sorting changes. A scope/round change
+    # clears it; out-of-scope or stale browser events cannot open an old form.
     with app.get_conn() as c:
-        c.execute("UPDATE tasks SET end_time='2026-10-05 10:00:00' WHERE id=?",(ids[0],))
+        c.execute("UPDATE tasks SET end_time='2026-10-05 10:00:00' WHERE id=?", (ids[0],))
     page.run(); check(page)
-    assert selector(page).value == str(ids[0])
-    other=int(app.qdf("SELECT id FROM users WHERE username='ops_review_qa_other'").iloc[0].id)
-    next(x for x in page.selectbox if x.label=='Phạm vi Cán bộ QLKH').set_value(other).run(); check(page)
-    assert len(selector(page).options)==1 and selector(page).value is None
-    assert len(page.select_slider)==0
-    assert open_button(page).disabled
-    next(x for x in page.selectbox if x.label=='Phạm vi Cán bộ QLKH').set_value(0).run()
-    selector(page).set_value(str(ids[0])).run(); check(page)
-    open_button(page).click().run(); check(page)
+    assert page.session_state['leader_ql_eval_task_table_selected_row'] == (str(ids[0]), 1)
+    old_version = json.loads(bridge(page).proto.json)['version']
+    other = int(app.qdf("SELECT id FROM users WHERE username='ops_review_qa_other'").iloc[0].id)
+    next(x for x in page.selectbox if x.label == 'Phạm vi Cán bộ QLKH').set_value(other).run(); check(page)
+    assert len(re.findall("data-ops-row=", table(page))) == 1 and len(page.select_slider) == 0
+    click_row(page, ids[0])
+    assert len(page.select_slider) == 0 and any('Danh sách đã thay đổi' in x.value for x in page.warning)
+    next(x for x in page.selectbox if x.label == 'Phạm vi Cán bộ QLKH').set_value(0).run(); check(page)
+    click_row(page, ids[0])
+    with app.get_conn() as c:
+        c.execute('UPDATE tasks SET current_round=2 WHERE id=?', (ids[0],))
+    page.run(); check(page)
+    assert len(page.select_slider) == 0
+    click_row(page, ids[0], version=old_version)
+    assert len(page.select_slider) == 0
+    with app.get_conn() as c:
+        c.execute('UPDATE tasks SET current_round=1 WHERE id=?', (ids[0],))
+    page.run(); click_row(page, ids[0])
     # The existing score rule remains authoritative: no comment below 9 means
     # no evaluation, no CLOSED state and no evaluation audit event.
     next(x for x in page.button if x.label=='⭐ Lưu đánh giá & kết thúc').click().run(); check(page)
@@ -117,14 +141,13 @@ else:
         assert evaluation['comment']=='OPS_REVIEW_QA_COMMENT'
         assert c.execute("SELECT COUNT(*) FROM task_actions WHERE task_id=? AND action='EVALUATE' AND actor_user_id=?",(ids[0],leader)).fetchone()[0]==1
     page.run(); check(page)
-    assert selector(page).value is None
-    assert open_button(page).disabled and len(page.select_slider)==0
+    assert len(page.select_slider) == 0
+    check_no_menu(page)
     with app.get_conn() as c:
         assert c.execute('SELECT COUNT(*) FROM evaluations WHERE task_id=?',(ids[0],)).fetchone()[0]==1
     # Admin runs the same installed route and saves the high-score/no-comment case.
     page.session_state['ops_review_qa_actor']='admin'; page.run()
-    selector(page).set_value(str(ids[1])).run(); check(page)
-    open_button(page).click().run(); check(page)
+    click_row(page, ids[1])
     for slider in page.select_slider: slider.set_value(9.0)
     next(x for x in page.button if x.label=='⭐ Lưu đánh giá & kết thúc').click().run(); check(page)
     with app.get_conn() as c:
@@ -134,18 +157,36 @@ else:
         assert c.execute('SELECT status FROM tasks WHERE id=?',(ids[2],)).fetchone()[0]=='PENDING_REVIEW'
     # Saved scores and task detail history also use HTML, including audit text.
     page.session_state['leader_qlkh_view']='history'; page.run(); check(page)
-    history=next(x for x in page.selectbox if x.label=='Chọn hồ sơ và vòng đánh giá để xem lịch sử')
-    history.set_value(str(ids[0])+':1').run(); check(page)
+    check_no_menu(page)
+    click_row(page, str(ids[0]) + ':1', key='leader_qlkh_history_table')
     assert any('OPS_REVIEW_QA_COMMENT' in x.proto.body for x in page.get('html'))
     page.run(); check(page)
-    # Same renderer on support/QLKH data; their original SQL still limits scope.
-    for actor,expected in [('owner',1),('other',0),('support',1)]:
-        page.session_state['ops_review_qa_actor']=actor; page.run(); check(page)
-        choices=[x for x in page.selectbox if x.label=='Chọn công việc cần đánh giá']
-        assert len(choices)==(1 if expected else 0)
+    # All roles use the same direct row mechanism on their original SQL scope.
+    for actor, expected in [('owner', 1), ('other', 0), ('support', 1)]:
+        page.session_state['ops_review_qa_actor'] = actor; page.run(); check(page)
+        components = [x for x in page.get('bidi_component') if x.key == 'qa_common_eval_table_row_click']
+        assert len(components) == (1 if expected else 0)
         if expected:
-            assert len(choices[0].options)==expected
-            choices[0].set_value(str(ids[2])).run(); check(page)
-            open_button(page).click().run(); check(page)
-            assert any(x.value=='QA_SELECTED_TASK='+str(ids[2]) for x in page.caption)
-    print('OPS_REVIEW_INSTALLED_UI_QA_PASS leader admin visible_action_before_table explicit_open collapsed_list real_scoring ownership audit required_comment no_duplicate scope_change stable_ID escaped_HTML history support_qlkh_scope no_DataFrame')
+            assert len(re.findall("data-ops-row=", check_no_menu(page))) == expected
+            click_row(page, ids[1], key='qa_common_eval_table')
+            assert not any(x.value.startswith('QA_SELECTED_TASK=') for x in page.caption)
+            click_row(page, ids[2], key='qa_common_eval_table')
+            assert any(x.value == 'QA_SELECTED_TASK=' + str(ids[2]) for x in page.caption)
+    # The QLKH's original scoring route also opens on a row click and persists
+    # the actual owner as evaluator without using the leader's form or powers.
+    page.session_state['ops_review_qa_actor'] = 'owner'
+    page.session_state['ops_review_qa_native_qlkh'] = True
+    page.run(); check(page); check_no_menu(page)
+    click_row(page, ids[2], key='eval_task_table')
+    assert len(page.select_slider) == 2
+    for slider in page.select_slider: slider.set_value(9.0)
+    next(x for x in page.button if 'Lưu đánh giá & kết thúc' in x.label).click().run(); check(page)
+    with app.get_conn() as c:
+        evaluation = dict(c.execute('SELECT * FROM evaluations WHERE task_id=?', (ids[2],)).fetchone())
+        owner = int(c.execute("SELECT id FROM users WHERE username='ops_review_qa_owner'").fetchone()[0])
+        assert evaluation['evaluator_user_id'] == owner and evaluation['quality_score'] == 9
+        assert c.execute('SELECT status FROM tasks WHERE id=?', (ids[2],)).fetchone()[0] == 'CLOSED'
+        assert c.execute('SELECT task_code FROM tasks WHERE id=?', (ids[2],)).fetchone()[0] == 'OPS_REVIEW_QA_2'
+    page.run(); check(page)
+    assert len(page.select_slider) == 0
+    print('OPS_REVIEW_INSTALLED_UI_QA_PASS leader admin qlkh direct_row_click no_task_code no_menu real_scoring ownership audit required_comment no_duplicate scope_change stale_event malformed_event round_change stable_ID escaped_HTML history support_qlkh_scope no_DataFrame')
