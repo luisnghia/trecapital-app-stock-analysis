@@ -37,11 +37,13 @@ def _identity(row, columns):
 
 
 def choose_row(st, rows, display, key, *, id_columns=("id",), height=540,
-               label="Chọn công việc để thao tác", logger=None):
+               label="Chọn công việc để thao tác", logger=None, review=False):
     """Select by database identity, never by the position in a changing table."""
     widget_key = key + "_record"
+    target_key = key + "_review_target"
     if rows is None or rows.empty:
         st.session_state.pop(widget_key, None)
+        st.session_state.pop(target_key, None)
         return None
     identities = [_identity(row, id_columns) for _, row in rows.iterrows()]
     if len(set(identities)) != len(identities) or len(display) != len(rows):
@@ -58,6 +60,28 @@ def choose_row(st, rows, display, key, *, id_columns=("id",), height=540,
         if "round_no" in row:
             parts.append(f"Vòng {int(row.round_no)}")
         labels[identity] = " · ".join(parts)
+    # Actions belong before the long table, where they remain easy to find on
+    # small screens. The review form opens only after the explicit action.
+    selected = st.selectbox(label, identities, index=None, key=widget_key,
+                            placeholder="Chọn hồ sơ theo mã, khách hàng hoặc công việc",
+                            format_func=lambda identity: labels[identity])
+    active_review = False
+    if review:
+        token = None
+        if selected is not None:
+            record = rows.iloc[identities.index(selected)]
+            token = (selected, int(record.get("current_round", 1)))
+        if st.session_state.get(target_key) != token:
+            st.session_state.pop(target_key, None)
+        if st.button("⭐ Đánh giá công việc", key=key + "_open_review", type="primary",
+                     use_container_width=True, disabled=selected is None,
+                     help="Mở phần chấm điểm và nhận xét cho công việc đã chọn.") and token is not None:
+            st.session_state[target_key] = token
+            if logger:
+                logger.info("OPS_REVIEW_FORM_OPEN key=%s task=%s round=%s", key, token[0], token[1])
+        active_review = token is not None and st.session_state.get(target_key) == token
+        if not active_review:
+            st.caption("Chọn hồ sơ rồi bấm Đánh giá công việc để mở phần chấm điểm và nhận xét.")
     styles = {
         "Khách hàng": "background:#EAF2FF;color:#164E9A;font-weight:750",
         "Công việc": "background:#FFF3CD;color:#7A4B00;font-weight:800",
@@ -78,23 +102,24 @@ def choose_row(st, rows, display, key, *, id_columns=("id",), height=540,
                         style = f"background:{color};color:{ink};font-weight:800"
                         break
             cells.append(f"<td style='{style}'>" + html.escape(_text(value)) + "</td>")
-        selected = " class='selected'" if identity == previous else ""
-        body.append(f"<tr{selected}>" + "".join(cells) + "</tr>")
+        selected_class = " class='selected'" if identity == selected else ""
+        body.append(f"<tr{selected_class}>" + "".join(cells) + "</tr>")
     height = max(180, min(900, int(height or 540)))
-    st.html(TABLE_CSS + f"<div class='ops-review-scroll' style='max-height:{height}px'>"
+    table_html = (TABLE_CSS + f"<div class='ops-review-scroll' style='max-height:{height}px'>"
             + "<table class='ops-review-table'><thead><tr>" + head + "</tr></thead><tbody>"
             + "".join(body) + "</tbody></table></div>")
-    selected = st.selectbox(label, identities, index=None, key=widget_key,
-                            placeholder="Chọn hồ sơ theo mã, khách hàng hoặc công việc",
-                            format_func=lambda identity: labels[identity])
+    if active_review:
+        with st.expander(f"Danh sách công việc chờ đánh giá ({len(rows)})", expanded=False):
+            st.html(table_html)
+    else:
+        st.html(table_html)
     if logger:
         log_key = key + "_render_log"
-        signature = (tuple(identities), selected)
+        signature = (tuple(identities), selected, active_review)
         if st.session_state.get(log_key) != signature:
             logger.info("OPS_HTML_TASK_TABLE key=%s rows=%s selected=%s", key, len(rows), selected)
             st.session_state[log_key] = signature
-    if selected is None:
-        st.caption("Chọn công việc ở danh sách dưới bảng để mở chi tiết và các nút thao tác.")
+    if selected is None or review and not active_review:
         return None
     return rows.iloc[identities.index(selected)]
 
@@ -102,6 +127,7 @@ def choose_row(st, rows, display, key, *, id_columns=("id",), height=540,
 def selectable_task_table(app_ns, df, key, *, include_status=True, include_phase=False, height=None):
     if df is None or df.empty:
         app_ns["st"].session_state.pop(key + "_record", None)
+        app_ns["st"].session_state.pop(key + "_review_target", None)
         return None
     rows = app_ns["enrich_tasks"](df.copy()).reset_index(drop=True)
     if include_phase:
@@ -138,9 +164,10 @@ def selectable_task_table(app_ns, df, key, *, include_status=True, include_phase
         "delay_level": "Mức độ trễ", "status_label": "Trạng thái",
     })
     app_ns["st"].caption("CIF là mã khách hàng. Giá trị trong bảng được quy đổi sang tỷ đồng.")
-    label = "Chọn công việc cần đánh giá" if "eval" in key else "Chọn công việc để thao tác"
+    review = "eval" in key
+    label = "Chọn công việc cần đánh giá" if review else "Chọn công việc để thao tác"
     return choose_row(app_ns["st"], rows, display, key, height=height or app_ns["_task_list_height"](len(rows)),
-                      label=label, logger=app_ns.get("LOGGER"))
+                      label=label, logger=app_ns.get("LOGGER"), review=review)
 
 
 def patch_source(source):
@@ -173,7 +200,7 @@ def patch_source(source):
         "def task_history(task_id):\n    from khdn_apps.operational_review_table import render_readonly_table as _html_history_table\n", 1)
     history_lines[history.lineno - 1:history.end_lineno] = [history_text]
     result = "".join(history_lines)
-    # The shared renderer now uses a searchable selector underneath its HTML table.
+    # Selection and the explicit review action now precede the long HTML table.
     for old in ("Chọn trực tiếp một dòng hồ sơ", "Chọn trực tiếp một dòng công việc"):
-        result = result.replace(old, "Chọn công việc ở danh sách dưới bảng")
+        result = result.replace(old, "Chọn công việc ở danh sách phía trên bảng")
     return result
