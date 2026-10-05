@@ -196,13 +196,16 @@ class ComplianceQA(unittest.TestCase):
             after={t:c.execute('SELECT COUNT(*) FROM '+t).fetchone()[0] for t in before}
         self.assertEqual(before,after)
 
-    def test_permissions_current_database_and_full_room_leader(self):
-        self.assertEqual({x['user_id'] for x in self.report(uid=4)['summary']},{2,3})
-        with self.assertRaises(PermissionError): self.report(uid=2)
+    def test_permissions_admin_only_and_current_database(self):
+        self.assertEqual({x['user_id'] for x in self.report()['summary']},{2,3})
+        for uid in (2,3,4):
+            with self.assertRaises(PermissionError): self.report(uid=uid)
         with self.assertRaises(PermissionError): core.build_report(self.conn,{'id':2,'is_admin':1},self.week,self.week,now=self.now)
-        snapshot=self.report(uid=4)
-        with self.conn() as c: c.execute('UPDATE users SET active=0 WHERE id=4')
-        with self.assertRaises(PermissionError): ui.export_excel(self.conn,{'id':4},snapshot)
+        snapshot=self.report()
+        with self.conn() as c: c.execute('UPDATE users SET is_admin=0 WHERE id=1')
+        with self.assertRaises(PermissionError): ui.export_excel(self.conn,{'id':1,'is_admin':1},snapshot)
+        with self.conn() as c: c.execute('UPDATE users SET is_admin=1,active=0 WHERE id=1')
+        with self.assertRaises(PermissionError): self.report()
 
     def test_selected_staff_scope_and_excel_integrity(self):
         self.item(title='=HYPERLINK("https://invalid.example","QA")')
@@ -232,7 +235,7 @@ import sqlite3, streamlit as st
 from khdn_apps import planning_compliance_ui as ui
 def conn():
     c=sqlite3.connect({str(self.db)!r}); c.row_factory=sqlite3.Row; return c
-ui.render_report(st,{{'id':st.session_state.get('qa_actor',4)}},conn)
+ui.render_report(st,{{'id':st.session_state.get('qa_actor',1)}},conn)
 """
         page=AppTest.from_string(script,default_timeout=20).run()
         self.assertFalse(page.exception,[x.message for x in page.exception])
@@ -242,14 +245,15 @@ ui.render_report(st,{{'id':st.session_state.get('qa_actor',4)}},conn)
         self.assertFalse(page.exception,[x.message for x in page.exception])
         self.assertTrue(any(x.label=='⬇ Xuất Excel đánh giá cán bộ' for x in page.get('download_button')))
         self.assertTrue(any(x.label=='Tuần không nộp' and x.value=='1' for x in page.metric))
-        page.session_state['qa_actor']=2; page.run()
-        self.assertFalse(page.exception,[x.message for x in page.exception])
-        self.assertFalse(page.get('download_button'))
-        self.assertFalse(page.metric)
+        for uid in (2,3,4):
+            page.session_state['qa_actor']=uid; page.run()
+            self.assertFalse(page.exception,[x.message for x in page.exception])
+            self.assertFalse(page.get('download_button'))
+            self.assertFalse(page.metric)
 
 
 def installed_dashboard_ui():
-    """Run through the final installed dashboard, not an unused older hook."""
+    """Both downloads are Admin-only in the final installed dashboard."""
     from streamlit.testing.v1 import AppTest
     from khdn_apps import app
     script="""
@@ -262,38 +266,65 @@ app.init_db()
 policy._ensure_schema(weekly_core,app.get_conn,app.LOGGER)
 with app.get_conn() as c:
     ts=policy._now()
-    for username,role in [('compliance_leader_qa','Lãnh đạo phòng'),('compliance_staff_qa','Cán bộ QLKH')]:
+    for username,role in [('compliance_leader_qa','Lãnh đạo phòng'),('compliance_staff_qa','Cán bộ QLKH'),('compliance_support_qa','Cán bộ hỗ trợ')]:
         c.execute('''INSERT OR IGNORE INTO users(username,full_name,password_hash,role,is_admin,active,created_at,updated_at)
             VALUES(?,?,?, ?,0,1,?,?)''',(username,username,'QA_NO_LOGIN',role,ts,ts))
     actor=st.session_state.get('compliance_actor','compliance_leader_qa')
     if actor=='admin':
-        u=dict(c.execute('SELECT * FROM users WHERE is_admin=1 ORDER BY id LIMIT 1').fetchone())
+        if st.session_state.get('compliance_admin_id'):
+            u=dict(c.execute('SELECT * FROM users WHERE id=?',(st.session_state['compliance_admin_id'],)).fetchone())
+        else:
+            u=dict(c.execute('SELECT * FROM users WHERE is_admin=1 ORDER BY id LIMIT 1').fetchone())
+            st.session_state['compliance_admin_id']=u['id']
     else:
         u=dict(c.execute('SELECT * FROM users WHERE username=?',(actor,)).fetchone())
+    profiles=st.session_state.setdefault('compliance_profiles',{})
+    u=profiles.setdefault(actor,u)
     st.session_state['compliance_viewer_id']=u['id']
 customer_work_ui.render_leader_dashboard(st,u,app.get_conn,logger=app.LOGGER)
 """
     page=AppTest.from_string(script,default_timeout=30).run()
-    assert not page.exception,[x.message for x in page.exception]
-    assert any(x.label=='Xem thống kê' for x in page.button),'Report hook is absent from final dashboard'
+
+    def check_exports(allowed):
+        assert not page.exception,[x.message for x in page.exception]
+        assert any(x.label=='Xem thống kê' for x in page.button)==allowed
+        assert any(x.label=='⬇️ Xuất toàn bộ Công việc khách hàng · Excel' for x in page.get('download_button'))==allowed
+
+    check_exports(False)
+    assert page.title,'The leader lost the room dashboard together with exports'
+    for actor in ('compliance_staff_qa','compliance_support_qa'):
+        page.session_state['compliance_actor']=actor; page.run(); check_exports(False)
+    page.session_state['compliance_actor']='admin'; page.run()
+    check_exports(True)
     next(x for x in page.button if x.label=='Xem thống kê').click().run()
     assert not page.exception,[x.message for x in page.exception]
     assert any(x.label=='⬇ Xuất Excel đánh giá cán bộ' for x in page.get('download_button'))
     uid=page.session_state['compliance_viewer_id']
     report=page.session_state[f'planning_compliance_report_{uid}']['report']
-    assert any(x['name']=='compliance_staff_qa' for x in report['summary']),'Ordinary leader cannot see full-room staff'
-    # A stale profile cannot preserve access after the current DB role is revoked.
-    with app.get_conn() as c: c.execute("UPDATE users SET role='Cán bộ QLKH' WHERE id=?",(uid,))
-    page.run()
-    assert not page.exception,[x.message for x in page.exception]
-    assert not any(x.label=='Xem thống kê' for x in page.button)
-    assert not any(x.label=='⬇ Xuất Excel đánh giá cán bộ' for x in page.get('download_button'))
-    page.session_state['compliance_actor']='admin'; page.run()
-    assert not page.exception,[x.message for x in page.exception]
-    next(x for x in page.button if x.label=='Xem thống kê').click().run()
-    assert not page.exception,[x.message for x in page.exception]
-    assert any(x.label=='⬇ Xuất Excel đánh giá cán bộ' for x in page.get('download_button'))
-    print('PLANNING_COMPLIANCE_INSTALLED_DASHBOARD_QA_PASS final_overlay leader admin revoked_role export')
+    assert any(x['name']=='compliance_staff_qa' for x in report['summary'])
+    # The page intentionally retains its old Admin profile. Current DB rights
+    # still control both download entry points and clear prepared data.
+    with app.get_conn() as c:
+        old=dict(c.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone())
+        c.execute("UPDATE users SET is_admin=0,role='Lãnh đạo phòng' WHERE id=?",(uid,))
+    try:
+        page.run(); check_exports(False)
+        assert page.title,'A former Admin who is a leader must retain room control'
+        assert not any(x.label=='⬇ Xuất Excel đánh giá cán bộ' for x in page.get('download_button'))
+        assert f'planning_compliance_report_{uid}' not in page.session_state
+        assert 'p11_customer_work_excel_cache' not in page.session_state
+        from khdn_apps import planning_operational_phase11_patch as p11
+        assert not p11._customer_work_export_allowed(app.get_conn,{'id':uid,'is_admin':1})
+        try:
+            ui.export_excel(app.get_conn,{'id':uid,'is_admin':1},report)
+        except PermissionError:
+            pass
+        else:
+            raise AssertionError('Revoked Admin exported the old statistics snapshot')
+    finally:
+        with app.get_conn() as c:
+            c.execute('UPDATE users SET is_admin=?,role=? WHERE id=?',(old['is_admin'],old['role'],uid))
+    print('PLANNING_COMPLIANCE_INSTALLED_DASHBOARD_QA_PASS admin_only both_exports leader_room_preserved qlkh support stale_profile_revoked cached_data_cleared')
 
 
 if __name__=='__main__':

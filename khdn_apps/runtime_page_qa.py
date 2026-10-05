@@ -163,8 +163,9 @@ def run():
         from khdn_apps.weekly_schedule_export_qa import installed_weekly_ui
         installed_weekly_ui()
 
-        from khdn_apps.weekly_entry_edit_qa import installed_entry_ui, installed_customer_date_ui
+        from khdn_apps.weekly_entry_edit_qa import installed_entry_ui, installed_customer_date_ui, installed_manager_customer_ui
         installed_entry_ui()
+        installed_manager_customer_ui()
         installed_customer_date_ui()
 
         from khdn_apps.customer_contact_edit_qa import installed_contact_ui, browser_contact_messages

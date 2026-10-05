@@ -169,8 +169,12 @@ def install_weekly_staff(policy, weekly_core, logger=None):
 def manager_edit_item(st,u,policy,weekly_core,get_conn,plan,item,focus_rows,logger=None):
     iid = int(item["id"]); uid = int(policy._uget(u,"id")); ws = date.fromisoformat(str(plan["week_start"])[:10])
     with get_conn() as c:
-        customers=[dict(r) for r in c.execute("SELECT id,cif,customer_name FROM customers WHERE active=1 ORDER BY customer_name").fetchall()]
+        # Read the same live master as draft entry, including new customers
+        # without CIF (PROSPECT records deliberately have active=0).
+        customers=weekly_core.customers(c, uid)
         leaders=[dict(r) for r in c.execute("SELECT id,full_name FROM users WHERE active=1 AND role='Lãnh đạo phòng' ORDER BY full_name").fetchall()]
+    if logger:
+        logger.info("WEEKLY_EDIT_CUSTOMERS_LOADED actor=%s item=%s customers=%s live_master=1",uid,iid,len(customers))
     st.markdown(f"### ✏️ Điều chỉnh kế hoạch · {esc(item.get('title'))}")
     opts=[None]+customers; cur=next((x for x in customers if int(x["id"])==int(item.get("customer_id") or 0)),None)
     customer=st.selectbox("Khách hàng",opts,index=opts.index(cur) if cur in opts else 0,format_func=lambda x:"Không gắn khách hàng" if x is None else f"{x['customer_name']} · CIF {x.get('cif') or '—'}",key=f"p3_mgr_customer_{iid}")
