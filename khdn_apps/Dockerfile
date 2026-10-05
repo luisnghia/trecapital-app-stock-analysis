@@ -99,6 +99,8 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/customer_cif_admin_patch_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/backup_management_qa.py
 
+RUN PYTHONPATH=/app python /app/khdn_apps/weekly_manager_edit_qa.py
+
 RUN PYTHONPATH=/app python /app/khdn_apps/runtime_page_qa.py
 
 ENV PYTHONUNBUFFERED=1 \

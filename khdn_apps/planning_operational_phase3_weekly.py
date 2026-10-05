@@ -167,51 +167,5 @@ def install_weekly_staff(policy, weekly_core, logger=None):
 
 
 def manager_edit_item(st,u,policy,weekly_core,get_conn,plan,item,focus_rows,logger=None):
-    iid = int(item["id"]); uid = int(policy._uget(u,"id")); ws = date.fromisoformat(str(plan["week_start"])[:10])
-    with get_conn() as c:
-        # Read the same live master as draft entry, including new customers
-        # without CIF (PROSPECT records deliberately have active=0).
-        customers=weekly_core.customers(c, uid)
-        leaders=[dict(r) for r in c.execute("SELECT id,full_name FROM users WHERE active=1 AND role='Lãnh đạo phòng' ORDER BY full_name").fetchall()]
-    if logger:
-        logger.info("WEEKLY_EDIT_CUSTOMERS_LOADED actor=%s item=%s customers=%s live_master=1",uid,iid,len(customers))
-    st.markdown(f"### ✏️ Điều chỉnh kế hoạch · {esc(item.get('title'))}")
-    opts=[None]+customers; cur=next((x for x in customers if int(x["id"])==int(item.get("customer_id") or 0)),None)
-    customer=st.selectbox("Khách hàng",opts,index=opts.index(cur) if cur in opts else 0,format_func=lambda x:"Không gắn khách hàng" if x is None else f"{x['customer_name']} · CIF {x.get('cif') or '—'}",key=f"p3_mgr_customer_{iid}")
-    title=st.text_input("Công việc *",value=str(item.get("title") or ""),key=f"p3_mgr_title_{iid}")
-    c1,c2=st.columns(2)
-    work_date=c1.date_input("Ngày thực hiện *",value=date.fromisoformat(str(item.get("work_date"))[:10]),min_value=ws,max_value=ws+timedelta(days=6),format="DD/MM/YYYY",key=f"p3_mgr_workdate_{iid}")
-    due_raw=item.get("expected_complete_date") or item.get("work_date")
-    due_date=c2.date_input("Ngày dự kiến hoàn thành *",value=date.fromisoformat(str(due_raw)[:10]),min_value=work_date,format="DD/MM/YYYY",key=f"p3_mgr_due_{iid}")
-    cur_leader=next((x for x in leaders if int(x["id"])==int(item.get("controller_user_id") or 0)),None)
-    leader=st.selectbox("Lãnh đạo kiểm soát *",leaders,index=leaders.index(cur_leader) if cur_leader in leaders else 0,format_func=lambda x:x["full_name"],key=f"p3_mgr_leader_{iid}") if leaders else None
-    focus_opts=list(focus_rows)+["NONE"]; cur_focus=next((x for x in focus_rows if int(x.get("id") or 0)==int(item.get("focus_category_id") or 0)),None)
-    focus_choice=st.selectbox("Công việc trọng tâm / phân loại *",focus_opts,index=focus_opts.index(cur_focus) if cur_focus in focus_opts else len(focus_opts)-1,format_func=lambda x:"Không thuộc công việc trọng tâm" if x=="NONE" else f"{x.get('code')} · {x.get('name')}",key=f"p3_mgr_focus_{iid}")
-    q=int(item.get("priority_quadrant") or 4); nonfocus_q=q if q in (1,3,4) else 4
-    if focus_choice=="NONE":
-        nonfocus_q=st.selectbox("Phân loại khi không thuộc trọng tâm",[1,3,4],index=[1,3,4].index(nonfocus_q),format_func=lambda z:policy.PRIORITY_SHORT[z],key=f"p3_mgr_q_{iid}")
-    category=st.text_input("Nhóm công việc",value=str(item.get("category") or ""),key=f"p3_mgr_cat_{iid}")
-    source=st.text_area("Nguồn / nội dung gốc",value=str(item.get("source_text") or ""),key=f"p3_mgr_source_{iid}")
-    output=st.text_area("Kết quả đầu ra",value=str(item.get("expected_output") or ""),key=f"p3_mgr_output_{iid}")
-    note=st.text_area("Ghi chú",value=str(item.get("note") or ""),key=f"p3_mgr_note_{iid}")
-    a,b=st.columns(2)
-    if a.button("💾 Lưu điều chỉnh",key=f"p3_mgr_save_{iid}",type="primary",use_container_width=True):
-        if not title.strip() or due_date<work_date or not leader:
-            st.error("Vui lòng nhập đủ Công việc, Lãnh đạo kiểm soát và ngày dự kiến hoàn thành hợp lệ.")
-        else:
-            ts=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            with get_conn() as c:
-                c.execute("""UPDATE weekly_plan_items SET work_date=?,title=?,customer_id=?,customer_text=?,category=?,source_text=?,expected_complete_date=?,controller_user_id=?,controller_name_snapshot=?,expected_output=?,note=?,updated_at=? WHERE id=?""",
-                          (work_date.isoformat(),title.strip(),int(customer['id']) if customer else None,str(customer['customer_name']) if customer else "",category.strip(),source.strip(),due_date.isoformat(),int(leader['id']),str(leader['full_name']),output.strip(),note.strip(),ts,iid))
-                focus = focus_choice if isinstance(focus_choice,dict) else None
-                if focus:
-                    policy._set_classification(c,iid,uid,int(focus["id"]),None,None,reason="Lãnh đạo điều chỉnh khi phê duyệt",allow_locked=True)
-                else:
-                    due7=nonfocus_q in (1,3); risk=True if nonfocus_q==1 else False if nonfocus_q==3 else None
-                    policy._set_classification(c,iid,uid,None,due7,risk,reason="Lãnh đạo điều chỉnh khi phê duyệt",allow_locked=True)
-                c.execute("INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(?,?,'MANAGER_EDIT_PHASE3',?,?)",
-                          (iid,uid,json.dumps({"title":title.strip(),"work_date":work_date.isoformat(),"due":due_date.isoformat(),"customer_id":customer['id'] if customer else None},ensure_ascii=False),ts))
-            if logger: logger.info("P3_MANAGER_WEEK_ITEM_EDIT item=%s actor=%s",iid,uid)
-            st.session_state.pop("p3_manager_edit_week_item",None); st.rerun()
-    if b.button("Đóng chỉnh sửa",key=f"p3_mgr_close_{iid}",use_container_width=True):
-        st.session_state.pop("p3_manager_edit_week_item",None); st.rerun()
+    from khdn_apps.weekly_manager_edit import render
+    return render(st,u,policy,weekly_core,get_conn,plan,item,focus_rows,logger)
