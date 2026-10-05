@@ -15,15 +15,17 @@ Requirements:
 from __future__ import annotations
 
 from datetime import date, datetime, time
+import hashlib
 import html
 import json
 
+from khdn_apps.legacy_fast_form import legacy_fast_form
 from khdn_apps import planning_final_ux_patch as finalux
 from khdn_apps import planning_usability_v2_patch as v2
 from khdn_apps import planning_usability_v3_patch as v3
 from khdn_apps import planning_week_board_focus_patch as weekfocus
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 _FLAG = "_PLANNING_OPERATIONAL_PHASE10_VERSION"
 
 _EXTRA_CASE_CONTACT_COLUMNS = (
@@ -247,6 +249,77 @@ def _render_contact_inputs(st, prefix, defaults):
         )
         rows.append({"name": name, "phone": phone, "role": role or ""})
     return rows
+
+
+def _contact_token(data):
+    """Compare contact values, independent of changes to other case fields."""
+    values = [_clean(data.get("customer_id"))] + [_clean(data.get(f"{prefix}_{field}"))
+              for prefix in ("contact", "contact2", "contact3")
+              for field in ("name", "phone", "role")]
+    return hashlib.sha256(json.dumps(values, ensure_ascii=False).encode()).hexdigest()
+
+
+def _render_contact_edit_fast(st, case_id, uid, data, defaults, logger=None):
+    """Names, phones and positions stay in the iframe until its Save action."""
+    token = _contact_token(data)
+    # A saved contact change gets a different widget identity, so an event from
+    # the old browser form cannot overwrite newer contact data on the next run.
+    key = f"p10_contact_edit_fast_{int(case_id)}_{int(uid)}_{token}"
+    roles = [{"value": "", "label": "— Để trống —"}]
+    roles += [{"value": role, "label": role} for role in _role_options(defaults)]
+    fields = []
+    for slot in (1, 2, 3):
+        default = defaults[slot - 1]
+        fields.extend([
+            {"name": f"contact_{slot}_name", "label": f"Người liên hệ {slot}",
+             "type": "text", "default": _clean(default.get("name")), "span": 2},
+            {"name": f"contact_{slot}_phone", "label": f"SĐT {slot}",
+             "type": "text", "default": _clean(default.get("phone"))},
+            {"name": f"contact_{slot}_role", "label": f"Chức vụ {slot}",
+             "type": "select", "options": roles, "default": _clean(default.get("role"))},
+        ])
+    payload = legacy_fast_form(
+        fields, "Lưu thông tin liên hệ", key=key, reset_token=token, columns=4,
+        title="Thông tin liên hệ · tối đa 3 người",
+        help_text="Tối thiểu 1 dòng phải có đủ Người liên hệ, SĐT và Chức vụ; các dòng không dùng để trống.",
+    )
+    log_key = f"p10_contact_edit_render_{int(case_id)}_{int(uid)}"
+    if logger and st.session_state.get(log_key) != token:
+        logger.info("P10_CONTACT_EDIT_RENDER case_id=%s actor=%s zero_keystroke=1 fields=9 pii_logged=0",
+                    int(case_id), int(uid))
+        st.session_state[log_key] = token
+    if payload is None:
+        return None
+    return [{field: payload.get(f"contact_{slot}_{field}") for field in ("name", "phone", "role")}
+            for slot in (1, 2, 3)]
+
+
+def _save_contact_edit(get_conn, customer_core, case_id, uid, contacts, expected_token):
+    """Recheck ownership, actor and contacts while holding the write lock."""
+    ts = customer_core.now_str()
+    with get_conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        row = c.execute("SELECT * FROM customer_work_cases WHERE id=?", (int(case_id),)).fetchone()
+        actor = c.execute("SELECT * FROM users WHERE id=? AND active=1", (int(uid),)).fetchone()
+        if not row or not actor:
+            raise PermissionError("Bạn không còn quyền sửa thông tin liên hệ của công việc này.")
+        data, user = dict(row), dict(actor)
+        allowed = (int(data.get("owner_user_id") or 0) == int(uid)
+                   or bool(user.get("is_admin"))
+                   or str(user.get("role")) == "Lãnh đạo phòng"
+                   and int(data.get("controller_user_id") or 0) == int(uid))
+        if not allowed:
+            raise PermissionError("Bạn không còn quyền sửa thông tin liên hệ của công việc này.")
+        if _contact_token(data) != expected_token:
+            raise ValueError("Thông tin liên hệ đã được cập nhật ở phiên khác. Vui lòng tải lại trước khi sửa.")
+        _write_case_contacts(c, int(case_id), contacts, ts)
+        _sync_customer_contacts(c, int(data["customer_id"]), contacts, int(uid), ts, int(case_id))
+        c.execute(
+            "INSERT INTO case_actions(case_id,actor_user_id,action,detail,created_at) VALUES(?,?,?,?,?)",
+            (int(case_id), int(uid), "CONTACT_UPDATE_P10",
+             json.dumps({"contact_count": len(contacts), "customer_contact_master_synced": True,
+                         "zero_keystroke_form": True}, ensure_ascii=False), ts),
+        )
 
 
 def _contact_validation(st, invalid_state, prefix, raw_rows):
@@ -534,31 +607,28 @@ def _install_detail_editor(customer_ui, customer_core, worktype, logger=None):
 
         with st.expander("✏️ Sửa thông tin liên hệ", expanded=False):
             defaults = contacts + [{"name":"", "phone":"", "role":""}] * (3 - len(contacts))
-            prefix = f"p10_edit_contact_{int(case_id)}"
-            with st.form(prefix):
-                raw = _render_contact_inputs(st, prefix, defaults[:3])
-                save = st.form_submit_button("Lưu thông tin liên hệ", type="primary", use_container_width=True)
-            if save:
+            raw = _render_contact_edit_fast(st, int(case_id), uid, data, defaults[:3], active_logger)
+            if raw is not None:
                 complete, partial = _normalize_contact_rows(raw)
                 if not complete:
                     st.error("Phải có tối thiểu 1 dòng liên hệ nhập đủ Người liên hệ, SĐT và Chức vụ.")
                 elif partial:
                     st.error("Các dòng đã nhập phải đủ cả Người liên hệ, SĐT và Chức vụ. Dòng chưa đủ: " + ", ".join(map(str, partial)) + ".")
                 else:
-                    ts = customer_core.now_str()
-                    with get_conn() as c:
-                        _write_case_contacts(c, int(case_id), complete, ts)
-                        _sync_customer_contacts(c, int(data["customer_id"]), complete, uid, ts, int(case_id))
-                        c.execute(
-                            "INSERT INTO case_actions(case_id,actor_user_id,action,detail,created_at) VALUES(?,?,?,?,?)",
-                            (
-                                int(case_id), uid, "CONTACT_UPDATE_P10",
-                                json.dumps({"contact_count": len(complete), "customer_contact_master_synced": True}, ensure_ascii=False),
-                                ts,
-                            ),
-                        )
+                    try:
+                        _save_contact_edit(get_conn, customer_core, int(case_id), uid, complete, _contact_token(data))
+                    except (PermissionError, ValueError) as exc:
+                        st.error(str(exc))
+                        if active_logger:
+                            active_logger.warning("P10_CONTACT_UPDATE_BLOCKED case_id=%s actor=%s", int(case_id), uid)
+                        return result
+                    except Exception:
+                        st.error("Chưa lưu được thông tin liên hệ. Vui lòng thử lại.")
+                        if active_logger:
+                            active_logger.exception("P10_CONTACT_UPDATE_FAILED case_id=%s actor=%s", int(case_id), uid)
+                        return result
                     if active_logger:
-                        active_logger.info("P10_CONTACT_UPDATE case_id=%s contact_count=%s pii_logged=0", int(case_id), len(complete))
+                        active_logger.info("P10_CONTACT_UPDATE case_id=%s contact_count=%s zero_keystroke=1 pii_logged=0", int(case_id), len(complete))
                     st.toast("Đã cập nhật thông tin liên hệ. Lần tạo công việc tiếp theo sẽ tự động dùng thông tin mới.", icon="✅")
                     st.rerun()
         return result
@@ -566,7 +636,7 @@ def _install_detail_editor(customer_ui, customer_core, worktype, logger=None):
     customer_ui._case_detail = case_detail
     customer_ui._P10_CONTACT_DETAIL_EDITOR = True
     if logger:
-        logger.info("P10_CONTACT_DETAIL_EDITOR_INSTALLED owner=1 controller=1 admin=1 out_of_scope_leader_readonly=1")
+        logger.info("P10_CONTACT_DETAIL_EDITOR_INSTALLED owner=1 controller=1 admin=1 out_of_scope_leader_readonly=1 zero_keystroke=1")
 
 
 def install(app_ns, policy, weekly_core, customer_core, customer_ui, worktype, logger=None):

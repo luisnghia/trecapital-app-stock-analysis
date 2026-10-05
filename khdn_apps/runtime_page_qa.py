@@ -152,6 +152,10 @@ def run():
         installed_entry_ui()
         installed_customer_date_ui()
 
+        from khdn_apps.customer_contact_edit_qa import installed_contact_ui, browser_contact_messages
+        browser_contact_messages()
+        installed_contact_ui()
+
         from khdn_apps.operational_review_table_qa import installed_review_ui
         installed_review_ui()
 
