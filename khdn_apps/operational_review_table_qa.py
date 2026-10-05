@@ -55,14 +55,33 @@ else:
     def selector(page):
         return next(x for x in page.selectbox if x.label == 'Chọn công việc cần đánh giá')
 
+    def open_button(page):
+        return next(x for x in page.button if x.label == '⭐ Đánh giá công việc')
+
+    def check_controls_before_table(page):
+        # Check the actual emitted UI order: the primary action must be available
+        # before the large list, independently of the viewport or row count.
+        elements=list(page.main)
+        picker=next(i for i,x in enumerate(elements) if x.type=='selectbox' and x.label=='Chọn công việc cần đánh giá')
+        button=next(i for i,x in enumerate(elements) if x.type=='button' and x.label=='⭐ Đánh giá công việc')
+        table=next(i for i,x in enumerate(elements) if x.type=='html' and "class='ops-review-table'" in x.proto.body)
+        assert picker < button < table, (picker,button,table)
+
     check(page)
     ids = list(page.session_state['ops_review_qa_ids'])
     assert len(selector(page).options) == 3 and selector(page).value is None
+    assert open_button(page).disabled and len(page.select_slider)==0
+    check_controls_before_table(page)
     table = next(x.proto.body for x in page.get('html') if "class='ops-review-table'" in x.proto.body)
     assert 'Khách hàng &lt;script&gt;QA&lt;/script&gt;' in table and '<script>QA</script>' not in table
     assert 'Giá trị (tỷ đồng)' in table and '>2</td>' in table
     selector(page).set_value(str(ids[0])).run(); check(page)
+    assert not open_button(page).disabled and len(page.select_slider)==0
+    open_button(page).click().run(); check(page)
     assert len(page.select_slider) == 2
+    review_list=next(x for x in page.expander if x.label.startswith('Danh sách công việc chờ đánh giá'))
+    assert not review_list.proto.expanded, 'The long table still separates the action from the score form'
+    check_controls_before_table(page)
     # Preserve the selected database ID when order changes, then clear it when
     # the owner filter removes the task instead of scoring a row at that position.
     with app.get_conn() as c:
@@ -73,8 +92,10 @@ else:
     next(x for x in page.selectbox if x.label=='Phạm vi Cán bộ QLKH').set_value(other).run(); check(page)
     assert len(selector(page).options)==1 and selector(page).value is None
     assert len(page.select_slider)==0
+    assert open_button(page).disabled
     next(x for x in page.selectbox if x.label=='Phạm vi Cán bộ QLKH').set_value(0).run()
     selector(page).set_value(str(ids[0])).run(); check(page)
+    open_button(page).click().run(); check(page)
     # The existing score rule remains authoritative: no comment below 9 means
     # no evaluation, no CLOSED state and no evaluation audit event.
     next(x for x in page.button if x.label=='⭐ Lưu đánh giá & kết thúc').click().run(); check(page)
@@ -97,11 +118,13 @@ else:
         assert c.execute("SELECT COUNT(*) FROM task_actions WHERE task_id=? AND action='EVALUATE' AND actor_user_id=?",(ids[0],leader)).fetchone()[0]==1
     page.run(); check(page)
     assert selector(page).value is None
+    assert open_button(page).disabled and len(page.select_slider)==0
     with app.get_conn() as c:
         assert c.execute('SELECT COUNT(*) FROM evaluations WHERE task_id=?',(ids[0],)).fetchone()[0]==1
     # Admin runs the same installed route and saves the high-score/no-comment case.
     page.session_state['ops_review_qa_actor']='admin'; page.run()
     selector(page).set_value(str(ids[1])).run(); check(page)
+    open_button(page).click().run(); check(page)
     for slider in page.select_slider: slider.set_value(9.0)
     next(x for x in page.button if x.label=='⭐ Lưu đánh giá & kết thúc').click().run(); check(page)
     with app.get_conn() as c:
@@ -123,5 +146,6 @@ else:
         if expected:
             assert len(choices[0].options)==expected
             choices[0].set_value(str(ids[2])).run(); check(page)
+            open_button(page).click().run(); check(page)
             assert any(x.value=='QA_SELECTED_TASK='+str(ids[2]) for x in page.caption)
-    print('OPS_REVIEW_INSTALLED_UI_QA_PASS leader admin real_scoring ownership audit required_comment no_duplicate scope_change stable_ID escaped_HTML history support_qlkh_scope no_DataFrame')
+    print('OPS_REVIEW_INSTALLED_UI_QA_PASS leader admin visible_action_before_table explicit_open collapsed_list real_scoring ownership audit required_comment no_duplicate scope_change stable_ID escaped_HTML history support_qlkh_scope no_DataFrame')
