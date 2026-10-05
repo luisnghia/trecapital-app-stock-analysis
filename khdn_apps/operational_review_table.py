@@ -23,6 +23,21 @@ TABLE_CSS = """<style>
 .ops-review-table tr[data-ops-row]:not(.selected):hover td{box-shadow:inset 0 2px #6FD6C4,inset 0 -2px #6FD6C4}
 .ops-review-table tr[data-ops-row]:focus-visible{outline:3px solid #F4B41A;outline-offset:-3px}
 html.khdn-light .ops-review-table th{background:#F0F7F3;color:#0B2A25}
+.ops-review-table.ops-history-table{min-width:0}
+.ops-history-table th{text-align:left}
+.ops-history-table td{white-space:pre-wrap}
+.ops-history-value{min-width:0;overflow-wrap:anywhere}
+@media(max-width:640px){
+  .ops-history-table,.ops-history-table tbody,.ops-history-table tr{display:block;width:100%}
+  .ops-history-table colgroup{display:none}
+  .ops-history-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+  .ops-history-table tr{border-bottom:2px solid #4E7771}
+  .ops-history-table td{display:grid;grid-template-columns:7rem minmax(0,1fr);gap:8px;border:0;padding:7px 10px}
+  .ops-history-table td::before{content:attr(data-label);color:#6FD6C4;font-weight:800;white-space:normal}
+  .ops-history-table td.ops-history-detail{display:block;border-top:1px solid #4E7771}
+  .ops-history-table td.ops-history-detail::before{display:block;margin-bottom:4px}
+  html.khdn-light .ops-history-table td::before{color:#0B2A25}
+}
 </style>"""
 
 # The table itself is rendered through st.html. A JS-only v2 component handles
@@ -72,10 +87,32 @@ def _row_click_event(st, key, table_id, version):
     return result.row_clicked
 
 
-def render_readonly_table(st, frame, *, height=560, **_ignored):
+def render_readonly_table(st, frame, *, height=560, logger=None, **_ignored):
     height = max(180, min(900, int(height or 560)))
+    # History uses the available width, rather than the 900px task-list minimum.
+    # Metadata stays compact; the audit text/comment gets the remaining space.
+    weights = ({"Thời gian": 14, "Người thực hiện": 18, "Hành động": 13, "Chi tiết": 55}
+               if "Chi tiết" in frame.columns else
+               {"Vòng": 6, "Người đánh giá": 18, "Chất lượng": 10, "Tiến độ": 10,
+                "Góp ý": 42, "Thời gian": 14})
+    total = sum(weights.get(column, 15) for column in frame.columns) or 1
+    widths = "".join(f"<col style='width:{100 * weights.get(column, 15) / total:.2f}%'>"
+                     for column in frame.columns)
+    head = "".join("<th scope='col'>" + html.escape(str(column)) + "</th>" for column in frame.columns)
+    body = []
+    for _, row in frame.iterrows():
+        cells = []
+        for column, value in row.items():
+            detail_class = " class='ops-history-detail'" if column in {"Chi tiết", "Góp ý"} else ""
+            cells.append(f"<td{detail_class} data-label='{html.escape(str(column), quote=True)}'>"
+                         + "<span class='ops-history-value'>" + html.escape(_text(value)) + "</span></td>")
+        body.append("<tr>" + "".join(cells) + "</tr>")
     st.html(TABLE_CSS + f"<div class='ops-review-scroll' style='max-height:{height}px'>"
-            + frame.to_html(index=False, escape=True, border=0, classes="ops-review-table") + "</div>")
+            + "<table class='ops-review-table ops-history-table'><colgroup>" + widths + "</colgroup>"
+            + "<thead><tr>" + head + "</tr></thead><tbody>" + "".join(body) + "</tbody></table></div>")
+    if logger:
+        logger.info("OPS_HISTORY_TABLE_RENDER rows=%s columns=%s fit_width=1 full_detail=1",
+                    len(frame), len(frame.columns))
 
 
 def _text(value):
@@ -246,6 +283,12 @@ def patch_source(source):
     if history_text.count("st.dataframe(") != 2:
         raise RuntimeError("Operational HTML history patch requires two history tables")
     history_text = history_text.replace("st.dataframe(", "_html_history_table(st,")
+    # The audit table needs the full page width; evaluation history follows it.
+    history_text = history_text.replace("    c1, c2 = st.columns(2)\n", "")
+    history_text = history_text.replace("    with c1:\n", "    with st.container():\n")
+    history_text = history_text.replace("    with c2:\n", "    with st.container():\n")
+    history_text = history_text.replace("use_container_width=True, hide_index=True, height=",
+                                        "logger=LOGGER, use_container_width=True, hide_index=True, height=")
     history_text = history_text.replace("def task_history(task_id):\n",
         "def task_history(task_id):\n    from khdn_apps.operational_review_table import render_readonly_table as _html_history_table\n", 1)
     history_lines[history.lineno - 1:history.end_lineno] = [history_text]
