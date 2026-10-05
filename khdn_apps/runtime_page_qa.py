@@ -84,6 +84,10 @@ def run():
         page.run()
         assert not page.exception, [e.message for e in page.exception]
 
+        from khdn_apps.action_feedback_qa import run_feedback_qa, installed_feedback_ui
+        run_feedback_qa()
+        installed_feedback_ui()
+
         # Regression guard: the final runtime must own Catalog after reruns.  The
         # Q2-first weekly policy intentionally supersedes the older V3 hotfix and
         # renders the same native command-button navigation without st.tabs().

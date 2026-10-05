@@ -222,6 +222,9 @@ from khdn_apps.global_zero_keystroke_patch import install as _install_global_zer
 from khdn_apps.customer_work_form_layout_patch import install as _install_customer_work_layout
 _install_global_zero_keystroke(_app_module.__dict__, _weekly_priority_policy_module, _customer_work_module, _customer_work_ui_module, _worktype_contact_card_module, _app_module.__dict__.get('LOGGER'))
 _install_customer_work_layout(_app_module.__dict__, _app_module.__dict__.get('LOGGER'))
+# Prominent action results across planning, operations and all role pages.
+from khdn_apps.action_feedback_patch import install as _install_action_feedback
+_install_action_feedback(_app_module.__dict__, _app_module.__dict__.get("LOGGER"))
 # Successful logins automatically issue the existing 30-day device cookie.
 _install_auto_remember_login(_app_module.__dict__)
 _app_module.app()
