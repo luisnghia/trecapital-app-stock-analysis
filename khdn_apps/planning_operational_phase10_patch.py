@@ -281,7 +281,7 @@ def _render_contact_edit_fast(st, case_id, uid, data, defaults, logger=None):
     payload = legacy_fast_form(
         fields, "Lưu thông tin liên hệ", key=key, reset_token=token, columns=4,
         title="Thông tin liên hệ · tối đa 3 người",
-        help_text="Tối thiểu 1 dòng phải có đủ Người liên hệ, SĐT và Chức vụ; các dòng không dùng để trống.",
+        help_text="SĐT là số điện thoại. Tối thiểu 1 dòng phải có đủ Người liên hệ, SĐT và Chức vụ; các dòng không dùng để trống.",
     )
     log_key = f"p10_contact_edit_render_{int(case_id)}_{int(uid)}"
     if logger and st.session_state.get(log_key) != token:
