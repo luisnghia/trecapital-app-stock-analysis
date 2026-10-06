@@ -12,10 +12,10 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
-# v4 refreshes cached iframes for the visible, browser-local calendar.
+# v5 refreshes cached iframes for immediate submit feedback and stale-draft checks.
 # Business keys and submit de-duplication remain unchanged.
 _component = components.declare_component(
-    "khdn_legacy_fast_form_v4",
+    "khdn_legacy_fast_form_v5",
     path=str(Path(__file__).with_name("legacy_fast_form_component")),
 )
 
@@ -49,5 +49,8 @@ def legacy_fast_form(
     if st.session_state.get(seen_key) == submit_id:
         return None
     st.session_state[seen_key] = submit_id
+    if "reset_token" in result and str(result["reset_token"]) != str(reset_token or ""):
+        st.warning("Dữ liệu đã thay đổi trong lúc nhập. Vui lòng kiểm tra nội dung mới trước khi lưu lại.")
+        return None
     values = result.get("values")
     return dict(values) if isinstance(values, dict) else {}

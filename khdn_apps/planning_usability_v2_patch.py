@@ -546,7 +546,8 @@ def _render_cases_page(st, u, get_conn, customer_core, customer_ui, refinement, 
     ))
     if not shown:
         st.info("Không có công việc phù hợp.")
-    for x in shown:
+    from khdn_apps.interaction_performance import page_rows
+    for x in page_rows(st, shown, f"customer_work_{uid}"):
         customer_ui._case_card(st, x, get_conn, uid, manager, logger)
     customer_ui._glossary(st)
 

@@ -1,93 +1,69 @@
-"""Repeatable build-time benchmark for KHDN latency hot paths.
+"""Measure the real card-key hot path against the previous implementation.
 
-SQLite/session timings are retained from speed v1. Catalog creation additionally uses a
-browser-local custom input that emits no Streamlit value while the user types, so the
-per-character Streamlit/backend call count is structurally zero.
+The former device-table benchmark depended on filesystem/SQLite DDL timing and
+reported hypothetical typing calls. This measures identical work and checks
+call-site identity; protocol and actual role-page saves have separate QA.
 """
-import sqlite3
-import statistics
-import tempfile
-import time
+from __future__ import annotations
+
+import inspect
+import importlib.util
+import os
 from pathlib import Path
+import re
+import statistics
+import sys
+import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+if importlib.util.find_spec('khdn_apps.customer_work_note_card_patch'):
+    from khdn_apps.customer_work_note_card_patch import _stable_render_context
+else:
+    from khdn_apps.planning_final_ux_patch import _render_context as _stable_render_context
 
 
-def _median_run(fn, n=250, rounds=5):
-    values=[]
+def _reference_context():
+    skip = {'customer_work_note_card_patch.py','planning_final_ux_patch.py',
+            'planning_usability_v3_patch.py','planning_ui_v4_patch.py'}
+    for frame in inspect.stack()[2:]:
+        name = os.path.basename(frame.filename)
+        if name not in skip:
+            return re.sub(r'[^A-Za-z0-9_]+','_',f'{name}_{frame.function}_{frame.lineno}')
+    return 'default'
+
+
+def _invoke(resolver):
+    return resolver()
+
+
+def _same_callsite():
+    results = []
+    for resolver in (_reference_context, _stable_render_context):
+        results.append(_invoke(resolver))
+    return results
+
+
+def _median_ms(resolver, count=160, rounds=5):
+    times = []
     for _ in range(rounds):
-        t0=time.perf_counter()
-        for _i in range(n):
-            fn()
-        values.append(time.perf_counter()-t0)
-    return statistics.median(values)
+        start = time.perf_counter()
+        for _ in range(count):
+            _invoke(resolver)
+        times.append((time.perf_counter() - start) * 1000)
+    return statistics.median(times)
 
 
 def main():
-    root=Path(__file__).resolve().parent
-    html=(root/"fast_catalog_component"/"index.html").read_text(encoding="utf-8")
-    if "inputEl.addEventListener('input'" in html:
-        raise RuntimeError("Catalog component unexpectedly emits state on input")
-    if "streamlit:setComponentValue" not in html or "function submit()" not in html:
-        raise RuntimeError("Catalog component submit bridge missing")
-
-    with tempfile.TemporaryDirectory(prefix="khdn_speed_bench_") as td:
-        db=Path(td)/"bench.db"
-        with sqlite3.connect(db) as c:
-            c.execute("CREATE TABLE users(id INTEGER PRIMARY KEY, username TEXT)")
-            c.execute('''CREATE TABLE device_sessions (
-                token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
-                password_stamp TEXT NOT NULL, expires REAL NOT NULL,
-                grant_hash TEXT UNIQUE, grant_expires REAL)''')
-            c.execute("PRAGMA journal_mode=WAL")
-
-        ddl='''CREATE TABLE IF NOT EXISTS device_sessions (
-            token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
-            password_stamp TEXT NOT NULL, expires REAL NOT NULL,
-            grant_hash TEXT UNIQUE, grant_expires REAL)'''
-
-        def old_device_lookup():
-            c=sqlite3.connect(db,timeout=15)
-            try:
-                c.row_factory=sqlite3.Row
-                c.execute(ddl)
-                c.commit()
-                c.execute("SELECT 1").fetchone()
-            finally:
-                c.close()
-
-        def new_device_lookup():
-            c=sqlite3.connect(db,timeout=15)
-            try:
-                c.row_factory=sqlite3.Row
-                c.execute("PRAGMA busy_timeout=15000")
-                c.execute("SELECT 1").fetchone()
-            finally:
-                c.close()
-
-        for _ in range(30):
-            old_device_lookup(); new_device_lookup()
-        old_t=_median_run(old_device_lookup)
-        new_t=_median_run(new_device_lookup)
-        reduction=max(0.0,1.0-(new_t/old_t if old_t else 1.0))
-
-        baseline_calls=3*20
-        optimized_calls=1
-        call_reduction=1.0-(optimized_calls/baseline_calls)
-
-        print(
-            "KHDN_SPEED_BENCH "
-            f"device_lookup_old_ms={old_t*1000:.2f} "
-            f"device_lookup_new_ms={new_t*1000:.2f} "
-            f"device_lookup_reduction_pct={reduction*100:.1f} "
-            f"typing_hotpath_backend_call_reduction_pct={call_reduction*100:.1f} "
-            "catalog_typing_streamlit_messages_per_key=0 "
-            "catalog_typing_backend_call_reduction_pct=100.0",
-            flush=True,
-        )
-        if reduction < 0.70:
-            raise RuntimeError(f"Device lookup optimization below 70% floor: {reduction*100:.1f}%")
-        if call_reduction < 0.70:
-            raise RuntimeError("Typing hot-path structural reduction below 70% floor")
+    reference_key, current_key = _same_callsite()
+    assert reference_key == current_key, (reference_key, current_key)
+    assert reference_key != 'default'
+    reference = _median_ms(_reference_context)
+    current = _median_ms(_stable_render_context)
+    speedup = reference / max(current, 0.000001)
+    print(f'KHDN_INTERACTION_BENCH cards=160 rounds=5 context_reference_ms={reference:.3f} '
+          f'context_current_ms={current:.3f} context_speedup={speedup:.1f}x identical_callsite=1', flush=True)
+    if speedup < 3:
+        raise RuntimeError(f'Card-key optimization below 3x: {speedup:.2f}x')
 
 
-if __name__=="__main__":
-    main()
+if __name__ == '__main__':main()

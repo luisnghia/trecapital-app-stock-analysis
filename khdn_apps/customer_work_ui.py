@@ -165,6 +165,7 @@ def _create_case_form(st, u, get_conn, logger=None):
 
 
 def _case_detail(st, u, get_conn, case_id, logger=None):
+    from khdn_apps.legacy_fast_form import legacy_fast_form
     uid=int(u["id"]); manager=_manager(u)
     with get_conn() as c:
         x=core.get_case(c,case_id)
@@ -180,12 +181,17 @@ def _case_detail(st, u, get_conn, case_id, logger=None):
     _case_card(st,x,get_conn,uid,manager,logger,compact=True)
     if x.get("plan_approval_status")=="APPROVED" and x.get("status")!="COMPLETED":
         st.subheader("Cập nhật tiến độ")
-        current_idx=next((i for i,s in enumerate(stages) if int(s["id"])==int(x.get("current_stage_id") or 0)),0)
-        stage=st.selectbox("Chuyển sang mục công việc",stages,index=current_idx,format_func=lambda s:s["name"],key=f"cw_stage_{case_id}")
-        stage_note=st.text_input("Ghi chú chuyển bước",key=f"cw_stage_note_{case_id}")
-        if st.button("Cập nhật mục công việc",type="primary",key=f"cw_stage_save_{case_id}",use_container_width=True):
+        payload = legacy_fast_form(
+            [{"name":"stage_id","label":"Chuyển sang mục công việc","type":"select",
+              "default":str(x.get("current_stage_id") or (stages[0]['id'] if stages else '')),
+              "options":[{"value":str(s['id']),"label":s['name']} for s in stages]},
+             {"name":"note","label":"Ghi chú chuyển bước","type":"textarea","required":True,"full":True}],
+            "Cập nhật mục công việc", key=f"cw_stage_fast_{case_id}_{uid}",
+            reset_token=str(x.get("current_stage_id") or ""),
+        )
+        if payload is not None:
             try:
-                core.change_stage(get_conn,case_id,uid,stage["id"],stage_note,logger);st.toast("Đã cập nhật tiến độ.",icon="✅");st.rerun()
+                core.change_stage(get_conn,case_id,uid,int(payload.get("stage_id") or 0),payload.get("note", ""),logger);st.toast("Đã cập nhật tiến độ.",icon="✅");st.rerun()
             except Exception as exc: st.error(str(exc))
     st.subheader("Vướng mắc")
     active=[i for i in issues if not i.get("resolved_at")]
@@ -194,24 +200,35 @@ def _case_detail(st, u, get_conn, case_id, logger=None):
         with st.container(border=True):
             st.markdown(f"**⚠ {html.escape(str(i.get('issue_text') or ''))}**")
             st.caption(f"{i.get('stage_name') or '—'} · {i.get('opened_by_name') or '—'} · {_dt_text(i.get('opened_at'))} · Mức {core.SEVERITY_LABEL.get(i.get('severity'),i.get('severity'))}")
-            resolution=st.text_input("Cách xử lý",key=f"cw_resolve_txt_{i['id']}")
-            if st.button("Đánh dấu đã xử lý",key=f"cw_resolve_{i['id']}"):
-                core.resolve_issue(get_conn,i["id"],uid,resolution,logger);st.rerun()
+            payload = legacy_fast_form(
+                [{"name":"resolution","label":"Cách xử lý","type":"textarea","full":True}],
+                "Đánh dấu đã xử lý", key=f"cw_resolve_fast_{i['id']}_{uid}",
+            )
+            if payload is not None:
+                core.resolve_issue(get_conn,i["id"],uid,payload.get("resolution", ""),logger);st.rerun()
     with st.expander("＋ Ghi nhận vướng mắc",expanded=False):
-        issue=st.text_area("Nội dung vướng mắc",key=f"cw_issue_txt_{case_id}")
-        sev=st.selectbox("Mức độ",["LOW","MEDIUM","HIGH"],format_func=lambda z:core.SEVERITY_LABEL[z],index=1,key=f"cw_issue_sev_{case_id}")
-        if st.button("Lưu vướng mắc",key=f"cw_issue_save_{case_id}",use_container_width=True):
-            try: core.add_issue(get_conn,case_id,uid,issue,sev,logger);st.rerun()
+        payload = legacy_fast_form(
+            [{"name":"issue","label":"Nội dung vướng mắc","type":"textarea","required":True,"full":True},
+             {"name":"severity","label":"Mức độ","type":"select","default":"MEDIUM",
+              "options":[{"value":z,"label":core.SEVERITY_LABEL[z]} for z in ("LOW","MEDIUM","HIGH")]}],
+            "Lưu vướng mắc", key=f"cw_issue_fast_{case_id}_{uid}", reset_token=str(len(issues)),
+        )
+        if payload is not None:
+            try: core.add_issue(get_conn,case_id,uid,payload.get("issue", ""),payload.get("severity", "MEDIUM"),logger);st.rerun()
             except Exception as exc: st.error(str(exc))
     st.subheader("Dời thời gian dự kiến hoàn thành")
     old=core.parse_dt(x.get("expected_complete_at")) or datetime.now()+timedelta(days=1)
-    r1,r2=st.columns(2)
-    nd=r1.date_input("Ngày mới",value=old.date(),key=f"cw_rd_{case_id}")
-    nt=r2.time_input("Giờ mới",value=old.time().replace(second=0,microsecond=0),key=f"cw_rt_{case_id}")
-    reason=st.text_input("Lý do dời",key=f"cw_rr_{case_id}")
-    if st.button("Gửi đề nghị dời thời gian",key=f"cw_req_move_{case_id}",use_container_width=True):
+    payload = legacy_fast_form(
+        [{"name":"date","label":"Ngày mới","type":"date","default":old.date().isoformat(),"required":True},
+         {"name":"time","label":"Giờ mới","type":"time","default":old.strftime('%H:%M'),"required":True},
+         {"name":"reason","label":"Lý do dời","type":"textarea","required":True,"full":True}],
+        "Gửi đề nghị dời thời gian", key=f"cw_move_fast_{case_id}_{uid}",
+        reset_token=str(x.get("expected_complete_at") or ""), columns=2,
+    )
+    if payload is not None:
         try:
-            _,state=core.request_reschedule(get_conn,case_id,uid,datetime.combine(nd,nt).strftime("%Y-%m-%d %H:%M:%S"),reason,logger)
+            proposed=datetime.fromisoformat(str(payload.get("date") or "")+'T'+str(payload.get("time") or ""))
+            _,state=core.request_reschedule(get_conn,case_id,uid,proposed.strftime("%Y-%m-%d %H:%M:%S"),payload.get("reason", ""),logger)
             st.toast("Đã cập nhật thời gian." if state=="APPROVED" else "Đã gửi đề nghị chờ phê duyệt.",icon="✅");st.rerun()
         except Exception as exc: st.error(str(exc))
     if manager:

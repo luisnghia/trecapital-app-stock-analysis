@@ -104,13 +104,18 @@ def _render_priority_heatmap(st, ui, data, get_conn, uid, manager, logger=None):
         c = _HEAT[q]
         arr = [x for x in ordered if _quadrant(x) == q]
         with st.container(key=f"cw_heat_q{q}"):
-            with st.expander(
+            expander = st.expander(
                 f"{c['icon']} {ui.core.quadrant_label(q)} · {counts[q]} công việc",
                 expanded=(q == 1),
-            ):
+                key=f"today_priority_open_{uid}_{q}", on_change="rerun",
+            )
+            with expander:
+                if expander.open is False:
+                    continue
                 if not arr:
                     st.caption("Không có công việc trong nhóm ưu tiên này.")
-                for x in arr:
+                from khdn_apps.interaction_performance import page_rows
+                for x in page_rows(st, arr, f"today_priority_{uid}_{q}"):
                     ui._case_card(st, x, get_conn, uid, manager, logger, compact=False)
 
 

@@ -50,9 +50,11 @@ def _cols(c, table):
     return {str(r[1]) for r in c.execute(f"PRAGMA table_info({table})").fetchall()}
 
 
-def _add(c, table, name, ddl):
-    if name not in _cols(c, table):
+def _add(c, table, name, ddl, columns=None):
+    columns = _cols(c, table) if columns is None else columns
+    if name not in columns:
         c.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+        columns.add(name)
 
 
 def _uget(u, key, default=None):
@@ -142,6 +144,8 @@ def _notify(c, user_id, title, body):
 def _ensure_schema(core, get_conn, logger=None):
     core.ensure_schema(get_conn, logger)
     with get_conn() as c:
+        plan_columns = _cols(c, "weekly_plans")
+        item_columns = _cols(c, "weekly_plan_items")
         for name, ddl in (
             ("workflow_status", "TEXT NOT NULL DEFAULT 'NHAP'"),
             ("submitted_at", "TEXT"), ("returned_at", "TEXT"), ("returned_by", "INTEGER"),
@@ -152,7 +156,7 @@ def _ensure_schema(core, get_conn, logger=None):
             ("evaluated_by", "INTEGER"), ("classification_locked", "INTEGER NOT NULL DEFAULT 0"),
             ("unlocked_at", "TEXT"), ("unlocked_by", "INTEGER"), ("unlock_reason", "TEXT"),
         ):
-            _add(c, "weekly_plans", name, ddl)
+            _add(c, "weekly_plans", name, ddl, plan_columns)
         for name, ddl in (
             ("focus_category_id", "INTEGER"), ("focus_code_snapshot", "TEXT"),
             ("focus_name_snapshot", "TEXT"), ("focus_desc_snapshot", "TEXT"),
@@ -163,7 +167,7 @@ def _ensure_schema(core, get_conn, logger=None):
             ("carried_from_item_id", "INTEGER"), ("classification_locked", "INTEGER NOT NULL DEFAULT 0"),
             ("q2_watch_flag", "INTEGER NOT NULL DEFAULT 0"),
         ):
-            _add(c, "weekly_plan_items", name, ddl)
+            _add(c, "weekly_plan_items", name, ddl, item_columns)
         c.executescript(
             """
             CREATE TABLE IF NOT EXISTS weekly_focus_categories(

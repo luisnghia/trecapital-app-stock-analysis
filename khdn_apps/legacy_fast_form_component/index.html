@@ -31,6 +31,9 @@ input,select{height:52px}textarea{min-height:92px;resize:none}
 .date-error{color:#FF8484;font-size:14px;margin-top:5px}.field-help{font-size:13px;line-height:1.4;color:var(--muted,#AFCAC5);margin-top:5px}
 input:focus,textarea:focus,select:focus{border-color:var(--focus,#79D8C8);outline:1px solid var(--focus,#79D8C8)}
 input::placeholder,textarea::placeholder{color:var(--muted,#AFCAC5);opacity:.82}
+input:required:invalid,textarea:required:invalid,select:required:invalid{border-color:#FF4B4B}
+.field:has(:required:invalid)>label{color:#FF4B4B}
+.field:has(input[type="date"]:required:invalid) .date-display{border-color:#FF4B4B}
 input:disabled,select:disabled,textarea:disabled{opacity:.82;cursor:not-allowed}
 .number-control{display:grid;grid-template-columns:minmax(0,1fr) 58px 58px;width:100%;max-width:100%;min-width:0;border-radius:8px;overflow:hidden}
 .number-control input{border-radius:8px 0 0 8px;border-right:0}
@@ -147,10 +150,10 @@ function createField(f){
   }
   const label=document.createElement('label');label.htmlFor='f_'+escName(name);label.textContent=String(f.label||name)+(f.required?' *':'');box.appendChild(label);
   let input;
-  if(type==='textarea')input=document.createElement('textarea');
+  if(type==='textarea'){input=document.createElement('textarea');input.rows=Math.max(3,Math.min(12,Number(f.rows||4)));}
   else if(type==='select'){
     input=document.createElement('select');for(const opt of (f.options||[])){const o=document.createElement('option');if(opt&&typeof opt==='object'){o.value=String(opt.value??'');o.textContent=String(opt.label??opt.value??'');}else{o.value=String(opt??'');o.textContent=String(opt??'');}input.appendChild(o);}
-  } else {input=document.createElement('input');input.type=type==='password'?'password':type==='number'?'number':type==='date'?'date':'text';}
+  } else {input=document.createElement('input');input.type=type==='password'?'password':type==='number'?'number':type==='date'?'date':type==='time'?'time':'text';}
   input.id='f_'+escName(name);input.dataset.name=name;input.placeholder=String(f.placeholder||'');tuneInput(input,type,name);input.disabled=!!f.disabled;input.setAttribute('aria-label',String(f.label||name));
   if(type==='number'){if(f.min!==undefined&&f.min!==null)input.min=String(f.min);if(f.max!==undefined&&f.max!==null)input.max=String(f.max);if(f.step!==undefined&&f.step!==null)input.step=String(f.step);}
   if(type==='date'){if(f.min)input.min=String(f.min);if(f.max)input.max=String(f.max);}
@@ -171,10 +174,10 @@ form.addEventListener('focusout',()=>{queueMicrotask(()=>{if(!form.contains(docu
 window.addEventListener('pagehide',()=>signalFocus(false),{once:true});
 // Keep the iframe height stable while the phone keyboard opens or closes.
 // Calendar actions and Streamlit render messages fit the form explicitly.
-form.addEventListener('submit',e=>{e.preventDefault();if(!datesValid()||!form.reportValidity())return;signalFocus(false);submitSeq+=1;send('streamlit:setComponentValue',{value:{submit_id:`${Date.now()}-${submitSeq}-${Math.random().toString(36).slice(2,8)}`,values:values()},dataType:'json'});});
+form.addEventListener('submit',e=>{e.preventDefault();if(submit.disabled||!datesValid()||!form.reportValidity())return;signalFocus(false);submit.disabled=true;form.setAttribute('aria-busy','true');submit.textContent='Đang xử lý…';submitSeq+=1;send('streamlit:setComponentValue',{value:{submit_id:`${Date.now()}-${submitSeq}-${Math.random().toString(36).slice(2,8)}`,reset_token:resetToken,values:values()},dataType:'json'});});
 window.addEventListener('message',event=>{
   if(event.source!==parent||event.origin!==parentOrigin||event.data.type!=='streamlit:render')return;
-  const args=event.data.args||{},fields=Array.isArray(args.fields)?args.fields:[];applyTheme(event.data.theme||{});titleEl.textContent=String(args.title||'');titleEl.hidden=!titleEl.textContent;helpEl.textContent=String(args.helpText||'');helpEl.hidden=!helpEl.textContent;submit.textContent=String(args.buttonLabel||'Lưu');
+  const args=event.data.args||{},fields=Array.isArray(args.fields)?args.fields:[];applyTheme(event.data.theme||{});titleEl.textContent=String(args.title||'');titleEl.hidden=!titleEl.textContent;helpEl.textContent=String(args.helpText||'');helpEl.hidden=!helpEl.textContent;submit.disabled=false;form.setAttribute('aria-busy','false');submit.textContent=String(args.buttonLabel||'Lưu');
   const cols=Math.max(1,Math.min(4,Number(args.columns||1)||1));grid.style.setProperty('--cols',String(cols));grid.dataset.cols=String(cols);
   const nextSig=fieldSignature(fields),nextToken=String(args.resetToken||'');if(signature!==nextSig){signature=nextSig;resetToken=nextToken;rebuild(fields);}else if(resetToken===null||resetToken!==nextToken){resetToken=nextToken;applyDefaults(fields);}fit();
 });
