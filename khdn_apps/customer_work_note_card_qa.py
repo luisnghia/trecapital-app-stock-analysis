@@ -35,7 +35,7 @@ assert roster.role.tolist() == ["Cán bộ QLKH", "Lãnh đạo phòng"]
 
 # Final rerun-safe install owns every active Customer Work card entry point.
 patch.install(customer_work_ui)
-assert patch.VERSION == "1.3.0"
+assert patch.VERSION == "1.3.1"
 assert v2._card is patch._customer_card
 assert v3._card is patch._customer_card
 assert finalux._customer_card is patch._customer_card
@@ -60,7 +60,7 @@ checks = {
     "markdown_restored": "finally:" in src and "st.markdown = original_markdown" in src,
     "today_duplicate_key_fixed": "finalux._render_context = _stable_render_context" in install_src,
     "note_overlay_skipped_in_context": "os.path.basename(__file__)" in src,
-    "context_uses_external_callsite": "frame.function" in src and "frame.lineno" in src,
+    "context_uses_external_callsite": "frame.f_code.co_name" in src and "frame.f_lineno" in src,
     "room_uses_exact_customer_card": "return _customer_card(" in room_src,
     "room_has_no_separate_card_template": "rd-card" not in room_src,
     "room_detail_button_intercepted": 'str(label).strip() == "🔎 Chi tiết"' in room_src,
@@ -96,3 +96,5 @@ print(
 # Run the manager-note/approval-history semantic regression suite as part of the
 # existing Customer Work build gate, so Dockerfile wiring remains stable.
 import khdn_apps.customer_work_manager_note_history_qa  # noqa: E402,F401
+from khdn_apps.interaction_performance_qa import run as run_interaction_qa
+run_interaction_qa()

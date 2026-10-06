@@ -80,19 +80,20 @@ def _local_command_tabs(st, state_key, options, default=None, prefix="subnav"):
         current = default if default in values else values[0]
         st.session_state[state_key] = current
     _command_tabs_css(st)
+    def choose(value):
+        st.session_state[state_key] = value
     widths = [max(1.0, min(2.7, len(str(label))/11.0)) for _, label in options]
     with st.container(key=f"khdn_subnav_bar_{prefix}"):
         cols = st.columns(widths, gap="small")
         for idx, (col, (value, label)) in enumerate(zip(cols, options)):
             with col:
-                if st.button(
+                st.button(
                     str(label),
                     key=f"local_cmd_{prefix}_{idx}_{value}",
                     use_container_width=True,
                     type="primary" if value == current else "secondary",
-                ):
-                    st.session_state[state_key] = value
-                    st.rerun()
+                    on_click=choose, args=(value,),
+                )
     return current
 
 

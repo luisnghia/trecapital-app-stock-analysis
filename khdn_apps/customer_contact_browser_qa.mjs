@@ -54,7 +54,7 @@ const state = vm.runInContext('state',context);
 assert.equal(Object.keys(state).length,9);
 assert.equal(state.contact_1_phone.value,args.fields.find(f => f.name === 'contact_1_phone').default);
 const beforeHeights = messages.filter(m => m.type === 'streamlit:setFrameHeight').length;
-for (let n = 0; n < 200; n++) {
+for (let n = 0; n < 2000; n++) {
   const input = state.contact_1_name;
   document.activeElement = input;
   input.value = 'Nội dung đang nhập QA '+n;
@@ -65,22 +65,28 @@ state.contact_1_phone.value = '0987654321'; state.contact_1_phone.dispatch('inpu
 state.contact_1_role.value = 'Giám đốc'; state.contact_1_role.dispatch('change');
 document.activeElement = state.contact_2_name; state.contact_1_name.dispatch('focusout');
 render(args); // Unrelated app rerun must preserve the draft, not load defaults.
-assert.equal(state.contact_1_name.value,'Nội dung đang nhập QA 199');
+assert.equal(state.contact_1_name.value,'Nội dung đang nhập QA 1999');
 assert.equal(state.contact_1_phone.value,'0987654321');
 assert.equal(messages.filter(m => m.type === 'streamlit:setComponentValue').length,0);
 assert.equal(messages.filter(m => m.type === 'streamlit:setFrameHeight').length,beforeHeights);
 assert.ok(messages.some(m => m.type === 'khdn-fast-input-focus'));
 elements.form.dispatch('submit');
+assert.equal(elements.submit.disabled,true);
+assert.equal(elements.submit.textContent,'Đang xử lý…');
+assert.equal(elements.form['aria-busy'],'true');
+elements.form.dispatch('submit'); // A fast double tap must not enqueue a second save.
 const submissions = messages.filter(m => m.type === 'streamlit:setComponentValue');
 assert.equal(submissions.length,1);
 assert.equal(Object.keys(submissions[0].value.values).length,9);
-assert.equal(submissions[0].value.values.contact_1_name,'Nội dung đang nhập QA 199');
+assert.equal(submissions[0].value.values.contact_1_name,'Nội dung đang nhập QA 1999');
 assert.equal(submissions[0].value.values.contact_1_phone,'0987654321');
 assert.equal(submissions[0].value.values.contact_1_role,'Giám đốc');
 assert.ok(submissions[0].value.submit_id);
+assert.equal(submissions[0].value.reset_token,args.resetToken);
 const changed = structuredClone(args);
 changed.resetToken = 'new-saved-contacts'; changed.fields[0].default = 'Mới lưu QA';
 render(changed);
 assert.equal(state.contact_1_name.value,'Mới lưu QA');
+assert.equal(elements.submit.disabled,false);
 assert.equal(messages.filter(m => m.type === 'streamlit:setComponentValue').length,1);
-console.log('CUSTOMER_CONTACT_BROWSER_QA_PASS 200_keys zero_value_messages_before_save phone_leading_zero local_select stable_height retained_draft one_submit nine_values new_saved_defaults');
+console.log('CUSTOMER_CONTACT_BROWSER_QA_PASS 2000_keys zero_value_messages_before_save phone_leading_zero local_select stable_height retained_draft one_submit nine_values immediate_busy double_tap_block reset_token new_saved_defaults');

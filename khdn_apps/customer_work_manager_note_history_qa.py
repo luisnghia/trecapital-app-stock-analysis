@@ -58,7 +58,7 @@ c.execute("INSERT INTO case_actions(case_id,actor_user_id,action,detail,created_
 c.commit()
 get_conn = ConnFactory(c)
 
-assert patch.VERSION == "1.1.0"
+assert patch.VERSION == "1.2.0"
 assert patch.update_case_note(get_conn, 10, 1, "Ghi chú lãnh đạo mới") is True
 r = c.execute("SELECT note FROM customer_work_cases WHERE id=10").fetchone()
 assert r[0] == "Ghi chú lãnh đạo mới"

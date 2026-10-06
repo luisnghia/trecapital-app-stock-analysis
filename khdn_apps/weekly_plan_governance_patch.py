@@ -20,19 +20,21 @@ def install(core, logger=None):
     def _cols(c, table):
         return {str(r[1]) for r in c.execute(f"PRAGMA table_info({table})").fetchall()}
 
-    def _add(c, table, name, ddl):
-        if name not in _cols(c, table):
+    def _add(c, table, name, ddl, columns):
+        if name not in columns:
             c.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+            columns.add(name)
 
     def ensure_schema(get_conn, logger_arg=None):
         original_ensure(get_conn, logger_arg or logger)
         with get_conn() as c:
-            _add(c, "weekly_plan_items", "approval_status", "TEXT NOT NULL DEFAULT 'APPROVED'")
-            _add(c, "weekly_plan_items", "approved_by_user_id", "INTEGER")
-            _add(c, "weekly_plan_items", "approved_at", "TEXT")
-            _add(c, "weekly_plan_items", "rejected_by_user_id", "INTEGER")
-            _add(c, "weekly_plan_items", "rejected_at", "TEXT")
-            _add(c, "weekly_plan_items", "approval_note", "TEXT")
+            columns = _cols(c, "weekly_plan_items")
+            _add(c, "weekly_plan_items", "approval_status", "TEXT NOT NULL DEFAULT 'APPROVED'", columns)
+            _add(c, "weekly_plan_items", "approved_by_user_id", "INTEGER", columns)
+            _add(c, "weekly_plan_items", "approved_at", "TEXT", columns)
+            _add(c, "weekly_plan_items", "rejected_by_user_id", "INTEGER", columns)
+            _add(c, "weekly_plan_items", "rejected_at", "TEXT", columns)
+            _add(c, "weekly_plan_items", "approval_note", "TEXT", columns)
             c.execute('''CREATE TABLE IF NOT EXISTS weekly_plan_reschedule_requests(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 item_id INTEGER NOT NULL,

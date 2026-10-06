@@ -13,9 +13,11 @@ Business rules:
 from __future__ import annotations
 
 import json
+import hashlib
 from datetime import datetime
+from khdn_apps.legacy_fast_form import legacy_fast_form
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 _FLAG = "_CUSTOMER_WORK_MANAGER_NOTE_HISTORY_VERSION"
 _STAGE_HISTORY_TITLE = "Lịch sử mục công việc"
 
@@ -39,11 +41,12 @@ def _manager_row(c, uid):
     return None
 
 
-def update_case_note(get_conn, case_id, actor_uid, note, logger=None):
+def update_case_note(get_conn, case_id, actor_uid, note, logger=None, *, expected_note=None):
     """Manager/Admin-only update of the canonical Customer Work note."""
     ts = _now()
     text = str(note or "").strip()
     with get_conn() as c:
+        c.execute("BEGIN IMMEDIATE")
         actor = _manager_row(c, actor_uid)
         if not actor:
             raise PermissionError("Chỉ Lãnh đạo phòng/Admin được chỉnh sửa Ghi chú công việc khách hàng")
@@ -53,6 +56,8 @@ def update_case_note(get_conn, case_id, actor_uid, note, logger=None):
         if not row:
             raise ValueError("Không tìm thấy công việc khách hàng")
         old = str(row["note"] or "")
+        if expected_note is not None and old != str(expected_note):
+            raise ValueError("Ghi chú đã được người khác cập nhật. Vui lòng tải lại trước khi lưu.")
         if old.strip() == text:
             return False
         c.execute(
@@ -289,17 +294,16 @@ def _render_manager_note_editor(st, u, get_conn, case_id, logger=None):
     current = str(row[0] or "")
     st.subheader("Ghi chú công việc")
     st.caption("Lãnh đạo phòng/Admin có thể chỉnh sửa Ghi chú. Mỗi lần lưu đều được ghi vào lịch sử.")
-    with st.form(f"cw_manager_note_form_{int(case_id)}", clear_on_submit=False):
-        note = st.text_area(
-            "Ghi chú",
-            value=current,
-            height=110,
-            key=f"cw_manager_note_value_{int(case_id)}",
-        )
-        save = st.form_submit_button("💾 Lưu Ghi chú", type="primary", use_container_width=True)
-    if save:
+    token = hashlib.sha256(current.encode("utf-8")).hexdigest()[:24]
+    payload = legacy_fast_form(
+        [{"name":"note","label":"Ghi chú","type":"textarea","default":current,"rows":5,"full":True}],
+        "💾 Lưu Ghi chú", key=f"cw_manager_note_fast_{int(case_id)}_{int(u['id'])}",
+        reset_token=token,
+    )
+    if payload is not None:
         try:
-            changed = update_case_note(get_conn, int(case_id), int(u["id"]), note, logger)
+            changed = update_case_note(get_conn, int(case_id), int(u["id"]),
+                                       payload.get("note", ""), logger, expected_note=current)
             if changed:
                 st.toast("Đã cập nhật Ghi chú công việc.", icon="✅")
             else:

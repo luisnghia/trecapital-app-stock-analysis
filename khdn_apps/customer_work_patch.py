@@ -17,6 +17,12 @@ PLAN_PAGES=CUSTOM_PAGES|{"weekly_plan"}
 UTILITY_PAGES={"profile","guide","admin"}
 
 
+def _set_route(st, section, route):
+    # Button callbacks run before the next script, so navigation needs one run.
+    st.session_state["main_section"] = section
+    st.session_state["main_page"] = route
+
+
 def _uget(u,key,default=None):
     try:
         return u.get(key,default)
@@ -153,15 +159,13 @@ def _render_command_tabs(st,section,current,options,role,admin):
         cols=st.columns(widths,gap="small")
         for idx,(col,(route,label)) in enumerate(zip(cols,options)):
             with col:
-                if st.button(
+                st.button(
                     label,
                     key=f"khdn_subtab_{section}_{role}_{int(bool(admin))}_{idx}_{route}",
                     use_container_width=True,
                     type="primary" if route==current else "secondary",
-                ):
-                    st.session_state["main_page"]=route
-                    st.session_state["main_section"]=section
-                    st.rerun()
+                    on_click=_set_route, args=(st, section, route),
+                )
 
 
 def install(ns):
@@ -200,25 +204,21 @@ def install(ns):
         # Sidebar: exactly two business-area buttons for every role, with
         # Kế hoạch shown first to match the planning-first workflow.
         st.sidebar.markdown("#### Chức năng chính")
-        if st.sidebar.button(
+        st.sidebar.button(
             "📅  KẾ HOẠCH",
             key="mainsection_plan",
             use_container_width=True,
             type="primary" if section=="plan" else "secondary",
-        ):
-            st.session_state["main_section"]="plan"
-            st.session_state["main_page"]=plan_landing
-            st.rerun()
+            on_click=_set_route, args=(st, "plan", plan_landing),
+        )
 
-        if st.sidebar.button(
+        st.sidebar.button(
             "🧾  TÁC NGHIỆP",
             key="mainsection_ops",
             use_container_width=True,
             type="primary" if section=="ops" else "secondary",
-        ):
-            st.session_state["main_section"]="ops"
-            st.session_state["main_page"]=ops_values[0]
-            st.rerun()
+            on_click=_set_route, args=(st, "ops", ops_values[0]),
+        )
 
         st.sidebar.divider()
         with st.sidebar.expander("⋯  Tiện ích",expanded=False):

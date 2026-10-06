@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime, time
 import html
-import inspect
+import sys
 import os
 import re
 
@@ -505,15 +505,20 @@ def _render_context():
         "planning_usability_v3_patch.py",
         "planning_ui_v4_patch.py",
     }
+    frame = None
     try:
-        for frame in inspect.stack()[2:]:
-            name = os.path.basename(frame.filename)
+        frame = sys._getframe(2)
+        while frame is not None:
+            name = os.path.basename(frame.f_code.co_filename)
             if name in skip:
+                frame = frame.f_back
                 continue
-            raw = f"{name}_{frame.function}_{frame.lineno}"
+            raw = f"{name}_{frame.f_code.co_name}_{frame.f_lineno}"
             return re.sub(r"[^A-Za-z0-9_]+", "_", raw)
     except Exception:
         pass
+    finally:
+        del frame
     return "default"
 
 

@@ -8,7 +8,7 @@ room dashboard reuses the exact Customer Work card format/content.
 from __future__ import annotations
 
 import html
-import inspect
+import sys
 import os
 import re
 
@@ -18,7 +18,7 @@ from khdn_apps import planning_room_dashboard_detail_patch as room
 from khdn_apps import planning_usability_v2_patch as v2
 from khdn_apps import planning_usability_v3_patch as v3
 
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 _FLAG = "_CUSTOMER_WORK_NOTE_CARD_VERSION"
 
 # Capture the proven Customer Work renderer once. The overlay only injects the
@@ -39,15 +39,22 @@ def _stable_render_context():
         "planning_usability_v3_patch.py",
         "planning_ui_v4_patch.py",
     }
+    frame = None
     try:
-        for frame in inspect.stack()[2:]:
-            name = os.path.basename(frame.filename)
+        # inspect.stack() reads source and scans loaded modules for every card.
+        # Only filename/function/line are needed to preserve the exact call-site key.
+        frame = sys._getframe(2)
+        while frame is not None:
+            name = os.path.basename(frame.f_code.co_filename)
             if name in skip:
+                frame = frame.f_back
                 continue
-            raw = f"{name}_{frame.function}_{frame.lineno}"
+            raw = f"{name}_{frame.f_code.co_name}_{frame.f_lineno}"
             return re.sub(r"[^A-Za-z0-9_]+", "_", raw)
     except Exception:
         pass
+    finally:
+        del frame
     return "default"
 
 

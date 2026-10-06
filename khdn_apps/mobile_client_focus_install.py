@@ -38,6 +38,17 @@ html.khdn-fast-input-active .stApp *::after{
   animation:none!important;
   transition:none!important;
   scroll-behavior:auto!important;
+  filter:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  box-shadow:none!important;
+  text-shadow:none!important;
+}
+/* Long card lists are independent paint regions, including outside the keyboard. */
+div[class*="st-key-cwux_card_"]{
+  contain:layout paint style;
+  content-visibility:auto;
+  contain-intrinsic-size:auto 220px;
 }
 html.khdn-fast-input-active .stApp,
 html.khdn-fast-input-active [data-testid="stAppViewContainer"],
@@ -75,7 +86,12 @@ html.khdn-fast-input-active section[data-testid="stSidebar"]{
 
   /* Native Streamlit controls use the same guard. Capture phase catches BaseWeb. */
   document.addEventListener('focusin',event=>{
-    if(editable(event.target)) setActive(true);
+    if(editable(event.target)){
+      // Configure once on focus. No input/keydown handlers or DOM scans while typing.
+      event.target.setAttribute('spellcheck','false');
+      event.target.setAttribute('autocorrect','off');
+      setActive(true);
+    }
   },true);
   document.addEventListener('focusout',event=>{
     if(!editable(event.target)) return;

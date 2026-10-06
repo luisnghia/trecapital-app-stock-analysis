@@ -175,6 +175,8 @@ def run():
         from khdn_apps.operational_review_table_qa import installed_review_ui
         installed_review_ui()
 
+        from khdn_apps.interaction_performance_qa import installed_detail_actions
+        installed_detail_actions()
         print("KHDN_RUNTIME_PAGE_QA PASS initial_open rerun isolated_database")
 
 

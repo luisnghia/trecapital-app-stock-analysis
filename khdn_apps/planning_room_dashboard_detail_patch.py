@@ -134,13 +134,18 @@ def _render_room_priority(st, customer_ui, data):
         meta = priority_today._HEAT[q]
         arr = [x for x in ordered if priority_today._quadrant(x) == q]
         with st.container(key=f"room_heat_q{q}"):
-            with st.expander(
+            expander = st.expander(
                 f"{meta['icon']} {customer_ui.core.quadrant_label(q)} · {counts[q]} công việc",
                 expanded=(q in (1, 2) and bool(arr)),
-            ):
+                key=f"room_priority_open_{q}", on_change="rerun",
+            )
+            with expander:
+                if expander.open is False:
+                    continue
                 if not arr:
                     st.caption("Không có công việc trong nhóm ưu tiên này.")
-                for x in arr:
+                from khdn_apps.interaction_performance import page_rows
+                for x in page_rows(st, arr, f"room_priority_{q}"):
                     _room_case_card(st, customer_ui, x)
 
 

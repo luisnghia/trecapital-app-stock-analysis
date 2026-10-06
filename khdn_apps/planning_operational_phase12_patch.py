@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 import html
+from khdn_apps.legacy_fast_form import legacy_fast_form
 
 from khdn_apps import backup_management_patch as backup
 from khdn_apps import planning_operational_phase3_dashboard as p3dash
@@ -427,16 +428,14 @@ def _install_customer_cancel_detail(customer_ui, customer_core, policy, get_conn
             st.caption("Chỉ cán bộ phụ trách hoặc Admin được gửi đề nghị hủy; Lãnh đạo kiểm soát sẽ phê duyệt.")
             return result
         st.html(_CANCEL_REASON_CSS)
-        reason = st.text_area(
-            "Lý do đề nghị hủy *",
-            key=f"p12_case_cancel_reason_{int(case_id)}",
-            placeholder="Nhập lý do hủy cụ thể...",
+        payload = legacy_fast_form(
+            [{"name":"reason","label":"Lý do đề nghị hủy","type":"textarea",
+              "required":True,"placeholder":"Nhập lý do hủy cụ thể...","full":True}],
+            "Gửi đề nghị hủy", key=f"p12_case_cancel_fast_{int(case_id)}_{uid}",
+            reset_token=str(case.get("status") or ""),
         )
-        if st.button(
-            "Gửi đề nghị hủy",
-            key=f"p12_case_cancel_submit_{int(case_id)}",
-            use_container_width=True,
-        ):
+        if payload is not None:
+            reason = str(payload.get("reason") or "")
             if not str(reason or "").strip():
                 st.error("Vui lòng nhập Lý do đề nghị hủy.")
                 return result
