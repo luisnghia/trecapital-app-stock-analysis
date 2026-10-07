@@ -1,7 +1,8 @@
-"""Durable delivery for planning notifications through the existing Push transport.
+"""Durable planning and Customer Work delivery through the existing Push transport.
 
-Only this queue is polled by the weekly worker. Task-action delivery stays with
-the operations worker. Enqueue is part of the caller's business transaction.
+The weekly worker drains this queue; the operations worker also drains its
+Customer Work category. Task actions keep their existing delivery path.
+Enqueue is part of the caller's transaction.
 """
 from __future__ import annotations
 
@@ -59,7 +60,8 @@ def _audit(c, nid: int, uid: int, event_code: str, stage: str) -> None:
 
 def enqueue(c, user_id: int, title: str, body: str, *,
             event_code: str = "PLAN_UPDATE", event_key: str = "weekly_update",
-            expires_at: float | None = None) -> int | None:
+            expires_at: float | None = None, source_action_id: int | None = None,
+            customer_work_case_id: int | None = None) -> int | None:
     ensure_tables(c)
     uid = int(user_id)
     active = c.execute("SELECT active FROM users WHERE id=?", (uid,)).fetchone()
@@ -67,8 +69,12 @@ def enqueue(c, user_id: int, title: str, body: str, *,
         return None
     ts = local_now().strftime("%Y-%m-%d %H:%M:%S")
     cur = c.execute("""INSERT INTO notifications
-        (user_id,event_key,title,body,created_at,push_status)
-        VALUES(?,?,?,?,?,'PENDING')""", (uid, event_key, str(title), str(body), ts))
+        (user_id,event_key,title,body,created_at,push_status,source_action_id,customer_work_case_id)
+        VALUES(?,?,?,?,?,'PENDING',?,?)
+        ON CONFLICT(user_id,source_action_id,event_key) DO NOTHING""",
+        (uid, event_key, str(title), str(body), ts, source_action_id, customer_work_case_id))
+    if not cur.rowcount:
+        return None
     nid = int(cur.lastrowid)
     c.execute("UPDATE notifications SET deep_link=? WHERE id=?",
               (f"/?khdn_notification={nid}", nid))
@@ -106,25 +112,31 @@ def ensure_schema(db_path: str | Path) -> None:
         c.commit()
 
 
-def _claim(db_path, now_ts: float):
+def _claim(db_path, now_ts: float, event_key: str | None = None):
     with notify._connect(db_path) as c:
         c.execute("BEGIN IMMEDIATE")
-        row = c.execute("""SELECT q.*,n.user_id,n.push_status,n.read_at,n.event_key
+        row = c.execute("""SELECT q.*,n.user_id,n.push_status,n.read_at,n.event_key,n.customer_work_case_id
             FROM weekly_push_queue q JOIN notifications n ON n.id=q.notification_id
-            WHERE (q.state IN ('PENDING','RETRY') AND q.next_attempt_at<=?)
-               OR (q.state='SENDING' AND q.lease_until<=?)
-            ORDER BY q.notification_id LIMIT 1""", (now_ts, now_ts)).fetchone()
+            WHERE ((q.state IN ('PENDING','RETRY') AND q.next_attempt_at<=?)
+               OR (q.state='SENDING' AND q.lease_until<=?))
+               AND (? IS NULL OR n.event_key=?)
+            ORDER BY q.notification_id LIMIT 1""", (now_ts, now_ts, event_key, event_key)).fetchone()
         if not row:
             return None
         r = dict(row)
         uid, nid = int(r["user_id"]), int(r["notification_id"])
         active = c.execute("SELECT active FROM users WHERE id=?", (uid,)).fetchone()
+        case_allowed = True
+        if r["customer_work_case_id"]:
+            case = c.execute("SELECT owner_user_id,status FROM customer_work_cases WHERE id=?",
+                             (int(r["customer_work_case_id"]),)).fetchone()
+            case_allowed = bool(case and int(case[0]) == uid and case[1] not in {"CANCELLED", "COMPLETED"})
         terminal = None
         if r["push_status"] == "SENT":
             terminal = "SENT"
         elif r["expires_at"] <= now_ts:
             terminal = "EXPIRED"
-        elif r["read_at"] or not active or not active[0] or not notify._pref_enabled(c, uid, r["event_key"]):
+        elif r["read_at"] or not active or not active[0] or not case_allowed or not notify._pref_enabled(c, uid, r["event_key"]):
             terminal = "SKIPPED"
         if terminal:
             if terminal in {"EXPIRED", "SKIPPED"}:
@@ -143,12 +155,13 @@ def _claim(db_path, now_ts: float):
         return r
 
 
-def flush(db_path: str | Path, limit: int = 80, now_ts: float | None = None) -> int:
+def flush(db_path: str | Path, limit: int = 80, now_ts: float | None = None,
+          *, event_key: str | None = None) -> int:
     ensure_schema(db_path)
     delivered = 0
     for _ in range(max(1, min(int(limit), 500))):
         now = time.time() if now_ts is None else now_ts
-        r = _claim(db_path, now)
+        r = _claim(db_path, now, event_key)
         if not r:
             break
         if r.get("skip"):

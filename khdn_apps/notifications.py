@@ -27,6 +27,7 @@ _SCHEMA_LOCK = threading.Lock()
 
 EVENT_LABELS = {
     "assignment": "Giao/điều chuyển hồ sơ",
+    "customer_work_assignment": "Công việc khách hàng: công việc mới được giao",
     "acceptance": "CBHT tiếp nhận",
     "return": "CBHT trả lại QLKH",
     "completion": "CBHT báo hoàn thành",
@@ -104,6 +105,7 @@ def ensure_schema(db_path: str | Path) -> None:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
                     task_id INTEGER,
+                    customer_work_case_id INTEGER,
                     event_key TEXT NOT NULL,
                     source_action_id INTEGER,
                     title TEXT NOT NULL,
@@ -163,6 +165,10 @@ def ensure_schema(db_path: str | Path) -> None:
                     ON push_subscriptions(user_id,active,id);
                 """
             )
+            columns = {str(row[1]) for row in c.execute("PRAGMA table_info(notifications)")}
+            if "customer_work_case_id" not in columns:
+                c.execute("ALTER TABLE notifications ADD COLUMN customer_work_case_id INTEGER")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_notifications_customer_work ON notifications(customer_work_case_id,user_id)")
             state = c.execute("SELECT value FROM notification_state WHERE key='last_action_id'").fetchone()
             if state is None:
                 try:
@@ -238,7 +244,7 @@ def list_notifications(db_path: str | Path, user_id: int, limit: int = 100) -> l
     ensure_schema(db_path)
     with _connect(db_path) as c:
         rows = c.execute(
-            """SELECT id,task_id,event_key,title,body,deep_link,created_at,read_at,push_status
+            """SELECT id,task_id,customer_work_case_id,event_key,title,body,deep_link,created_at,read_at,push_status
                FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT ?""",
             (int(user_id), max(1, min(int(limit), 500))),
         ).fetchall()
@@ -650,12 +656,15 @@ def process_sla_alerts(db_path: str | Path) -> int:
 
 
 def worker_loop(db_path: str | Path, stop_event: threading.Event, poll_seconds: float = 2.0) -> None:
+    from khdn_apps import customer_work_notifications
     ensure_schema(db_path)
+    customer_work_notifications.ensure_schema(db_path)
     last_sla = 0.0
     LOGGER.info("NOTIFICATION_WORKER_START db=%s push=%s", db_path, push_available())
     while not stop_event.is_set():
         try:
             process_task_actions(db_path)
+            customer_work_notifications.process_once(db_path)
             if time.time() - last_sla >= 60:
                 process_sla_alerts(db_path)
                 last_sla = time.time()

@@ -289,7 +289,7 @@ def create_case(get_conn, actor_uid, customer_id, title, expected_complete_at=No
             )
         c.execute(
             "INSERT INTO case_actions(case_id,actor_user_id,action,detail,created_at) VALUES(?,?,?,?,?)",
-            (case_id, actor_uid, "CREATE", json.dumps({"approval": approval}, ensure_ascii=False), ts),
+            (case_id, actor_uid, "CREATE", json.dumps({"approval": approval, "owner_user_id": owner_uid}, ensure_ascii=False), ts),
         )
     if logger:
         logger.info("CUSTOMER_WORK_CREATE id=%s actor=%s approval=%s", case_id, actor_uid, approval)

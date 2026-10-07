@@ -19,9 +19,29 @@ def _is_plan_notification(item: dict[str, Any]) -> bool:
 
 def _notification_route(user: dict[str, Any], item: dict[str, Any]) -> str | None:
     role = str(user.get("role") or "")
+    if item.get("customer_work_case_id"):
+        return "customer_work"
     if _is_plan_notification(item):
         return "work_approvals" if role == "Lãnh đạo phòng" or user.get("is_admin") else "weekly_plan"
     return {"Cán bộ hỗ trợ": "support", "Cán bộ QLKH": "qlkh", "Lãnh đạo phòng": "leader"}.get(role)
+
+
+def _open_customer_work(ns, user, item) -> bool:
+    from khdn_apps.customer_work_notifications import can_view_case
+    st = ns["st"]
+    case_id = int(item["customer_work_case_id"])
+    with notify._connect(ns["DB_PATH"]) as c:
+        allowed = can_view_case(c, int(user["id"]), case_id)
+    if not allowed:
+        st.toast("Công việc không còn tồn tại hoặc bạn không còn quyền xem.", icon="⚠️", duration=10)
+        return False
+    st.session_state["cw_landing_token"] = f"{user['id']}:{user.get('last_login_at', '')}"
+    st.session_state["main_section"] = "plan"
+    st.session_state["main_page"] = "customer_work"
+    st.session_state["cw_case_id"] = case_id
+    st.session_state["_khdn_notification_dialog_open"] = False
+    st.session_state.pop("_khdn_notification_selected", None)
+    return True
 
 
 def _task_detail(ns: dict[str, Any], user: dict[str, Any], task_id: int) -> None:
@@ -75,6 +95,10 @@ def _render_center(ns: dict[str, Any], user: dict[str, Any]) -> None:
         st.markdown(f"### {item['title']}")
         st.write(item["body"])
         st.caption(ns["fmt_dt"](item["created_at"]))
+        if item.get("customer_work_case_id"):
+            if st.button("Mở công việc khách hàng", key=f"notif_case_detail_{item['id']}", use_container_width=True):
+                if _open_customer_work(ns, user, item):
+                    st.rerun()
         if item.get("task_id"):
             st.divider()
             _task_detail(ns, user, int(item["task_id"]))
@@ -133,7 +157,14 @@ def _render_center(ns: dict[str, Any], user: dict[str, Any]) -> None:
             st.caption(f"{ns['fmt_dt'](item['created_at'])} · Push: {item.get('push_status') or '—'}")
             c1, c2 = st.columns([2, 1])
             plan_item = _is_plan_notification(item)
-            if c1.button("Xem thông báo kế hoạch" if plan_item else "Mở đúng hồ sơ", key=f"notif_open_{item['id']}", use_container_width=True, disabled=not (plan_item or bool(item.get("task_id")))):
+            case_item = bool(item.get("customer_work_case_id"))
+            label = "Mở công việc khách hàng" if case_item else ("Xem thông báo kế hoạch" if plan_item else "Mở đúng hồ sơ")
+            if c1.button(label, key=f"notif_open_{item['id']}", use_container_width=True, disabled=not (plan_item or case_item or bool(item.get("task_id")))):
+                if case_item:
+                    if _open_customer_work(ns, user, item):
+                        notify.mark_read(db, int(item["id"]), uid)
+                        st.rerun()
+                    continue
                 notify.mark_read(db, int(item["id"]), uid)
                 st.session_state["_khdn_notification_selected"] = int(item["id"])
                 st.rerun()
@@ -163,6 +194,12 @@ def install(ns: dict[str, Any]) -> None:
             if raw:
                 nid = int(raw)
                 item = notify.get_notification(ns["DB_PATH"], nid, uid)
+                if item:
+                    if item.get("customer_work_case_id"):
+                        if _open_customer_work(ns, user, item):
+                            notify.mark_read(ns["DB_PATH"], nid, uid)
+                        del st.query_params["khdn_notification"]
+                        item = None
                 if item:
                     st.session_state["_khdn_notification_selected"] = nid
                     st.session_state["_khdn_notification_dialog_open"] = True
