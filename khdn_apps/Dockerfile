@@ -40,6 +40,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/direct_task_edit_runtime_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/catalog_sync_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/notification_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/customer_work_notification_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_push_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_priority_policy_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_important_categories_qa.py \
@@ -119,7 +120,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/offline_export_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_manager_edit_qa.py
 
-RUN PYTHONPATH=/app python /app/khdn_apps/runtime_page_qa.py
+RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/runtime_page_qa.py
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
