@@ -25,7 +25,7 @@ from khdn_apps import weekly_plan_form_refinement_patch as _form
 from khdn_apps import planning_operational_phase7_patch as _p7
 from khdn_apps import planning_operational_phase3_weekly as _p3week
 from khdn_apps import planning_operational_phase3_dashboard as _p3dash
-from khdn_apps.storage import read_status, sqlite_backup_bytes
+from khdn_apps.storage import read_status
 
 VERSION = "1.0.0"
 _FLAG = "_PLANNING_OPERATIONAL_PHASE8_VERSION"
@@ -151,117 +151,17 @@ def _render_annual_table(st, rows):
 
 
 def _render_operational_backup(st, u, app_ns, logger=None):
-    if not bool(u.get("is_admin")):
+    if not bool(u.get("is_admin")) or str(st.session_state.get("admin_scope") or "system") != "system":
         return
-    if str(st.session_state.get("admin_scope") or "system") != "system":
-        return
-
     data_dir = Path(os.getenv("KHDN_DATA_DIR", str(app_ns.get("RUNTIME_DATA_DIR") or Path.cwd()))).resolve()
     db_path = Path(os.getenv("KHDN_DB_PATH", str(app_ns.get("DB_PATH") or data_dir / "khdn_ops.db"))).resolve()
-    status = read_status(data_dir / "backup_status.json")
-
-    st.divider()
+    from khdn_apps.authorization import require_admin
+    require_admin(db_path, u["id"])
     st.markdown("### 🧰 Sao lưu Tác nghiệp & lưu trữ vận hành")
-    st.info(
-        "Phần Tác nghiệp được giữ đầy đủ song song với Kế hoạch: tải snapshot SQLite hiện tại, "
-        "các bản sao lưu tự động hằng ngày và bộ lưu trữ cuối năm (thống kê, chi tiết tác nghiệp, SQLite)."
-    )
-
-    if db_path.exists():
-        try:
-            current_bytes = sqlite_backup_bytes(db_path)
-            clicked = st.download_button(
-                "⬇️ Tải backup SQLite hiện tại (Tác nghiệp + Kế hoạch)",
-                data=current_bytes,
-                file_name=f"khdn_ops_current_{datetime.now():%Y-%m-%d_%H%M}.db",
-                mime="application/vnd.sqlite3",
-                key="p8_current_sqlite_download",
-                use_container_width=True,
-            )
-            if clicked and logger:
-                logger.info("P8_OPERATIONAL_BACKUP_DOWNLOAD kind=current_sqlite bytes=%s", len(current_bytes))
-        except Exception as exc:
-            if logger:
-                logger.exception("P8_CURRENT_SQLITE_PREPARE_FAILED")
-            st.error(f"Không thể chuẩn bị snapshot SQLite hiện tại: {exc}")
-
-    retained_names = [str(x) for x in (status.get("retained") or [])]
-    daily_dir = data_dir / "backups"
-    daily = []
-    for name in retained_names:
-        candidate = (daily_dir / Path(name).name).resolve()
-        if candidate.is_relative_to(data_dir) and candidate.exists() and candidate.is_file():
-            daily.append(candidate)
-    if not daily and daily_dir.exists():
-        daily = sorted(daily_dir.glob("khdn_ops_????-??-??.db.gz"), reverse=True)
-
-    last = str(status.get("last_success") or "")
-    if last:
-        st.caption(
-            f"Sao lưu tự động thành công gần nhất: {last}. Giữ tối đa 14 bản hằng ngày, "
-            "trong ngân sách lưu trữ 50 MB."
-        )
-    if daily:
-        names = [p.name for p in daily]
-        chosen_name = st.selectbox("Chọn bản sao lưu tự động Tác nghiệp", names, key="p8_scheduled_backup_choice")
-        chosen = next(p for p in daily if p.name == chosen_name)
-        clicked = st.download_button(
-            "⬇️ Tải bản sao lưu tự động",
-            data=chosen.read_bytes(),
-            file_name=chosen.name,
-            mime="application/gzip",
-            key="p8_scheduled_backup_download",
-            use_container_width=True,
-        )
-        if clicked and logger:
-            logger.info("P8_OPERATIONAL_BACKUP_DOWNLOAD kind=daily file=%s bytes=%s", chosen.name, chosen.stat().st_size)
-    else:
-        st.caption("Chưa có bản sao lưu tự động hằng ngày để tải.")
-    st.caption(
-        "Các bản sao tự động nằm cùng ổ dữ liệu chính. Nên tải thêm một bản về nơi lưu trữ riêng để có thể phục hồi nếu ổ bị xóa."
-    )
-
-    try:
-        archives = _annual_rows(db_path)
-    except Exception as exc:
-        archives = []
-        if logger:
-            logger.exception("P8_ANNUAL_ARCHIVE_LIST_FAILED")
-        st.error(f"Không thể đọc danh mục lưu trữ cuối năm: {exc}")
-
-    if not archives:
-        st.caption("Chưa có năm đã kết thúc có dữ liệu để tạo lưu trữ tự động.")
-    else:
-        st.markdown("#### 📦 Lưu trữ dữ liệu Tác nghiệp theo năm")
+    st.caption("Backup có mật khẩu ở phía trên chứa đầy đủ dữ liệu Tác nghiệp và Kế hoạch. Các bản sao tự động và snapshot SQLite theo năm đã được mã hóa.")
+    archives = _annual_rows(db_path)
+    if archives:
         _render_annual_table(st, archives)
-        for row in archives:
-            year = int(row.get("year") or 0)
-            with st.expander(f"Năm {year} · {int(row.get('task_count') or 0)} hồ sơ", expanded=False):
-                files = [
-                    ("📊 Thống kê năm", "stats_file", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
-                    ("📋 Chi tiết tác nghiệp", "detail_file", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
-                    ("🗄 Snapshot SQLite", "db_backup_file", "application/vnd.sqlite3"),
-                ]
-                cols = st.columns(3)
-                found = 0
-                for col, (label, field, mime) in zip(cols, files):
-                    path = _archive_file(data_dir, row.get(field))
-                    if not path:
-                        col.caption(f"{label}: không tìm thấy file")
-                        continue
-                    found += 1
-                    clicked = col.download_button(
-                        label,
-                        data=path.read_bytes(),
-                        file_name=path.name,
-                        mime=mime,
-                        key=f"p8_archive_{year}_{field}",
-                        use_container_width=True,
-                    )
-                    if clicked and logger:
-                        logger.info("P8_OPERATIONAL_BACKUP_DOWNLOAD kind=annual year=%s field=%s bytes=%s", year, field, path.stat().st_size)
-                if not found:
-                    st.warning("Bản ghi lưu trữ năm còn trong CSDL nhưng các file vật lý không còn trên volume.")
 
 
 def _install_backup_overlay(logger=None):

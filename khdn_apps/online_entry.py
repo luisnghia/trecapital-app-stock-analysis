@@ -53,6 +53,9 @@ from khdn_apps.planning_usability_v3_patch import install as _install_planning_u
 from khdn_apps.planning_usability_v3_hotfix import install as _install_planning_usability_v3_hotfix
 from khdn_apps.weekly_priority_policy_patch import install as _install_weekly_priority_policy
 from khdn_apps.weekly_priority_policy_hotfix import install as _install_weekly_priority_policy_hotfix
+from khdn_apps.global_zero_keystroke_patch import install as _install_global_zero_keystroke
+from khdn_apps.customer_work_note_card_patch import install as _install_customer_work_note_cards
+from khdn_apps.customer_work_manager_note_history_patch import install as _install_customer_work_manager_note_history
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -217,11 +220,31 @@ _install_weekly_priority_policy_hotfix(
     _weekly_priority_policy_module,
     _app_module.__dict__.get("LOGGER"),
 )
-# Final shared weekly editor and browser-local Customer Work date entry.
-from khdn_apps.global_zero_keystroke_patch import install as _install_global_zero_keystroke
-from khdn_apps.customer_work_form_layout_patch import install as _install_customer_work_layout
-_install_global_zero_keystroke(_app_module.__dict__, _weekly_priority_policy_module, _customer_work_module, _customer_work_ui_module, _worktype_contact_card_module, _app_module.__dict__.get('LOGGER'))
-_install_customer_work_layout(_app_module.__dict__, _app_module.__dict__.get('LOGGER'))
+# This final binding intentionally runs on EVERY Streamlit rerun. Earlier runtime
+# hotfixes rebind Customer Work/Catalog renderers each run; without this step the
+# submit-only input component can be replaced by native widgets after the first
+# interaction, reintroducing typing lag on pages that also contain long tables.
+_install_global_zero_keystroke(
+    _app_module.__dict__,
+    _weekly_priority_policy_module,
+    _customer_work_module,
+    _customer_work_ui_module,
+    _worktype_contact_card_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Reassert the Customer Work note card after every renderer/hotfix binding above.
+# This is presentation-only: it reads the persisted case note and performs no data migration.
+_install_customer_work_note_cards(
+    _customer_work_ui_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Final Customer Work governance layer: manager/admin may edit the canonical note;
+# approval/change history shows the exact leader/admin comment captured at decision time.
+_install_customer_work_manager_note_history(
+    _customer_work_ui_module,
+    _customer_work_module,
+    _app_module.__dict__.get("LOGGER"),
+)
 # Prominent action results across planning, operations and all role pages.
 from khdn_apps.action_feedback_patch import install as _install_action_feedback
 _install_action_feedback(_app_module.__dict__, _app_module.__dict__.get("LOGGER"))

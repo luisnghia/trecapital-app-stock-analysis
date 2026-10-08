@@ -205,8 +205,8 @@ def user_info(c, uid):
 
 
 def is_manager(c, uid):
-    u = user_info(c, uid)
-    return bool(u and (u.get("role") == "Lãnh đạo phòng" or int(u.get("is_admin") or 0) == 1))
+    from khdn_apps.authorization import active_user, manager
+    return manager(active_user(c, uid))
 
 
 def active_stages(c, include_inactive=False):
@@ -263,6 +263,12 @@ def create_case(get_conn, actor_uid, customer_id, title, expected_complete_at=No
         raise ValueError("Tên công việc không được để trống")
     ts = now_str()
     with get_conn() as c:
+        from khdn_apps.authorization import active_user, require_case
+        c.execute("BEGIN IMMEDIATE")
+        active_user(c, actor_uid)
+        if owner_uid and int(owner_uid) != int(actor_uid) and not is_manager(c, actor_uid):
+            raise PermissionError("Chỉ Lãnh đạo/Admin được giao việc cho người khác.")
+        active_user(c, int(owner_uid or actor_uid))
         manager = is_manager(c, actor_uid)
         owner_uid = int(owner_uid or actor_uid)
         if stage_id:
@@ -299,6 +305,10 @@ def create_case(get_conn, actor_uid, customer_id, title, expected_complete_at=No
 def approve_case_plan(get_conn, case_id, actor_uid, approve=True, note=None, logger=None):
     ts = now_str()
     with get_conn() as c:
+        from khdn_apps.authorization import active_user, require_case
+        c.execute("BEGIN IMMEDIATE")
+        active_user(c, actor_uid)
+        require_case(c, case_id, actor_uid)
         if not is_manager(c, actor_uid):
             raise PermissionError("Chỉ Lãnh đạo/Admin được phê duyệt")
         row = c.execute("SELECT * FROM customer_work_cases WHERE id=?", (case_id,)).fetchone()
@@ -331,6 +341,10 @@ def approve_case_plan(get_conn, case_id, actor_uid, approve=True, note=None, log
 def change_stage(get_conn, case_id, actor_uid, new_stage_id, note=None, logger=None):
     ts = now_str()
     with get_conn() as c:
+        from khdn_apps.authorization import active_user, require_case
+        c.execute("BEGIN IMMEDIATE")
+        active_user(c, actor_uid)
+        require_case(c, case_id, actor_uid)
         row = c.execute("SELECT * FROM customer_work_cases WHERE id=?", (case_id,)).fetchone()
         stage = c.execute("SELECT * FROM work_stage_catalog WHERE id=? AND active=1", (new_stage_id,)).fetchone()
         if not row or not stage:
@@ -366,6 +380,10 @@ def add_issue(get_conn, case_id, actor_uid, issue_text, severity="MEDIUM", logge
     severity = severity if severity in SEVERITY_LABEL else "MEDIUM"
     ts = now_str()
     with get_conn() as c:
+        from khdn_apps.authorization import active_user, require_case
+        c.execute("BEGIN IMMEDIATE")
+        active_user(c, actor_uid)
+        require_case(c, case_id, actor_uid)
         row = c.execute("SELECT current_stage_id FROM customer_work_cases WHERE id=?", (case_id,)).fetchone()
         if not row:
             return None
@@ -383,9 +401,13 @@ def add_issue(get_conn, case_id, actor_uid, issue_text, severity="MEDIUM", logge
 def resolve_issue(get_conn, issue_id, actor_uid, resolution_text=None, logger=None):
     ts = now_str()
     with get_conn() as c:
+        from khdn_apps.authorization import active_user, require_case
+        c.execute("BEGIN IMMEDIATE")
+        active_user(c, actor_uid)
         row = c.execute("SELECT case_id FROM case_issues WHERE id=? AND resolved_at IS NULL", (issue_id,)).fetchone()
         if not row:
             return False
+        require_case(c, int(row[0]), actor_uid)
         c.execute("UPDATE case_issues SET resolved_by=?,resolved_at=?,resolution_text=? WHERE id=?", (actor_uid, ts, resolution_text, issue_id))
         c.execute("INSERT INTO case_actions(case_id,actor_user_id,action,detail,created_at) VALUES(?,?,?,?,?)", (int(row[0]), actor_uid, "ISSUE_RESOLVE", resolution_text, ts))
     if logger:
@@ -399,6 +421,10 @@ def request_reschedule(get_conn, case_id, actor_uid, proposed_due_at, reason, lo
         raise ValueError("Phải nhập lý do dời thời gian")
     ts = now_str()
     with get_conn() as c:
+        from khdn_apps.authorization import active_user, require_case
+        c.execute("BEGIN IMMEDIATE")
+        active_user(c, actor_uid)
+        require_case(c, case_id, actor_uid)
         row = c.execute("SELECT expected_complete_at FROM customer_work_cases WHERE id=?", (case_id,)).fetchone()
         if not row:
             return None, "NOT_FOUND"
@@ -421,11 +447,15 @@ def request_reschedule(get_conn, case_id, actor_uid, proposed_due_at, reason, lo
 def decide_reschedule(get_conn, request_id, actor_uid, approve=True, note=None, logger=None):
     ts = now_str()
     with get_conn() as c:
+        from khdn_apps.authorization import active_user, require_case
+        c.execute("BEGIN IMMEDIATE")
+        active_user(c, actor_uid)
         if not is_manager(c, actor_uid):
             raise PermissionError("Chỉ Lãnh đạo/Admin được phê duyệt")
         r = c.execute("SELECT * FROM case_reschedule_requests WHERE id=? AND status='PENDING'", (request_id,)).fetchone()
         if not r:
             return False
+        require_case(c, int(r["case_id"]), actor_uid)
         status = "APPROVED" if approve else "REJECTED"
         c.execute("UPDATE case_reschedule_requests SET status=?,decided_by=?,decided_at=?,decision_note=? WHERE id=?", (status, actor_uid, ts, note, request_id))
         if approve:
@@ -439,6 +469,10 @@ def decide_reschedule(get_conn, request_id, actor_uid, approve=True, note=None, 
 def set_importance(get_conn, case_id, actor_uid, category_id=None, urgent_override=None, logger=None):
     ts = now_str()
     with get_conn() as c:
+        from khdn_apps.authorization import active_user, require_case
+        c.execute("BEGIN IMMEDIATE")
+        active_user(c, actor_uid)
+        require_case(c, case_id, actor_uid)
         if not is_manager(c, actor_uid):
             raise PermissionError("Chỉ Lãnh đạo/Admin được gán công việc quan trọng")
         important = 1 if category_id else 0

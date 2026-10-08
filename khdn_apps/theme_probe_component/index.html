@@ -35,11 +35,7 @@ function cachedBase(){
   }catch(_err){}
   return '';
 }
-function syncCached(){
-  const base=cachedBase();
-  if(base) return emitBase(base,{});
-  return false;
-}
+function syncCached(){const base=cachedBase();return base ? emitBase(base,{}) : false;}
 function reportTheme(theme){
   const t=theme||{};
   if(!syncCached()) emitBase(String(t.base||''),t);
@@ -49,7 +45,10 @@ window.addEventListener('message',event=>{
   if(event.source!==parent || event.origin!==parentOrigin || event.data.type!=='streamlit:render') return;
   reportTheme(event.data.theme||{});
 });
-window.setInterval(syncCached,250);
+/* No polling. Theme sync is event-driven so this zero-height iframe never competes
+   with iOS keyboard input on the parent page. */
+window.addEventListener('focus',syncCached,{passive:true});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncCached();},{passive:true});
 send('streamlit:componentReady',{apiVersion:1});
 send('streamlit:setFrameHeight',{height:0});
 </script>

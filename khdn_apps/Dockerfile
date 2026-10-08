@@ -1,4 +1,4 @@
-# Release: Light contrast, per-task lunch exclusion, legacy cancellation migration.
+# Release: Customer Work notes visible on every functional work card.
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -33,6 +33,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && python /app/khdn_apps/install_theme.py \
     && python /app/khdn_apps/theme_bridge_fix.py \
     && python /app/khdn_apps/mobile_client_focus_install.py \
+    && python /app/khdn_apps/install_security.py \
     && python /app/khdn_apps/performance_install_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/amount_decimal_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/full_task_edit_qa.py \
@@ -49,6 +50,16 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/room_workload_partition_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_schedule_export_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_entry_edit_qa.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/fast_client_form.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/legacy_fast_form.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/global_zero_keystroke_patch.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/customer_work_note_card_patch.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/mobile_input_performance_patch.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/mobile_admin_restore_perf_patch.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/mobile_legacy_ui_perf_patch.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/mobile_client_focus_install.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/task_type_scope_source_patch.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/task_type_scope_runtime_fix.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/weekly_plan_form_refinement_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_final_defaults_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_final_ux_patch.py \
@@ -75,8 +86,15 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase12_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase13_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase14_patch.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/planning_operational_phase15_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/customer_cif_admin_patch.py \
     && PYTHONPATH=/app python -m py_compile /app/khdn_apps/backup_management_patch.py \
+    && PYTHONPATH=/app python -m py_compile /app/khdn_apps/offline_export_patch.py \
+    && PYTHONPATH=/app python /app/khdn_apps/mobile_input_performance_v2_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/mobile_admin_restore_perf_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/mobile_legacy_ui_perf_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/global_zero_keystroke_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/customer_work_note_card_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_plan_form_refinement_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_plan_unified_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_final_defaults_qa.py \
@@ -100,9 +118,10 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_operational_phase13_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/planning_operational_phase14_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/customer_cif_admin_patch_qa.py \
-    && PYTHONPATH=/app python /app/khdn_apps/backup_management_qa.py
-
-RUN PYTHONPATH=/app python /app/khdn_apps/weekly_manager_edit_qa.py
+    && PYTHONPATH=/app python /app/khdn_apps/backup_management_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/offline_export_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/weekly_manager_edit_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/security_hardening_qa.py
 
 RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/runtime_page_qa.py
 

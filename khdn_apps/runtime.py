@@ -14,9 +14,11 @@ import threading
 import time
 
 from .storage import atomic_json, daily_backup, prepare_storage, read_status
+from . import backup_crypto
 from . import notifications
 from . import weekly_plan_notifications
 from . import weekly_phase2_notifications
+from . import task_type_scope_runtime_fix
 
 
 def main() -> int:
@@ -34,6 +36,20 @@ def main() -> int:
     logger.addHandler(handler)
     logger.addHandler(logging.StreamHandler())
     logger.info("STORAGE_READY id=%s mounted=%s", status["storage_id"], status["volume_mounted"])
+
+    # Data-contract migration runs before any worker or HTTP server can touch the
+    # database. It is backup-first and idempotent; a failure aborts this release so
+    # Railway keeps the previous healthy deployment serving users.
+    try:
+        scope_state = task_type_scope_runtime_fix.migrate_db_path(db_path, data_dir, logger)
+        logger.info("TASK_TYPE_SCOPE_STARTUP_CHECK state=%s", scope_state)
+    except Exception:
+        logger.exception("TASK_TYPE_SCOPE_STARTUP_FAILED")
+        raise
+
+    sealed = backup_crypto.migrate_legacy_backups(data_dir, db_path)
+    logger.info("BACKUP_ENCRYPTION_READY cipher=AES-256-GCM migrated=%s", sealed)
+
     # Planning delivery logs remain visible on Railway and on the data volume.
     weekly_handler = RotatingFileHandler(data_dir / "logs" / "weekly_notifications.log",
                                         maxBytes=1_000_000, backupCount=3, encoding="utf-8")
@@ -139,7 +155,7 @@ def main() -> int:
     try:
         child = subprocess.Popen([
             sys.executable, "-m", "khdn_apps.web_server", "run", str(Path(__file__).with_name("online_entry.py")),
-            "--server.address=0.0.0.0", f"--server.port={os.getenv('PORT', '8080')}",
+            "--server.address=" + ("127.0.0.1" if os.getenv("KHDN_CLOUD_MODE", "1").lower() in {"0", "false", "no"} else "0.0.0.0"), f"--server.port={os.getenv('PORT', '8080')}",
             "--server.headless=true", "--browser.gatherUsageStats=false",
         ])
         if pending_signal is not None:

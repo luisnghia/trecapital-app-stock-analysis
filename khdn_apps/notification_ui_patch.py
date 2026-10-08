@@ -143,7 +143,7 @@ def _render_center(ns: dict[str, Any], user: dict[str, Any]) -> None:
 
     if ns.get("CLOUD_MODE") and notify.push_available():
         try:
-            ticket = notify.issue_setup_ticket(uid)
+            ticket = notify.issue_setup_ticket(uid, db_path=db)
             url = f"/_khdn/push-setup?ticket={quote(ticket)}"
             # target=_self is essential on iOS: opening setup in a new Safari tab
             # leaves standalone PWA mode, where iOS will not allow Home Screen Web Push.

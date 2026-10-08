@@ -1,0 +1,124 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<style>
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html,body{margin:0;padding:0;background:transparent;font-family:Inter,"Source Sans Pro",Arial,sans-serif;color:var(--text,#F4FFFC)}
+body{contain:layout style paint;overscroll-behavior:contain}
+.wrap{padding:1px 1px 3px}
+.title{font-size:15px;font-weight:850;margin:0 0 9px;color:var(--text,#F4FFFC)}
+.help{font-size:12px;line-height:1.35;margin:-3px 0 9px;color:var(--muted,#AFCAC5)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}
+.field{min-width:0}.field.full{grid-column:1/-1}
+label{display:block;font-size:13px;font-weight:750;line-height:1.25;margin:0 0 5px;color:var(--text,#F4FFFC)}
+input,textarea,select{width:100%;min-width:0;border-radius:7px;padding:9px 11px;font-size:16px;line-height:1.25;outline:none;transition:none!important;box-shadow:none!important;background:var(--secondary,#17312F);color:var(--text,#F4FFFC);border:1px solid var(--border,#4E7771);caret-color:var(--text,#F4FFFC);-webkit-appearance:none;appearance:none;touch-action:manipulation}
+input,select{height:44px}textarea{min-height:82px;resize:none}
+input:focus,textarea:focus,select:focus{border-color:var(--primary,#6FD6C4);outline:1px solid var(--primary,#6FD6C4)}
+input::placeholder,textarea::placeholder{color:var(--muted,#AFCAC5)}
+.check{display:flex;align-items:center;gap:9px;min-height:44px;padding-top:18px}.check input{width:22px;height:22px;flex:0 0 22px;padding:0;accent-color:var(--primary,#6FD6C4);-webkit-appearance:auto;appearance:auto}.check label{margin:0}
+button{width:100%;min-height:44px;margin-top:12px;border-radius:9px;padding:9px 14px;font-size:15px;font-weight:850;cursor:pointer;transition:none!important;box-shadow:none!important;background:var(--primary,#176B63);color:#fff;border:1px solid var(--primary,#176B63);touch-action:manipulation}
+button:active{transform:none}button:hover{filter:none;border-color:#F4B41A}
+body.light{--text:#17231F;--muted:#47665A;--secondary:#FFFFFF;--border:#C9DCD3;--primary:#0B2A25}
+body.light input,body.light textarea,body.light select{border-radius:4px;background:#FFFFFF;color:#17231F;border:1px solid #C9DCD3;caret-color:#17231F}
+body.light input:focus,body.light textarea:focus,body.light select:focus{border-color:#F4B41A;outline:1px solid #F4B41A;box-shadow:none!important}
+body.light button{border-radius:4px;background:#0B2A25;color:#FFFFFF;border-color:#0B2A25}
+body.light button:hover{filter:none;background:#0B2A25;color:#FFFFFF;border-color:#F4B41A;box-shadow:none!important}
+@media(max-width:620px){.grid{grid-template-columns:1fr;gap:9px}.field.full{grid-column:auto}.check{padding-top:2px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="title" class="title" hidden></div>
+  <div id="help" class="help" hidden></div>
+  <form id="form" autocomplete="off">
+    <div id="grid" class="grid"></div>
+    <button id="submit" type="submit">Lưu</button>
+  </form>
+</div>
+<script>
+const parentOrigin=new URL(document.referrer||location.href).origin;
+const send=(type,value)=>parent.postMessage({isStreamlitMessage:true,type,...value},parentOrigin);
+const signalFocus=active=>parent.postMessage({type:'khdn-fast-input-focus',active:!!active},parentOrigin);
+const form=document.getElementById('form'),grid=document.getElementById('grid'),submit=document.getElementById('submit');
+const titleEl=document.getElementById('title'),helpEl=document.getElementById('help'),wrap=document.querySelector('.wrap');
+let resetToken=null,signature='',submitSeq=0,lastHeight=0;
+const state={};
+function fit(){const h=Math.ceil(wrap.getBoundingClientRect().height)+2;if(h>2&&h!==lastHeight){lastHeight=h;send('streamlit:setFrameHeight',{height:h});}}
+function escName(v){return String(v||'').replace(/[^a-zA-Z0-9_\-]/g,'_')}
+function fieldSignature(fields){return JSON.stringify((fields||[]).map(f=>[f.name,f.type,f.label,f.options,f.full]))}
+function tuneInput(input,type,name){
+  input.autocomplete='off';input.spellcheck=false;input.setAttribute('autocorrect','off');
+  input.setAttribute('autocapitalize',name==='full_name'?'words':'none');
+  input.setAttribute('enterkeyhint','next');
+  if(type==='password')input.setAttribute('autocomplete','new-password');
+}
+function createField(f){
+  const name=String(f.name||''); if(!name)return null;
+  const type=String(f.type||'text');
+  const box=document.createElement('div'); box.className='field'+(f.full?' full':'');
+  if(type==='checkbox'){
+    box.className+=' check';
+    const input=document.createElement('input'); input.type='checkbox'; input.id='f_'+escName(name); input.dataset.name=name;
+    input.checked=!!f.default; state[name]=input;
+    const label=document.createElement('label'); label.htmlFor=input.id; label.textContent=String(f.label||name)+(f.required?' *':'');
+    box.append(input,label); return box;
+  }
+  const label=document.createElement('label'); label.htmlFor='f_'+escName(name); label.textContent=String(f.label||name)+(f.required?' *':''); box.appendChild(label);
+  let input;
+  if(type==='textarea'){input=document.createElement('textarea');}
+  else if(type==='select'){
+    input=document.createElement('select');
+    for(const opt of (f.options||[])){
+      const o=document.createElement('option');
+      if(opt&&typeof opt==='object'){o.value=String(opt.value??'');o.textContent=String(opt.label??opt.value??'');}
+      else{o.value=String(opt??'');o.textContent=String(opt??'');}
+      input.appendChild(o);
+    }
+  }else{input=document.createElement('input');input.type=type==='password'?'password':type==='number'?'number':'text';}
+  input.id='f_'+escName(name); input.dataset.name=name; input.placeholder=String(f.placeholder||'');
+  tuneInput(input,type,name);
+  if(type==='number'){if(f.min!==undefined&&f.min!==null)input.min=String(f.min);if(f.max!==undefined&&f.max!==null)input.max=String(f.max);if(f.step!==undefined&&f.step!==null)input.step=String(f.step);}
+  if(f.required)input.required=true;
+  input.value=String(f.default??'');
+  state[name]=input; box.appendChild(input); return box;
+}
+function rebuild(fields){
+  grid.replaceChildren(); for(const k of Object.keys(state))delete state[k];
+  for(const f of fields||[]){const node=createField(f||{});if(node)grid.appendChild(node);} fit();
+}
+function applyDefaults(fields){
+  for(const f of fields||[]){const el=state[String(f.name||'')];if(!el)continue;if(String(f.type||'')==='checkbox')el.checked=!!f.default;else el.value=String(f.default??'');}
+}
+function values(){
+  const out={};
+  for(const [name,el] of Object.entries(state)){
+    if(el.type==='checkbox')out[name]=!!el.checked;
+    else if(el.type==='number')out[name]=el.value===''?null:Number(el.value);
+    else out[name]=el.value;
+  }
+  return out;
+}
+function applyTheme(theme){const t=theme||{};const light=t.base==='light';document.body.className=light?'light':'dark';const root=document.documentElement.style;root.setProperty('--primary',t.primaryColor||(light?'#0B2A25':'#6FD6C4'));root.setProperty('--secondary',t.secondaryBackgroundColor||(light?'#FFFFFF':'#17312F'));root.setProperty('--text',t.textColor||(light?'#17231F':'#F4FFFC'));root.setProperty('--border',light?'#C9DCD3':'#4E7771');root.setProperty('--muted',light?'#47665A':'#AFCAC5');}
+form.addEventListener('focusin',event=>{if(event.target.matches('input,textarea,select'))signalFocus(true);});
+form.addEventListener('focusout',()=>{queueMicrotask(()=>{if(!form.contains(document.activeElement))signalFocus(false);});});
+window.addEventListener('pagehide',()=>signalFocus(false),{once:true});
+form.addEventListener('submit',e=>{e.preventDefault();if(!form.reportValidity())return;signalFocus(false);submitSeq+=1;send('streamlit:setComponentValue',{value:{submit_id:`${Date.now()}-${submitSeq}-${Math.random().toString(36).slice(2,8)}`,values:values()},dataType:'json'});});
+window.addEventListener('message',event=>{
+  if(event.source!==parent||event.origin!==parentOrigin||event.data.type!=='streamlit:render')return;
+  const args=event.data.args||{},fields=Array.isArray(args.fields)?args.fields:[];
+  applyTheme(event.data.theme||{});
+  titleEl.textContent=String(args.title||'');titleEl.hidden=!titleEl.textContent;
+  helpEl.textContent=String(args.helpText||'');helpEl.hidden=!helpEl.textContent;
+  submit.textContent=String(args.buttonLabel||'Lưu');
+  const nextSig=fieldSignature(fields),nextToken=String(args.resetToken||'');
+  if(signature!==nextSig){signature=nextSig;resetToken=nextToken;rebuild(fields);}
+  else if(resetToken===null||resetToken!==nextToken){resetToken=nextToken;applyDefaults(fields);}
+  fit();
+});
+send('streamlit:componentReady',{apiVersion:1});fit();
+</script>
+</body>
+</html>

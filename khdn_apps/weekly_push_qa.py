@@ -1,5 +1,6 @@
 """Planning Push integration QA; all network delivery is replaced by a fake provider."""
 from __future__ import annotations
+from khdn_apps.security_qa_fixtures import push_keys
 
 from datetime import datetime, timedelta
 import json
@@ -70,8 +71,8 @@ class PlanningPushQA(unittest.TestCase):
         self.addCleanup(self.env_patch.stop)
         for uid in (1, 2, 3, 4):
             notify.save_subscription(self.db, uid, {
-                "endpoint": f"https://push.example.test/{uid}",
-                "keys": {"p256dh": "fake-key", "auth": "fake-auth"},
+                "endpoint": f"https://fcm.googleapis.com/{uid}",
+                "keys": push_keys(),
             })
 
     def webpush(self, **kwargs):
@@ -99,7 +100,7 @@ class PlanningPushQA(unittest.TestCase):
                                         source_action_id=None, title="Operations", body="Existing flow")
         self.assertEqual(push.flush(self.db), 1)
         self.assertEqual(notify.get_notification(self.db, nid, 2)["push_status"], "SENT")
-        self.assertEqual(self.calls[0][0], "https://push.example.test/2")
+        self.assertEqual(self.calls[0][0], "https://fcm.googleapis.com/2")
         self.assertEqual(self.calls[0][1]["url"], f"/?khdn_notification={nid}")
         with notify._connect(self.db) as c:
             self.assertEqual(c.execute("SELECT push_status FROM notifications WHERE task_id=99").fetchone()[0], "PENDING")
@@ -109,7 +110,7 @@ class PlanningPushQA(unittest.TestCase):
         with notify._connect(self.db) as c:
             other = policy._notify(c, 3, "↩ Kế hoạch tuần được trả lại", "Please adjust")
         self.assertEqual(push.flush(self.db), 1)
-        self.assertEqual(self.calls[-1][0], "https://push.example.test/3")
+        self.assertEqual(self.calls[-1][0], "https://fcm.googleapis.com/3")
         self.assertEqual(notify.get_notification(self.db, other, 3)["push_status"], "SENT")
 
     def test_transaction_rollback(self):
@@ -168,8 +169,8 @@ class PlanningPushQA(unittest.TestCase):
         push.flush(self.db, now_ts=now)
         self.assertEqual(notify.subscription_count(self.db, 2), 0)
         self.assertEqual(notify.get_notification(self.db, nid, 2)["push_status"], "ERROR")
-        notify.save_subscription(self.db, 2, {"endpoint": "https://push.example.test/replacement",
-                                 "keys": {"p256dh": "fake", "auth": "fake"}})
+        notify.save_subscription(self.db, 2, {"endpoint": "https://fcm.googleapis.com/replacement",
+                                 "keys": push_keys()})
         def always_fail(**kwargs):
             raise FakePushException(503)
         self.provider.webpush = always_fail
@@ -331,15 +332,15 @@ class PlanningPushQA(unittest.TestCase):
                 (8, "Inactive room leader", "Lãnh đạo phòng", 0, 1),
                 (9, "Technical admin", "Cán bộ QLKH", 1, 1),
             ])
-        notify.save_subscription(self.db, 7, {"endpoint": "https://push.example.test/7",
-                                             "keys": {"p256dh": "fake-key", "auth": "fake-auth"}})
+        notify.save_subscription(self.db, 7, {"endpoint": "https://fcm.googleapis.com/7",
+                                             "keys": push_keys()})
         self.plan(21, 2, "2026-10-05", "DA_NOP", submitted="2026-10-04 06:50:00")
         sunday = datetime(2026, 10, 4, 7)
         self.assertEqual(cycle.process_cycle_reminders(self.db, sunday), 2)
         self.assertEqual(cycle.process_cycle_reminders(self.db, sunday), 0)
         self.assertEqual(self.events(), [("PLAN_WAITING_APPROVAL", 1), ("PLAN_WAITING_APPROVAL", 7)])
         self.assertEqual(push.flush(self.db), 2)
-        self.assertEqual({call[0] for call in self.calls}, {"https://push.example.test/1", "https://push.example.test/7"})
+        self.assertEqual({call[0] for call in self.calls}, {"https://fcm.googleapis.com/1", "https://fcm.googleapis.com/7"})
         self.assertEqual(len(notify.list_notifications(self.db, 7)), 1)
         self.assertEqual(notify.list_notifications(self.db, 8), [])
         self.assertEqual(notify.list_notifications(self.db, 9), [])

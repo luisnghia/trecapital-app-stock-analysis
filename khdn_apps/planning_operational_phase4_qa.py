@@ -14,7 +14,7 @@ checks = {
     "backup_full_sqlite": "FULL_SQLITE_ALL_APPLICATION_TABLES" in backup and "khdn_ops.db" in backup,
     "backup_csv": "tables/{table}.csv" in backup,
     "backup_phone_copy": "số điện thoại/người liên hệ" in backup,
-    "backup_admin": "Sao lưu dữ liệu" in backup and "Tạo bản backup đầy đủ ngay" in backup,
+    "backup_admin": "Sao lưu dữ liệu" in backup and "Tạo bản backup có mật khẩu" in backup and "require_admin(db_path" in backup,
     "backup_integrity": "PRAGMA integrity_check" in backup,
     "html_table_wrap": "table-layout:fixed" in backup and "white-space:normal" in backup and "overflow-wrap:anywhere" in backup,
 }

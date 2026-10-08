@@ -57,8 +57,8 @@ def install(core, logger=None):
             (logger_arg or logger).info("WEEKLY_PLAN_GOVERNANCE_SCHEMA_READY")
 
     def _manager(c, uid):
-        r=c.execute("SELECT role,is_admin FROM users WHERE id=?",(uid,)).fetchone()
-        return bool(r and (r[0]=="Lãnh đạo phòng" or int(r[1] or 0)==1))
+        from khdn_apps.authorization import active_user, manager
+        return manager(active_user(c, uid))
 
     def _mark_new(get_conn, uid, min_id):
         with get_conn() as c:
@@ -98,12 +98,20 @@ def install(core, logger=None):
 
     def move_item(get_conn, iid, uid, new_date, logger_arg=None, reason=None):
         ensure_schema(get_conn, logger_arg)
+        from khdn_apps.authorization import require_weekly_item
+        # Manager movement delegates to the guarded base transaction. Staff requests
+        # authorize and insert under one lock, without opening a nested writer.
         with get_conn() as c:
+            require_weekly_item(c, iid, uid)
+            manager = _manager(c,uid)
+        if manager:
+            original_move(get_conn,iid,uid,new_date,logger_arg or logger)
+            return "MOVED"
+        with get_conn() as c:
+            c.execute("BEGIN IMMEDIATE")
+            require_weekly_item(c, iid, uid)
             row=c.execute("SELECT work_date FROM weekly_plan_items WHERE id=?",(iid,)).fetchone()
             if not row: return "NOT_FOUND"
-            if _manager(c,uid):
-                original_move(get_conn,iid,uid,new_date,logger_arg or logger)
-                return "MOVED"
             pending=c.execute("SELECT 1 FROM weekly_plan_reschedule_requests WHERE item_id=? AND status='PENDING'",(iid,)).fetchone()
             if pending: return "ALREADY_PENDING"
             ts=core.now()

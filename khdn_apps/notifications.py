@@ -296,12 +296,8 @@ def subscription_count(db_path: str | Path, user_id: int) -> int:
 
 def save_subscription(db_path: str | Path, user_id: int, subscription: dict[str, Any], user_agent: str = "") -> None:
     ensure_schema(db_path)
-    endpoint = str(subscription.get("endpoint") or "").strip()
-    keys = subscription.get("keys") or {}
-    p256dh = str(keys.get("p256dh") or "").strip()
-    auth = str(keys.get("auth") or "").strip()
-    if not endpoint.startswith("https://") or len(endpoint) > 4096 or not p256dh or not auth:
-        raise ValueError("Push subscription không hợp lệ")
+    from khdn_apps.push_transport import validate_subscription
+    endpoint, p256dh, auth = validate_subscription(subscription)
     ts = _now()
     with _connect(db_path) as c:
         c.execute(
@@ -331,11 +327,21 @@ def _ticket_secret() -> bytes:
     return secret.encode("utf-8")
 
 
-def issue_setup_ticket(user_id: int, ttl_seconds: int = 900) -> str:
+def _setup_password_stamp(db_path, user_id):
+    from khdn_apps.authorization import active_user
+    with _connect(db_path or os.environ["KHDN_DB_PATH"]) as conn:
+        user = active_user(conn, user_id)
+    if not user.get("password_hash") or user.get("must_change_password"):
+        raise PermissionError("Vui lòng đăng nhập lại trước khi cài Push.")
+    return hashlib.sha256(str(user["password_hash"]).encode()).hexdigest()
+
+
+def issue_setup_ticket(user_id: int, ttl_seconds: int = 900, *, db_path=None) -> str:
     payload = {
         "uid": int(user_id),
         "exp": int(time.time()) + max(60, int(ttl_seconds)),
         "nonce": secrets.token_urlsafe(12),
+        "password_stamp": _setup_password_stamp(db_path, user_id),
     }
     raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
     b64 = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
@@ -344,7 +350,7 @@ def issue_setup_ticket(user_id: int, ttl_seconds: int = 900) -> str:
     return f"{b64}.{sig64}"
 
 
-def verify_setup_ticket(ticket: str) -> int | None:
+def verify_setup_ticket(ticket: str, *, db_path=None) -> int | None:
     try:
         b64, sig64 = str(ticket or "").split(".", 1)
         expected = hmac.new(_ticket_secret(), b64.encode("ascii"), hashlib.sha256).digest()
@@ -356,7 +362,9 @@ def verify_setup_ticket(ticket: str) -> int | None:
         if int(payload.get("exp") or 0) < int(time.time()):
             return None
         uid = int(payload.get("uid") or 0)
-        return uid if uid > 0 else None
+        if uid <= 0 or not hmac.compare_digest(str(payload.get("password_stamp") or ""), _setup_password_stamp(db_path, uid)):
+            return None
+        return uid
     except Exception:
         return None
 
@@ -520,6 +528,8 @@ def _send_notification_push(db_path: str | Path, notification_id: int) -> None:
     errors: list[str] = []
     for sub in subs:
         try:
+            from khdn_apps.push_transport import SafePushSession, validate_subscription
+            validate_subscription({"endpoint": sub["endpoint"], "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]}})
             webpush(
                 subscription_info={
                     "endpoint": sub["endpoint"],
@@ -530,6 +540,7 @@ def _send_notification_push(db_path: str | Path, notification_id: int) -> None:
                 vapid_claims={"sub": subject},
                 ttl=3600,
                 timeout=10,
+                requests_session=SafePushSession(),
             )
             sent += 1
             with _connect(db_path) as c:

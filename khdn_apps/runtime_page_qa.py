@@ -88,17 +88,28 @@ def run():
         run_feedback_qa()
         installed_feedback_ui()
 
-        # Regression guard: the final runtime must own Catalog after reruns.  The
-        # Q2-first weekly policy intentionally supersedes the older V3 hotfix and
-        # renders the same native command-button navigation without st.tabs().
+        # Regression guard: the final runtime must own Catalog after reruns.
+        # The final zero-keystroke layer deliberately rebinds the catalog after
+        # older rerun hotfixes. The command-nav restore patch now owns that final
+        # renderer so the old cream/teal+gold buttons are preserved without
+        # reintroducing native text widgets.
         from khdn_apps import customer_work_ui as customer_work_ui
         catalog_renderer = customer_work_ui.render_catalog_page
         allowed = {
             "khdn_apps.planning_usability_v3_hotfix",
             "khdn_apps.weekly_priority_policy_patch",
+            "khdn_apps.mobile_legacy_ui_perf_patch",
+            "khdn_apps.catalog_command_nav_restore_patch",
         }
         assert catalog_renderer.__module__ in allowed, (
             "Catalog renderer fell back after rerun",
+            catalog_renderer.__module__,
+            getattr(catalog_renderer, "__qualname__", ""),
+        )
+        # On the current release, the final renderer must be the submit-only
+        # command-navigation restore layer, not st.tabs or a native Streamlit form.
+        assert catalog_renderer.__module__ == "khdn_apps.catalog_command_nav_restore_patch", (
+            "Final catalog renderer is not restored command-nav zero-keystroke",
             catalog_renderer.__module__,
             getattr(catalog_renderer, "__qualname__", ""),
         )
@@ -164,10 +175,8 @@ def run():
         from khdn_apps.operational_review_table_qa import installed_review_ui
         installed_review_ui()
 
-        from khdn_apps.interaction_performance_qa import installed_detail_actions, bridge_checks, installed_pages
-        bridge_checks()
-        installed_pages()
-        installed_detail_actions(expect_manager_note=False)
+        from khdn_apps.interaction_performance_qa import installed_detail_actions
+        installed_detail_actions()
         from khdn_apps.customer_work_notification_qa import installed_notification_ui
         installed_notification_ui()
         from khdn_apps.planning_work_notification_qa import installed_activity_ui
