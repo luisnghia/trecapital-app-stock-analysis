@@ -1,5 +1,6 @@
 """Semantic QA for KHDN Ops V2.32 notification engine."""
 from __future__ import annotations
+from khdn_apps.security_qa_fixtures import push_keys
 
 import os
 import sqlite3
@@ -47,6 +48,8 @@ def main() -> None:
             c.close()
 
         # Existing history must not blast users when the feature is first deployed.
+        with sqlite3.connect(db) as c:
+            c.execute("ALTER TABLE users ADD COLUMN password_hash TEXT DEFAULT 'QA-hash'")
         n.ensure_schema(db)
         assert n.process_task_actions(db) == 0
         assert n.unread_count(db, 1) == 0
@@ -92,9 +95,9 @@ def main() -> None:
         old_secret = os.environ.get("KHDN_PUSH_TOKEN_SECRET")
         os.environ["KHDN_PUSH_TOKEN_SECRET"] = "qa-secret-not-for-production-0123456789"
         try:
-            ticket = n.issue_setup_ticket(2, ttl_seconds=120)
-            assert n.verify_setup_ticket(ticket) == 2
-            assert n.verify_setup_ticket(ticket + "tamper") is None
+            ticket = n.issue_setup_ticket(2, ttl_seconds=120, db_path=db)
+            assert n.verify_setup_ticket(ticket, db_path=db) == 2
+            assert n.verify_setup_ticket(ticket + "tamper", db_path=db) is None
         finally:
             if old_secret is None:
                 os.environ.pop("KHDN_PUSH_TOKEN_SECRET", None)
@@ -102,7 +105,7 @@ def main() -> None:
                 os.environ["KHDN_PUSH_TOKEN_SECRET"] = old_secret
 
         # Subscription storage is per device and idempotent by endpoint.
-        sub = {"endpoint": "https://push.example.test/abc", "keys": {"p256dh": "p-key", "auth": "a-key"}}
+        sub = {"endpoint": "https://fcm.googleapis.com/abc", "keys": push_keys()}
         n.save_subscription(db, 2, sub, "QA Browser")
         n.save_subscription(db, 2, sub, "QA Browser 2")
         assert n.subscription_count(db, 2) == 1

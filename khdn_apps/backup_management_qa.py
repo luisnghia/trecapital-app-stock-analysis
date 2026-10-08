@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import io
 import json
+from khdn_apps import backup_crypto
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -34,9 +36,13 @@ def main():
         assert inv["tables"]["case_contacts"] == 1
         assert inv["tables"]["weekly_plan_items"] == 1
 
-        package = create_full_backup_package(db, root / "backup.zip", reason="qa", actor="tester")
+        package = create_full_backup_package(db, root / "backup.zip", reason="qa", actor="tester", password="QA-backup-strong-password")
         assert package.exists() and package.stat().st_size > 0
-        with zipfile.ZipFile(package) as zf:
+        with zipfile.ZipFile(package) as outer:
+            assert "khdn_ops.db" not in outer.namelist()
+            assert "tables/customers.csv" not in outer.namelist()
+            payload = backup_crypto.decrypt(outer.read("backup.khdn"), password="QA-backup-strong-password", kind="portable-backup")
+        with zipfile.ZipFile(io.BytesIO(payload)) as zf:
             names = set(zf.namelist())
             assert {"khdn_ops.db", "manifest.json", "tables/customers.csv", "tables/case_contacts.csv", "tables/weekly_plan_items.csv"}.issubset(names)
             manifest = json.loads(zf.read("manifest.json").decode("utf-8"))

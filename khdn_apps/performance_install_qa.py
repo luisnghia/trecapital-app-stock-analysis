@@ -25,7 +25,7 @@ def main():
         "loader_input_batch_patch": "_input_batch_patch_source" in loader,
         "loader_catalog_patch": "_catalog_input_fast_patch_source" in loader,
         "component_command_gated": "if command:\n        result = _component" in device,
-        "device_validation_throttled": "VALIDATE_SECONDS = 30.0" in device,
+        "device_validation_fresh": "def _fresh_session_user" in device and "SELECT * FROM users WHERE id=?" in device and "if not _fresh_session_user(path):" in device,
         "device_schema_once": "_SCHEMA_READY" in sessions and "_ensure_schema(path)" in sessions,
         "global_dom_observer_removed": "new MutationObserver(scheduleGrid).observe(document.documentElement" not in index,
         "grid_observer_operational_only": "hasOpsGrid" in index and "gridObserver.disconnect()" in index,

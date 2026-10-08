@@ -10,11 +10,13 @@ import tempfile
 import zipfile
 
 from khdn_apps.storage import snapshot_database
+from khdn_apps import backup_crypto
+from khdn_apps.authorization import require_admin
 
-VERSION = "1.0.0"
+VERSION = "2.0.0"
 _FLAG = "_KHDN_OFFLINE_EXPORT_PATCH_VERSION"
 
-_EXCLUDED_PARTS = {"__pycache__", ".git", ".github", "logs", "annual_archive", "backups"}
+_EXCLUDED_PARTS = {"__pycache__", ".git", ".github", "logs", "annual_archive", "backups", "data", ".venv"}
 _EXCLUDED_SUFFIXES = {".pyc", ".pyo", ".db", ".db-wal", ".db-shm", ".zip", ".log"}
 
 
@@ -24,6 +26,8 @@ def _source_files(source_dir: Path):
             continue
         rel = path.relative_to(source_dir)
         if any(part in _EXCLUDED_PARTS for part in rel.parts):
+            continue
+        if path.name.lower() in {"secrets.toml", ".backup-encryption.key"} or path.name.startswith(".env") or path.suffix.lower() in {".pem", ".key", ".khdn"}:
             continue
         if path.suffix.lower() in _EXCLUDED_SUFFIXES:
             continue
@@ -72,6 +76,7 @@ for %%S in (
   install_theme.py
   theme_bridge_fix.py
   mobile_client_focus_install.py
+  install_security.py
 ) do (
   if exist "khdn_apps\%%S" (
     python "khdn_apps\%%S"
@@ -108,6 +113,11 @@ set "KHDN_DB_PATH=%~dp0data\khdn_ops.db"
 set "KHDN_REQUIRE_VOLUME=0"
 set "KHDN_CLOUD_MODE=0"
 set "PORT=8501"
+".venv\Scripts\python.exe" -m khdn_apps.backup_crypto unlock-offline "%~dp0."
+if errorlevel 1 (
+  pause
+  exit /b 1
+)
 start "" "http://127.0.0.1:8501"
 ".venv\Scripts\python.exe" -m khdn_apps.runtime
 pause
@@ -117,6 +127,7 @@ pause
 def _backup_py() -> str:
     return '''from datetime import datetime
 from pathlib import Path
+from getpass import getpass
 from khdn_apps.backup_management_patch import create_full_backup_package, database_inventory
 
 ROOT = Path(__file__).resolve().parent
@@ -127,7 +138,10 @@ if not DB.exists():
     raise SystemExit(f"Khong tim thay CSDL: {DB}")
 stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 target = OUT / f"KHDN-Ops-Offline-Backup-{stamp}.zip"
-create_full_backup_package(DB, target, reason="offline-manual", actor="offline-user")
+password = getpass("Mat khau bao ve backup (tu 12 ky tu): ")
+if password != getpass("Nhap lai mat khau: "):
+    raise SystemExit("Mat khau khong khop")
+create_full_backup_package(DB, target, reason="offline-manual", actor="offline-user", password=password)
 info = database_inventory(DB)
 print(f"BACKUP_OK: {target}")
 print(f"integrity={info['integrity']} tables={len(info['tables'])}")
@@ -162,7 +176,7 @@ CHẠY LẦN ĐẦU
 - Cần Python 3.11 hoặc 3.12.
 - Khi còn Internet, chạy INSTALL_KHDN_OFFLINE.bat một lần để cài thư viện.
 - Sau đó chạy RUN_KHDN_OFFLINE.bat. App dùng http://127.0.0.1:8501 và đọc/ghi
-  trực tiếp data\\khdn_ops.db, không phụ thuộc Railway.
+  trực tiếp data\\khdn_ops.db, không phụ thuộc Railway. Lần chạy đầu tiên nhập mật khẩu bảo vệ đã đặt khi xuất để mở CSDL.
 
 SAO LƯU OFFLINE
 - Có thể dùng chức năng Sao lưu trong app.
@@ -171,11 +185,11 @@ SAO LƯU OFFLINE
 KHÔI PHỤC
 - Đóng app.
 - Giữ lại một bản data\\khdn_ops.db hiện tại.
-- Lấy khdn_ops.db từ gói backup cần khôi phục và chép đè vào data\\khdn_ops.db.
+- Giải nén gói backup vào thư mục riêng, chạy DECRYPT_BACKUP.bat và nhập mật khẩu.\n- Lấy restored\\khdn_ops.db chép vào data\\khdn_ops.db sau khi đã giữ bản hiện tại.
 - Chạy lại RUN_KHDN_OFFLINE.bat.
 
 BẢO MẬT
-- data\\khdn_ops.db là bản sao đầy đủ, có thể chứa tài khoản, hồ sơ khách hàng,
+- Dữ liệu trong gói ZIP được mã hóa AES-256-GCM; mật khẩu không nằm trong gói. Không thể khôi phục nếu mất mật khẩu.\n- Sau khi mở khóa, data\\khdn_ops.db là bản sao đầy đủ, có thể chứa tài khoản, hồ sơ khách hàng,
   lịch sử, audit và dữ liệu nội bộ. Lưu file ở nơi an toàn, không gửi công khai.
 
 LƯU Ý
@@ -192,8 +206,10 @@ def create_offline_package(
     actor: str | None = None,
     source_dir: Path | str | None = None,
     backup_module=None,
+    password: str,
 ) -> Path:
     """Create source + transaction-consistent DB + local launchers in one ZIP."""
+    backup_crypto.validate_password(password)
     data_dir = Path(data_dir).resolve()
     db_path = Path(db_path).resolve()
     target = Path(target).resolve()
@@ -242,8 +258,8 @@ def create_offline_package(
             with zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
                 for path, rel in files:
                     zf.write(path, Path("khdn_apps") / rel)
-                zf.write(snap, "data/khdn_ops.db")
-                zf.writestr("offline_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+                zf.writestr("data/khdn_ops.db.khdn", backup_crypto.encrypt(snap.read_bytes(), password=password, kind="offline-database"))
+                zf.writestr("offline_manifest.khdn", backup_crypto.encrypt(json.dumps(manifest, ensure_ascii=False, indent=2).encode(), password=password, kind="offline-manifest"))
                 zf.writestr("README_OFFLINE.txt", _readme())
                 zf.writestr("INSTALL_KHDN_OFFLINE.bat", _install_bat())
                 zf.writestr("RUN_KHDN_OFFLINE.bat", _run_bat())
@@ -256,17 +272,18 @@ def create_offline_package(
         tmp.unlink(missing_ok=True)
 
 
-def create_offline_export(data_dir, db_path, actor=None, backup_module=None) -> Path:
+def create_offline_export(data_dir, db_path, actor=None, backup_module=None, *, password: str) -> Path:
     folder = Path(data_dir).resolve() / "backups" / "offline"
     folder.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
-    target = folder / f"KHDN-Ops-Offline-App-{stamp}.zip"
+    target = folder / f"KHDN-Ops-Offline-App-{stamp}-{__import__('secrets').token_hex(4)}.zip"
     result = create_offline_package(
         data_dir,
         db_path,
         target,
         actor=actor,
         backup_module=backup_module,
+        password=password,
     )
     files = sorted(folder.glob("KHDN-Ops-Offline-App-*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
     for old in files[5:]:
@@ -310,6 +327,7 @@ def install(backup_module, logger=None):
 
         data_dir = Path(os.getenv("KHDN_DATA_DIR", str(app_ns.get("RUNTIME_DATA_DIR") or Path.cwd()))).resolve()
         db_path = Path(os.getenv("KHDN_DB_PATH", str(app_ns.get("DB_PATH") or data_dir / "khdn_ops.db"))).resolve()
+        u = require_admin(db_path, u.get("id"))
         actor = str(u.get("full_name") or u.get("username") or f"UID {u.get('id')}")
 
         st.divider()
@@ -323,14 +341,13 @@ def install(backup_module, logger=None):
             "`data\\khdn_ops.db` và không phụ thuộc Railway."
         )
 
-        if st.button(
-            "📦 Tạo gói App Offline + dữ liệu hiện tại",
-            key="khdn_offline_export_create",
-            type="primary",
-            use_container_width=True,
-        ):
+        password = backup_crypto.password_form(st, "offline_export", "📦 Tạo gói Offline có mật khẩu")
+        if password is not None:
             try:
-                path = create_offline_export(data_dir, db_path, actor, backup_module)
+                require_admin(db_path, u["id"])
+                path = create_offline_export(data_dir, db_path, actor, backup_module, password=password)
+                st.session_state["khdn_offline_export_owner"] = int(u["id"])
+                backup_crypto.reset_password_form(st, "offline_export")
                 st.session_state["khdn_offline_export_path"] = str(path)
                 _audit_export(app_ns, u, path, logger)
                 if logger:
@@ -344,11 +361,10 @@ def install(backup_module, logger=None):
 
         candidate = st.session_state.get("khdn_offline_export_path")
         path = Path(candidate) if candidate else None
-        if not path or not path.exists():
-            folder = data_dir / "backups" / "offline"
-            files = sorted(folder.glob("KHDN-Ops-Offline-App-*.zip"), key=lambda p: p.stat().st_mtime, reverse=True) if folder.exists() else []
-            path = files[0] if files else None
-        if path and path.exists():
+        if (path and path.exists() and path.resolve().is_relative_to(data_dir / "backups" / "offline")
+                and st.session_state.get("khdn_offline_export_owner") == int(u["id"])
+                and backup_crypto.encrypted_package(path)):
+            require_admin(db_path, u["id"])
             st.download_button(
                 "⬇️ Tải App Offline + dữ liệu về máy",
                 data=path.read_bytes(),

@@ -19,6 +19,11 @@ def _replace_required(text: str, variants, replacement: str, label: str) -> str:
 def install():
     patch_file = Path(__file__).resolve().parent / "mobile_nav_patch.py"
     text = patch_file.read_text(encoding="utf-8")
+    # Offline exports contain already-installed source. Re-running INSTALL must
+    # preserve this completed transform rather than fail before opening data.
+    if 'ops_alert_idle_admin_view_{_idx}' in text:
+        print("KHDN_ADMIN_COLOR_ALREADY_INSTALLED")
+        return
 
     # 1) Use the very same ancestor-key pattern as the correct Work Management
     # idle cards. This makes the existing selector

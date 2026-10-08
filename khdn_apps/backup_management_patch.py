@@ -1,4 +1,4 @@
-"""Complete KHDN Ops backup management.
+"""Encrypted complete KHDN Ops backup management.
 
 The runtime already creates one consistent SQLite snapshot per day on the
 persistent volume.  This patch makes that protection visible to administrators
@@ -24,13 +24,16 @@ import tempfile
 import zipfile
 
 from khdn_apps.storage import read_status, snapshot_database
+from khdn_apps import backup_crypto
+from khdn_apps.authorization import require_admin
 
-VERSION = "1.0.0"
+VERSION = "2.0.0"
 _FLAG = "_KHDN_BACKUP_MANAGEMENT_VERSION"
 
 _SECRET_CSV_COLUMNS = {
     "password_hash", "avatar_blob", "remember_token", "device_token",
-    "push_subscription", "secret", "token", "private_key",
+    "push_subscription", "secret", "token", "private_key", "auth", "p256dh",
+    "token_hash", "grant_hash", "password_stamp",
 }
 
 
@@ -75,8 +78,10 @@ def create_full_backup_package(
     *,
     reason: str = "manual",
     actor: str | None = None,
+    password: str,
 ) -> Path:
-    """Create a self-verifying ZIP package with a full DB and readable exports."""
+    """Create a password-encrypted package with a full DB and readable exports."""
+    backup_crypto.validate_password(password)
     db_path, target = Path(db_path).resolve(), Path(target).resolve()
     target.parent.mkdir(parents=True, exist_ok=True)
     if not db_path.exists():
@@ -147,18 +152,25 @@ def create_full_backup_package(
                                 writer.writerow([_safe_csv_value(v) for v in row])
                             text.flush()
 
+        encrypted = backup_crypto.encrypt(tmp.read_bytes(), password=password, kind="portable-backup")
+        # Replace the private temporary plaintext with a public shell containing only ciphertext.
+        with zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_STORED) as outer:
+            outer.writestr("backup.khdn", encrypted)
+            outer.write(Path(backup_crypto.__file__), "backup_crypto.py")
+            outer.writestr("DECRYPT_BACKUP.bat", '@echo off\r\ncd /d "%~dp0"\r\npy -3 -m pip install cryptography\r\nif errorlevel 1 exit /b 1\r\npy -3 backup_crypto.py restore "%~dp0backup.khdn" "%~dp0restored"\r\npause\r\n')
+            outer.writestr("README.txt", "KHDN: Backup AES-256-GCM, mật khẩu bảo vệ file tối thiểu 12 ký tự.\nGiải nén ZIP vào thư mục riêng, chạy DECRYPT_BACKUP.bat và nhập mật khẩu đã đặt khi xuất.\nCần Python 3.11/3.12 và cryptography; lần cài thư viện đầu tiên cần Internet.\nKhông lưu mật khẩu trong gói. Không thể khôi phục nếu mất mật khẩu.\nFile khôi phục nằm trong thư mục restored; hãy dừng app trước khi phục hồi CSDL.\n")
         os.replace(tmp, target)
         return target
     finally:
         tmp.unlink(missing_ok=True)
 
 
-def create_manual_backup(data_dir: Path | str, db_path: Path | str, actor: str | None = None) -> Path:
+def create_manual_backup(data_dir: Path | str, db_path: Path | str, actor: str | None = None, *, password: str) -> Path:
     folder = Path(data_dir).resolve() / "backups" / "manual"
     folder.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
-    target = folder / f"KHDN-Ops-Full-Backup-{stamp}.zip"
-    result = create_full_backup_package(db_path, target, reason="manual", actor=actor)
+    target = folder / f"KHDN-Ops-Full-Backup-{stamp}-{__import__('secrets').token_hex(4)}.zip"
+    result = create_full_backup_package(db_path, target, reason="manual", actor=actor, password=password)
     files = sorted(folder.glob("KHDN-Ops-Full-Backup-*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
     for old in files[20:]:
         old.unlink(missing_ok=True)
@@ -199,6 +211,7 @@ def render_backup_admin(st, u, app_ns, logger=None):
 
     data_dir = Path(os.getenv("KHDN_DATA_DIR", str(app_ns.get("RUNTIME_DATA_DIR") or Path.cwd()))).resolve()
     db_path = Path(os.getenv("KHDN_DB_PATH", str(app_ns.get("DB_PATH") or data_dir / "khdn_ops.db"))).resolve()
+    u = require_admin(db_path, u.get("id"))
     status = read_status(data_dir / "backup_status.json")
 
     st.divider()
@@ -233,10 +246,13 @@ def render_backup_admin(st, u, app_ns, logger=None):
         st.error(f"Không thể kiểm tra tính toàn vẹn CSDL: {exc}")
 
     actor = str(u.get("full_name") or u.get("username") or f"UID {u.get('id')}")
-    left, right = st.columns(2)
-    if left.button("🛡️ Tạo bản backup đầy đủ ngay", key="khdn_manual_backup_create", type="primary", use_container_width=True):
+    password = backup_crypto.password_form(st, "manual_backup", "🛡️ Tạo bản backup có mật khẩu")
+    if password is not None:
         try:
-            path = create_manual_backup(data_dir, db_path, actor)
+            require_admin(db_path, u["id"])
+            path = create_manual_backup(data_dir, db_path, actor, password=password)
+            st.session_state["khdn_manual_backup_owner"] = int(u["id"])
+            backup_crypto.reset_password_form(st, "manual_backup")
             st.session_state["khdn_manual_backup_path"] = str(path)
             try:
                 with app_ns["get_conn"]() as c:
@@ -256,7 +272,8 @@ def render_backup_admin(st, u, app_ns, logger=None):
             if logger: logger.exception("MANUAL_FULL_BACKUP_FAILED")
             st.error(f"Không tạo được backup: {exc}")
 
-    if right.button("🔎 Kiểm tra tính toàn vẹn", key="khdn_backup_verify", use_container_width=True):
+    if st.button("🔎 Kiểm tra tính toàn vẹn", key="khdn_backup_verify", use_container_width=True):
+        require_admin(db_path, u["id"])
         try:
             check = database_inventory(db_path)
             st.success(f"CSDL hợp lệ: integrity_check = ok · {len(check['tables'])} bảng.")
@@ -265,11 +282,10 @@ def render_backup_admin(st, u, app_ns, logger=None):
 
     candidate = st.session_state.get("khdn_manual_backup_path")
     path = Path(candidate) if candidate else None
-    if not path or not path.exists():
-        manual_dir = data_dir / "backups" / "manual"
-        files = sorted(manual_dir.glob("KHDN-Ops-Full-Backup-*.zip"), key=lambda p: p.stat().st_mtime, reverse=True) if manual_dir.exists() else []
-        path = files[0] if files else None
-    if path and path.exists():
+    if (path and path.exists() and path.resolve().is_relative_to(data_dir / "backups" / "manual")
+            and st.session_state.get("khdn_manual_backup_owner") == int(u["id"])
+            and backup_crypto.encrypted_package(path)):
+        require_admin(db_path, u["id"])
         st.download_button(
             "⬇️ Tải bản backup đầy đủ về máy",
             data=path.read_bytes(),

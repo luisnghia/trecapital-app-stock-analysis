@@ -1,4 +1,5 @@
 from __future__ import annotations
+from khdn_apps.authorization import active_user, require_weekly_item, manager
 import html, json, re, unicodedata
 from datetime import date, datetime, timedelta
 
@@ -88,6 +89,8 @@ def save_items(get_conn,uid,ws,items,logger=None):
     if not good:return 0,errors
     ts=now()
     with get_conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        actor = active_user(c, uid)
         pid=ensure_plan(c,uid,ws)
         for x in good:
             c.execute("""INSERT INTO weekly_plan_items(plan_id,user_id,work_date,start_time,daypart,title,customer_id,customer_text,category,purposes_json,source_text,linked_task_id,status,reschedule_count,note,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?, 'PLANNED',0,?,?,?)""",(pid,uid,x["work_date"],x.get("start_time"),x.get("daypart"),x["title"],x.get("customer_id"),x.get("customer_text",""),x.get("category","Công việc khác"),json.dumps(x.get("purposes",[]),ensure_ascii=False),x.get("source_text",x["title"]),x.get("linked_task_id"),x.get("note"),ts,ts))
@@ -101,6 +104,8 @@ def load_items(c,uid,ws):
 def set_status(get_conn,iid,uid,status,logger=None):
     if status not in STAT: raise ValueError(status)
     with get_conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        require_weekly_item(c, iid, uid)
         old=c.execute("SELECT status FROM weekly_plan_items WHERE id=?",(iid,)).fetchone();
         if not old:return
         c.execute("UPDATE weekly_plan_items SET status=?,updated_at=? WHERE id=?",(status,now(),iid)); c.execute("INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(?,?,'STATUS',?,?)",(iid,uid,f"{old[0]} -> {status}",now()))
@@ -108,6 +113,8 @@ def set_status(get_conn,iid,uid,status,logger=None):
 
 def move_item(get_conn,iid,uid,new_date,logger=None):
     with get_conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        require_weekly_item(c, iid, uid)
         old=c.execute("SELECT work_date FROM weekly_plan_items WHERE id=?",(iid,)).fetchone();
         if not old:return
         c.execute("UPDATE weekly_plan_items SET work_date=?,status='PLANNED',reschedule_count=reschedule_count+1,updated_at=? WHERE id=?",(new_date.isoformat(),now(),iid)); c.execute("INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(?,?,'RESCHEDULE',?,?)",(iid,uid,f"{old[0]} -> {new_date.isoformat()}",now()))
@@ -116,6 +123,8 @@ def move_item(get_conn,iid,uid,new_date,logger=None):
 def copy_prev(get_conn,uid,ws,logger=None):
     prev=ws-timedelta(days=7); ts=now(); count=0
     with get_conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        actor = active_user(c, uid)
         p=c.execute("SELECT id FROM weekly_plans WHERE user_id=? AND week_start=?",(uid,prev.isoformat())).fetchone()
         if not p:return 0
         pid=ensure_plan(c,uid,ws)
@@ -131,6 +140,15 @@ def open_tasks(c,uid):
 
 def add_task(get_conn,uid,ws,t,d,logger=None):
     with get_conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        actor = active_user(c, uid)
+        task = c.execute("SELECT * FROM tasks WHERE id=?", (int(t['id']),)).fetchone()
+        if not task or (int(uid) not in {int(task['qlkh_user_id'] or 0), int(task['support_user_id'] or 0)} and not manager(actor)):
+            raise PermissionError("Tác nghiệp không thuộc phạm vi của bạn.")
+        # Use the authoritative task fields instead of caller-provided ownership/customer values.
+        t = dict(task)
+        customer = c.execute("SELECT customer_name FROM customers WHERE id=?", (t['customer_id'],)).fetchone()
+        t['customer_name'] = customer[0] if customer else ''
         if c.execute("SELECT 1 FROM weekly_plan_items WHERE user_id=? AND linked_task_id=? AND status<>'CANCELLED'",(uid,t["id"])).fetchone():return False
         pid=ensure_plan(c,uid,ws); title=f"{t.get('task_type') or 'Xử lý hồ sơ'} · {t.get('customer_name') or ''}"; cat="Tín dụng" if any(k in norm(title) for k in ("giai ngan","han muc","tin dung","bao lanh","lc")) else "Hồ sơ / Dự án"; ts=now()
         c.execute("""INSERT INTO weekly_plan_items(plan_id,user_id,work_date,title,customer_id,customer_text,category,purposes_json,source_text,linked_task_id,status,reschedule_count,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'[]',?,?,'PLANNED',0,?,?)""",(pid,uid,d.isoformat(),title,t.get("customer_id"),t.get("customer_name",""),cat,f"Từ tác nghiệp {t.get('task_code') or t['id']}",t["id"],ts,ts))

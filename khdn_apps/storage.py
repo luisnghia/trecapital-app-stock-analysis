@@ -198,13 +198,14 @@ def prepare_storage(data_dir: Path, db_path: Path, require_volume: bool = True) 
 
 def daily_backup(data_dir: Path, db_path: Path, *, now: datetime | None = None,
                  keep: int = 14, budget_bytes: int = 50 * 1024 * 1024) -> Path | None:
-    """Keep daily compressed DB snapshots on the volume (not off-site backups)."""
+    """Keep encrypted, compressed DB snapshots on the volume."""
+    from .backup_crypto import encrypt, server_key, atomic_bytes
     if not db_path.exists():
         return None
     now = now or datetime.now(timezone.utc)
     folder = data_dir / "backups"
     folder.mkdir(parents=True, exist_ok=True)
-    target = folder / f"khdn_ops_{now:%Y-%m-%d}.db.gz"
+    target = folder / f"khdn_ops_{now:%Y-%m-%d}.db.gz.khdn"
     if target.exists():
         return target
     wal = Path(str(db_path) + "-wal")
@@ -224,8 +225,9 @@ def daily_backup(data_dir: Path, db_path: Path, *, now: datetime | None = None,
             os.fsync(stream.fileno())
         if compressed.stat().st_size > budget_bytes:
             raise OSError("Compressed backup exceeds its storage budget; existing backups are retained")
-        os.replace(compressed, target)
-        backups = sorted(folder.glob("khdn_ops_????-??-??.db.gz"), reverse=True)
+        atomic_bytes(target, encrypt(compressed.read_bytes(), key=server_key(data_dir), kind="daily-backup"))
+        compressed.unlink()
+        backups = sorted(folder.glob("khdn_ops_????-??-??.db.gz.khdn"), reverse=True)
         total = 0
         retained = []
         for index, file in enumerate(backups):
@@ -240,7 +242,7 @@ def daily_backup(data_dir: Path, db_path: Path, *, now: datetime | None = None,
         atomic_json(data_dir / "backup_status.json", {
             "last_success": now.isoformat(), "file": target.name, "sha256": digest,
             "counts": counts, "retained": retained, "stored_bytes": total,
-            "location": "same_volume", "last_error": None,
+            "location": "same_volume", "encryption": "AES-256-GCM", "last_error": None,
         })
         return target
     finally:

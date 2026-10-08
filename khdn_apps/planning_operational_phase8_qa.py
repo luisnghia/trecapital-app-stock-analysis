@@ -13,9 +13,9 @@ hotfix = (ROOT / "weekly_priority_policy_hotfix.py").read_text(encoding="utf-8")
 checks = {
     "phase8_last": "_operational_phase8.install" in hotfix and hotfix.index("_operational_phase8.install") > hotfix.index("_operational_phase7.install"),
     "operational_backup_section": "Sao lưu Tác nghiệp & lưu trữ vận hành" in src,
-    "current_sqlite": "sqlite_backup_bytes" in src and "Tải backup SQLite hiện tại" in src,
-    "daily_backup": "Chọn bản sao lưu tự động Tác nghiệp" in src and "khdn_ops_????-??-??.db.gz" in src,
-    "annual_backup": "annual_archives" in src and "Chi tiết tác nghiệp" in src and "Snapshot SQLite" in src,
+    "current_sqlite_encrypted": "sqlite_backup_bytes" not in src and "Backup có mật khẩu" in src,
+    "daily_backup_encrypted": "snapshot SQLite theo năm đã được mã hóa" in src,
+    "annual_backup": "annual_archives" in src and "_render_annual_table(st, archives)" in src and "require_admin(db_path" in src,
     "html_table": "st.html(" in src and "table-layout:fixed" in src and "overflow-wrap:anywhere" in src,
     "case_link": "linked_case_id" in src and "workflow" in src,
     "case_due_source": "expected_complete_at" in src and "due_from_case" in src,

@@ -1,5 +1,6 @@
 """Planning activity integration gates; synthetic DB and fake Push only."""
 from __future__ import annotations
+from khdn_apps.security_qa_fixtures import push_keys
 
 from datetime import date, datetime
 import json
@@ -157,7 +158,7 @@ class PlanningActivityQA(unittest.TestCase):
         iid=self.save()
         for uid in (3,4,7):
             for device in (1,2):
-                notify.save_subscription(self.db,uid,{'endpoint':f'https://push.example.test/{uid}/{device}','keys':{'p256dh':'QA','auth':'QA'}})
+                notify.save_subscription(self.db,uid,{'endpoint':f'https://fcm.googleapis.com/{uid}/{device}','keys':push_keys()})
         stop=threading.Event();calls=[]
         def fake(**kwargs):
             calls.append(kwargs)
@@ -166,7 +167,7 @@ class PlanningActivityQA(unittest.TestCase):
             notify.worker_loop(self.db,stop,poll_seconds=2)
         self.assertEqual(len(calls),6)
         self.assertEqual({x['subscription_info']['endpoint'] for x in calls},
-                         {f'https://push.example.test/{u}/{d}' for u in (3,4,7) for d in (1,2)})
+                         {f'https://fcm.googleapis.com/{u}/{d}' for u in (3,4,7) for d in (1,2)})
         self.assertTrue(all(json.loads(x['data'])['url'].startswith('/?khdn_notification=') for x in calls))
         self.assertTrue(all(x['push_status']=='SENT' for u in (3,4,7) for x in notify.list_notifications(self.db,u)))
         self.assertEqual(self.recipients('weekly_plan_item_id',iid),{3,4,7})

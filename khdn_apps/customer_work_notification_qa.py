@@ -1,5 +1,6 @@
 """Assignment integration QA; synthetic database and fake push provider only."""
 from __future__ import annotations
+from khdn_apps.security_qa_fixtures import push_keys
 
 from contextlib import contextmanager
 import json
@@ -80,7 +81,14 @@ class AssignmentQA(unittest.TestCase):
 
     def test_preferences_inactive_self_and_metadata(self):
         notify.set_preference(self.db,2,work.EVENT_KEY,False)
-        cid=self.create();self.create(7);self.create(5)
+        cid=self.create()
+        # An existing assignment can outlive account activation; new assignments
+        # to a disabled account are now rejected by the mutation boundary.
+        with self.assertRaises(PermissionError): self.create(7)
+        with self.conn() as c: c.execute("UPDATE users SET active=1 WHERE id=7")
+        self.create(7)
+        with self.conn() as c: c.execute("UPDATE users SET active=0 WHERE id=7")
+        self.create(5)
         with self.conn() as c:
             c.execute("INSERT INTO case_actions(case_id,actor_user_id,action,detail,created_at) VALUES(?,5,'CREATE_METADATA_CONTACTS_P17','{}','2026-10-07')",(cid,))
         self.assertEqual(work.process_actions(self.db),0)
@@ -135,7 +143,7 @@ class AssignmentQA(unittest.TestCase):
 
     def test_push_all_devices_payload_and_retry_recovery(self):
         self.create();self.assertEqual(work.process_actions(self.db),1)
-        for i in (1,2):notify.save_subscription(self.db,2,{'endpoint':f'https://push.example.test/qa{i}','keys':{'p256dh':'qa-p','auth':'qa-a'}})
+        for i in (1,2):notify.save_subscription(self.db,2,{'endpoint':f'https://fcm.googleapis.com/qa{i}','keys':push_keys()})
         calls=[]
         def send(**kwargs):calls.append(kwargs)
         with patch.dict(os.environ,{'KHDN_VAPID_PRIVATE_KEY':'qa-not-real','KHDN_VAPID_PUBLIC_KEY':'qa-not-real'}):
@@ -146,7 +154,7 @@ class AssignmentQA(unittest.TestCase):
         payload=json.loads(calls[0]['data'])
         self.assertIn('Công việc khách hàng',payload['title'])
         self.assertEqual(payload['url'],notify.list_notifications(self.db,2)[0]['deep_link'])
-        self.assertEqual({x['subscription_info']['endpoint'] for x in calls},{'https://push.example.test/qa1','https://push.example.test/qa2'})
+        self.assertEqual({x['subscription_info']['endpoint'] for x in calls},{'https://fcm.googleapis.com/qa1','https://fcm.googleapis.com/qa2'})
         self.create();work.process_actions(self.db)
         now=time.time()
         with patch.object(notify,'_send_notification_push',side_effect=RuntimeError('fake retry')):

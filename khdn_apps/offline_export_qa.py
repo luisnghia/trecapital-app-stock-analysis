@@ -6,6 +6,7 @@ import sqlite3
 import tempfile
 import zipfile
 
+from khdn_apps import backup_crypto
 from khdn_apps import offline_export_patch as patch
 from khdn_apps import backup_management_patch as backup
 
@@ -37,6 +38,7 @@ def main():
             actor="qa",
             source_dir=source,
             backup_module=backup,
+            password="QA-offline-strong-password",
         )
         assert target.exists() and target.stat().st_size > 0
         with zipfile.ZipFile(target) as zf:
@@ -45,8 +47,8 @@ def main():
                 "khdn_apps/requirements.txt",
                 "khdn_apps/runtime.py",
                 "khdn_apps/.streamlit/config.toml",
-                "data/khdn_ops.db",
-                "offline_manifest.json",
+                "data/khdn_ops.db.khdn",
+                "offline_manifest.khdn",
                 "README_OFFLINE.txt",
                 "INSTALL_KHDN_OFFLINE.bat",
                 "RUN_KHDN_OFFLINE.bat",
@@ -57,7 +59,7 @@ def main():
             assert "khdn_apps/logs/should-not-ship.log" not in names
             assert "khdn_apps/__pycache__/runtime.pyc" not in names
 
-            manifest = json.loads(zf.read("offline_manifest.json").decode("utf-8"))
+            manifest = json.loads(backup_crypto.decrypt(zf.read("offline_manifest.khdn"), password="QA-offline-strong-password", kind="offline-manifest").decode("utf-8"))
             assert manifest["database_integrity"] == "ok"
             assert manifest["table_counts"]["users"] == 1
             assert manifest["source_file_count"] == 3
@@ -72,7 +74,9 @@ def main():
             assert "offline_backup.py" in backup_bat
 
             restored = root / "restored.db"
-            restored.write_bytes(zf.read("data/khdn_ops.db"))
+            assert "data/khdn_ops.db" not in names
+            assert "unlock-offline" in run_bat and "install_security.py" in install_bat
+            restored.write_bytes(backup_crypto.decrypt(zf.read("data/khdn_ops.db.khdn"), password="QA-offline-strong-password", kind="offline-database"))
         with sqlite3.connect(restored) as c:
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
             assert c.execute("SELECT username FROM users WHERE id=1").fetchone()[0] == "admin"
