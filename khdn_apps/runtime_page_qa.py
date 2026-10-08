@@ -170,6 +170,8 @@ def run():
         installed_detail_actions(expect_manager_note=False)
         from khdn_apps.customer_work_notification_qa import installed_notification_ui
         installed_notification_ui()
+        from khdn_apps.planning_work_notification_qa import installed_activity_ui
+        installed_activity_ui()
         print("KHDN_RUNTIME_PAGE_QA PASS initial_open rerun isolated_database")
 
 

@@ -19,6 +19,8 @@ def _is_plan_notification(item: dict[str, Any]) -> bool:
 
 def _notification_route(user: dict[str, Any], item: dict[str, Any]) -> str | None:
     role = str(user.get("role") or "")
+    if item.get("weekly_plan_item_id"):
+        return "weekly_plan"
     if item.get("customer_work_case_id"):
         return "customer_work"
     if _is_plan_notification(item):
@@ -39,6 +41,27 @@ def _open_customer_work(ns, user, item) -> bool:
     st.session_state["main_section"] = "plan"
     st.session_state["main_page"] = "customer_work"
     st.session_state["cw_case_id"] = case_id
+    st.session_state["_khdn_notification_dialog_open"] = False
+    st.session_state.pop("_khdn_notification_selected", None)
+    return True
+
+
+def _open_weekly_work(ns, user, item) -> bool:
+    from datetime import date
+    from khdn_apps import weekly_plan, weekly_priority_policy_patch as policy
+    from khdn_apps.planning_work_notifications import weekly_context
+    st = ns["st"]
+    with notify._connect(ns["DB_PATH"]) as c:
+        row = weekly_context(c, int(user["id"]), int(item["weekly_plan_item_id"]))
+    if not row:
+        st.toast("Công việc không còn tồn tại hoặc bạn không còn quyền xem.", icon="⚠️", duration=10)
+        return False
+    target = date.fromisoformat(str(row["week_start"])[:10])
+    st.session_state["policy_week_offset"] = (target - policy._default_week(weekly_plan)).days // 7
+    st.session_state["policy_week_view"] = "plan" if int(row["user_id"]) == int(user["id"]) else "room"
+    st.session_state["cw_landing_token"] = f"{user['id']}:{user.get('last_login_at', '')}"
+    st.session_state["main_section"] = "plan"
+    st.session_state["main_page"] = "weekly_plan"
     st.session_state["_khdn_notification_dialog_open"] = False
     st.session_state.pop("_khdn_notification_selected", None)
     return True
@@ -95,6 +118,10 @@ def _render_center(ns: dict[str, Any], user: dict[str, Any]) -> None:
         st.markdown(f"### {item['title']}")
         st.write(item["body"])
         st.caption(ns["fmt_dt"](item["created_at"]))
+        if item.get("weekly_plan_item_id"):
+            if st.button("Mở tuần của công việc", key=f"notif_week_detail_{item['id']}", use_container_width=True):
+                if _open_weekly_work(ns, user, item):
+                    st.rerun()
         if item.get("customer_work_case_id"):
             if st.button("Mở công việc khách hàng", key=f"notif_case_detail_{item['id']}", use_container_width=True):
                 if _open_customer_work(ns, user, item):
@@ -158,8 +185,14 @@ def _render_center(ns: dict[str, Any], user: dict[str, Any]) -> None:
             c1, c2 = st.columns([2, 1])
             plan_item = _is_plan_notification(item)
             case_item = bool(item.get("customer_work_case_id"))
-            label = "Mở công việc khách hàng" if case_item else ("Xem thông báo kế hoạch" if plan_item else "Mở đúng hồ sơ")
+            weekly_item = bool(item.get("weekly_plan_item_id"))
+            label = "Mở tuần của công việc" if weekly_item else ("Mở công việc khách hàng" if case_item else ("Xem thông báo kế hoạch" if plan_item else "Mở đúng hồ sơ"))
             if c1.button(label, key=f"notif_open_{item['id']}", use_container_width=True, disabled=not (plan_item or case_item or bool(item.get("task_id")))):
+                if weekly_item:
+                    if _open_weekly_work(ns, user, item):
+                        notify.mark_read(db, int(item["id"]), uid)
+                        st.rerun()
+                    continue
                 if case_item:
                     if _open_customer_work(ns, user, item):
                         notify.mark_read(db, int(item["id"]), uid)
@@ -195,7 +228,12 @@ def install(ns: dict[str, Any]) -> None:
                 nid = int(raw)
                 item = notify.get_notification(ns["DB_PATH"], nid, uid)
                 if item:
-                    if item.get("customer_work_case_id"):
+                    if item.get("weekly_plan_item_id"):
+                        if _open_weekly_work(ns, user, item):
+                            notify.mark_read(ns["DB_PATH"], nid, uid)
+                        del st.query_params["khdn_notification"]
+                        item = None
+                    elif item.get("customer_work_case_id"):
                         if _open_customer_work(ns, user, item):
                             notify.mark_read(ns["DB_PATH"], nid, uid)
                         del st.query_params["khdn_notification"]

@@ -92,9 +92,10 @@ def ensure_schema(db_path: str | Path) -> bool:
 
 
 def _insert_notification(c, *, user_id: int, event_key: str, title: str,
-                         body: str, event_code: str) -> int | None:
+                         body: str, event_code: str, item_id: int | None = None) -> int | None:
     return weekly_push.enqueue(c, user_id, title, body,
-                               event_key=event_key, event_code=event_code)
+                               event_key=event_key, event_code=event_code,
+                               weekly_plan_item_id=item_id)
 
 
 def _short(value: Any, limit: int = 180) -> str:
@@ -103,11 +104,12 @@ def _short(value: Any, limit: int = 180) -> str:
 
 
 def process_new_work(db_path: str | Path) -> list[int]:
-    """Notify the responsible and admin room leaders after worker baseline."""
+    """Notify the owner, controller and admin room oversight after baseline."""
     if not ensure_schema(db_path):
         return []
     created: list[int] = []
     with _connect(db_path) as c:
+        c.execute("BEGIN IMMEDIATE")
         cols = _columns(c, "weekly_plan_items")
         if "controller_user_id" not in cols:
             return []
@@ -131,9 +133,8 @@ def process_new_work(db_path: str | Path) -> list[int]:
             iid = int(r["id"])
             leader = int(r["controller_user_id"] or 0)
             owner = int(r["user_id"] or 0)
-            for leader in cycle._manager_recipients(c, leader):
-                if leader == owner:
-                    continue
+            recipients = set(cycle._manager_recipients(c, leader)) | {owner}
+            for leader in sorted(recipients - {0}):
                 exists = c.execute(
                     "SELECT 1 FROM weekly_notification_events WHERE item_id=? AND user_id=? AND event_code='NEW_WORK'",
                     (iid, leader),
@@ -152,6 +153,7 @@ def process_new_work(db_path: str | Path) -> list[int]:
                         event_code="NEW_WORK",
                         title="🆕 Công việc kế hoạch mới",
                         body=body,
+                        item_id=iid,
                     )
                     c.execute(
                         "INSERT OR IGNORE INTO weekly_notification_events(item_id,user_id,event_code,created_at) VALUES(?,?,?,?)",
@@ -159,6 +161,7 @@ def process_new_work(db_path: str | Path) -> list[int]:
                     )
                     if nid:
                         created.append(nid)
+                        LOGGER.info("PLANNING_NEW_WORK_ENQUEUED item_id=%s user_id=%s notification_id=%s", iid, leader, nid)
             _state_set(c, "last_weekly_item_id", iid)
         c.commit()
     return created

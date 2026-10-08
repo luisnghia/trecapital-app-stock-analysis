@@ -115,10 +115,10 @@ def save_item(get_conn, policy, core, uid, iid, payload, *, expected_token, logg
         changed=old.get("focus_category_id")!=values["focus_category_id"] or int(old.get("priority_quadrant") or 0)!=q
         if changed:
             c.execute("INSERT INTO weekly_classification_audit(item_id,actor_user_id,old_focus_category_id,new_focus_category_id,old_quadrant,new_quadrant,old_basis,new_basis,reason,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",(int(iid),int(uid),old.get("focus_category_id"),values["focus_category_id"],old.get("priority_quadrant"),q,old.get("priority_basis"),basis,"Lãnh đạo điều chỉnh kế hoạch / liên kết công việc",ts))
-            if int(uid)!=int(old["user_id"]):
-                policy._notify(c,int(old["user_id"]),"🎯 Phân loại kế hoạch được điều chỉnh",f"{title}: {policy.PRIORITY_SHORT.get(q,q)}.")
         after=dict(c.execute("SELECT * FROM weekly_plan_items WHERE id=?",(int(iid),)).fetchone())
-        c.execute("INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(?,?,'MANAGER_EDIT_PHASE3',?,?)",(int(iid),int(uid),json.dumps({"before":old,"after":after,"linked_case_id":linked_id or None},ensure_ascii=False),ts))
+        action_id=c.execute("INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(?,?,'MANAGER_EDIT_PHASE3',?,?)",(int(iid),int(uid),json.dumps({"before":old,"after":after,"linked_case_id":linked_id or None},ensure_ascii=False),ts)).lastrowid
+        if changed and int(uid)!=int(old["user_id"]):
+            policy._notify(c,int(old["user_id"]),"🎯 Phân loại kế hoạch được điều chỉnh",f"{title}: {policy.PRIORITY_SHORT.get(q,q)}.",source_action_id=action_id,weekly_plan_item_id=int(iid),event_code="WORK_UPDATE_MANAGER_EDIT_PHASE3")
         c.execute("UPDATE weekly_plans SET updated_at=? WHERE id=?",(ts,int(plan["id"])))
     (logger or LOGGER).info("WEEKLY_MANAGER_EDIT_SAVED actor=%s owner=%s item=%s customer=%s linked_case=%s previous_link=%s q=%s",int(uid),int(old["user_id"]),int(iid),customer_id,linked_id,int(old.get("linked_case_id") or 0),q)
     return int(iid)

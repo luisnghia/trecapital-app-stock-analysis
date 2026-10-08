@@ -325,20 +325,24 @@ def _decide_case_cancel(get_conn, policy, request_id, actor_uid, approve=True, n
                        WHERE case_id=? AND status='PENDING'""",
                     (int(actor_uid), ts, int(req["case_id"])),
                 )
+        action_id = None
         if _table_exists(c, "case_actions"):
-            c.execute(
+            action_id = c.execute(
                 "INSERT INTO case_actions(case_id,actor_user_id,action,detail,created_at) VALUES(?,?,?,?,?)",
                 (
                     int(req["case_id"]), int(actor_uid),
                     "CANCEL_APPROVE_P12" if approve else "CANCEL_REJECT_P12",
                     f"request_id={int(request_id)}", ts,
                 ),
-            )
+            ).lastrowid
         try:
             policy._notify(
                 c, int(req.get("requested_by") or 0),
                 "✅ Đề nghị hủy công việc đã được duyệt" if approve else "↩ Đề nghị hủy công việc bị từ chối",
                 "Đề nghị hủy Công việc khách hàng đã được xử lý.",
+                source_action_id=action_id, customer_work_case_id=int(req["case_id"]),
+                event_key="customer_work_update",
+                event_code="WORK_UPDATE_CANCEL_APPROVE_P12" if approve else "WORK_UPDATE_CANCEL_REJECT_P12",
             )
         except Exception:
             pass
@@ -445,7 +449,11 @@ def _install_customer_cancel_detail(customer_ui, customer_core, policy, get_conn
                 if controller:
                     try:
                         with conn_fn() as c:
-                            policy._notify(c, controller, "🗑 Có đề nghị hủy công việc cần duyệt", f"Công việc #{int(case_id)} đang chờ phê duyệt hủy.")
+                            action_row = c.execute("SELECT id FROM case_actions WHERE case_id=? AND actor_user_id=? AND action='CANCEL_REQUEST_P12' AND detail=? ORDER BY id DESC LIMIT 1", (int(case_id), uid, f"request_id={req_id}")).fetchone()
+                            policy._notify(c, controller, "🗑 Có đề nghị hủy công việc cần duyệt", f"Công việc #{int(case_id)} đang chờ phê duyệt hủy.",
+                                source_action_id=action_row[0] if action_row else None,
+                                customer_work_case_id=int(case_id), event_key="customer_work_update",
+                                event_code="WORK_UPDATE_CANCEL_REQUEST_P12")
                     except Exception:
                         pass
                 if active_logger:

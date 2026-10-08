@@ -61,7 +61,8 @@ def _audit(c, nid: int, uid: int, event_code: str, stage: str) -> None:
 def enqueue(c, user_id: int, title: str, body: str, *,
             event_code: str = "PLAN_UPDATE", event_key: str = "weekly_update",
             expires_at: float | None = None, source_action_id: int | None = None,
-            customer_work_case_id: int | None = None) -> int | None:
+            customer_work_case_id: int | None = None,
+            weekly_plan_item_id: int | None = None) -> int | None:
     ensure_tables(c)
     uid = int(user_id)
     active = c.execute("SELECT active FROM users WHERE id=?", (uid,)).fetchone()
@@ -69,10 +70,10 @@ def enqueue(c, user_id: int, title: str, body: str, *,
         return None
     ts = local_now().strftime("%Y-%m-%d %H:%M:%S")
     cur = c.execute("""INSERT INTO notifications
-        (user_id,event_key,title,body,created_at,push_status,source_action_id,customer_work_case_id)
-        VALUES(?,?,?,?,?,'PENDING',?,?)
+        (user_id,event_key,title,body,created_at,push_status,source_action_id,customer_work_case_id,weekly_plan_item_id)
+        VALUES(?,?,?,?,?,'PENDING',?,?,?)
         ON CONFLICT(user_id,source_action_id,event_key) DO NOTHING""",
-        (uid, event_key, str(title), str(body), ts, source_action_id, customer_work_case_id))
+        (uid, event_key, str(title), str(body), ts, source_action_id, customer_work_case_id, weekly_plan_item_id))
     if not cur.rowcount:
         return None
     nid = int(cur.lastrowid)
@@ -115,7 +116,7 @@ def ensure_schema(db_path: str | Path) -> None:
 def _claim(db_path, now_ts: float, event_key: str | None = None):
     with notify._connect(db_path) as c:
         c.execute("BEGIN IMMEDIATE")
-        row = c.execute("""SELECT q.*,n.user_id,n.push_status,n.read_at,n.event_key,n.customer_work_case_id
+        row = c.execute("""SELECT q.*,n.user_id,n.push_status,n.read_at,n.event_key,n.customer_work_case_id,n.weekly_plan_item_id
             FROM weekly_push_queue q JOIN notifications n ON n.id=q.notification_id
             WHERE ((q.state IN ('PENDING','RETRY') AND q.next_attempt_at<=?)
                OR (q.state='SENDING' AND q.lease_until<=?))
@@ -130,7 +131,14 @@ def _claim(db_path, now_ts: float, event_key: str | None = None):
         if r["customer_work_case_id"]:
             case = c.execute("SELECT owner_user_id,status FROM customer_work_cases WHERE id=?",
                              (int(r["customer_work_case_id"]),)).fetchone()
-            case_allowed = bool(case and int(case[0]) == uid and case[1] not in {"CANCELLED", "COMPLETED"})
+            if r["event_key"] == "customer_work_assignment":
+                case_allowed = bool(case and int(case[0]) == uid and case[1] not in {"CANCELLED", "COMPLETED"})
+            else:
+                from khdn_apps.customer_work_notifications import can_view_case
+                case_allowed = can_view_case(c, uid, int(r["customer_work_case_id"]))
+        if r["weekly_plan_item_id"]:
+            from khdn_apps.planning_work_notifications import weekly_context
+            case_allowed = bool(weekly_context(c, uid, int(r["weekly_plan_item_id"])))
         terminal = None
         if r["push_status"] == "SENT":
             terminal = "SENT"

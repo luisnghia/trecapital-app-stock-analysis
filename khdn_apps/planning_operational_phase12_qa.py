@@ -49,7 +49,7 @@ class _Policy:
             return False
 
     @staticmethod
-    def _notify(conn, user_id, title, body):
+    def _notify(conn, user_id, title, body, **kwargs):
         return None
 
 

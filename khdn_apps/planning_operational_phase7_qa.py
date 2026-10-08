@@ -53,7 +53,7 @@ assert "Chưa làm" in detail2 and "Khách hàng dừng nhu cầu" in detail2, d
 # only the exact controlling leader or Admin may make cancellation effective.
 class _Policy:
     @staticmethod
-    def _notify(conn, user_id, title, body):
+    def _notify(conn, user_id, title, body, **kwargs):
         return None
 
 with tempfile.TemporaryDirectory(prefix="p7-cancel-qa-") as td:
