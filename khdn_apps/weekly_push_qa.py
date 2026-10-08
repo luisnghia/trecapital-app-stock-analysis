@@ -245,9 +245,9 @@ class PlanningPushQA(unittest.TestCase):
         self.assertIn(("OVERDUE", 1), self.events())
         self.assertEqual(push.flush(self.db), 4)
         item(6, 4)
-        self.assertEqual(len(work.process_new_work(self.db)), 1)
-        self.assertEqual(self.events()[-1], ("NEW_WORK", 1))
-        self.assertEqual(push.flush(self.db), 1)
+        self.assertEqual(len(work.process_new_work(self.db)), 2)
+        self.assertEqual({uid for event, uid in self.events() if event == "NEW_WORK"}, {1, 2})
+        self.assertEqual(push.flush(self.db), 2)
 
     def test_pending_manager_review_and_quality_fallback(self):
         self.plan(11, 2, "2026-09-28", "DA_CHOT", closed="2026-10-02 17:00:00", self_score=4)
@@ -349,9 +349,9 @@ class PlanningPushQA(unittest.TestCase):
         self.assertEqual(work.process_new_work(self.db), [])
         with notify._connect(self.db) as c:
             c.execute("INSERT INTO weekly_plan_items(id,plan_id,user_id,controller_user_id,title,work_date,is_emergent) VALUES(1,21,2,1,'New work','2026-10-05',0)")
-        self.assertEqual(len(work.process_new_work(self.db)), 2)
+        self.assertEqual(len(work.process_new_work(self.db)), 3)
         self.assertEqual(work.process_new_work(self.db), [])
-        self.assertEqual(push.flush(self.db), 2)
+        self.assertEqual(push.flush(self.db), 3)
         with notify._connect(self.db) as c:
             c.execute("UPDATE weekly_plans SET workflow_status='DA_CHOT' WHERE id=21")
         monday = datetime(2026, 10, 5, 10)

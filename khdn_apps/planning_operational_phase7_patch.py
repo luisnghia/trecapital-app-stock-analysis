@@ -427,15 +427,17 @@ def _decide_cancel(get_conn, policy, request_id, actor_uid, approve, decision_no
             ensure_ascii=False,
         )
         action = "CANCEL_APPROVE" if approve else "CANCEL_REJECT"
-        c.execute(
+        action_id = c.execute(
             "INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(?,?,?,?,?)",
             (int(req["item_id"]), int(actor_uid), action, detail, ts),
-        )
+        ).lastrowid
         try:
             policy._notify(
                 c, int(req["requested_by"]),
                 "✅ Đề nghị hủy công việc đã được duyệt" if approve else "↩ Đề nghị hủy công việc bị từ chối",
                 (str(decision_note or "").strip() or str(req["reason"] or "")).strip(),
+                source_action_id=action_id, weekly_plan_item_id=int(req["item_id"]),
+                event_code=f"WORK_UPDATE_{action}",
             )
         except Exception:
             pass
@@ -505,15 +507,18 @@ def _render_update_form(st, u, policy, weekly_core, get_conn, item, logger=None)
                     st.error("Bắt buộc nhập lý do đề nghị hủy.")
                     return
                 try:
-                    _request_cancel(get_conn, iid, uid, cancel_reason, logger)
+                    request_id = _request_cancel(get_conn, iid, uid, cancel_reason, logger)
                     with get_conn() as c:
                         row = c.execute("SELECT controller_user_id FROM weekly_plan_items WHERE id=?", (iid,)).fetchone()
                         controller = int(row["controller_user_id"] or 0) if row else 0
                         if controller and controller != uid:
                             try:
+                                action_row = c.execute("SELECT id FROM weekly_plan_actions WHERE item_id=? AND actor_user_id=? AND action='CANCEL_REQUEST' AND json_extract(detail,'$.request_id')=? ORDER BY id DESC LIMIT 1", (iid, uid, request_id)).fetchone()
                                 policy._notify(
                                     c, controller, "🗑 Có đề nghị hủy công việc kế hoạch tuần",
                                     f"{item.get('title') or 'Công việc'} · {str(cancel_reason).strip()}",
+                                    source_action_id=action_row[0] if action_row else None,
+                                    weekly_plan_item_id=iid, event_code="WORK_UPDATE_CANCEL_REQUEST",
                                 )
                             except Exception:
                                 pass

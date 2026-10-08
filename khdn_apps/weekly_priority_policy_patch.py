@@ -125,13 +125,16 @@ def _direct_scope_ok(c, leader_uid, staff_uid, admin=False):
     return target is None or int(target) == int(leader_uid)
 
 
-def _notify(c, user_id, title, body):
+def _notify(c, user_id, title, body, *, event_key="weekly_update", event_code="PLAN_UPDATE",
+            source_action_id=None, weekly_plan_item_id=None, customer_work_case_id=None):
     if not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='notifications'").fetchone():
         NOTIFICATION_LOGGER.warning("WEEKLY_NOTIFICATION_SCHEMA_NOT_READY user_id=%s", user_id)
         return
     c.execute("SAVEPOINT khdn_plan_notification")
     try:
-        nid = weekly_push.enqueue(c, int(user_id), title, body)
+        nid = weekly_push.enqueue(c, int(user_id), title, body, event_key=event_key,
+            event_code=event_code, source_action_id=source_action_id,
+            weekly_plan_item_id=weekly_plan_item_id, customer_work_case_id=customer_work_case_id)
         c.execute("RELEASE SAVEPOINT khdn_plan_notification")
         return nid
     except Exception:
@@ -278,12 +281,14 @@ def _set_classification(c, item_id, actor_uid, focus_id, due7, risk, reason="", 
                 old.get("priority_quadrant"), int(q), old.get("priority_basis"), basis, str(reason or ""), ts,
             ),
         )
-        c.execute(
+        action_id = c.execute(
             "INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(?,?,'CLASSIFICATION_CHANGE',?,?)",
             (int(item_id), int(actor_uid), json.dumps({"old_q": old.get("priority_quadrant"), "new_q": q, "old_focus": old.get("focus_category_id"), "new_focus": int(focus_id) if focus else None, "reason": reason}, ensure_ascii=False), ts),
-        )
+        ).lastrowid
         if int(actor_uid) != int(old.get("user_id") or 0):
-            _notify(c, int(old.get("user_id")), "🎯 Phân loại kế hoạch được điều chỉnh", f"{old.get('title')}: {PRIORITY_SHORT.get(int(q), q)}. {reason or ''}".strip())
+            _notify(c, int(old.get("user_id")), "🎯 Phân loại kế hoạch được điều chỉnh", f"{old.get('title')}: {PRIORITY_SHORT.get(int(q), q)}. {reason or ''}".strip(),
+                source_action_id=action_id, weekly_plan_item_id=int(item_id),
+                event_code="WORK_UPDATE_CLASSIFICATION_CHANGE")
     return True
 
 
