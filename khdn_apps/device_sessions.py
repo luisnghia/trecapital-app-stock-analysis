@@ -67,11 +67,11 @@ def redeem(path, grant):
         return None
     with connect(path) as c:
         c.execute("BEGIN IMMEDIATE")
-        row = c.execute('''SELECT d.*, u.password_hash, u.active, u.must_change_password
+        row = c.execute('''SELECT d.*, u.*
             FROM device_sessions d JOIN users u ON u.id=d.user_id
             WHERE grant_hash=?''', (digest(grant),)).fetchone()
         if (not row or row['grant_expires'] <= time.time() or not row['active']
-                or row['must_change_password'] or row['password_stamp'] != digest(row['password_hash'])):
+                or dict(row).get('deleted_at') or row['must_change_password'] or row['password_stamp'] != digest(row['password_hash'])):
             return None
         token = secrets.token_urlsafe(32)
         c.execute('''UPDATE device_sessions SET token_hash=?, grant_hash=NULL,
@@ -88,7 +88,7 @@ def resolve(path, token):
             WHERE d.token_hash=? AND d.grant_hash IS NULL''', (digest(token),)).fetchone()
         if not row:
             return None
-        if (row['expires'] <= time.time() or not row['active'] or row['must_change_password']
+        if (row['expires'] <= time.time() or not row['active'] or dict(row).get('deleted_at') or row['must_change_password']
                 or row['password_stamp'] != digest(row['password_hash'])):
             c.execute("DELETE FROM device_sessions WHERE token_hash=?", (digest(token),))
             return None

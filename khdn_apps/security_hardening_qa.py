@@ -127,6 +127,15 @@ class SecurityQA(unittest.TestCase):
                 self.assertTrue(device_login._fresh_session_user(self.db))
             self.assertEqual(state["_device_command"]["action"], "set" if remembered else "clear")
 
+    def test_deleted_account_cannot_redeem_or_use_cookie_even_if_active_flag_is_stale(self):
+        user = self.user(2)
+        token = device_sessions.redeem(self.db, device_sessions.issue(self.db, user))
+        grant = device_sessions.issue(self.db, user)
+        with self.conn() as c:
+            c.execute("UPDATE users SET deleted_at='2026-10-08' WHERE id=2")
+        self.assertIsNone(device_sessions.resolve(self.db, token))
+        self.assertIsNone(device_sessions.redeem(self.db, grant))
+
     def test_weekly_ownership_guard_in_core_and_installed_governance(self):
         iid = self.item()
         for action in (
