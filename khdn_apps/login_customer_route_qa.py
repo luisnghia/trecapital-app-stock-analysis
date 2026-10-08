@@ -1,4 +1,5 @@
 from __future__ import annotations
+from unittest.mock import patch
 
 from khdn_apps.customer_work_signature_fix import install as install_signature
 from khdn_apps.auto_remember_login_patch import install as install_login
@@ -42,7 +43,11 @@ def qa_auto_remember():
         return "login"
 
     ns={"st":st,"login_ui":login_ui,"LOGGER":None}
-    install_login(ns)
+    # This unit checks the login wrapper. The complete performance installer is
+    # exercised with a real app namespace by runtime_page_qa; it needs get_conn.
+    with patch("khdn_apps.appwide_input_performance_runtime.install") as performance:
+        install_login(ns)
+        performance.assert_called_once_with(ns, None)
     assert ns["login_ui"]() == "login"
     assert seen["remember"] is True
     assert st.other_checkbox_calls == 0

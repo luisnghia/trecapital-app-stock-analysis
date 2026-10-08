@@ -121,6 +121,23 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/backup_management_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/offline_export_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/weekly_manager_edit_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/weekly_plan_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/weekly_plan_state_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/customer_work_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/two_section_nav_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/ops_admin_scope_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/priority_today_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/potential_customer_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/priority_workflow_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/catalog_edit_state_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/customer_work_refinement_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/login_customer_route_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/worktype_contact_card_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/planning_usability_v2_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/planning_ui_admin_hotfix_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/planning_usability_v3_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/planning_usability_v3_hotfix_qa.py \
+    && PYTHONPATH=/app python /app/khdn_apps/theme_catalog_regression_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/security_hardening_qa.py
 
 RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/runtime_page_qa.py
