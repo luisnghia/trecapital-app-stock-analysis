@@ -10,6 +10,12 @@ PATCH_VERSION = "2.32.1"
 _INSTALL_FLAG = "_KHDN_NOTIFICATION_UI_V2320"
 
 
+def _close_center(st) -> None:
+    """Reset server state for both explicit Close and native X/Escape/backdrop."""
+    st.session_state["_khdn_notification_dialog_open"] = False
+    st.session_state.pop("_khdn_notification_selected", None)
+
+
 def _is_plan_notification(item: dict[str, Any]) -> bool:
     return not item.get("task_id") and (
         str(item.get("event_key") or "").startswith("weekly_")
@@ -41,8 +47,7 @@ def _open_customer_work(ns, user, item) -> bool:
     st.session_state["main_section"] = "plan"
     st.session_state["main_page"] = "customer_work"
     st.session_state["cw_case_id"] = case_id
-    st.session_state["_khdn_notification_dialog_open"] = False
-    st.session_state.pop("_khdn_notification_selected", None)
+    _close_center(st)
     return True
 
 
@@ -62,8 +67,7 @@ def _open_weekly_work(ns, user, item) -> bool:
     st.session_state["cw_landing_token"] = f"{user['id']}:{user.get('last_login_at', '')}"
     st.session_state["main_section"] = "plan"
     st.session_state["main_page"] = "weekly_plan"
-    st.session_state["_khdn_notification_dialog_open"] = False
-    st.session_state.pop("_khdn_notification_selected", None)
+    _close_center(st)
     return True
 
 
@@ -171,6 +175,7 @@ def _render_center(ns: dict[str, Any], user: dict[str, Any]) -> None:
             st.rerun()
 
     st.markdown("#### Thông báo gần đây")
+    st.caption("Thông báo đã đọc được tự xóa sau 24 giờ kể từ lần đọc đầu tiên.")
     items = notify.list_notifications(db, uid, limit=80)
     if not items:
         st.info("Chưa có thông báo công việc.")
@@ -274,11 +279,12 @@ def install(ns: dict[str, Any]) -> None:
                 _render_center(ns, user)
                 st.divider()
                 if st.button("Đóng", use_container_width=True, key="close_notification_dialog"):
-                    st.session_state["_khdn_notification_dialog_open"] = False
-                    st.session_state.pop("_khdn_notification_selected", None)
+                    _close_center(st)
                     st.rerun()
             if hasattr(st, "dialog"):
-                dialog_fn = st.dialog("🔔 Trung tâm thông báo")(body)
+                dialog_fn = st.dialog(
+                    "🔔 Trung tâm thông báo", on_dismiss=lambda: _close_center(st)
+                )(body)
                 dialog_fn()
             else:
                 with st.expander("🔔 Trung tâm thông báo", expanded=True):
@@ -296,10 +302,10 @@ def install(ns: dict[str, Any]) -> None:
                 uid = int(user["id"])
                 with ns["get_conn"]() as c:
                     row = c.execute(
-                        "SELECT COALESCE(MAX(id),0),SUM(CASE WHEN read_at IS NULL THEN 1 ELSE 0 END) FROM notifications WHERE user_id=?",
+                        "SELECT COALESCE(MAX(id),0),SUM(CASE WHEN read_at IS NULL THEN 1 ELSE 0 END),COUNT(*) FROM notifications WHERE user_id=?",
                         (uid,),
                     ).fetchone()
-                return f"{base}|notif:{row[0] or 0}:{row[1] or 0}"
+                return f"{base}|notif:{row[0] or 0}:{row[1] or 0}:{row[2] or 0}"
             except Exception:
                 return base
         ns["_visible_task_change_token"] = visible_task_and_notification_token

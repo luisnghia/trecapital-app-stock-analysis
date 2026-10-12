@@ -24,6 +24,7 @@ from typing import Any
 LOGGER = logging.getLogger("khdn_notifications")
 _SCHEMA_READY: set[str] = set()
 _SCHEMA_LOCK = threading.Lock()
+READ_RETENTION_HOURS = 24
 
 EVENT_LABELS = {
     "assignment": "Giao/điều chuyển hồ sơ",
@@ -163,6 +164,8 @@ def ensure_schema(db_path: str | Path) -> None:
                     ON notifications(user_id,read_at,id);
                 CREATE INDEX IF NOT EXISTS idx_notifications_push
                     ON notifications(push_status,id);
+                CREATE INDEX IF NOT EXISTS idx_notifications_read_at
+                    ON notifications(read_at) WHERE read_at IS NOT NULL;
                 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user
                     ON push_subscriptions(user_id,active,id);
                 """
@@ -244,8 +247,38 @@ def unread_count(db_path: str | Path, user_id: int) -> int:
         ).fetchone()[0] or 0)
 
 
+def _read_retention_cutoff() -> str:
+    # Use the same local clock/format as mark_read, including offline installs.
+    return (datetime.strptime(_now(), "%Y-%m-%d %H:%M:%S")
+            - timedelta(hours=READ_RETENTION_HOURS)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def cleanup_read_notifications(db_path: str | Path, *, user_id: int | None = None) -> int:
+    """Delete only inbox entries read at least 24 hours ago, leaving journals intact.
+
+    The indexed existence check avoids acquiring a write lock on empty sweeps.
+    Pending Push queue rows cascade away; delivery/audit cursors remain durable.
+    """
+    ensure_schema(db_path)
+    where = "read_at IS NOT NULL AND read_at<=?"
+    params: tuple[Any, ...] = (_read_retention_cutoff(),)
+    if user_id is not None:
+        where += " AND user_id=?"
+        params += (int(user_id),)
+    with _connect(db_path) as c:
+        if not c.execute(f"SELECT 1 FROM notifications WHERE {where} LIMIT 1", params).fetchone():
+            return 0
+        deleted = c.execute(f"DELETE FROM notifications WHERE {where}", params).rowcount
+        c.commit()
+    if deleted:
+        LOGGER.info("NOTIFICATION_READ_CLEANUP deleted=%s retention_hours=%s", deleted, READ_RETENTION_HOURS)
+    return deleted
+
+
 def list_notifications(db_path: str | Path, user_id: int, limit: int = 100) -> list[dict[str, Any]]:
     ensure_schema(db_path)
+    # Also prune when opening the inbox in offline/embedded mode without workers.
+    cleanup_read_notifications(db_path, user_id=user_id)
     with _connect(db_path) as c:
         rows = c.execute(
             """SELECT id,task_id,customer_work_case_id,weekly_plan_item_id,source_action_id,event_key,title,body,deep_link,created_at,read_at,push_status
@@ -259,8 +292,9 @@ def get_notification(db_path: str | Path, notification_id: int, user_id: int) ->
     ensure_schema(db_path)
     with _connect(db_path) as c:
         row = c.execute(
-            "SELECT * FROM notifications WHERE id=? AND user_id=?",
-            (int(notification_id), int(user_id)),
+            """SELECT * FROM notifications WHERE id=? AND user_id=?
+               AND (read_at IS NULL OR read_at>?)""",
+            (int(notification_id), int(user_id), _read_retention_cutoff()),
         ).fetchone()
         return dict(row) if row else None
 
@@ -677,8 +711,17 @@ def worker_loop(db_path: str | Path, stop_event: threading.Event, poll_seconds: 
     customer_work_notifications.ensure_schema(db_path)
     planning_work_notifications.ensure_schema(db_path)
     last_sla = 0.0
+    last_cleanup = None
     LOGGER.info("NOTIFICATION_WORKER_START db=%s push=%s", db_path, push_available())
+    LOGGER.info("NOTIFICATION_RETENTION_READY read_hours=%s poll_seconds=60", READ_RETENTION_HOURS)
     while not stop_event.is_set():
+        tick = time.monotonic()
+        if last_cleanup is None or tick - last_cleanup >= 60:
+            try:
+                cleanup_read_notifications(db_path)
+            except Exception:
+                LOGGER.exception("NOTIFICATION_READ_CLEANUP_FAILED")
+            last_cleanup = tick
         try:
             process_task_actions(db_path)
             customer_work_notifications.process_once(db_path)
