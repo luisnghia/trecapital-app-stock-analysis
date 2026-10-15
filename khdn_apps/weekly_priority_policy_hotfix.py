@@ -92,6 +92,7 @@ def install(policy, logger=None):
                         "INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(NULL,?,'RETURN_TO_DRAFT',?,?)",
                         (uid, f"week={ws.isoformat()}", ts),
                     )
+                st.toast("Đã mở bản nháp để điều chỉnh kế hoạch được trả lại.", icon="✅")
                 st.rerun()
             return
         return original_staff_week(st, u, core, get_conn, ws, plan, items, focus_rows, logger_arg or logger)

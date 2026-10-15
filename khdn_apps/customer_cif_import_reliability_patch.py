@@ -425,6 +425,16 @@ def _render_safe_import(st, u, get_conn, logger=None):
                 "updated": done["UPDATED"], "activated": done["ACTIVATED"], "created": done["CREATED"],
                 "skipped": done["SKIPPED"], "failed": done["FAILED"], "errors": errors,
             }
+            saved = done["UPDATED"] + done["ACTIVATED"] + done["CREATED"]
+            if done["FAILED"]:
+                st.toast(
+                    f"Kết quả nạp: đã lưu {saved} khách hàng; {done['SKIPPED']} dòng bỏ qua; {done['FAILED']} dòng lỗi. Xem chi tiết kết quả nạp bên dưới.",
+                    icon="⚠️", duration=12,
+                )
+            elif saved:
+                st.toast(f"Đã nạp dữ liệu {saved} khách hàng; {done['SKIPPED']} dòng bỏ qua.", icon="✅")
+            else:
+                st.toast("Không có thay đổi dữ liệu khách hàng. Các dòng đã được bỏ qua.", icon="ℹ️", duration=12)
             st.rerun()
         except Exception as exc:
             st.error(f"Không thể hoàn tất nạp dữ liệu: {exc}")

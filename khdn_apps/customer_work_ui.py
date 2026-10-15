@@ -205,7 +205,11 @@ def _case_detail(st, u, get_conn, case_id, logger=None):
                 "Đánh dấu đã xử lý", key=f"cw_resolve_fast_{i['id']}_{uid}",
             )
             if payload is not None:
-                core.resolve_issue(get_conn,i["id"],uid,payload.get("resolution", ""),logger);st.rerun()
+                if core.resolve_issue(get_conn,i["id"],uid,payload.get("resolution", ""),logger):
+                    st.toast("Đã ghi nhận xử lý vướng mắc.", icon="✅")
+                else:
+                    st.toast("Vướng mắc đã được xử lý trước đó.", icon="ℹ️", duration=12)
+                st.rerun()
     with st.expander("＋ Ghi nhận vướng mắc",expanded=False):
         payload = legacy_fast_form(
             [{"name":"issue","label":"Nội dung vướng mắc","type":"textarea","required":True,"full":True},
@@ -214,7 +218,10 @@ def _case_detail(st, u, get_conn, case_id, logger=None):
             "Lưu vướng mắc", key=f"cw_issue_fast_{case_id}_{uid}", reset_token=str(len(issues)),
         )
         if payload is not None:
-            try: core.add_issue(get_conn,case_id,uid,payload.get("issue", ""),payload.get("severity", "MEDIUM"),logger);st.rerun()
+            try:
+                core.add_issue(get_conn,case_id,uid,payload.get("issue", ""),payload.get("severity", "MEDIUM"),logger)
+                st.toast("Đã ghi nhận vướng mắc mới.", icon="✅")
+                st.rerun()
             except Exception as exc: st.error(str(exc))
     st.subheader("Dời thời gian dự kiến hoàn thành")
     old=core.parse_dt(x.get("expected_complete_at")) or datetime.now()+timedelta(days=1)
@@ -239,7 +246,9 @@ def _case_detail(st, u, get_conn, case_id, logger=None):
         cat=st.selectbox("Danh mục công việc quan trọng",cat_options,index=cat_index,format_func=lambda z:"Không gán quan trọng" if z is None else z["name"],key=f"cw_cat_{case_id}")
         urgency=st.selectbox("Khẩn cấp",[None,1,0],index={None:0,1:1,0:2}.get(x.get("urgent_override"),0),format_func=lambda z:{None:"Tự động theo thời hạn",1:"Khẩn cấp",0:"Không khẩn cấp"}[z],key=f"cw_urg_{case_id}")
         if st.button("Lưu mức ưu tiên",key=f"cw_priority_{case_id}",use_container_width=True):
-            core.set_importance(get_conn,case_id,uid,cat["id"] if cat else None,urgency,logger);st.rerun()
+            core.set_importance(get_conn,case_id,uid,cat["id"] if cat else None,urgency,logger)
+            st.toast("Đã lưu mức ưu tiên công việc.", icon="✅")
+            st.rerun()
     st.subheader("Lịch sử mục công việc")
     rows=[]
     for h in hist:

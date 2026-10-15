@@ -119,10 +119,12 @@ def _render_case_approval_card(st, policy, customer_core, get_conn, x, uid, logg
         note = st.text_input("Ý kiến phê duyệt", key=f"pd_case_note_{iid}")
         a, b = st.columns(2)
         if a.button("✓ Phê duyệt", key=f"pd_case_yes_{iid}", type="primary", use_container_width=True):
-            customer_core.approve_case_plan(get_conn, iid, uid, True, note, logger)
+            if customer_core.approve_case_plan(get_conn, iid, uid, True, note, logger):
+                st.toast("Đã phê duyệt công việc khách hàng.", icon="✅")
             st.rerun()
         if b.button("✕ Từ chối", key=f"pd_case_no_{iid}", use_container_width=True):
-            customer_core.approve_case_plan(get_conn, iid, uid, False, note, logger)
+            if customer_core.approve_case_plan(get_conn, iid, uid, False, note, logger):
+                st.toast("Đã từ chối công việc khách hàng.", icon="✅")
             st.rerun()
 
 

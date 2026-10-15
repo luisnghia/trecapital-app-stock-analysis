@@ -174,6 +174,7 @@ def _single_week_board(st, policy, weekly_core, get_conn, uid, ws, items, status
                                 "INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(?,?,'DRAFT_REMOVE','Bỏ khỏi bản nháp',?)",
                                 (int(x["id"]), uid, policy._now()),
                             )
+                        st.toast("Đã bỏ công việc khỏi bản nháp kế hoạch.", icon="✅")
                         st.rerun()
 
 

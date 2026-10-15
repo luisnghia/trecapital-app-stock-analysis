@@ -190,12 +190,14 @@ def _render_approval_items(st, u, policy, weekly_core, customer_core, customer_u
                     c.execute("UPDATE weekly_plans SET workflow_status='DA_DUYET',approved_at=?,approved_by=?,return_note=NULL,updated_at=? WHERE id=?", (ts,uid,ts,int(p["id"])))
                     c.execute("UPDATE weekly_plan_items SET approval_status='APPROVED',approved_by_user_id=?,approved_at=? WHERE plan_id=? AND status<>'CANCELLED'", (uid,ts,int(p["id"])))
                     policy._notify(c, int(p["user_id"]), "✅ Kế hoạch tuần đã được duyệt", f"Tuần {ws:%d/%m/%Y}. {decision or ''}".strip())
+                st.toast("Đã phê duyệt kế hoạch tuần.", icon="✅")
                 st.rerun()
             if b.button("↩ Trả lại điều chỉnh", key=f"p4_plan_back_{p['id']}", use_container_width=True, disabled=not decision.strip()):
                 ts = policy._now()
                 with get_conn() as c:
                     c.execute("UPDATE weekly_plans SET workflow_status='TRA_LAI',returned_at=?,returned_by=?,return_note=?,updated_at=? WHERE id=?", (ts,uid,decision.strip(),ts,int(p["id"])))
                     policy._notify(c, int(p["user_id"]), "↩ Kế hoạch tuần được trả lại", decision.strip())
+                st.toast("Đã trả lại kế hoạch tuần kèm ý kiến điều chỉnh.", icon="✅")
                 st.rerun()
 
     st.markdown("### Đề nghị dời công việc khách hàng")
@@ -251,6 +253,7 @@ def _render_attention_items(st, u, policy, customer_core, get_conn, logger=None)
                 c.execute("UPDATE planning_attention_events SET status='ACKED',acknowledged_at=?,acknowledged_by=?,acknowledgement_note=?,updated_at=? WHERE id=?",
                           (ts,uid,str(ack_note or "").strip(),ts,eid))
             if logger: logger.info("P4_ATTENTION_ACK event=%s actor=%s type=%s",eid,uid,r.get("event_type"))
+            st.toast("Đã ghi nhận xử lý vướng mắc." if issue else "Đã xác nhận cập nhật tiến độ.", icon="✅")
             st.rerun()
 
 

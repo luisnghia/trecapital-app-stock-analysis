@@ -104,7 +104,7 @@ def run():
     bridge_checks();installed_pages();note_checks()
 
 
-def installed_detail_actions(expect_manager_note=True):
+def installed_detail_actions(expect_manager_note=True, expect_action_feedback=False):
     """Exercise the final detail stack and real saves for each role in QA DB."""
     from streamlit.testing.v1 import AppTest
     from khdn_apps import app
@@ -112,6 +112,7 @@ def installed_detail_actions(expect_manager_note=True):
 import streamlit as st, importlib
 from unittest.mock import patch
 from khdn_apps import app,customer_work as core,customer_work_ui as ui
+from khdn_apps.action_feedback_patch import run_with_feedback
 bridge=importlib.import_module('khdn_apps.legacy_fast_form')
 actor=st.session_state.get('detail_perf_actor','support')
 with app.get_conn() as c:
@@ -139,7 +140,7 @@ def component(**kwargs):
     previous=st.session_state.get('detail_perf_last')
     return previous[1] if previous and previous[0]==key else None
 with patch.object(bridge,'_component',component):
-    ui._case_detail(st,u,app.get_conn,case_id,logger=app.LOGGER)
+    run_with_feedback(st,ui._case_detail,st,u,app.get_conn,case_id,logger=app.LOGGER)
 '''
     page=AppTest.from_string(script,default_timeout=30).run()
 
@@ -147,12 +148,19 @@ with patch.object(bridge,'_component',component):
         assert not page.exception,[x.message for x in page.exception]
         assert not page.text_input and not page.text_area, 'Native detail drafts returned'
 
+    def feedback():
+        if expect_action_feedback:
+            from khdn_apps.action_feedback_patch import TITLE, SECONDS
+            toasts = page.get('toast')
+            assert len(toasts) == 1, [x.proto.body for x in toasts]
+            assert TITLE in toasts[0].proto.body and toasts[0].proto.duration == SECONDS
+
     def submit(prefix,values,nonce):
         fields=page.session_state['detail_perf_fields']
         key=next(k for k in fields if k.startswith(prefix))
         payload={'submit_id':nonce,'reset_token':fields[key]['resetToken'],'values':values}
         page.session_state['detail_perf_submit']=(key,payload)
-        page.run();check()
+        page.run();check();feedback()
 
     for actor in ('support','qlkh','leader','admin'):
         page.session_state['detail_perf_actor']=actor;page.run();check()
@@ -180,15 +188,23 @@ with patch.object(bridge,'_component',component):
             with app.get_conn() as c:
                 assert c.execute('SELECT note FROM customer_work_cases WHERE id=?',(case_id,)).fetchone()[0]=='Ghi chú QA\nNội dung đầy đủ'
                 assert c.execute("SELECT COUNT(*) FROM case_actions WHERE case_id=? AND action='NOTE_EDIT'",(case_id,)).fetchone()[0]==1
+        if expect_action_feedback and actor in ('leader','admin'):
+            page.selectbox(key=f'cw_urg_{case_id}').select(1).run();check()
+            assert not page.get('toast'), 'Selecting a field is not a saved action'
+            page.button(key=f'cw_priority_{case_id}').click().run();check();feedback()
+            with app.get_conn() as c:
+                assert c.execute('SELECT urgent_override FROM customer_work_cases WHERE id=?',(case_id,)).fetchone()[0]==1
         submit('p12_case_cancel_fast_',{'reason':'Đề nghị hủy QA'},actor+'_cancel')
         with app.get_conn() as c:
             assert c.execute('SELECT status FROM customer_work_cases WHERE id=?',(case_id,)).fetchone()[0]=='ACTIVE'
             assert c.execute('SELECT status FROM customer_work_cancel_requests WHERE case_id=?',(case_id,)).fetchone()[0]=='PENDING'
             state=(dict(c.execute('SELECT * FROM customer_work_cases WHERE id=?',(case_id,)).fetchone()),c.execute('SELECT COUNT(*) FROM case_actions WHERE case_id=?',(case_id,)).fetchone()[0])
         page.run();check()
+        if expect_action_feedback:
+            assert not page.get('toast'), 'Saved result must not replay on the next render'
         with app.get_conn() as c:
             assert state==(dict(c.execute('SELECT * FROM customer_work_cases WHERE id=?',(case_id,)).fetchone()),c.execute('SELECT COUNT(*) FROM case_actions WHERE case_id=?',(case_id,)).fetchone()[0])
-    print('INTERACTION_DETAIL_INSTALLED_QA_PASS support qlkh leader admin local_drafts stage issue resolve reschedule cancel_pending audit no_duplicate manager_note='+str(int(expect_manager_note)))
+    print('INTERACTION_DETAIL_INSTALLED_QA_PASS support qlkh leader admin local_drafts stage issue resolve reschedule cancel_pending audit no_duplicate manager_note='+str(int(expect_manager_note))+' action_feedback='+str(int(expect_action_feedback)))
 
 
 if __name__ == '__main__':run()

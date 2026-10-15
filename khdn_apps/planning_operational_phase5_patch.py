@@ -401,6 +401,7 @@ def _room_week_dashboard(st, u, policy, weekly_core, get_conn, ws, logger=None):
                             "INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(NULL,?,'CLASSIFICATION_UNLOCK',?,?)",
                             (leader_uid, reason.strip(), ts),
                         )
+                    st.toast("Đã mở khóa phân loại kế hoạch tuần.", icon="✅")
                     st.rerun()
 
     pct = emergent / total_items * 100 if total_items else 0

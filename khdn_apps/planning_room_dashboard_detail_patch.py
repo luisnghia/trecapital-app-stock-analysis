@@ -185,9 +185,17 @@ def _render_case_move_card(st, customer_core, customer_ui, get_conn, req, uid, l
         note = st.text_input("Ý kiến phê duyệt", key=f"room_cr_note_{rid}")
         a, b = st.columns(2)
         if a.button("✓ Phê duyệt", key=f"room_cr_yes_{rid}", type="primary", use_container_width=True):
-            customer_core.decide_reschedule(get_conn, rid, int(uid), True, note, logger); st.rerun()
+            if customer_core.decide_reschedule(get_conn, rid, int(uid), True, note, logger):
+                st.toast("Đã phê duyệt dời hạn công việc khách hàng.", icon="✅")
+            else:
+                st.toast("Đề nghị dời hạn đã được xử lý trước đó.", icon="ℹ️", duration=12)
+            st.rerun()
         if b.button("✕ Từ chối", key=f"room_cr_no_{rid}", use_container_width=True):
-            customer_core.decide_reschedule(get_conn, rid, int(uid), False, note, logger); st.rerun()
+            if customer_core.decide_reschedule(get_conn, rid, int(uid), False, note, logger):
+                st.toast("Đã từ chối đề nghị dời hạn. Thời hạn hiện tại được giữ nguyên.", icon="✅")
+            else:
+                st.toast("Đề nghị dời hạn đã được xử lý trước đó.", icon="ℹ️", duration=12)
+            st.rerun()
 
 
 def _weekly_move_card(st, policy, get_conn, req, uid):
@@ -222,12 +230,14 @@ def _weekly_move_card(st, policy, get_conn, req, uid):
                 c.execute("UPDATE weekly_plan_reschedule_requests SET status='APPROVED',decided_by=?,decided_at=?,decision_note=? WHERE id=?", (int(uid), ts, note, rid))
                 c.execute("UPDATE weekly_plan_items SET work_date=?,status='PLANNED',reschedule_count=reschedule_count+1,updated_at=? WHERE id=?", (req.get("proposed_work_date"), ts, int(req.get("item_id") or 0)))
                 c.execute("INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(?,?,'RESCHEDULE_APPROVE',?,?)", (int(req.get("item_id") or 0), int(uid), note, ts))
+            st.toast("Đã phê duyệt dời ngày thực hiện kế hoạch.", icon="✅")
             st.rerun()
         if b.button("✕ Từ chối", key=f"room_wr_no_{rid}", use_container_width=True):
             ts = policy._now()
             with get_conn() as c:
                 c.execute("UPDATE weekly_plan_reschedule_requests SET status='REJECTED',decided_by=?,decided_at=?,decision_note=? WHERE id=?", (int(uid), ts, note, rid))
                 c.execute("INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(?,?,'RESCHEDULE_REJECT',?,?)", (int(req.get("item_id") or 0), int(uid), note, ts))
+            st.toast("Đã từ chối đề nghị dời ngày. Ngày thực hiện hiện tại được giữ nguyên.", icon="✅")
             st.rerun()
 
 

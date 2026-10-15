@@ -86,6 +86,7 @@ def install(policy, customer_core, customer_ui, logger=None):
             customer_core_arg.approve_case_plan(
                 get_conn, iid, int(uid), True, note, logger
             )
+            st.toast("Đã phê duyệt công việc khách hàng.", icon="✅")
             st.rerun()
         if reject_col.button(
             "✕ Từ chối",
@@ -95,6 +96,7 @@ def install(policy, customer_core, customer_ui, logger=None):
             customer_core_arg.approve_case_plan(
                 get_conn, iid, int(uid), False, note, logger
             )
+            st.toast("Đã từ chối công việc khách hàng.", icon="✅")
             st.rerun()
 
     consolidation._render_case_approval_card = render_case_approval_card

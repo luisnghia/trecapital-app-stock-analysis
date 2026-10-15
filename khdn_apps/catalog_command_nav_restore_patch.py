@@ -114,7 +114,7 @@ def _install_customer_catalog_command_nav(legacy_ui, customer_core, customer_ui,
                     st.error(str(exc))
             if edit and st.button("Xóa/Ngưng sử dụng mục này", key="cw_stage_del"):
                 mode = customer_core.delete_stage_catalog(get_conn, uid, edit["id"], logger)
-                st.toast("Đã xóa." if mode == "DELETE" else "Mục đã có lịch sử nên được ngưng sử dụng thay vì xóa dữ liệu cũ.")
+                st.toast("Đã xóa mục công việc." if mode == "DELETE" else "Đã ngưng sử dụng mục công việc và giữ lại lịch sử.", icon="✅")
                 _schedule_widget_reset(st, "cw_stage_edit")
                 st.rerun()
 
@@ -171,7 +171,7 @@ def _install_customer_catalog_command_nav(legacy_ui, customer_core, customer_ui,
                     st.error(str(exc))
             if edit and st.button("Xóa/Ngừng áp dụng danh mục", key="cw_cat_del"):
                 mode = customer_core.delete_important_category(get_conn, uid, edit["id"], logger)
-                st.toast("Đã xóa." if mode == "DELETE" else "Danh mục đã được dùng nên được ngưng sử dụng để giữ lịch sử.")
+                st.toast("Đã xóa danh mục quan trọng." if mode == "DELETE" else "Đã ngưng sử dụng danh mục quan trọng và giữ lại lịch sử.", icon="✅")
                 _schedule_widget_reset(st, "cw_cat_edit")
                 st.rerun()
 

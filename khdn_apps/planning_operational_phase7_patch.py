@@ -551,6 +551,7 @@ def _render_update_form(st, u, policy, weekly_core, get_conn, item, logger=None)
             if logger:
                 logger.info("P7_WEEK_PROGRESS_UPDATE item=%s actor=%s status=%s", iid, uid, stat)
             st.session_state.pop("p3_update_week_item", None)
+            st.toast("Đã lưu tiến độ và kết quả công việc.", icon="✅")
             st.rerun()
         if b.button("Đóng", key=f"p7_update_close_{iid}", use_container_width=True):
             st.session_state.pop("p3_update_week_item", None)
@@ -595,12 +596,14 @@ def _render_cancel_approvals(st, u, policy, get_conn, logger=None):
             if yes.button("✓ Phê duyệt hủy", key=f"p7_cancel_yes_{rid}", type="primary", use_container_width=True):
                 try:
                     _decide_cancel(get_conn, policy, rid, uid, True, note, logger)
+                    st.toast("Đã phê duyệt hủy công việc kế hoạch tuần.", icon="✅")
                     st.rerun()
                 except Exception as exc:
                     st.error(str(exc))
             if no.button("↩ Từ chối hủy", key=f"p7_cancel_no_{rid}", use_container_width=True):
                 try:
                     _decide_cancel(get_conn, policy, rid, uid, False, note, logger)
+                    st.toast("Đã từ chối đề nghị hủy. Công việc tiếp tục thực hiện.", icon="✅")
                     st.rerun()
                 except Exception as exc:
                     st.error(str(exc))

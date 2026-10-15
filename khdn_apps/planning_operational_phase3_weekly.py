@@ -129,6 +129,7 @@ def _render_self_close(st, u, policy, get_conn, ws, plan, metrics):
                 leader = policy._leader_for_staff(c,uid)
                 if leader and int(leader)!=uid:
                     policy._notify(c,int(leader),"📝 Có tuần chờ nhận xét",f"{policy._uget(u,'full_name') or policy._uget(u,'username')} đã chốt tuần {ws:%d/%m/%Y}.")
+            st.toast("Đã chốt tuần và lưu nội dung tự đánh giá.", icon="✅")
             st.rerun()
 
 
