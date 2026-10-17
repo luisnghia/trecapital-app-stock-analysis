@@ -229,12 +229,12 @@ class PlanningPushQA(unittest.TestCase):
     def test_work_due_reminders_and_new_work_baseline(self):
         today = push.local_now().date()
         self.plan(11, 2, today.isoformat(), "DA_DUYET")
-        def item(iid, delta, status="PLANNED"):
+        def item(iid, delta, status="PLANNED", emergent=0):
             with notify._connect(self.db) as c:
                 c.execute("""INSERT INTO weekly_plan_items
                     (id,plan_id,user_id,controller_user_id,title,work_date,expected_complete_date,is_emergent,status)
-                    VALUES(?,11,2,1,'Work',?,?,0,?)""",
-                    (iid, today.isoformat(), (today + timedelta(days=delta)).isoformat(), status))
+                    VALUES(?,11,2,1,'Work',?,?,?,?)""",
+                    (iid, today.isoformat(), (today + timedelta(days=delta)).isoformat(), emergent, status))
         item(1, 1)
         item(2, 0)
         item(3, -1)
@@ -246,6 +246,8 @@ class PlanningPushQA(unittest.TestCase):
         self.assertIn(("OVERDUE", 1), self.events())
         self.assertEqual(push.flush(self.db), 4)
         item(6, 4)
+        self.assertEqual(work.process_new_work(self.db), [])
+        item(7, 4, emergent=1)
         self.assertEqual(len(work.process_new_work(self.db)), 2)
         self.assertEqual({uid for event, uid in self.events() if event == "NEW_WORK"}, {1, 2})
         self.assertEqual(push.flush(self.db), 2)
@@ -345,11 +347,15 @@ class PlanningPushQA(unittest.TestCase):
         self.assertEqual(notify.list_notifications(self.db, 8), [])
         self.assertEqual(notify.list_notifications(self.db, 9), [])
         self.assertEqual(work.delivery_health(self.db)["pending_plans"][0]["recipient_ids"], [1, 7])
-        # Fresh work also follows existing room oversight; the baseline prevents
-        # replaying historical new-work alerts on this rollout.
+        # Draft/pending items stay silent. Only additions after approval follow
+        # room oversight, without replaying regular work after approval.
         self.assertEqual(work.process_new_work(self.db), [])
         with notify._connect(self.db) as c:
             c.execute("INSERT INTO weekly_plan_items(id,plan_id,user_id,controller_user_id,title,work_date,is_emergent) VALUES(1,21,2,1,'New work','2026-10-05',0)")
+        self.assertEqual(work.process_new_work(self.db), [])
+        with notify._connect(self.db) as c:
+            c.execute("UPDATE weekly_plans SET workflow_status='DA_DUYET' WHERE id=21")
+            c.execute("INSERT INTO weekly_plan_items(id,plan_id,user_id,controller_user_id,title,work_date,is_emergent) VALUES(2,21,2,1,'Approved addition','2026-10-05',1)")
         self.assertEqual(len(work.process_new_work(self.db)), 3)
         self.assertEqual(work.process_new_work(self.db), [])
         self.assertEqual(push.flush(self.db), 3)

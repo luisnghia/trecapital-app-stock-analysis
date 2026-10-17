@@ -283,7 +283,7 @@ def _set_classification(c, item_id, actor_uid, focus_id, due7, risk, reason="", 
         )
         action_id = c.execute(
             "INSERT INTO weekly_plan_actions(item_id,actor_user_id,action,detail,created_at) VALUES(?,?,'CLASSIFICATION_CHANGE',?,?)",
-            (int(item_id), int(actor_uid), json.dumps({"old_q": old.get("priority_quadrant"), "new_q": q, "old_focus": old.get("focus_category_id"), "new_focus": int(focus_id) if focus else None, "reason": reason}, ensure_ascii=False), ts),
+            (int(item_id), int(actor_uid), json.dumps({"workflow_status": old.get("workflow_status"), "old_q": old.get("priority_quadrant"), "new_q": q, "old_focus": old.get("focus_category_id"), "new_focus": int(focus_id) if focus else None, "reason": reason}, ensure_ascii=False), ts),
         ).lastrowid
         if int(actor_uid) != int(old.get("user_id") or 0):
             _notify(c, int(old.get("user_id")), "🎯 Phân loại kế hoạch được điều chỉnh", f"{old.get('title')}: {PRIORITY_SHORT.get(int(q), q)}. {reason or ''}".strip(),

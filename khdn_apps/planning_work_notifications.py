@@ -19,7 +19,6 @@ WEEKLY_CURSOR = "planning_weekly_action_notification_cursor_v1"
 CASE_CURSOR = "planning_case_action_notification_cursor_v1"
 CASE_EVENT = "customer_work_update"
 WEEKLY_ACTIONS = {
-    "DRAFT_EDIT": "chỉnh sửa công việc",
     "MANAGER_EDIT_PHASE3": "điều chỉnh kế hoạch",
     "CLASSIFICATION_CHANGE": "điều chỉnh phân loại",
     "STATUS": "cập nhật trạng thái",
@@ -154,6 +153,11 @@ def process_actions(db_path, limit=250):
                     else:
                         found = c.execute("SELECT * FROM weekly_plan_items WHERE id=?", (int(target_id),)).fetchone()
                         row = dict(found) if found else None
+                if row and not is_case and not push.approved_item_activity(
+                        c, int(target_id), f"WORK_UPDATE_{action['action']}", int(action["id"])):
+                    LOGGER.info("PLANNING_DRAFT_ACTIVITY_SUPPRESSED action_id=%s item_id=%s action=%s",
+                                action["id"], target_id, action["action"])
+                    row = None
                 if row:
                     recipients = _recipients(c, row, case=is_case) - {0}
                     if is_case and action["action"] == "CREATE":

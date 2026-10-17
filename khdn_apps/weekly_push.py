@@ -7,6 +7,7 @@ Enqueue is part of the caller's transaction.
 from __future__ import annotations
 
 from datetime import datetime
+import json
 import logging
 from pathlib import Path
 import sqlite3
@@ -19,6 +20,7 @@ LOGGER = logging.getLogger("khdn_weekly_push")
 LOCAL_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 MAX_ATTEMPTS = 3
 TTL_SECONDS = 24 * 3600
+APPROVED_WEEK_STATES = frozenset({"DA_DUYET", "DA_CHOT", "DA_DANH_GIA"})
 
 
 def local_now() -> datetime:
@@ -58,6 +60,53 @@ def _audit(c, nid: int, uid: int, event_code: str, stage: str) -> None:
         (nid, uid, event_code, stage, local_now().isoformat(timespec="seconds")))
 
 
+def approved_item_activity(c, item_id: int, event_code: str, source_action_id=None) -> bool:
+    """Draft work is silent; submission has its own once-per-plan notification.
+
+    Check both the current approval and the journal snapshot. Otherwise a slow
+    worker could announce draft edits after the plan happens to be approved.
+    The same gate is used again before Push to stop older queued draft alerts.
+    """
+    found = c.execute("SELECT * FROM weekly_plan_items WHERE id=?", (int(item_id),)).fetchone()
+    if not found:
+        return False
+    item = dict(found)
+    found = c.execute("SELECT * FROM weekly_plans WHERE id=?", (int(item["plan_id"]),)).fetchone()
+    plan = dict(found) if found else {}
+    if plan.get("workflow_status") not in APPROVED_WEEK_STATES:
+        return False
+    if "approval_status" in item and item["approval_status"] != "APPROVED":
+        return False
+    if event_code == "NEW_WORK":
+        # Regular items belong to the submission, even if first scanned after
+        # approval. Only additions to an approved week are new approved work.
+        return bool(item.get("is_emergent"))
+    if source_action_id:
+        found = c.execute("SELECT * FROM weekly_plan_actions WHERE id=? AND item_id=?",
+                          (int(source_action_id), int(item_id))).fetchone()
+        if not found:
+            return False
+        action = dict(found)
+        if action["action"] in {"CREATE", "DRAFT_EDIT", "DRAFT_REMOVE"}:
+            return False
+        try:
+            detail = json.loads(action.get("detail") or "{}")
+        except (TypeError, ValueError):
+            detail = {}
+        detail = detail if isinstance(detail, dict) else {}
+        if "workflow_status" in detail and detail["workflow_status"] not in APPROVED_WEEK_STATES:
+            return False
+        for key in ("before", "after"):
+            snapshot = detail.get(key)
+            if isinstance(snapshot, dict) and "approval_status" in snapshot and snapshot["approval_status"] != "APPROVED":
+                return False
+        # Older journal entries predate workflow snapshots. Do not promote an
+        # action known to precede approval into an approved-work update.
+        if plan.get("approved_at") and str(action.get("created_at") or "") < str(plan["approved_at"]):
+            return False
+    return True
+
+
 def enqueue(c, user_id: int, title: str, body: str, *,
             event_code: str = "PLAN_UPDATE", event_key: str = "weekly_update",
             expires_at: float | None = None, source_action_id: int | None = None,
@@ -67,6 +116,11 @@ def enqueue(c, user_id: int, title: str, body: str, *,
     uid = int(user_id)
     active = c.execute("SELECT active FROM users WHERE id=?", (uid,)).fetchone()
     if not active or not active[0] or not notify._pref_enabled(c, uid, event_key):
+        return None
+    if (event_key == "weekly_update" and weekly_plan_item_id
+            and not approved_item_activity(c, weekly_plan_item_id, event_code, source_action_id)):
+        LOGGER.info("WEEKLY_DRAFT_ACTIVITY_SUPPRESSED item_id=%s user_id=%s event=%s action_id=%s",
+                    weekly_plan_item_id, uid, event_code, source_action_id)
         return None
     ts = local_now().strftime("%Y-%m-%d %H:%M:%S")
     cur = c.execute("""INSERT INTO notifications
@@ -116,7 +170,7 @@ def ensure_schema(db_path: str | Path) -> None:
 def _claim(db_path, now_ts: float, event_key: str | None = None):
     with notify._connect(db_path) as c:
         c.execute("BEGIN IMMEDIATE")
-        row = c.execute("""SELECT q.*,n.user_id,n.push_status,n.read_at,n.event_key,n.customer_work_case_id,n.weekly_plan_item_id
+        row = c.execute("""SELECT q.*,n.user_id,n.push_status,n.read_at,n.event_key,n.customer_work_case_id,n.weekly_plan_item_id,n.source_action_id
             FROM weekly_push_queue q JOIN notifications n ON n.id=q.notification_id
             WHERE ((q.state IN ('PENDING','RETRY') AND q.next_attempt_at<=?)
                OR (q.state='SENDING' AND q.lease_until<=?))
@@ -139,6 +193,9 @@ def _claim(db_path, now_ts: float, event_key: str | None = None):
         if r["weekly_plan_item_id"]:
             from khdn_apps.planning_work_notifications import weekly_context
             case_allowed = bool(weekly_context(c, uid, int(r["weekly_plan_item_id"])))
+            if case_allowed and r["event_key"] == "weekly_update":
+                case_allowed = approved_item_activity(c, int(r["weekly_plan_item_id"]),
+                                                     r["event_code"], r["source_action_id"])
         terminal = None
         if r["push_status"] == "SENT":
             terminal = "SENT"

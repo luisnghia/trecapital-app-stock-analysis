@@ -104,7 +104,7 @@ def _short(value: Any, limit: int = 180) -> str:
 
 
 def process_new_work(db_path: str | Path) -> list[int]:
-    """Notify the owner, controller and admin room oversight after baseline."""
+    """Notify approved additions; draft items are covered only on submission."""
     if not ensure_schema(db_path):
         return []
     created: list[int] = []
