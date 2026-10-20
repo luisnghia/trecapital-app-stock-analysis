@@ -13,8 +13,13 @@ import math
 import weakref
 
 TABLE_CSS = """<style>
-.ops-review-scroll{width:100%;max-width:100%;overflow:auto;border:1px solid #4E7771;border-radius:8px}
+.ops-review-scroll{width:100%;max-width:100%;overflow-x:auto;overflow-y:auto;
+  -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;border:1px solid #4E7771;border-radius:8px}
 .ops-review-table{width:100%;min-width:900px;table-layout:fixed;border-collapse:collapse;font-size:14px}
+.ops-review-table[data-ops-table] th,.ops-review-table[data-ops-table] td{padding:9px 10px;vertical-align:middle}
+.ops-review-table[data-ops-table] .ops-cell-text{display:-webkit-box;-webkit-box-orient:vertical;
+  -webkit-line-clamp:2;line-clamp:2;max-height:2.8em;line-height:1.4;overflow:hidden;
+  overflow-wrap:anywhere;white-space:normal;word-break:normal}
 .ops-review-table th,.ops-review-table td{white-space:normal;overflow-wrap:anywhere;word-break:normal;
   padding:10px 8px;border:1px solid #4E7771;vertical-align:top;line-height:1.5}
 .ops-review-table th{background:#17312F;color:#6FD6C4;font-weight:800;position:sticky;top:0;z-index:1}
@@ -125,6 +130,35 @@ def _identity(row, columns):
     return ":".join(str(int(row[column])) for column in columns)
 
 
+def _task_column_layout(display):
+    """Fit operational columns to about two text lines without squeezing the viewport.
+
+    A bounded content estimate widens names/descriptions where needed. Tables
+    scroll horizontally instead of compressing every column on tablets/phones.
+    """
+    limits = {
+        "CIF": (120, 155), "Khách hàng": (330, 560),
+        "Cán bộ hỗ trợ": (180, 255), "Cán bộ quản lý khách hàng": (205, 290),
+        "Công việc": (185, 360), "Giá trị (tỷ đồng)": (155, 185),
+        "Thời gian giao": (165, 195), "Bắt đầu": (165, 195),
+        "Kết thúc": (165, 195), "Mốc đang chờ": (175, 280),
+        "Thời gian đang chờ": (170, 220), "Mức độ trễ": (155, 200),
+        "Trạng thái": (185, 280),
+    }
+    cols = []
+    total_width = 0
+    for column in display.columns:
+        floor, ceiling = limits.get(column, (175, 320))
+        longest = max((len(_text(value).replace("\n", " ")) for value in display[column]),
+                      default=0)
+        # ~9.6px per character over two lines, plus horizontal padding.
+        estimated = math.ceil(max(len(str(column)), longest) * 4.8 + 26)
+        width = min(ceiling, max(floor, estimated))
+        cols.append(f"<col style='width:{width}px'>")
+        total_width += width
+    return "".join(cols), total_width
+
+
 def choose_row(st, rows, display, key, *, id_columns=("id",), height=540,
                label="Chọn công việc để thao tác", logger=None, review=False):
     """Open a row by database ID/round; never trust its table position."""
@@ -175,7 +209,9 @@ def choose_row(st, rows, display, key, *, id_columns=("id",), height=540,
         "Cán bộ hỗ trợ": "background:#F1EAFE;color:#5A3A91;font-weight:700",
         "Cán bộ quản lý khách hàng": "background:#E6F7F5;color:#08645D;font-weight:700",
     }
-    head = "".join("<th scope='col'>" + html.escape(str(column)) + "</th>" for column in display.columns)
+    head = "".join("<th scope='col' title='" + html.escape(str(column), quote=True)
+                   + "'><span class='ops-cell-text'>" + html.escape(str(column)) + "</span></th>"
+                   for column in display.columns)
     body = []
     for identity, (_, row) in zip(identities, display.iterrows()):
         cells = []
@@ -187,7 +223,9 @@ def choose_row(st, rows, display, key, *, id_columns=("id",), height=540,
                     if icon in _text(value):
                         style = f"background:{color};color:{ink};font-weight:800"
                         break
-            cells.append(f"<td style='{style}'>" + html.escape(_text(value)) + "</td>")
+            value_text = _text(value)
+            cells.append(f"<td style='{style}' title='{html.escape(value_text, quote=True)}'>"
+                         + "<span class='ops-cell-text'>" + html.escape(value_text) + "</span></td>")
         is_selected = identity == selected_id
         selected_class = " class='selected'" if is_selected else ""
         action = "đánh giá" if review else "xem chi tiết"
@@ -196,8 +234,10 @@ def choose_row(st, rows, display, key, *, id_columns=("id",), height=540,
                     f"data-ops-round='{rounds[identity]}' tabindex='0' aria-selected='{str(is_selected).lower()}' "
                     f"aria-label='{html.escape(accessible, quote=True)}'>" + "".join(cells) + "</tr>")
     height = max(180, min(900, int(height or 540)))
+    colgroup, table_width = _task_column_layout(display)
     table_html = (TABLE_CSS + f"<div class='ops-review-scroll' style='max-height:{height}px'>"
-            + f"<table class='ops-review-table' data-ops-table='{table_id}' data-ops-version='{version}'>"
+            + f"<table class='ops-review-table' style='width:{table_width}px;min-width:100%' data-ops-table='{table_id}' data-ops-version='{version}'>"
+            + "<colgroup>" + colgroup + "</colgroup>"
             + "<thead><tr>" + head + "</tr></thead><tbody>"
             + "".join(body) + "</tbody></table></div>")
     st.html(table_html)
@@ -205,7 +245,8 @@ def choose_row(st, rows, display, key, *, id_columns=("id",), height=540,
         log_key = key + "_render_log"
         signature = (tuple(identities), selected)
         if st.session_state.get(log_key) != signature:
-            logger.info("OPS_HTML_TASK_TABLE key=%s rows=%s selected=%s", key, len(rows), selected_id)
+            logger.info("OPS_HTML_TASK_TABLE key=%s rows=%s selected=%s width_px=%s columns=%s",
+                        key, len(rows), selected_id, table_width, len(display.columns))
             st.session_state[log_key] = signature
     if selected_id is None:
         return None
