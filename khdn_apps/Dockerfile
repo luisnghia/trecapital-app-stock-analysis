@@ -141,6 +141,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/theme_catalog_regression_qa.py \
     && PYTHONPATH=/app python /app/khdn_apps/security_hardening_qa.py
 
+RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/operational_table_two_line_qa.py
 RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/runtime_page_qa.py
 
 ENV PYTHONUNBUFFERED=1 \

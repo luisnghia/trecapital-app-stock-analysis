@@ -89,7 +89,8 @@ else:
     body = check_no_menu(page)
     assert len(re.findall("data-ops-row=", body)) == 3
     assert 'Khách hàng &lt;script&gt;QA&lt;/script&gt;' in body and '<script>QA</script>' not in body
-    assert 'Giá trị (tỷ đồng)' in body and '>2</td>' in body
+    assert 'Giá trị (tỷ đồng)' in body and '>2</span></td>' in body
+    assert "-webkit-line-clamp:2" in body and "<colgroup>" in body
     assert 'OPS_REVIEW_QA_0' not in body
     click_row(page, ids[0], identity=[str(ids[0])])
     assert len(page.select_slider) == 0
