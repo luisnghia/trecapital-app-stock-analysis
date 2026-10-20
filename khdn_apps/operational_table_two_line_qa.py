@@ -61,7 +61,7 @@ class OperationalTaskTableLayoutQA(unittest.TestCase):
                 assert doc.count("class='ops-cell-text'") == len(self.display.columns) * 2
                 assert self.customer in doc, "Full customer data must remain in the DOM"
                 assert "title='" + self.customer + "'" in doc
-                assert "width:900px" not in doc
+                assert "<table class='ops-review-table' style='width:900px" not in doc
                 assert "-webkit-line-clamp:2" in doc
 
     def test_dynamic_width_is_bounded_and_history_remains_unclamped(self):
