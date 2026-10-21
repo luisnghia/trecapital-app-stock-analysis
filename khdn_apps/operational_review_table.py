@@ -16,7 +16,7 @@ TABLE_CSS = """<style>
 .ops-review-scroll{width:100%;max-width:100%;overflow-x:auto;overflow-y:auto;
   -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;border:1px solid #4E7771;border-radius:8px}
 .ops-review-table{width:100%;min-width:900px;table-layout:fixed;border-collapse:collapse;font-size:14px}
-.ops-review-table[data-ops-table] th,.ops-review-table[data-ops-table] td{padding:9px 10px;vertical-align:middle}
+.ops-review-table[data-ops-table] th,.ops-review-table[data-ops-table] td{padding:8px 7px;vertical-align:middle}
 .ops-review-table[data-ops-table] .ops-cell-text{display:-webkit-box;-webkit-box-orient:vertical;
   -webkit-line-clamp:2;line-clamp:2;max-height:2.8em;line-height:1.4;overflow:hidden;
   overflow-wrap:anywhere;white-space:normal;word-break:normal}
@@ -133,26 +133,28 @@ def _identity(row, columns):
 def _task_column_layout(display):
     """Fit operational columns to about two text lines without squeezing the viewport.
 
-    A bounded content estimate widens names/descriptions where needed. Tables
-    scroll horizontally instead of compressing every column on tablets/phones.
+    Two lines are preferred per cell. Do not reserve arbitrary wide space for
+    short names or numbers; long descriptions are bounded and can be opened
+    from the row. The table scrolls sideways when the viewport is narrower.
     """
     limits = {
-        "CIF": (120, 155), "Khách hàng": (330, 560),
-        "Cán bộ hỗ trợ": (180, 255), "Cán bộ quản lý khách hàng": (205, 290),
-        "Công việc": (185, 360), "Giá trị (tỷ đồng)": (155, 185),
-        "Thời gian giao": (165, 195), "Bắt đầu": (165, 195),
-        "Kết thúc": (165, 195), "Mốc đang chờ": (175, 280),
-        "Thời gian đang chờ": (170, 220), "Mức độ trễ": (155, 200),
-        "Trạng thái": (185, 280),
+        "CIF": (92, 112), "Khách hàng": (285, 435),
+        "Giá trị (tỷ đồng)": (112, 145),
+        "Cán bộ hỗ trợ": (142, 205), "Cán bộ quản lý khách hàng": (165, 238),
+        "Công việc": (125, 215), "Thời gian giao": (135, 168),
+        "Bắt đầu": (130, 165), "Kết thúc": (130, 165),
+        "Mốc đang chờ": (148, 220), "Thời gian đang chờ": (147, 180),
+        "Mức độ trễ": (108, 150), "Trạng thái": (132, 190),
     }
     cols = []
     total_width = 0
     for column in display.columns:
-        floor, ceiling = limits.get(column, (175, 320))
+        floor, ceiling = limits.get(column, (142, 255))
         longest = max((len(_text(value).replace("\n", " ")) for value in display[column]),
                       default=0)
-        # ~9.6px per character over two lines, plus horizontal padding.
-        estimated = math.ceil(max(len(str(column)), longest) * 4.8 + 26)
+        # Approximately 7px per character across two lines, plus 14px padding.
+        # Respect the minimum for readable dates, amounts, headings and staff.
+        estimated = math.ceil(max(len(str(column)), longest) * 3.7 + 18)
         width = min(ceiling, max(floor, estimated))
         cols.append(f"<col style='width:{width}px'>")
         total_width += width
@@ -264,7 +266,8 @@ def selectable_task_table(app_ns, df, key, *, include_status=True, include_phase
         rows["phase_name"] = [value["phase"] for value in info]
         rows["wait_minutes"] = [value["elapsed"] for value in info]
         rows["delay_level"] = [value["level"] for value in info]
-    columns = ["cif", "customer_name", "support_name", "qlkh_name", "task_type", "amount_vnd", "assigned_at"]
+    # Keep value visible next to the customer on every shared permission page.
+    columns = ["cif", "customer_name", "amount_vnd", "support_name", "qlkh_name", "task_type", "assigned_at"]
     columns += [name for name in ("start_time", "end_time") if name in rows.columns]
     if include_phase:
         columns += ["phase_name", "wait_minutes", "delay_level"]
