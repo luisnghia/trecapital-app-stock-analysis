@@ -7,6 +7,9 @@ on:
   pull_request:
     paths:
       - 'khdn_apps/inquiry_readonly_role.py'
+      - 'khdn_apps/inquiry_user_schema.py'
+      - 'khdn_apps/inquiry_user_schema_qa.py'
+      - 'khdn_apps/mobile_admin_restore_perf_patch.py'
       - 'khdn_apps/inquiry_readonly_role_qa.py'
       - 'khdn_apps/authorization.py'
       - 'khdn_apps/device_login.py'
@@ -25,4 +28,5 @@ jobs:
           python-version: '3.11'
       - run: python -m pip install -r khdn_apps/requirements.txt
       - run: python -m khdn_apps.inquiry_readonly_role_qa
+      - run: python -m khdn_apps.inquiry_user_schema_qa
       - run: python -m khdn_apps.security_hardening_qa
