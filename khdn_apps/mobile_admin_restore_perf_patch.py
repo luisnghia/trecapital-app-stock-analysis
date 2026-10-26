@@ -105,6 +105,9 @@ def _render_system_users_fast(ns, u, logger=None):
         role = str(payload.get("role") or roles[0])
         password = str(payload.get("password") or "")
         is_admin = bool(payload.get("is_admin"))
+        if role == "Vấn tin" and is_admin:
+            st.error("Nhóm Vấn tin chỉ có quyền xem. Không được cấp quyền Admin.")
+            return
         if not username or not full_name or not ns["password_ok"](password):
             st.error("Nhập đủ thông tin. Mật khẩu tối thiểu 8 ký tự, gồm chữ và số.")
             return
@@ -155,6 +158,9 @@ def _render_system_users_fast(ns, u, logger=None):
         nr = str(edit.get("role") or cur.get("role") or roles[0])
         active = bool(edit.get("active"))
         adminflag = bool(edit.get("is_admin"))
+        if nr == "Vấn tin" and adminflag:
+            st.error("Nhóm Vấn tin chỉ có quyền xem. Hãy bỏ chọn quyền Admin.")
+            return
         np = str(edit.get("password") or "")
         if int(selected) == int(_uget(u,"id")) and not active:
             st.error("Không thể tự khóa tài khoản đang đăng nhập.")

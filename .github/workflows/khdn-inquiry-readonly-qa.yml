@@ -1,0 +1,27 @@
+name: KHDN inquiry-only role security QA
+
+on:
+  push:
+    branches:
+      - feature/khdn-inquiry-room-readonly-20261027
+  pull_request:
+    paths:
+      - 'khdn_apps/inquiry_readonly_role.py'
+      - 'khdn_apps/inquiry_readonly_role_qa.py'
+      - 'khdn_apps/authorization.py'
+      - 'khdn_apps/device_login.py'
+      - 'khdn_apps/mobile_admin_restore_perf_patch.py'
+      - 'khdn_apps/app.py'
+      - 'khdn_apps/Dockerfile'
+      - '.github/workflows/khdn-inquiry-readonly-qa.yml'
+
+jobs:
+  read-only-permission-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r khdn_apps/requirements.txt
+      - run: python -m khdn_apps.inquiry_readonly_role_qa
