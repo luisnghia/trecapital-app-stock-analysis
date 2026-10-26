@@ -49,8 +49,6 @@ def _fresh_session_user(path):
         row = c.execute('SELECT * FROM users WHERE id=?', (int(current['id']),)).fetchone()
     fresh = dict(row) if row else {}
     valid = bool(fresh.get('active') and not fresh.get('deleted_at') and
-                 fresh.get('role') == current.get('role') and
-                 bool(fresh.get('is_admin')) == bool(current.get('is_admin')) and
                  sessions.digest(fresh.get('password_hash', '')) == stamp and time.time() < expires)
     token = st.session_state.get('_device_token')
     if valid and token:
