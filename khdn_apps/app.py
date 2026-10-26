@@ -41,7 +41,14 @@ _patch_once(
     'annual archive cancelled filter',
 )
 
+from khdn_apps.inquiry_readonly_role import patch_source as _inquiry_role_patch_source
+_source = _inquiry_role_patch_source(_source)
 exec(compile(_source, str(_Path(__file__).resolve().parent / "app_v223_source.py"), "exec"), globals(), globals())
+
+# One existing Admin user-management form uses ROLES; this adds a real
+# selectable role without creating an account or migrating task records.
+if "Vấn tin" not in ROLES:
+    ROLES.append("Vấn tin")
 
 
 # ---------- V2.30 production behavior overrides ----------
