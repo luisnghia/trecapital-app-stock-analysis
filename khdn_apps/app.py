@@ -44,12 +44,12 @@ _patch_once(
 # The UI cannot offer Vấn tin until the persisted users.role CHECK is widened.
 # Run the migration after normal database initialization and before login.
 _patch_once(
-    '    _runtime_maintenance_once_per_session()\\n',
-    '    _runtime_maintenance_once_per_session()\\n'
-    '    if not st.session_state.get("_inquiry_user_schema_checked_v1"):\\n'
-    '        from khdn_apps.inquiry_user_schema import ensure_inquiry_user_schema\\n'
-    '        ensure_inquiry_user_schema(DB_PATH, LOGGER)\\n'
-    '        st.session_state["_inquiry_user_schema_checked_v1"] = True\\n',
+    '    _runtime_maintenance_once_per_session()\n',
+    '    _runtime_maintenance_once_per_session()\n'
+    '    if not st.session_state.get("_inquiry_user_schema_checked_v1"):\n'
+    '        from khdn_apps.inquiry_user_schema import ensure_inquiry_user_schema\n'
+    '        ensure_inquiry_user_schema(DB_PATH, LOGGER)\n'
+    '        st.session_state["_inquiry_user_schema_checked_v1"] = True\n',
     'vấn tin schema initialization',
 )
 
