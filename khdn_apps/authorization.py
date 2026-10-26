@@ -13,19 +13,23 @@ def active_user(conn, uid):
 
 
 def manager(user):
+    if user.get("role") == "Vấn tin":
+        return False
     return bool(int(user.get("is_admin") or 0) or user.get("role") == "Lãnh đạo phòng")
 
 
 def require_admin(db_path, uid):
     with sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True) as conn:
         user = active_user(conn, uid)
-    if not int(user.get("is_admin") or 0) or int(user.get("must_change_password") or 0):
+    if user.get("role") == "Vấn tin" or not int(user.get("is_admin") or 0) or int(user.get("must_change_password") or 0):
         raise PermissionError("Chỉ Admin đang hoạt động được xuất toàn bộ dữ liệu.")
     return user
 
 
 def require_weekly_item(conn, iid, uid):
     actor = active_user(conn, uid)
+    if actor.get("role") == "Vấn tin":
+        raise PermissionError("Nhóm Vấn tin chỉ được xem dữ liệu.")
     row = conn.execute("SELECT user_id FROM weekly_plan_items WHERE id=?", (int(iid),)).fetchone()
     if not row:
         raise PermissionError("Công việc không còn tồn tại.")
@@ -36,6 +40,8 @@ def require_weekly_item(conn, iid, uid):
 
 def require_case(conn, case_id, uid):
     actor = active_user(conn, uid)
+    if actor.get("role") == "Vấn tin":
+        raise PermissionError("Nhóm Vấn tin chỉ được xem dữ liệu.")
     row = conn.execute("SELECT owner_user_id FROM customer_work_cases WHERE id=?", (int(case_id),)).fetchone()
     if not row or (int(row[0]) != int(uid) and not manager(actor)):
         raise PermissionError("Bạn không có quyền cập nhật công việc khách hàng này.")
