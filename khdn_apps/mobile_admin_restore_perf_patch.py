@@ -111,6 +111,15 @@ def _render_system_users_fast(ns, u, logger=None):
         if not username or not full_name or not ns["password_ok"](password):
             st.error("Nhập đủ thông tin. Mật khẩu tối thiểu 8 ký tự, gồm chữ và số.")
             return
+        if role not in roles:
+            st.error("Nhóm quyền không hợp lệ. Vui lòng chọn lại.")
+            return
+        # The engine's username lookup is case-insensitive, so prevent
+        # duplicates that differ only by letter case as well.
+        with get_conn() as c:
+            if c.execute("SELECT 1 FROM users WHERE lower(username)=lower(?)", (username,)).fetchone():
+                st.error("Tên đăng nhập đã tồn tại. Vui lòng chọn tên khác.")
+                return
         try:
             ts = ns["now_str"]()
             uid = ns["execute"](
@@ -121,8 +130,19 @@ def _render_system_users_fast(ns, u, logger=None):
             st.session_state["_system_user_create_epoch_v3"] = int(st.session_state.get("_system_user_create_epoch_v3",0))+1
             st.toast("Đã tạo user. Người dùng sẽ phải đổi mật khẩu khi đăng nhập lần đầu.", icon="✅")
             st.rerun()
-        except sqlite3.IntegrityError:
-            st.error("Username đã tồn tại.")
+        except sqlite3.IntegrityError as exc:
+            # Do not label every SQLite constraint violation as a duplicate.
+            detail = str(exc).lower()
+            if "unique constraint failed: users.username" in detail:
+                st.error("Tên đăng nhập đã tồn tại. Vui lòng chọn tên khác.")
+            elif "check constraint failed" in detail:
+                st.error("Cơ sở dữ liệu chưa chấp nhận nhóm quyền này. Vui lòng tải lại trang hoặc liên hệ Admin.")
+            else:
+                st.error("Không tạo được người dùng do ràng buộc dữ liệu. Vui lòng liên hệ Admin.")
+            if logger or ns.get("LOGGER"):
+                (logger or ns["LOGGER"]).warning(
+                    "USER_CREATE_CONSTRAINT_REJECTED role=%s type=%s", role, str(exc).split(":")[0]
+                )
         return
 
     st.subheader("Quản lý người dùng hiện có")
