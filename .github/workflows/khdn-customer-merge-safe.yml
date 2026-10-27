@@ -1,0 +1,25 @@
+name: KHDN lossless customer merge QA
+
+on:
+  push:
+    branches:
+      - fix/khdn-customer-merge-lossless-20261027
+  pull_request:
+    paths:
+      - 'khdn_apps/customer_cif_admin_patch.py'
+      - 'khdn_apps/customer_cif_admin_patch_qa.py'
+      - 'khdn_apps/customer_merge_lossless_qa.py'
+      - 'khdn_apps/Dockerfile'
+      - '.github/workflows/khdn-customer-merge-safe.yml'
+
+jobs:
+  customer-merge-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r khdn_apps/requirements.txt
+      - run: python -m khdn_apps.customer_merge_lossless_qa
+      - run: python -m khdn_apps.customer_cif_admin_patch_qa
