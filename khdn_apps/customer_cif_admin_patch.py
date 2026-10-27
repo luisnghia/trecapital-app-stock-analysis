@@ -38,19 +38,28 @@ def _tables(c):
 
 
 def _customer_fk_columns(c):
-    """Return [(table, column)] for declared FKs referencing customers(id)."""
-    refs = []
+    """Find all explicit customers(id) FKs and legacy customer_id references.
+
+    Earlier app tables occasionally had customer_id without a declared FK.
+    Those rows must be reassigned too, rather than becoming invisible orphans.
+    Introspection errors fail closed; a partial list is unsafe for merge/delete.
+    """
+    refs = set()
     for table in _tables(c):
         if table == "customers":
             continue
-        try:
-            for fk in c.execute(f"PRAGMA foreign_key_list({_qi(table)})").fetchall():
-                if str(fk[2]) == "customers" and str(fk[4] or "id") == "id":
-                    refs.append((table, str(fk[3])))
-        except Exception:
-            continue
-    return refs
-
+        fks = c.execute(f"PRAGMA foreign_key_list({_qi(table)})").fetchall()
+        other_parent_columns = set()
+        for fk in fks:
+            source_col = str(fk[3])
+            if str(fk[2]).lower() == "customers" and str(fk[4] or "id").lower() == "id":
+                refs.add((table, source_col))
+            else:
+                other_parent_columns.add(source_col)
+        columns = {str(r[1]) for r in c.execute(f"PRAGMA table_info({_qi(table)})")}
+        if "customer_id" in columns and "customer_id" not in other_parent_columns:
+            refs.add((table, "customer_id"))
+    return sorted(refs)
 
 def dependency_counts(c, customer_ids):
     ids = sorted({int(x) for x in customer_ids if x not in (None, "")})
@@ -69,8 +78,8 @@ def dependency_counts(c, customer_ids):
                 cid, n = int(row[0]), int(row[1] or 0)
                 if n:
                     out.setdefault(cid, {})[table] = out.setdefault(cid, {}).get(table, 0) + n
-        except Exception:
-            continue
+        except Exception as exc:
+            raise ValueError(f"Không thể kiểm tra liên kết khách hàng tại bảng {table}: {exc}") from exc
     return out
 
 
@@ -205,8 +214,98 @@ def apply_cif_row(c, actor_uid, *, cif, name, target_id=None, tax_id=None,
     return cid, "CREATED"
 
 
+def _merge_contacts_no_loss(c, keep_id, merge_id):
+    """Reassign every contact using the real (customer_id,slot) composite PK.
+
+    Never drop a contact merely because its slot already exists. Pick a free
+    slot in 1..3, or block the entire merge so Admin can resolve the overflow.
+    """
+    if "customer_contact_master" not in _tables(c):
+        return 0
+    columns = {str(row[1]) for row in c.execute(
+        "PRAGMA table_info(customer_contact_master)"
+    )}
+    if not {"customer_id", "slot"}.issubset(columns):
+        raise ValueError("Cấu trúc danh bạ khách hàng không hợp lệ; đã hủy hợp nhất.")
+    current = [int(row[0]) for row in c.execute(
+        "SELECT slot FROM customer_contact_master WHERE customer_id=? ORDER BY slot",
+        (keep_id,),
+    )]
+    incoming = [int(row[0]) for row in c.execute(
+        "SELECT slot FROM customer_contact_master WHERE customer_id=? ORDER BY slot",
+        (merge_id,),
+    )]
+    if len(current) + len(incoming) > 3:
+        raise ValueError(
+            "Không thể gộp: hai khách hàng có tổng cộng "
+            f"{len(current) + len(incoming)} liên hệ, vượt giới hạn 3. "
+            "Hãy đối chiếu/sắp xếp danh bạ trước khi hợp nhất; không liên hệ nào bị xóa."
+        )
+    used = set(current)
+    for old_slot in incoming:
+        slot = old_slot if old_slot not in used else next(
+            (n for n in (1, 2, 3) if n not in used), None
+        )
+        if slot is None:
+            raise ValueError("Không còn vị trí liên hệ trống; đã hủy hợp nhất.")
+        result = c.execute(
+            "UPDATE customer_contact_master SET customer_id=?,slot=? "
+            "WHERE customer_id=? AND slot=?",
+            (keep_id, slot, merge_id, old_slot),
+        )
+        if result.rowcount != 1:
+            raise ValueError("Chuyển danh bạ chưa đầy đủ; đã hủy hợp nhất.")
+        used.add(slot)
+    return len(incoming)
+
+
+def _merge_reference_snapshot(c, keep_id, merge_id, refs):
+    """Capture counts and stable row identities before touching any links."""
+    results = {}
+    for table, col in refs:
+        key = (table, col)
+        counts = tuple(
+            int(c.execute(
+                f"SELECT COUNT(*) FROM {_qi(table)} WHERE {_qi(col)}=?", (cid,)
+            ).fetchone()[0])
+            for cid in (keep_id, merge_id)
+        )
+        columns = {str(row[1]) for row in c.execute(f"PRAGMA table_info({_qi(table)})")}
+        ids = None
+        if "id" in columns:
+            ids = {row[0] for row in c.execute(
+                f"SELECT id FROM {_qi(table)} WHERE {_qi(col)} IN (?,?)",
+                (keep_id, merge_id),
+            )}
+        results[key] = (counts, ids)
+    return results
+
+
+def _validate_merge_references(c, keep_id, merge_id, snapshot):
+    for (table, col), ((keep_count, source_count), previous_ids) in snapshot.items():
+        new_keep = int(c.execute(
+            f"SELECT COUNT(*) FROM {_qi(table)} WHERE {_qi(col)}=?", (keep_id,)
+        ).fetchone()[0])
+        remaining = int(c.execute(
+            f"SELECT COUNT(*) FROM {_qi(table)} WHERE {_qi(col)}=?", (merge_id,)
+        ).fetchone()[0])
+        if remaining or new_keep != keep_count + source_count:
+            raise ValueError(
+                f"Kiểm tra dữ liệu bảng {table} không đạt: "
+                "số bản ghi thay đổi hoặc chưa chuyển hết. Hợp nhất đã được hoàn tác."
+            )
+        if previous_ids is not None:
+            current_ids = {row[0] for row in c.execute(
+                f"SELECT id FROM {_qi(table)} WHERE {_qi(col)}=?", (keep_id,)
+            )}
+            if current_ids != previous_ids:
+                raise ValueError(
+                    f"ID dữ liệu tại bảng {table} đã thay đổi. Hợp nhất đã được hoàn tác."
+                )
+
+
 def merge_customers(c, actor_uid, keep_id, merge_id):
-    """Merge duplicate customer rows and preserve all declared FK history."""
+    """Atomic, lossless customer merge; abort on any missing workflow/contact."""
     keep_id, merge_id = int(keep_id), int(merge_id)
     if keep_id == merge_id:
         raise ValueError("Hai bản ghi hợp nhất phải khác nhau")
@@ -218,59 +317,77 @@ def merge_customers(c, actor_uid, keep_id, merge_id):
     if keep_cif and src_cif and keep_cif != src_cif:
         raise ValueError("Hai bản ghi đều có CIF khác nhau; không cho phép tự động hợp nhất")
 
-    tables = set(_tables(c))
-    if "customer_contact_master" in tables:
-        try:
-            source_contacts = c.execute(
-                "SELECT id,slot FROM customer_contact_master WHERE customer_id=? ORDER BY slot,id",
-                (merge_id,),
-            ).fetchall()
-            for contact_id, slot in source_contacts:
-                exists = c.execute(
-                    "SELECT id FROM customer_contact_master WHERE customer_id=? AND slot=?",
-                    (keep_id, slot),
-                ).fetchone()
-                if exists:
-                    c.execute("DELETE FROM customer_contact_master WHERE id=?", (int(contact_id),))
-                else:
-                    c.execute(
-                        "UPDATE customer_contact_master SET customer_id=? WHERE id=?",
-                        (keep_id, int(contact_id)),
-                    )
-        except Exception:
-            pass
+    refs = _customer_fk_columns(c)
+    snapshot = _merge_reference_snapshot(c, keep_id, merge_id, refs)
+    original_fk_violations = set(tuple(row) for row in c.execute("PRAGMA foreign_key_check"))
 
-    for table, col in _customer_fk_columns(c):
-        if table == "customer_contact_master":
-            continue
-        try:
+    # SAVEPOINT is safe both inside the UI's BEGIN IMMEDIATE and in callers
+    # that already own a transaction; all internal changes roll back together.
+    c.execute("SAVEPOINT khdn_safe_customer_merge")
+    try:
+        contact_count = _merge_contacts_no_loss(c, keep_id, merge_id)
+        for table, col in refs:
+            if table == "customer_contact_master":
+                continue
+            try:
+                c.execute(
+                    f"UPDATE {_qi(table)} SET {_qi(col)}=? WHERE {_qi(col)}=?",
+                    (keep_id, merge_id),
+                )
+            except Exception as exc:
+                raise ValueError(f"Không thể chuyển lịch sử tại bảng {table}: {exc}") from exc
+        _validate_merge_references(c, keep_id, merge_id, snapshot)
+
+        final_cif = keep_cif or src_cif or None
+        keep_status = "ACTIVE_CIF" if final_cif else "PROSPECT"
+        final_name = str(keep["customer_name"] or "").strip()
+        if not keep_cif and src_cif and str(src["customer_name"] or "").strip():
+            final_name = str(src["customer_name"]).strip()
+        qlkh = keep["qlkh_user_id"] if keep["qlkh_user_id"] is not None else src["qlkh_user_id"]
+        tax_id = str(keep["tax_id"] or "").strip() or str(src["tax_id"] or "").strip() or None
+        contact_name = str(keep["contact_name"] or "").strip() or str(src["contact_name"] or "").strip() or None
+        contact_phone = str(keep["contact_phone"] or "").strip() or str(src["contact_phone"] or "").strip() or None
+        qsource = str(keep["qlkh_source_text"] or "").strip() or str(src["qlkh_source_text"] or "").strip() or None
+
+        # Delete source only after every reference has moved and been checked.
+        # If source owns the official CIF, freeing its UNIQUE value first avoids
+        # a collision when it is assigned to the retained PROSPECT row.
+        result = c.execute("DELETE FROM customers WHERE id=?", (merge_id,))
+        if result.rowcount != 1:
+            raise ValueError("Không xóa được bản ghi khách hàng trùng; đã hủy hợp nhất.")
+        c.execute(
+            """UPDATE customers SET cif=?,customer_name=?,qlkh_user_id=?,qlkh_source_text=?,
+               active=?,customer_status=?,tax_id=?,contact_name=?,contact_phone=?,updated_at=? WHERE id=?""",
+            (final_cif, final_name, qlkh, qsource, 1 if final_cif else int(keep["active"] or 0),
+             keep_status, tax_id, contact_name, contact_phone, _now(), keep_id),
+        )
+        _validate_merge_references(c, keep_id, merge_id, snapshot)
+        if c.execute("SELECT 1 FROM customers WHERE id=?", (merge_id,)).fetchone():
+            raise ValueError("Khách hàng trùng vẫn tồn tại; đã hủy hợp nhất.")
+        new_violations = set(tuple(row) for row in c.execute("PRAGMA foreign_key_check"))
+        if new_violations - original_fk_violations:
+            raise ValueError("Có liên kết dữ liệu bị sai khóa ngoại; đã hủy hợp nhất.")
+
+        # Audit must succeed when the audit table exists, otherwise rollback.
+        if "system_audit" in _tables(c):
             c.execute(
-                f"UPDATE {_qi(table)} SET {_qi(col)}=? WHERE {_qi(col)}=?",
-                (keep_id, merge_id),
+                "INSERT INTO system_audit(actor_user_id,action,object_type,object_id,detail,created_at) "
+                "VALUES(?,?,?,?,?,?)",
+                (int(actor_uid) if actor_uid else None, "CUSTOMER_MERGE", "customer",
+                 str(keep_id),
+                 json.dumps({
+                     "merged_customer_id": merge_id, "cif": final_cif,
+                     "reassigned": {f"{table}.{col}": counts[1]
+                                    for (table, col), (counts, _ids) in snapshot.items()},
+                     "moved_contacts": contact_count, "integrity_checked": True,
+                 }, ensure_ascii=False), _now()),
             )
-        except Exception as exc:
-            raise ValueError(f"Không thể chuyển lịch sử tại bảng {table}: {exc}") from exc
-
-    final_cif = keep_cif or src_cif or None
-    keep_status = "ACTIVE_CIF" if final_cif else "PROSPECT"
-    final_name = str(keep["customer_name"] or "").strip()
-    if (not keep_cif) and src_cif and str(src["customer_name"] or "").strip():
-        final_name = str(src["customer_name"]).strip()
-    qlkh = keep["qlkh_user_id"] if keep["qlkh_user_id"] is not None else src["qlkh_user_id"]
-    tax_id = str(keep["tax_id"] or "").strip() or str(src["tax_id"] or "").strip() or None
-    contact_name = str(keep["contact_name"] or "").strip() or str(src["contact_name"] or "").strip() or None
-    contact_phone = str(keep["contact_phone"] or "").strip() or str(src["contact_phone"] or "").strip() or None
-    qsource = str(keep["qlkh_source_text"] or "").strip() or str(src["qlkh_source_text"] or "").strip() or None
-    c.execute(
-        """UPDATE customers SET cif=?,customer_name=?,qlkh_user_id=?,qlkh_source_text=?,
-           active=?,customer_status=?,tax_id=?,contact_name=?,contact_phone=?,updated_at=? WHERE id=?""",
-        (final_cif, final_name, qlkh, qsource, 1 if final_cif else int(keep["active"] or 0),
-         keep_status, tax_id, contact_name, contact_phone, _now(), keep_id),
-    )
-    c.execute("DELETE FROM customers WHERE id=?", (merge_id,))
-    _audit(c, actor_uid, "CUSTOMER_MERGE", keep_id, {"merged_customer_id": merge_id, "cif": final_cif})
-    return keep_id
-
+        c.execute("RELEASE SAVEPOINT khdn_safe_customer_merge")
+        return keep_id
+    except BaseException:
+        c.execute("ROLLBACK TO SAVEPOINT khdn_safe_customer_merge")
+        c.execute("RELEASE SAVEPOINT khdn_safe_customer_merge")
+        raise
 
 def delete_customers_safe(c, actor_uid, customer_ids):
     """Hard-delete only unreferenced customer rows; linked history is protected."""
@@ -494,7 +611,25 @@ def _render_merge(st, u, get_conn, logger=None):
         with get_conn() as c:
             dep = dependency_counts(c, [keep, src])
         total = sum((dep.get(int(src)) or {}).values())
-        st.info(f"Bản ghi #{src} đang có {total} liên kết workflow sẽ được chuyển sang #{keep}.")
+        contacts_count = (
+            (dep.get(int(keep)) or {}).get("customer_contact_master", 0)
+            + (dep.get(int(src)) or {}).get("customer_contact_master", 0)
+        )
+        blocked_contacts = contacts_count > 3
+        st.info(
+            f"Bản ghi #{src} đang có {total} liên kết dữ liệu sẽ được chuyển sang #{keep}. "
+            "Mã công việc, tình trạng và lịch sử xử lý phải được giữ nguyên."
+        )
+        st.caption(
+            "Danh bạ 1–3 liên hệ được chuyển nguyên bản, tự chọn ô trống khi trùng vị trí. "
+            "Hệ thống kiểm tra số lượng/ID công việc và khóa ngoại, sẽ hoàn tác toàn bộ "
+            "nếu có bất kỳ lỗi hoặc liên hệ vượt quá 3 vị trí."
+        )
+        if blocked_contacts:
+            st.error(
+                f"Không thể hợp nhất: hai khách hàng có {contacts_count} người liên hệ "
+                "(tối đa 3). Hãy đối chiếu danh bạ trước khi tiếp tục."
+            )
         confirm = st.checkbox(
             "Tôi xác nhận đây là cùng một khách hàng và muốn hợp nhất hai bản ghi.",
             key="cif_merge_confirm",
@@ -502,7 +637,7 @@ def _render_merge(st, u, get_conn, logger=None):
         if st.button(
             "🔗 Hợp nhất khách hàng",
             key="cif_merge_apply",
-            disabled=not confirm,
+            disabled=not confirm or blocked_contacts,
             use_container_width=True,
         ):
             try:
