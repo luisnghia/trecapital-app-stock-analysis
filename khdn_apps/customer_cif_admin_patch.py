@@ -611,7 +611,25 @@ def _render_merge(st, u, get_conn, logger=None):
         with get_conn() as c:
             dep = dependency_counts(c, [keep, src])
         total = sum((dep.get(int(src)) or {}).values())
-        st.info(f"Bản ghi #{src} đang có {total} liên kết workflow sẽ được chuyển sang #{keep}.")
+        contacts_count = (
+            (dep.get(int(keep)) or {}).get("customer_contact_master", 0)
+            + (dep.get(int(src)) or {}).get("customer_contact_master", 0)
+        )
+        blocked_contacts = contacts_count > 3
+        st.info(
+            f"Bản ghi #{src} đang có {total} liên kết dữ liệu sẽ được chuyển sang #{keep}. "
+            "Mã công việc, tình trạng và lịch sử xử lý phải được giữ nguyên."
+        )
+        st.caption(
+            "Danh bạ 1–3 liên hệ được chuyển nguyên bản, tự chọn ô trống khi trùng vị trí. "
+            "Hệ thống kiểm tra số lượng/ID công việc và khóa ngoại, sẽ hoàn tác toàn bộ "
+            "nếu có bất kỳ lỗi hoặc liên hệ vượt quá 3 vị trí."
+        )
+        if blocked_contacts:
+            st.error(
+                f"Không thể hợp nhất: hai khách hàng có {contacts_count} người liên hệ "
+                "(tối đa 3). Hãy đối chiếu danh bạ trước khi tiếp tục."
+            )
         confirm = st.checkbox(
             "Tôi xác nhận đây là cùng một khách hàng và muốn hợp nhất hai bản ghi.",
             key="cif_merge_confirm",
@@ -619,7 +637,7 @@ def _render_merge(st, u, get_conn, logger=None):
         if st.button(
             "🔗 Hợp nhất khách hàng",
             key="cif_merge_apply",
-            disabled=not confirm,
+            disabled=not confirm or blocked_contacts,
             use_container_width=True,
         ):
             try:
