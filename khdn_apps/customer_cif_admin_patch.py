@@ -273,7 +273,7 @@ def _merge_reference_snapshot(c, keep_id, merge_id, refs):
         columns = {str(row[1]) for row in c.execute(f"PRAGMA table_info({_qi(table)})")}
         ids = None
         if "id" in columns:
-            ids = {int(row[0]) for row in c.execute(
+            ids = {row[0] for row in c.execute(
                 f"SELECT id FROM {_qi(table)} WHERE {_qi(col)} IN (?,?)",
                 (keep_id, merge_id),
             )}
@@ -295,7 +295,7 @@ def _validate_merge_references(c, keep_id, merge_id, snapshot):
                 "số bản ghi thay đổi hoặc chưa chuyển hết. Hợp nhất đã được hoàn tác."
             )
         if previous_ids is not None:
-            current_ids = {int(row[0]) for row in c.execute(
+            current_ids = {row[0] for row in c.execute(
                 f"SELECT id FROM {_qi(table)} WHERE {_qi(col)}=?", (keep_id,)
             )}
             if current_ids != previous_ids:
