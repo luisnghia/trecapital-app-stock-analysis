@@ -104,8 +104,21 @@ def qa_two_matrices_only():
     assert not any("<script>" in t for t in html)
     assert "&lt;script&gt;" in "".join(html)
     assert st.buttons == ["Đăng xuất"], st.buttons
-    assert len(inquiry._tables(sample_cases())[0]) == 2  # two unique stages
-    assert len(inquiry._tables(sample_cases())[1]) == 2  # two unique staff
+    stage_rows, staff_rows = inquiry._tables(sample_cases())
+    assert len(stage_rows) == 2  # two unique stages
+    assert len(staff_rows) == 2  # two unique staff
+    for name, *columns in staff_rows:
+        entries = [item for column in columns for item in column]
+        assert all(name not in item for item in entries), (name, entries)
+    # Owner names still appear where needed when grouped by *stage*.
+    assert any("Trâm Anh" in item for _, *columns in stage_rows
+               for column in columns for item in column)
+    assert any("Hòa" in item for _, *columns in stage_rows
+               for column in columns for item in column)
+    assert sum("Khách hàng B · B" == item for _, *columns in staff_rows
+               for column in columns for item in column) == 1
+    assert "Hòa" not in "".join(str(col) for _, *columns in staff_rows
+                                for col in columns)
     assert "main_page" not in st.session_state
     assert not any("Phê duyệt" in x or "Xuất" in x or "Tạo công việc" in x for x in st.buttons)
     for user in ({"role": "Cán bộ QLKH"}, {"role": "Lãnh đạo phòng", "is_admin": 1}):
