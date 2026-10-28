@@ -13,21 +13,33 @@ from khdn_apps import inquiry_readonly_role as inquiry
 
 
 class FakeUI:
-    def __init__(self, logout=False):
+    def __init__(self, logout=False, open_case=None, back=False):
         self.session_state = {"main_page": "admin", "main_section": "ops", "cw_case_id": 12}
         self.sidebar = self
         self.messages = []
         self.logout = logout
+        self.open_case = open_case
+        self.back = back
         self.buttons = []
 
+    def __enter__(self): return self
+    def __exit__(self, *args): return False
     def markdown(self, message, *args, **kwargs): self.messages.append(("markdown", str(message)))
     def caption(self, message, *args, **kwargs): self.messages.append(("caption", str(message)))
     def title(self, message, *args, **kwargs): self.messages.append(("title", str(message)))
     def subheader(self, message, *args, **kwargs): self.messages.append(("subheader", str(message)))
     def html(self, message, *args, **kwargs): self.messages.append(("html", str(message)))
+    def warning(self, message, *args, **kwargs): self.messages.append(("warning", str(message)))
+    def expander(self, *args, **kwargs):
+        self.messages.append(("expander", str(args[0])))
+        return self
     def button(self, message, *args, **kwargs):
         self.buttons.append(str(message))
-        return self.logout
+        if kwargs.get("key") == "khdn_inquiry_logout": return self.logout
+        if kwargs.get("key") == "inquiry_priority_back": return self.back
+        if self.open_case is not None and kwargs.get("key") == f"inquiry_priority_open_{self.open_case}":
+            return True
+        return False
     def rerun(self): self.messages.append(("rerun", "triggered"))
 
 
@@ -98,12 +110,20 @@ def qa_two_matrices_only():
     with patch.object(inquiry, "_room_cases", return_value=sample_cases()):
         inquiry.render_inquiry(st, viewer, "/readonly.db")
     headings = [x for tag, x in st.messages if tag == "subheader"]
-    assert headings == ["Theo mục công việc · toàn phòng", "Theo cán bộ · toàn phòng"], headings
+    assert headings == [
+        "Theo mục công việc · toàn phòng",
+        "Theo cán bộ · toàn phòng",
+        "🔥 Góc phần tư ưu tiên · toàn phòng",
+    ], headings
     html = [x for tag, x in st.messages if tag == "html"]
-    assert len(html) == 2
+    assert len(html) >= 6  # two matrices, four summary cards + case cards
     assert not any("<script>" in t for t in html)
     assert "&lt;script&gt;" in "".join(html)
-    assert st.buttons == ["Đăng xuất"], st.buttons
+    expanders = [x for tag, x in st.messages if tag == "expander"]
+    assert len(expanders) == 4
+    assert sum("công việc" in x for x in expanders) == 4
+    assert st.buttons.count("Đăng xuất") == 1, st.buttons
+    assert st.buttons.count("🔎 Chi tiết") == len(sample_cases()), st.buttons
     stage_rows, staff_rows = inquiry._tables(sample_cases())
     assert len(stage_rows) == 2  # two unique stages
     assert len(staff_rows) == 2  # two unique staff
@@ -120,7 +140,8 @@ def qa_two_matrices_only():
     assert "Hòa" not in "".join(str(col) for _, *columns in staff_rows
                                 for col in columns)
     assert "main_page" not in st.session_state
-    assert not any("Phê duyệt" in x or "Xuất" in x or "Tạo công việc" in x for x in st.buttons)
+    assert not any("Phê duyệt" in x or "Xuất" in x or "Tạo công việc" in x
+                   or "Cập nhật" in x or "Lưu" in x or "Dời" in x for x in st.buttons)
     for user in ({"role": "Cán bộ QLKH"}, {"role": "Lãnh đạo phòng", "is_admin": 1}):
         try: inquiry.render_inquiry(st, user, "/readonly.db")
         except PermissionError: pass
