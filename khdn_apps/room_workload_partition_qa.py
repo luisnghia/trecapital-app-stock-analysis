@@ -40,7 +40,19 @@ def semantic_checks():
     same=[dict(cases[0],id=901),dict(cases[0],id=902)]
     assert sum(map(len,dashboard._workload_lists(same)))==2
     assert dashboard._workload_lists([])==[[],[],[],[]]
-    print('ROOM_WORKLOAD_PARTITION_QA_PASS eight_warning_combinations conservation transitions identical_labels empty flags_preserved')
+    # In the staff-grouped matrix, owner already appears as the first column:
+    # suppress only the redundant repeated suffix in each task description.
+    for staff_name in {x["owner_name"] for x in cases}:
+        owned = [x for x in cases if x["owner_name"] == staff_name]
+        compact = dashboard._workload_lists(owned, include_owner=False)
+        detailed = dashboard._workload_lists(owned)
+        assert sum(map(len, compact)) == len(owned)
+        assert all(staff_name not in item for group in compact for item in group), compact
+        assert all(staff_name in item for group in detailed for item in group), detailed
+        for work in owned:
+            label = f'{work["customer_name"]} · {work["title"]}'
+            assert sum(item == label for group in compact for item in group) == 1, label
+    print('ROOM_WORKLOAD_PARTITION_QA_PASS eight_warning_combinations conservation transitions identical_labels empty flags_preserved staff_names_not_repeated')
 
 
 class TableParser(HTMLParser):
@@ -108,6 +120,13 @@ customer_work_ui.render_leader_dashboard(st,u,app.get_conn,logger=app.LOGGER)
             if "class='p3-table'" in body and 'ROOM_TABLE_QA_' in body:
                 parsed=TableParser(); parsed.feed(body); tables.append(parsed.rows)
         assert len(tables)==2,('Final workload tables missing',len(tables))
+        # This codepath is shared by both Admin and leader, including reruns.
+        staff_table=next(t for t in tables if t[0][0]=='Cán bộ')
+        stage_table=next(t for t in tables if t[0][0]=='Mục công việc')
+        staff_owner='room_table_qa_staff'
+        assert any(staff_owner in row[0] for row in staff_table[1:])
+        assert all(staff_owner not in cell for row in staff_table[1:] for cell in row[1:])
+        assert any(staff_owner in cell for row in stage_table[1:] for cell in row[1:])
         for table in tables:
             heads=table[0]
             joined=''.join(cell for row in table[1:] for cell in row[1:])
