@@ -125,7 +125,14 @@ customer_work_ui.render_leader_dashboard(st,u,app.get_conn,logger=app.LOGGER)
         stage_table=next(t for t in tables if t[0][0]=='Mục công việc')
         staff_owner='room_table_qa_staff'
         assert any(staff_owner in row[0] for row in staff_table[1:])
-        assert all(staff_owner not in cell for row in staff_table[1:] for cell in row[1:])
+        # Only reject the *automatically appended* owner suffix. Customer
+        # names or user-entered titles may legitimately contain a person's name.
+        for row in staff_table[1:]:
+            owner=str(row[0]).strip()
+            for cell in row[1:]:
+                entries=[part.strip() for part in cell.split('• ') if part.strip()]
+                repeated=[part for part in entries if part.endswith(' · '+owner)]
+                assert not repeated, (owner,repeated,cell)
         assert any(staff_owner in cell for row in stage_table[1:] for cell in row[1:])
         for table in tables:
             heads=table[0]
