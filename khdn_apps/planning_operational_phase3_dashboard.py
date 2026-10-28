@@ -150,12 +150,39 @@ def _workload_lists(arr, order=("PROCESSING", "DELAYED", "ISSUES", "OVERDUE"), *
 
 
 def _matrix_table(st, heads, rows):
-    def cell(v):
+    """Render both room matrices; suppress repeated owner only in staff cells.
+
+    Some installed dashboard layers still supply preformatted legacy
+    'customer · work · owner' strings. Normalize at the final common HTML
+    boundary so Admin, leader and inquiry roles always get the same result.
+    Customer and work descriptions are otherwise left unchanged.
+    """
+    staff_view = bool(heads and str(heads[0]) == "Cán bộ")
+
+    def cell(v, owner=None):
         if isinstance(v,list):
-            return "<span class='p3-empty'>—</span>" if not v else "".join(f"<div class='p3-list-item'>• {esc(x)}</div>" for x in v)
+            if not v:
+                return "<span class='p3-empty'>—</span>"
+            formatted = []
+            for item in v:
+                text = str(item)
+                if owner:
+                    suffix = " · " + owner
+                    # The legacy renderer always creates at least two ' · '
+                    # delimiters when appending a third (owner) field.
+                    if text.endswith(suffix) and text.count(" · ") >= 2:
+                        text = text[:-len(suffix)]
+                formatted.append(f"<div class='p3-list-item'>• {esc(text)}</div>")
+            return "".join(formatted)
         return esc(v)
+
     h="".join(f"<th>{esc(x)}</th>" for x in heads)
-    b="".join("<tr>"+"".join(f"<td>{cell(v)}</td>" for v in row)+"</tr>" for row in rows)
+    b="".join(
+        "<tr>" + "".join(
+            f"<td>{cell(v, owner=str(row[0]) if staff_view and i else None)}</td>"
+            for i,v in enumerate(row)
+        ) + "</tr>" for row in rows
+    )
     st.html(f"""<div class='p3-table'><table><thead><tr>{h}</tr></thead><tbody>{b}</tbody></table></div>
     <style>.p3-table{{overflow-x:auto;width:100%}}.p3-table table{{width:100%;table-layout:fixed;border-collapse:collapse}}
     .p3-table th,.p3-table td{{padding:8px 9px;border:1px solid rgba(120,160,150,.28);vertical-align:top;white-space:normal;overflow-wrap:anywhere;font-size:.78rem}}
