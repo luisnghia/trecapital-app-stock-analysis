@@ -59,7 +59,7 @@ def _tables(data):
     by_staff = []
     for name in sorted({str(x.get("owner_name") or "—") for x in data}):
         group = [x for x in data if str(x.get("owner_name") or "—") == name]
-        by_staff.append([name, *dashboard._workload_lists(group, priority)])
+        by_staff.append([name, *dashboard._workload_lists(group, priority, include_owner=False)])
     return by_stage, by_staff
 
 

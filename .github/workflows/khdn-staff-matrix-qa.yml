@@ -1,0 +1,25 @@
+name: KHDN staff workload matrix display QA
+
+on:
+  push:
+    branches:
+      - fix/khdn-staff-matrix-omit-repeated-owner-20261028
+  pull_request:
+    paths:
+      - 'khdn_apps/planning_operational_phase3_dashboard.py'
+      - 'khdn_apps/inquiry_readonly_role.py'
+      - 'khdn_apps/room_workload_partition_qa.py'
+      - 'khdn_apps/inquiry_readonly_role_qa.py'
+      - '.github/workflows/khdn-staff-matrix-qa.yml'
+
+jobs:
+  staff-matrix-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r khdn_apps/requirements.txt
+      - run: python -m khdn_apps.room_workload_partition_qa
+      - run: python -m khdn_apps.inquiry_readonly_role_qa
