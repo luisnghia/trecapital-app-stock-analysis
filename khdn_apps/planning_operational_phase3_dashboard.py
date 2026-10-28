@@ -110,12 +110,13 @@ def _attention_dashboard(st, u, policy, customer_core, get_conn, logger=None):
             st.rerun()
 
 
-def _list_items(arr, flag=None):
+def _list_items(arr, flag=None, *, include_owner=True):
+    """In staff-grouped tables the first column already identifies the owner."""
     out=[]
     for x in arr:
         if flag and not flag(x): continue
         bits=[str(x.get("customer_name") or "—"),str(x.get("title") or "Công việc")]
-        if x.get("owner_name"): bits.append(str(x.get("owner_name")))
+        if include_owner and x.get("owner_name"): bits.append(str(x.get("owner_name")))
         out.append(" · ".join(bits))
     return out
 
@@ -138,13 +139,14 @@ def _workload_bucket(case):
     return "PROCESSING"
 
 
-def _workload_lists(arr, order=("PROCESSING", "DELAYED", "ISSUES", "OVERDUE")):
+def _workload_lists(arr, order=("PROCESSING", "DELAYED", "ISSUES", "OVERDUE"), *,
+                    include_owner=True):
     groups = {key: [] for key in order}
     for case in arr:
         groups[_workload_bucket(case)].append(case)
     # Partition by work identity, never by rendered text: separate works can
     # legitimately have the same customer, title and owner.
-    return [_list_items(groups[key]) for key in order]
+    return [_list_items(groups[key], include_owner=include_owner) for key in order]
 
 
 def _matrix_table(st, heads, rows):
@@ -270,7 +272,7 @@ def install_room_dashboard(customer_ui, customer_core, policy, weekly_core, logg
         staff_rows=[]
         for name in sorted({x.get("owner_name") or "—" for x in data}):
             arr=[x for x in data if (x.get("owner_name") or "—")==name]
-            staff_rows.append([name,*_workload_lists(arr,("PROCESSING","DELAYED","OVERDUE","ISSUES"))])
+            staff_rows.append([name,*_workload_lists(arr,("PROCESSING","DELAYED","OVERDUE","ISSUES"),include_owner=False)])
         _matrix_table(st,["Cán bộ","Đang xử lý","Bị chậm","Quá hạn","Có vướng mắc"],staff_rows)
         room_dashboard._render_room_priority(st,customer_ui,data)
         if overdue or delayed or blocked:
