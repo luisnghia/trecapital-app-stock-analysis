@@ -1,8 +1,9 @@
-"""Server-enforced, read-only room workload view for the Vấn tin role.
+"""Server-enforced, read-only room workload and priority view for Vấn tin.
 
-The route intercepts the authenticated app() *after* password reset and *before*
-sidebar/navigation/action widgets. It is not the leader dashboard: only the two
-room matrices can render. Data is loaded with an SQLite read-only connection.
+The route intercepts the authenticated app after password reset and before
+navigation/action widgets. Two room matrices, the four priority quadrants and
+their dedicated read-only details are permitted; all business writes remain
+blocked. SQLite is opened in query-only mode for every business read.
 """
 from __future__ import annotations
 
@@ -64,7 +65,7 @@ def _tables(data):
 
 
 def render_inquiry(st, user, db_path, logger=None):
-    """Render exactly two read-only tables and a safe sign-out control."""
+    """Render two room tables, priority list and read-only work details."""
     if not _is_inquiry(user):
         raise PermissionError("Chỉ tài khoản thuộc nhóm Vấn tin được mở trang này.")
     st.session_state.pop("cw_case_id", None)
@@ -84,9 +85,33 @@ def render_inquiry(st, user, db_path, logger=None):
         return
 
     st.title("🔎 Vấn tin · toàn phòng")
-    st.caption("Chỉ xem các công việc khách hàng chưa hoàn thành của toàn phòng; không có chức năng tạo, sửa, xuất dữ liệu hoặc phê duyệt.")
+    st.caption("Chỉ xem công việc khách hàng toàn phòng, góc phần tư ưu tiên và lịch sử xử lý; không được tạo, sửa hoặc phê duyệt.")
     from khdn_apps import planning_operational_phase3_dashboard as dashboard
+    from khdn_apps import inquiry_priority_readonly as priority_view
     data = _room_cases(db_path)
+
+    selected = st.session_state.get(priority_view.SELECTED_KEY)
+    if selected is not None:
+        # Check against the freshly loaded current room scope on *every* rerun.
+        # A forged or completed case cannot be opened by a stale session key.
+        valid = priority_view._valid_id(selected, data)
+        if valid is None:
+            st.session_state.pop(priority_view.SELECTED_KEY, None)
+            st.warning("Công việc không còn trong danh sách đang xử lý.")
+        else:
+            if st.button("← Trở về góc phần tư ưu tiên", key="inquiry_priority_back",
+                         use_container_width=True):
+                st.session_state.pop(priority_view.SELECTED_KEY, None)
+                st.rerun()
+                return
+            try:
+                priority_view.render_detail(st, db_path, valid, data, logger)
+            except PermissionError:
+                st.session_state.pop(priority_view.SELECTED_KEY, None)
+                st.warning("Công việc không còn trong phạm vi được xem.")
+            else:
+                return
+
     by_stage, by_staff = _tables(data)
     st.caption(dashboard.WORKLOAD_GROUP_NOTE)
     heads = ["Đang xử lý", "Bị chậm", "Quá hạn", "Có vướng mắc"]
@@ -94,6 +119,7 @@ def render_inquiry(st, user, db_path, logger=None):
     dashboard._matrix_table(st, ["Mục công việc", *heads], by_stage)
     st.subheader("Theo cán bộ · toàn phòng")
     dashboard._matrix_table(st, ["Cán bộ", *heads], by_staff)
+    priority_view.render_quadrants(st, data, logger)
     if logger:
-        logger.info("INQUIRY_ROOM_READONLY user_id=%s cases=%s stage_groups=%s staff_groups=%s",
+        logger.info("INQUIRY_ROOM_READONLY user_id=%s cases=%s stage_groups=%s staff_groups=%s priority_quadrants=4",
                     user.get("id"), len(data), len(by_stage), len(by_staff))
