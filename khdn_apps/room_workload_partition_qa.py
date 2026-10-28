@@ -52,7 +52,21 @@ def semantic_checks():
         for work in owned:
             label = f'{work["customer_name"]} · {work["title"]}'
             assert sum(item == label for group in compact for item in group) == 1, label
-    print('ROOM_WORKLOAD_PARTITION_QA_PASS eight_warning_combinations conservation transitions identical_labels empty flags_preserved staff_names_not_repeated')
+    # The installed app may still supply a preformatted three-part string from
+    # another layer. The final HTML renderer must remove that exact suffix.
+    class _Capture:
+        def html(self, html): self.html_text = html
+    sample = "Công ty ABC · Mở tài khoản · QA Cán bộ 1"
+    ui = _Capture()
+    dashboard._matrix_table(ui, ["Cán bộ", "Đang xử lý"],
+                            [["QA Cán bộ 1", [sample, "Công ty XYZ · Vay vốn"]]])
+    assert "• Công ty ABC · Mở tài khoản</div>" in ui.html_text
+    assert "• Công ty XYZ · Vay vốn</div>" in ui.html_text
+    assert "Mở tài khoản · QA Cán bộ 1" not in ui.html_text
+    dashboard._matrix_table(ui, ["Mục công việc", "Đang xử lý"],
+                            [["Mở tài khoản", [sample]]])
+    assert sample in ui.html_text, "Stage-grouped table must retain owner"
+    print('ROOM_WORKLOAD_PARTITION_QA_PASS eight_warning_combinations conservation transitions identical_labels empty flags_preserved staff_names_not_repeated final_render_owner_suffix_guard')
 
 
 class TableParser(HTMLParser):
