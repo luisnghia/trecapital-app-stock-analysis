@@ -24,3 +24,4 @@ jobs:
       - run: python -m khdn_apps.action_feedback_qa
       - run: python -m khdn_apps.action_feedback_one_shot_qa
       - run: python -m khdn_apps.notification_lifecycle_qa
+      - run: python -m khdn_apps.runtime_page_qa
