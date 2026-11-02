@@ -24,4 +24,7 @@ jobs:
       - run: python -m khdn_apps.action_feedback_qa
       - run: python -m khdn_apps.action_feedback_one_shot_qa
       - run: python -m khdn_apps.notification_lifecycle_qa
-      - run: python -m khdn_apps.runtime_page_qa
+      # Match Railway exactly: its Dockerfile runs mandatory schema preflights
+      # before the installed runtime AppTest. Direct runtime_page_qa against a
+      # pristine checkout lacks those preflights and fails unrelated init_db.
+      - run: docker build --progress=plain -f khdn_apps/Dockerfile -t khdn-feedback-validation .
