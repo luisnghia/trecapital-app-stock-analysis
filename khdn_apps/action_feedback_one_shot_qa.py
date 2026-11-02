@@ -56,7 +56,14 @@ run_with_feedback(st, render)
 def _assert_toast(page, value):
     assert not page.exception, [e.message for e in page.exception]
     toasts = page.get("toast")
-    assert len(toasts) == 1, [x.proto.body for x in toasts]
+    assert len(toasts) == 1, {
+        "toasts": [x.proto.body for x in toasts],
+        "user": page.session_state["user"],
+        "pending": page.session_state[feedback._PENDING] if feedback._PENDING in page.session_state else None,
+        "seq": page.session_state[feedback._SEQUENCE] if feedback._SEQUENCE in page.session_state else None,
+        "closed": page.session_state[feedback._CLOSED_THROUGH] if feedback._CLOSED_THROUGH in page.session_state else None,
+        "styles": [x.proto.body[-130:] for x in page.get("html") if "data-khdn-toast-one-shot" in x.proto.body],
+    }
     assert toasts[0].proto.body.endswith(value), toasts[0].proto.body
     assert toasts[0].proto.duration == feedback.SECONDS
     html = [x.proto.body for x in page.get("html")]
