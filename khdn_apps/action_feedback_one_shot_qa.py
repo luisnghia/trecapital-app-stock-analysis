@@ -104,7 +104,7 @@ def qa_all_roles():
         page.button(key="qa_open_inbox").click().run()
         _assert_quiet(page)
         assert page.session_state["_khdn_notification_dialog_open"] is True
-        assert page.session_state.get(feedback._PENDING) in (None, [])
+        assert feedback._PENDING not in page.session_state or page.session_state[feedback._PENDING] == []
         page.button(key="qa_close_inbox").click().run()
         _assert_quiet(page)
         assert page.session_state["_khdn_notification_dialog_open"] is False
