@@ -12,8 +12,11 @@ from khdn_apps import action_feedback_patch as feedback
 SCRIPT = """
 import streamlit as st
 from khdn_apps import app
-from khdn_apps.action_feedback_patch import run_with_feedback, silence_feedback
+from khdn_apps.action_feedback_patch import run_with_feedback, silence_feedback, install as install_feedback
 from khdn_apps.notification_ui_patch import _close_center
+# This AppTest imports the app module without online_entry.py, which normally
+# installs all production wrappers. Install only feedback explicitly here.
+install_feedback(app.__dict__, app.LOGGER)
 
 st.session_state.setdefault("user", {"id": 22, "role": "Cán bộ QLKH"})
 def render():
