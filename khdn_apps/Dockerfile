@@ -142,6 +142,7 @@ RUN python /app/khdn_apps/install_branding.py \
     && PYTHONPATH=/app python /app/khdn_apps/security_hardening_qa.py
 
 RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/customer_merge_lossless_qa.py
+RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/action_feedback_one_shot_qa.py
 RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/inquiry_readonly_role_qa.py
 RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/inquiry_priority_readonly_qa.py
 RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/inquiry_user_schema_qa.py
