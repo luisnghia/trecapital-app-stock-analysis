@@ -102,7 +102,7 @@ if st.button("QA gửi duyệt"):
     # resurface after an inbox dialog or six-second refresh.
     next(x for x in page.button if x.label == "QA lưu thay đổi").click().run()
     assert not page.exception and not page.get("toast")
-    assert any("Đã lưu thay đổi và ghi lịch sử." in x.message
+    assert any("Đã lưu thay đổi và ghi lịch sử." in x.proto.body
                for x in page.get("success"))
     page.run()
     assert not page.exception and not page.get("toast")
