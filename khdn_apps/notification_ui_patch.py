@@ -11,7 +11,9 @@ _INSTALL_FLAG = "_KHDN_NOTIFICATION_UI_V2320"
 
 
 def _close_center(st) -> None:
-    """Reset server state for both explicit Close and native X/Escape/backdrop."""
+    """Dismiss the inbox AND permanently invalidate older transient toasts."""
+    from khdn_apps.action_feedback_patch import silence_feedback
+    silence_feedback(st)
     st.session_state["_khdn_notification_dialog_open"] = False
     st.session_state.pop("_khdn_notification_selected", None)
 
@@ -264,6 +266,10 @@ def install(ns: dict[str, Any]) -> None:
             unread = 0
         label = f"🔔 Thông báo ({unread})" if unread else "🔔 Thông báo"
         if st.sidebar.button(label, use_container_width=True, key="khdn_notification_center_btn", type="primary" if unread else "secondary"):
+            # Opening the inbox must never reveal the transient confirmations
+            # from earlier approvals/returns behind a modal dialog.
+            from khdn_apps.action_feedback_patch import silence_feedback
+            silence_feedback(st)
             st.session_state["_khdn_notification_selected"] = None
             st.session_state["_khdn_notification_dialog_open"] = True
 
