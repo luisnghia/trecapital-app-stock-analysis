@@ -45,7 +45,7 @@ def run_feedback_qa():
         assert returned == ui.toasts[-1]
         body, settings = returned
         assert feedback.TITLE in body and body.endswith(message)
-        assert settings["duration"] == 12 and settings["icon"] == "✅"
+        assert settings["duration"] == feedback.SECONDS and settings["icon"] == "✅"
     before = len(ui.toasts)
     for message in [
         "Không có công việc đang chờ đánh giá.",
@@ -58,12 +58,11 @@ def run_feedback_qa():
     assert len(ui.toasts) == before
     message = "Đã lưu đánh giá và kết thúc tác nghiệp."
     assert ui.success(message) == ui.bars[-1]
-    assert len(ui.toasts) == before + 1
-    assert ui.toasts[-1][0].endswith(message) and ui.toasts[-1][1]["duration"] == 12
+    assert len(ui.toasts) == before, "Persistent status bars must not generate duplicate native toasts."
     ui.toast("Đã lưu.", duration="infinite")
-    assert ui.toasts[-1][1]["duration"] == "infinite"
+    assert ui.toasts[-1][1]["duration"] == feedback.SECONDS
     ui.toast("Đã lưu.", duration=30)
-    assert ui.toasts[-1][1]["duration"] == 30
+    assert ui.toasts[-1][1]["duration"] == feedback.SECONDS
     ui.toast("Ghi chú không thay đổi.", icon="ℹ️")
     assert ui.toasts[-1] == ("Ghi chú không thay đổi.", {"icon": "ℹ️"})
     warning = "Kết quả nạp: đã lưu 2 khách hàng; 1 dòng lỗi."
@@ -71,8 +70,11 @@ def run_feedback_qa():
     assert ui.toasts[-1] == (warning, {"icon": "⚠️", "duration": 12})
     # Legacy decision toasts use a return arrow instead of a check mark.
     ui.toast("Đã từ chối công việc.", icon="↩")
-    assert feedback.TITLE in ui.toasts[-1][0] and ui.toasts[-1][1]["duration"] == 12
-    print("ACTION_FEEDBACK_QA_PASS create edit submit approve close contact native_queue inline_status_no_popup original_return idempotent theme_each_rerun duration dismissible")
+    assert feedback.TITLE in ui.toasts[-1][0] and ui.toasts[-1][1]["duration"] == feedback.SECONDS
+    assert 'ol>:not(:last-child)' in feedback.FEEDBACK_CSS
+    assert feedback._visibility_style(False).find("display:none") > 0
+    assert feedback._visibility_style(True).find("display:block") > 0
+    print("ACTION_FEEDBACK_QA_PASS create edit submit approve close contact latest_only inline_status_no_popup capped_duration dismissible notification_hide_css")
 
 
 def installed_feedback_ui():
@@ -95,16 +97,24 @@ if st.button("QA gửi duyệt"):
     assert not page.exception, [e.message for e in page.exception]
     assert len(page.get("toast")) == 0
     assert any(feedback.FEEDBACK_CSS == x.proto.body for x in page.get("html"))
-    for button, message in [("QA lưu thay đổi", "Đã lưu thay đổi và ghi lịch sử."),
-                            ("QA gửi duyệt", "Đã gửi kế hoạch chờ Lãnh đạo phê duyệt.")]:
-        next(x for x in page.button if x.label == button).click().run()
-        assert not page.exception, [e.message for e in page.exception]
-        toasts = page.get("toast")
-        assert len(toasts) == 1
-        assert toasts[0].proto.body.endswith(message) and feedback.TITLE in toasts[0].proto.body
-        assert toasts[0].proto.duration == 12
-        page.run()
-        assert not page.exception and len(page.get("toast")) == 0
+    # An inline completed status is NOT another popup. Only explicit st.toast
+    # represents a new action-result event, so persistent status messages never
+    # resurface after an inbox dialog or six-second refresh.
+    next(x for x in page.button if x.label == "QA lưu thay đổi").click().run()
+    assert not page.exception and not page.get("toast")
+    assert any("Đã lưu thay đổi và ghi lịch sử." in x.message
+               for x in page.get("success"))
+    page.run()
+    assert not page.exception and not page.get("toast")
+    next(x for x in page.button if x.label == "QA gửi duyệt").click().run()
+    assert not page.exception, [e.message for e in page.exception]
+    toasts = page.get("toast")
+    assert len(toasts) == 1
+    assert toasts[0].proto.body.endswith("Đã gửi kế hoạch chờ Lãnh đạo phê duyệt.")
+    assert feedback.TITLE in toasts[0].proto.body
+    assert toasts[0].proto.duration == feedback.SECONDS
+    page.run()
+    assert not page.exception and len(page.get("toast")) == 0
 
     # A save in an expander followed by rerun used to have its event slot
     # overwritten by later style-only st.html calls. Flush after the final page
@@ -129,7 +139,7 @@ run_with_feedback(st,lambda:run_with_feedback(st,render))
     assert not page.exception, [e.message for e in page.exception]
     assert len(page.get('toast'))==1
     assert page.get('toast')[0].proto.body.endswith('Đã cập nhật đầy đủ nội dung.')
-    assert page.get('toast')[0].proto.duration==12
+    assert page.get('toast')[0].proto.duration==feedback.SECONDS
     page.run()
     assert not page.get('toast')
 
@@ -172,10 +182,10 @@ run_with_feedback(st,render)
     page.button[0].click().run()
     next(x for x in page.button if x.label=='QA lưu trong hộp thoại').click().run()
     assert not page.exception, [e.message for e in page.exception]
-    assert len(page.get('toast'))==1 and page.get('toast')[0].proto.duration==12
+    assert not page.get('toast'), "st.success is a persistent inline banner, not a new action event"
     page.run()
     assert not page.get('toast')
-    print("ACTION_FEEDBACK_INSTALLED_UI_QA_PASS native_toast centered_CSS save submit exact_outcome 12_seconds deferred_after_rerun style_collision nested_dialog updated_handle user_isolation status_not_replayed no_extra_rerun")
+    print("ACTION_FEEDBACK_INSTALLED_UI_QA_PASS native_toast centered_CSS inline_success explicit_toast exact_outcome five_seconds deferred_after_rerun style_collision nested_dialog updated_handle user_isolation status_not_replayed no_extra_rerun")
 
 
 if __name__ == "__main__":
