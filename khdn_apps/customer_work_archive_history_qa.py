@@ -56,23 +56,16 @@ def _db(path):
     _make_db(path)
     with sqlite3.connect(path) as c:
         c.execute("UPDATE customer_work_cases SET customer_id=7,owner_user_id=9")
-        c.execute("""UPDATE customer_work_cases
-                     SET case_type='Tín dụng',title='Hồ sơ đã hoàn thành',
-                         status='COMPLETED',completed_at=NULL,
-                         updated_at='2026-11-04 09:00:00',note='<script>hidden</script>'
-                     WHERE id=102""") if False else None
-        # Fixture schema does not include updated_at; add the columns required
-        # by production ordering and archived metadata exactly as on production.
-        c.execute("ALTER TABLE customer_work_cases ADD COLUMN updated_at TEXT")
-        c.execute("ALTER TABLE customer_work_cases ADD COLUMN completed_at TEXT")
-        c.execute("ALTER TABLE customer_work_cases ADD COLUMN contact_name TEXT")
-        c.execute("ALTER TABLE customer_work_cases ADD COLUMN contact_phone TEXT")
-        c.execute("ALTER TABLE customer_work_cases ADD COLUMN contact_role TEXT")
-        c.execute("ALTER TABLE customer_work_cases ADD COLUMN plan_approved_by INTEGER")
-        c.execute("ALTER TABLE customer_work_cases ADD COLUMN plan_approved_at TEXT")
-        c.execute("ALTER TABLE customer_work_cases ADD COLUMN plan_rejected_by INTEGER")
-        c.execute("ALTER TABLE customer_work_cases ADD COLUMN plan_rejected_at TEXT")
-        c.execute("ALTER TABLE customer_work_cases ADD COLUMN approval_note TEXT")
+        # Keep the shared isolated fixture compatible with future production
+        # schema additions; add only columns not already present.
+        existing = {str(row[1]) for row in c.execute("PRAGMA table_info(customer_work_cases)")}
+        for field in ("updated_at", "completed_at", "contact_name",
+                      "contact_phone", "contact_role", "plan_approved_by",
+                      "plan_approved_at", "plan_rejected_by", "plan_rejected_at",
+                      "approval_note"):
+            if field not in existing:
+                coltype = "INTEGER" if field.endswith("_by") else "TEXT"
+                c.execute(f"ALTER TABLE customer_work_cases ADD COLUMN {field} {coltype}")
         c.execute("""UPDATE customer_work_cases SET updated_at='2026-11-05 08:00:00',
                      contact_name='Nguyễn A',contact_role='Giám đốc',
                      contact_phone='0900012345' WHERE id=101""")
