@@ -21,12 +21,16 @@ from khdn_apps import customer_work_archive_history as archive
 class UI:
     def __init__(self):
         self.labels=[]
+        self.expander_options=[]
         self.messages=[]
         self.session_state={}
 
     def __enter__(self): return self
     def __exit__(self,*a): return False
-    def expander(self,label,*a,**kw): self.labels.append(label);return self
+    def expander(self,label,*a,**kw):
+        self.labels.append(label)
+        self.expander_options.append(dict(kw))
+        return self
     def subheader(self,value,*a,**kw): self.labels.append(value)
     def caption(self,value,*a,**kw): self.messages.append(("caption",str(value)))
     def error(self,value,*a,**kw): self.messages.append(("error",str(value)))
@@ -123,10 +127,16 @@ def test_server_authorization_and_audit(get_conn):
     assert "Lãnh đạo A → Lãnh đạo B" in archived_detail
     assert "Chuyển việc theo phân công mới" in archived_detail
 
-    # Only the new supervising leader has authority from the next DB read.
-    reject(lambda:assignment.reassign_case(
-        get_conn,101,2,4,2,"Lấy lại quyền",
-        expected_owner_uid=5,expected_controller_uid=3),PermissionError)
+    # Every active phòng leader has room-wide management authority, including
+    # cases controlled by another leader or unassigned old cases.
+    assert assignment.reassign_case(
+        get_conn,101,2,4,2,"Lãnh đạo chuyển lại trong toàn phòng",
+        expected_owner_uid=5,expected_controller_uid=3)
+    assert assignment.reassign_case(
+        get_conn,101,3,5,3,"Lãnh đạo khác tiếp nhận",
+        expected_owner_uid=4,expected_controller_uid=2)
+    with get_conn() as c:
+        assert c.execute("SELECT COUNT(*) FROM case_actions WHERE case_id=101").fetchone()[0]==3
     assert assignment.reassign_case(
         get_conn,101,3,5,3,"Không đổi",
         expected_owner_uid=5,expected_controller_uid=3) is False
@@ -140,7 +150,7 @@ def test_server_authorization_and_audit(get_conn):
         get_conn,102,1,2,2,"Admin giao Lãnh đạo làm cán bộ",
         expected_owner_uid=4,expected_controller_uid=2)
 
-    # A controller can hand over only their own case. Staff and Vấn tin
+    # Every manager can hand over an active case. Staff and Vấn tin
     # cannot use this low-level function even by spoofing a Streamlit button.
     for actor in (4,6,7):
         reject(lambda a=actor:assignment.reassign_case(
@@ -159,7 +169,7 @@ def test_server_authorization_and_audit(get_conn):
         get_conn,101,1,4,2,"   ",
         expected_owner_uid=5,expected_controller_uid=3),ValueError)
     with get_conn() as c:
-        assert c.execute("SELECT COUNT(*) FROM case_actions WHERE case_id=101").fetchone()[0]==1
+        assert c.execute("SELECT COUNT(*) FROM case_actions WHERE case_id=101").fetchone()[0]==3
         assert tuple(c.execute(
             "SELECT owner_user_id,controller_user_id FROM customer_work_cases WHERE id=101"
         ).fetchone())==(5,3)
@@ -183,14 +193,21 @@ def test_final_ui_scope_and_form(get_conn):
         assert fields[0]["default"]=="5" and fields[1]["default"]=="3"
         assert fields[2]["name"]=="reason" and fields[2]["required"] is True
         assert captured[-1]["kw"]["columns"]==2
-        assert "✏️ Thay đổi cán bộ phụ trách" in ui.labels[-1]
+        assert "👥 Đổi cán bộ phụ trách" in ui.labels[-1]
+        assert "✏️ Chỉnh sửa công việc · Phân công phụ trách" in ui.labels
+        assert ui.labels[-1] == "👥 Đổi cán bộ phụ trách / Lãnh đạo kiểm soát"
+        assert ui.expander_options[-1]["expanded"] is True
 
         for actor in ({"id":4,"role":"Cán bộ QLKH","is_admin":0},
-                      {"id":7,"role":"Vấn tin","is_admin":0},
-                      {"id":2,"role":"Lãnh đạo phòng","is_admin":0}):
+                      {"id":7,"role":"Vấn tin","is_admin":0}):
             before=len(captured)
             assignment._form(ui,actor,get_conn,101)
             assert len(captured)==before
+        # A different phòng leader MUST see the editor too even if the current
+        # controller is someone else; this was the real-world blocker.
+        before=len(captured)
+        assignment._form(ui,{"id":2,"role":"Lãnh đạo phòng","is_admin":0},get_conn,101)
+        assert len(captured)==before+1
         before=len(captured)
         assignment._form(ui,{"id":1,"role":"Lãnh đạo phòng","is_admin":1},get_conn,103)
         assert len(captured)==before
@@ -207,6 +224,66 @@ def test_final_ui_scope_and_form(get_conn):
     with patch.object(assignment,"_form",side_effect=lambda *a,**k:demo.called.append("assignment")):
         demo._case_detail(ui,{"id":7,"role":"Vấn tin"},get_conn,101)
     assert demo.called==["assignment","existing"],demo.called
+    assert getattr(demo._case_detail,"_khdn_assignment_live_wrapper",False)
+    # Reproduce the real production bug: manager-note installer creates a
+    # brand-new detail wrapper on every Streamlit rerun. The persistent
+    # module FLAG remains true, but the currently bound function lost the form.
+    demo.called.clear()
+    def regenerated_manager_note(st,u,get_conn,case_id,logger=None):
+        demo.called.append("manager_note_rerun")
+    demo._case_detail=regenerated_manager_note
+    assert getattr(demo,assignment.FLAG,False)
+    assignment.install(demo)
+    assignment.install(demo)
+    with patch.object(assignment,"_form",side_effect=lambda *a,**k:demo.called.append("assignment")):
+        demo._case_detail(ui,{"id":1,"role":"Lãnh đạo phòng","is_admin":1},get_conn,101)
+    assert demo.called==["assignment","manager_note_rerun"],demo.called
+    assert getattr(demo._case_detail,"_khdn_assignment_live_wrapper",False)
+    # Third rerun must not stack duplicate editor forms either.
+    demo.called.clear()
+    demo._case_detail=lambda *a,**k:demo.called.append("third_rerun")
+    assignment.install(demo)
+    with patch.object(assignment,"_form",side_effect=lambda *a,**k:demo.called.append("assignment")):
+        demo._case_detail(ui,{"id":1,"role":"Lãnh đạo phòng","is_admin":1},get_conn,101)
+    assert demo.called==["assignment","third_rerun"],demo.called
+
+
+
+def test_end_to_end_form_submit_and_history(get_conn):
+    # This specifically exercises the *UI submit action* rather than calling
+    # the low-level SQL mutation directly. The previous QA did not cover it.
+    from khdn_apps import legacy_fast_form as fast
+    with get_conn() as c:
+        c.execute("INSERT INTO customer_work_cases VALUES(105,4,2,'ACTIVE','2026-10-01','2026-10-01')")
+
+    screen=UI()
+    submit = {"owner":"5","controller":"3","reason":"Điều động phụ trách hồ sơ khách hàng"}
+    with patch.object(fast,"legacy_fast_form",return_value=submit):
+        assignment._form(
+            screen,{"id":3,"role":"Lãnh đạo phòng","is_admin":0},
+            get_conn,105
+        )
+    assert ("rerun","called") in screen.messages
+    assert any(tag=="toast" and "lưu nhật ký" in msg for tag,msg in screen.messages)
+    with get_conn() as c:
+        row=c.execute("SELECT owner_user_id,controller_user_id,created_at FROM customer_work_cases WHERE id=105").fetchone()
+        records=[dict(x) for x in c.execute("SELECT * FROM case_actions WHERE case_id=105")]
+    assert tuple(row[:2])==(5,3)
+    assert row[2]=="2026-10-01"
+    assert len(records)==1 and records[0]["action"]=="CASE_ASSIGNMENT_UPDATE"
+    assert json.loads(records[0]["detail"])["reason"]==submit["reason"]
+
+    # A no-op submitted from a current screen must not duplicate history.
+    screen=UI()
+    with patch.object(fast,"legacy_fast_form",return_value=submit):
+        assignment._form(
+            screen,{"id":2,"role":"Lãnh đạo phòng","is_admin":0},
+            get_conn,105
+        )
+    assert ("info","Phân công không thay đổi.") in screen.messages
+    assert ("rerun","called") not in screen.messages
+    with get_conn() as c:
+        assert c.execute("SELECT COUNT(*) FROM case_actions WHERE case_id=105").fetchone()[0]==1
 
 
 def test_cif_embedded_patch():
@@ -240,5 +317,6 @@ if __name__=="__main__":
         get_conn=connect(db)
         test_server_authorization_and_audit(get_conn)
         test_final_ui_scope_and_form(get_conn)
+        test_end_to_end_form_submit_and_history(get_conn)
     test_cif_embedded_patch()
     print("CW_CASE_ASSIGNMENT_CIF_LEADER_QA_PASS admin_all leader_controller_guard staff_inquiry_denied active_role_guards optimistic_stale immutable_closed atomic_history exact_reason ui_options_cif_dropdown final_wrapper_no_migration")

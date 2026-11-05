@@ -1,8 +1,7 @@
 """Controlled Customer Work reassignment (owner + supervising leader).
 
-Admin can reassign any ACTIVE customer case. A phòng leader can reassign an
-ACTIVE case currently under their controller scope, never grant themself rights
-by changing an out-of-scope controller. All changes are atomic, optimistic
+Admin and phòng leaders can reassign any ACTIVE customer case in their
+room-wide management scope. Staff and Vấn tin never receive edit permissions. All changes are atomic, optimistic
 concurrency-protected and audited to case_actions. No case history, stages,
 tasks, customers or deadlines are reassigned/deleted by this operation.
 
@@ -15,7 +14,7 @@ import json
 
 from khdn_apps.authorization import active_user
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 FLAG = "_KHDN_WORK_ASSIGNMENT_PATCH_V1"
 
 
@@ -41,10 +40,10 @@ def _can_manage(actor, case):
         return False
     if int(actor.get("is_admin") or 0):
         return True
-    return (
-        str(actor.get("role") or "") == "Lãnh đạo phòng"
-        and int(case.get("controller_user_id") or 0) == int(actor["id"])
-    )
+    # Room leadership already has full-room Customer Work visibility in phase 9.
+    # Changing the currently assigned controller must not be blocked merely
+    # because that controller is another leader or the legacy case is unassigned.
+    return str(actor.get("role") or "") == "Lãnh đạo phòng"
 
 
 def reassign_case(
@@ -71,7 +70,7 @@ def reassign_case(
             raise ValueError("Công việc không còn tồn tại.")
         case = dict(row)
         if not _can_manage(actor, case):
-            raise PermissionError("Công việc đã kết thúc hoặc không thuộc phạm vi Lãnh đạo phụ trách.")
+            raise PermissionError("Chỉ Admin/Lãnh đạo phòng được điều chỉnh công việc đang thực hiện.")
         old_owner = int(case.get("owner_user_id") or 0)
         old_controller = int(case.get("controller_user_id") or 0)
         if (old_owner != int(expected_owner_uid or 0)
@@ -142,8 +141,7 @@ def _form(st, u, get_conn, case_id, logger=None):
             return
         allowed = _can_manage(actor, case)
         if not allowed:
-            if _is_manager(actor):
-                st.caption("Chỉ Lãnh đạo đang kiểm soát công việc hoặc Admin mới được điều chỉnh người phụ trách.")
+            st.warning("Chỉ Admin/Lãnh đạo phòng được chỉnh sửa phân công công việc đang thực hiện.")
             return
         owners = _active_users(c, ("Cán bộ QLKH", "Lãnh đạo phòng"))
         leaders = _active_users(c, ("Lãnh đạo phòng",))
@@ -162,13 +160,15 @@ def _form(st, u, get_conn, case_id, logger=None):
         for x in leaders
     ]
 
-    st.subheader("👥 Điều chỉnh phân công công việc")
+    st.subheader("✏️ Chỉnh sửa công việc · Phân công phụ trách")
     st.caption(
-        "Chỉ dành cho Admin và Lãnh đạo đang kiểm soát công việc. "
-        "Thay đổi này không làm mất lịch sử, không đổi hạn/mục công việc "
-        "và không tự thay đổi cán bộ quản lý của khách hàng CIF."
+        "Admin/Lãnh đạo phòng có thể điều chỉnh người phụ trách và lãnh đạo kiểm soát "
+        "trong toàn phòng. Nhập lý do để lưu; lịch sử và thời hạn công việc được giữ nguyên. "
+        "Không tự thay đổi cán bộ quản lý khách hàng CIF."
     )
-    with st.expander("✏️ Thay đổi cán bộ phụ trách / Lãnh đạo kiểm soát", expanded=False):
+    # Open by default: the previous collapsed expander made the feature
+    # effectively undiscoverable, even for the administrator account.
+    with st.expander("👥 Đổi cán bộ phụ trách / Lãnh đạo kiểm soát", expanded=True):
         payload = legacy_fast_form(
             [
                 {"name": "owner", "label": "Cán bộ phụ trách *",
@@ -213,20 +213,30 @@ def _form(st, u, get_conn, case_id, logger=None):
 
 
 def install(customer_ui, logger=None):
-    """Run as the final Customer Work UI binding, after manager note overlays."""
-    if getattr(customer_ui, FLAG, False):
+    """Rebind after *every* Streamlit rerun without stacking wrappers.
+
+    The manager-note installer recreates customer_ui._case_detail on each
+    script run, even while module globals survive. A module-level _FLAG
+    incorrectly claimed our editor was installed and skipped rebinding,
+    making the real UI disappear after the first interaction. Inspect the
+    live callable instead of the persistent module flag.
+    """
+    current = customer_ui._case_detail
+    if getattr(current, "_khdn_assignment_live_wrapper", False):
         return
-    original = customer_ui._case_detail
+    original = current
 
     def _case_detail(st, u, get_conn, case_id, logger=None):
+        # The final UI wrapper must remain present after manager-note refresh.
         _form(st, u, get_conn, case_id, logger)
         return original(st, u, get_conn, case_id, logger)
 
+    _case_detail._khdn_assignment_live_wrapper = True
     customer_ui._case_detail = _case_detail
     setattr(customer_ui, FLAG, True)
     if logger:
         logger.info(
-            "CW_CASE_ASSIGNMENT_INSTALLED version=%s admin_scope=all leader_scope=controller "
-            "owner_and_leader_edit=1 audit=1 optimistic_lock=1 no_data_migration=1",
+            "CW_CASE_ASSIGNMENT_REBOUND version=%s admin_scope=all leader_scope=all "
+            "owner_and_leader_edit=1 rerun_safe=1 actual_detail_hook=1 audit=1 no_migration=1",
             VERSION,
         )
