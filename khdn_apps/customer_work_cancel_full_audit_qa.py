@@ -42,7 +42,7 @@ def fixture(path):
              "Đã kiểm tra hồ sơ và đồng ý hủy"),
         ])
         c.executemany("""INSERT INTO case_actions
-            (id,case_id,actor_user_id,action,detail,created_at) VALUES(?,?,?,?,?)""",[
+            (id,case_id,actor_user_id,action,detail,created_at) VALUES(?,?,?,?,?,?)""",[
             (2,103,9,"CREATE",'{"approval":"PENDING"}',"2026-10-20 08:00:00"),
             (3,103,9,"STAGE_CHANGE",'{"stage_id":3,"note":"Đã làm việc khách hàng"}',"2026-10-25 08:00:00"),
             (4,103,9,"CANCEL_REQUEST_P12","request_id=44","2026-11-01 12:00:00"),
