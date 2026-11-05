@@ -224,6 +224,28 @@ def test_final_ui_scope_and_form(get_conn):
     with patch.object(assignment,"_form",side_effect=lambda *a,**k:demo.called.append("assignment")):
         demo._case_detail(ui,{"id":7,"role":"Vấn tin"},get_conn,101)
     assert demo.called==["assignment","existing"],demo.called
+    assert getattr(demo._case_detail,"_khdn_assignment_live_wrapper",False)
+    # Reproduce the real production bug: manager-note installer creates a
+    # brand-new detail wrapper on every Streamlit rerun. The persistent
+    # module FLAG remains true, but the currently bound function lost the form.
+    demo.called.clear()
+    def regenerated_manager_note(st,u,get_conn,case_id,logger=None):
+        demo.called.append("manager_note_rerun")
+    demo._case_detail=regenerated_manager_note
+    assert getattr(demo,assignment.FLAG,False)
+    assignment.install(demo)
+    assignment.install(demo)
+    with patch.object(assignment,"_form",side_effect=lambda *a,**k:demo.called.append("assignment")):
+        demo._case_detail(ui,{"id":1,"role":"Lãnh đạo phòng","is_admin":1},get_conn,101)
+    assert demo.called==["assignment","manager_note_rerun"],demo.called
+    assert getattr(demo._case_detail,"_khdn_assignment_live_wrapper",False)
+    # Third rerun must not stack duplicate editor forms either.
+    demo.called.clear()
+    demo._case_detail=lambda *a,**k:demo.called.append("third_rerun")
+    assignment.install(demo)
+    with patch.object(assignment,"_form",side_effect=lambda *a,**k:demo.called.append("assignment")):
+        demo._case_detail(ui,{"id":1,"role":"Lãnh đạo phòng","is_admin":1},get_conn,101)
+    assert demo.called==["assignment","third_rerun"],demo.called
 
 
 
