@@ -125,6 +125,16 @@ def _decode_action(action, detail):
             "Từ chối dời thời gian" if status == "REJECTED" else "Quyết định dời thời gian"
         )
         return label, label, _comment(note)
+    if action == "CASE_ASSIGNMENT_UPDATE":
+        if isinstance(payload, dict):
+            old_owner = _short_text(payload.get("old_owner_name")) or "—"
+            new_owner = _short_text(payload.get("new_owner_name")) or "—"
+            old_leader = _short_text(payload.get("old_controller_name")) or "Chưa gán"
+            new_leader = _short_text(payload.get("new_controller_name")) or "—"
+            change = (f"Cán bộ phụ trách: {old_owner} → {new_owner}; "
+                      f"Lãnh đạo kiểm soát: {old_leader} → {new_leader}")
+            return "Điều chỉnh phân công công việc", change, _comment(payload.get("reason"))
+        return "Điều chỉnh phân công công việc", "Thay đổi cán bộ/lãnh đạo phụ trách", _comment(raw)
     if action == "NOTE_EDIT":
         if isinstance(payload, dict):
             old_note = _short_text(payload.get("old_note")) or "(trống)"
@@ -178,7 +188,7 @@ def approval_history(c, case_id):
         actions = [dict(r) for r in c.execute(
             """SELECT a.id,a.action,a.detail,a.created_at,u.full_name AS actor_name
                FROM case_actions a LEFT JOIN users u ON u.id=a.actor_user_id
-               WHERE a.case_id=? AND a.action IN ('PLAN_APPROVE','PLAN_REJECT','RESCHEDULE_DECISION','NOTE_EDIT')
+               WHERE a.case_id=? AND a.action IN ('PLAN_APPROVE','PLAN_REJECT','RESCHEDULE_DECISION','NOTE_EDIT','CASE_ASSIGNMENT_UPDATE')
                ORDER BY a.created_at DESC,a.id DESC""",
             (int(case_id),),
         ).fetchall()]
