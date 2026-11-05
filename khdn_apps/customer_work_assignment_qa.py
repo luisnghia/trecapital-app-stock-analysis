@@ -220,8 +220,8 @@ def test_cif_embedded_patch():
     # is validated by runtime_page_qa in the same Docker build.
     entry=Path(__file__).with_name("online_entry.py").read_text(encoding="utf-8")
     assert entry.index("_install_customer_work_assignment(") > entry.index(
-        "_install_customer_work_manager_note_history(("/" not in entry)
-    ) if False else True
+        "_install_customer_work_manager_note_history("
+    )
     assert entry.count("_install_customer_work_assignment(")==1
 
 
