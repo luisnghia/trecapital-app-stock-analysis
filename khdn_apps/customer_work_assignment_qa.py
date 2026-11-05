@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 from khdn_apps import customer_work_assignment_patch as assignment
 from khdn_apps import customer_work_manager_note_history_patch as history
+from khdn_apps import customer_work_archive_history as archive
 
 
 class UI:
@@ -114,6 +115,13 @@ def test_server_authorization_and_audit(get_conn):
     assert "QLKH A → QLKH B" in labelled[1]
     assert "Lãnh đạo A → Lãnh đạo B" in labelled[1]
     assert labelled[2]=="Chuyển việc theo phân công mới"
+    archived_label, archived_detail = archive._event_description(
+        actions[0], {}, {}
+    )
+    assert archived_label == "Điều chỉnh phân công công việc"
+    assert "QLKH A → QLKH B" in archived_detail
+    assert "Lãnh đạo A → Lãnh đạo B" in archived_detail
+    assert "Chuyển việc theo phân công mới" in archived_detail
 
     # Only the new supervising leader has authority from the next DB read.
     reject(lambda:assignment.reassign_case(
