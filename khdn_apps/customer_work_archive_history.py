@@ -186,6 +186,17 @@ def _event_description(row, request_by_id, stages):
         parsed = json.loads(raw) if raw.strip() else None
     except (ValueError, TypeError):
         pass
+    if action == "CASE_ASSIGNMENT_UPDATE" and isinstance(parsed, dict):
+        old_owner = parsed.get("old_owner_name") or "—"
+        new_owner = parsed.get("new_owner_name") or "—"
+        old_leader = parsed.get("old_controller_name") or "Chưa gán"
+        new_leader = parsed.get("new_controller_name") or "—"
+        why = parsed.get("reason") or "Không có lý do"
+        return (
+            "Điều chỉnh phân công công việc",
+            f"Cán bộ phụ trách: {old_owner} → {new_owner} · "
+            f"Lãnh đạo kiểm soát: {old_leader} → {new_leader} · Lý do: {why}",
+        )
     if action.startswith("CANCEL_") and action.endswith("_P12"):
         m = re.fullmatch(r"request_id=(\d+)", raw.strip())
         req = request_by_id.get(int(m.group(1))) if m else None

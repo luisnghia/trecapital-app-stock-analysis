@@ -56,6 +56,7 @@ from khdn_apps.weekly_priority_policy_hotfix import install as _install_weekly_p
 from khdn_apps.global_zero_keystroke_patch import install as _install_global_zero_keystroke
 from khdn_apps.customer_work_note_card_patch import install as _install_customer_work_note_cards
 from khdn_apps.customer_work_manager_note_history_patch import install as _install_customer_work_manager_note_history
+from khdn_apps.customer_work_assignment_patch import install as _install_customer_work_assignment
 
 _install_v231(_app_module.__dict__)
 _install_v2311(_app_module.__dict__, _workload_patch_module)
@@ -243,6 +244,12 @@ _install_customer_work_note_cards(
 _install_customer_work_manager_note_history(
     _customer_work_ui_module,
     _customer_work_module,
+    _app_module.__dict__.get("LOGGER"),
+)
+# Final Customer Work detail overlay: active-case assignment changes for
+# Admin/current controlling leader, after all Customer Work detail hotfixes.
+_install_customer_work_assignment(
+    _customer_work_ui_module,
     _app_module.__dict__.get("LOGGER"),
 )
 # Prominent action results across planning, operations and all role pages.
