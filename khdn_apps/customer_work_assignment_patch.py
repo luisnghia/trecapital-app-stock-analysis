@@ -213,20 +213,30 @@ def _form(st, u, get_conn, case_id, logger=None):
 
 
 def install(customer_ui, logger=None):
-    """Run as the final Customer Work UI binding, after manager note overlays."""
-    if getattr(customer_ui, FLAG, False):
+    """Rebind after *every* Streamlit rerun without stacking wrappers.
+
+    The manager-note installer recreates customer_ui._case_detail on each
+    script run, even while module globals survive. A module-level _FLAG
+    incorrectly claimed our editor was installed and skipped rebinding,
+    making the real UI disappear after the first interaction. Inspect the
+    live callable instead of the persistent module flag.
+    """
+    current = customer_ui._case_detail
+    if getattr(current, "_khdn_assignment_live_wrapper", False):
         return
-    original = customer_ui._case_detail
+    original = current
 
     def _case_detail(st, u, get_conn, case_id, logger=None):
+        # The final UI wrapper must remain present after manager-note refresh.
         _form(st, u, get_conn, case_id, logger)
         return original(st, u, get_conn, case_id, logger)
 
+    _case_detail._khdn_assignment_live_wrapper = True
     customer_ui._case_detail = _case_detail
     setattr(customer_ui, FLAG, True)
     if logger:
         logger.info(
-            "CW_CASE_ASSIGNMENT_INSTALLED version=%s admin_scope=all leader_scope=all "
-            "owner_and_leader_edit=1 audit=1 optimistic_lock=1 no_data_migration=1",
+            "CW_CASE_ASSIGNMENT_REBOUND version=%s admin_scope=all leader_scope=all "
+            "owner_and_leader_edit=1 rerun_safe=1 actual_detail_hook=1 audit=1 no_migration=1",
             VERSION,
         )
