@@ -123,10 +123,16 @@ def test_server_authorization_and_audit(get_conn):
     assert "Lãnh đạo A → Lãnh đạo B" in archived_detail
     assert "Chuyển việc theo phân công mới" in archived_detail
 
-    # Only the new supervising leader has authority from the next DB read.
-    reject(lambda:assignment.reassign_case(
-        get_conn,101,2,4,2,"Lấy lại quyền",
-        expected_owner_uid=5,expected_controller_uid=3),PermissionError)
+    # Every active phòng leader has room-wide management authority, including
+    # cases controlled by another leader or unassigned old cases.
+    assert assignment.reassign_case(
+        get_conn,101,2,4,2,"Lãnh đạo chuyển lại trong toàn phòng",
+        expected_owner_uid=5,expected_controller_uid=3)
+    assert assignment.reassign_case(
+        get_conn,101,3,5,3,"Lãnh đạo khác tiếp nhận",
+        expected_owner_uid=4,expected_controller_uid=2)
+    with get_conn() as c:
+        assert c.execute("SELECT COUNT(*) FROM case_actions WHERE case_id=101").fetchone()[0]==3
     assert assignment.reassign_case(
         get_conn,101,3,5,3,"Không đổi",
         expected_owner_uid=5,expected_controller_uid=3) is False
@@ -140,7 +146,7 @@ def test_server_authorization_and_audit(get_conn):
         get_conn,102,1,2,2,"Admin giao Lãnh đạo làm cán bộ",
         expected_owner_uid=4,expected_controller_uid=2)
 
-    # A controller can hand over only their own case. Staff and Vấn tin
+    # Every manager can hand over an active case. Staff and Vấn tin
     # cannot use this low-level function even by spoofing a Streamlit button.
     for actor in (4,6,7):
         reject(lambda a=actor:assignment.reassign_case(
@@ -159,7 +165,7 @@ def test_server_authorization_and_audit(get_conn):
         get_conn,101,1,4,2,"   ",
         expected_owner_uid=5,expected_controller_uid=3),ValueError)
     with get_conn() as c:
-        assert c.execute("SELECT COUNT(*) FROM case_actions WHERE case_id=101").fetchone()[0]==1
+        assert c.execute("SELECT COUNT(*) FROM case_actions WHERE case_id=101").fetchone()[0]==3
         assert tuple(c.execute(
             "SELECT owner_user_id,controller_user_id FROM customer_work_cases WHERE id=101"
         ).fetchone())==(5,3)
@@ -183,14 +189,20 @@ def test_final_ui_scope_and_form(get_conn):
         assert fields[0]["default"]=="5" and fields[1]["default"]=="3"
         assert fields[2]["name"]=="reason" and fields[2]["required"] is True
         assert captured[-1]["kw"]["columns"]==2
-        assert "✏️ Thay đổi cán bộ phụ trách" in ui.labels[-1]
+        assert "👥 Đổi cán bộ phụ trách" in ui.labels[-1]
+        assert "✏️ Chỉnh sửa công việc · Phân công phụ trách" in ui.labels
+        assert ui.labels[-1] == "👥 Đổi cán bộ phụ trách / Lãnh đạo kiểm soát"
 
         for actor in ({"id":4,"role":"Cán bộ QLKH","is_admin":0},
-                      {"id":7,"role":"Vấn tin","is_admin":0},
-                      {"id":2,"role":"Lãnh đạo phòng","is_admin":0}):
+                      {"id":7,"role":"Vấn tin","is_admin":0}):
             before=len(captured)
             assignment._form(ui,actor,get_conn,101)
             assert len(captured)==before
+        # A different phòng leader MUST see the editor too even if the current
+        # controller is someone else; this was the real-world blocker.
+        before=len(captured)
+        assignment._form(ui,{"id":2,"role":"Lãnh đạo phòng","is_admin":0},get_conn,101)
+        assert len(captured)==before+1
         before=len(captured)
         assignment._form(ui,{"id":1,"role":"Lãnh đạo phòng","is_admin":1},get_conn,103)
         assert len(captured)==before
