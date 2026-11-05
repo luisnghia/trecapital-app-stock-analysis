@@ -148,6 +148,7 @@ RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/inquiry_priority_re
 RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/inquiry_user_schema_qa.py
 RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/operational_table_two_line_qa.py
 RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/customer_work_archive_history_qa.py
+RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/customer_work_cancel_full_audit_qa.py
 RUN PYTHONUNBUFFERED=1 PYTHONPATH=/app python /app/khdn_apps/runtime_page_qa.py
 
 ENV PYTHONUNBUFFERED=1 \
