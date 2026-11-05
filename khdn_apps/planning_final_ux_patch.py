@@ -526,6 +526,12 @@ def _customer_card(st, customer_ui, refinement, x, get_conn, uid, manager, logge
     q = v2._q(x.get("quadrant")) or 4
     heat = refinement._HEAT[q]
     status_text, status_color, status_bg = refinement._status_meta(x)
+    from khdn_apps import customer_work_archive_history as archive
+    closed = archive.is_closed(x)
+    if closed:
+        status_text = archive.status_label(x)
+        status_color = "#D1D5DB" if str(x.get("status") or "").upper() != "COMPLETED" else "#72E0B5"
+        status_bg = "rgba(148,163,184,.20)" if str(x.get("status") or "").upper() != "COMPLETED" else "rgba(24,182,127,.16)"
     customer = html.escape(str(x.get("customer_name") or "—"))
     case_type = html.escape(str(x.get("case_type") or x.get("title") or "Công việc"))
     title = html.escape(str(x.get("title") or ""))
@@ -533,7 +539,8 @@ def _customer_card(st, customer_ui, refinement, x, get_conn, uid, manager, logge
     owner = html.escape(str(x.get("owner_name") or "—"))
     controller = html.escape(str(x.get("controller_name") or "—"))
     stage = html.escape(str(x.get("stage_name") or "—"))
-    elapsed = html.escape(customer_ui.core.duration_text(x.get("stage_elapsed_hours")))
+    # Elapsed is a live SLA clock. Do not keep counting after closure.
+    elapsed = "Đã kết thúc" if closed else html.escape(customer_ui.core.duration_text(x.get("stage_elapsed_hours")))
     created = html.escape(customer_ui._dt_text(x.get("created_at")))
     due = html.escape(customer_ui._date_text(x.get("expected_complete_at")))
     issues = int(x.get("open_issue_count") or 0)
@@ -607,7 +614,7 @@ def _customer_card(st, customer_ui, refinement, x, get_conn, uid, manager, logge
             unsafe_allow_html=True,
         )
 
-        if approval == "PENDING":
+        if approval == "PENDING" and not closed:
             st.warning("Kế hoạch công việc đang chờ phê duyệt.")
             if manager:
                 approve_col, reject_col = st.columns(2)

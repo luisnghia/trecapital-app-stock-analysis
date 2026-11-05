@@ -510,8 +510,18 @@ def _render_cases_page(st, u, get_conn, customer_core, customer_ui, refinement, 
         page_title("Công việc khách hàng", "Theo dõi xuyên suốt từ tiếp cận đến hoàn thành")
     else:
         st.title("👥 Công việc khách hàng")
+    from khdn_apps import customer_work_archive_history as archive
     if st.session_state.get("cw_case_id"):
-        customer_ui._case_detail(st, u, get_conn, int(st.session_state["cw_case_id"]), logger)
+        cid = int(st.session_state["cw_case_id"])
+        # A closed case must never enter the editable detail renderer, even
+        # through a stale deep link, room dashboard link or manual session key.
+        with get_conn() as c:
+            selected = customer_core.get_case(c, cid)
+        if archive.is_closed(selected):
+            archive.render_archive(st, u, get_conn, customer_core, cid,
+                                   customer_ui._manager(u), logger)
+        else:
+            customer_ui._case_detail(st, u, get_conn, cid, logger)
         customer_ui._glossary(st)
         return
 
@@ -526,7 +536,10 @@ def _render_cases_page(st, u, get_conn, customer_core, customer_ui, refinement, 
         return
 
     with get_conn() as c:
-        data = customer_core.list_cases(c, uid=uid, manager=manager, include_completed=False)
+        # Retrieve current AND closed records within the same server-enforced
+        # role scope. Only Customer Work search is expanded; Today's work,
+        # quadrant counts and approvals retain their active-only queries.
+        data = customer_core.list_cases(c, uid=uid, manager=manager, include_completed=True)
     f1, f2 = st.columns(2)
     stages = sorted({x.get("stage_name") for x in data if x.get("stage_name")})
     sf = f1.selectbox("Lọc mục công việc", ["Tất cả"] + stages, key="cw_filter_stage_v2")
@@ -536,14 +549,18 @@ def _render_cases_page(st, u, get_conn, customer_core, customer_ui, refinement, 
         not ss or ss in str(x.get("customer_name") or "").lower() or ss in str(x.get("cif") or "").lower()
         or ss in str(x.get("title") or "").lower() or ss in str(x.get("case_type") or "").lower()
     )]
-    def due_key(x):
-        return customer_core.parse_dt(x.get("expected_complete_at")) or datetime.max
-    shown.sort(key=lambda x: (
-        _q(x.get("quadrant")) or 4,
-        0 if x.get("is_overdue") else 1,
-        0 if x.get("is_stage_delayed") else 1,
-        -int(x.get("open_issue_count") or 0), due_key(x), int(x.get("id") or 0),
-    ))
+    shown = archive.sort_cases(shown, customer_core)
+    current = sum(not archive.is_closed(x) for x in shown)
+    completed = sum(str(x.get("status") or "").upper() == "COMPLETED" for x in shown)
+    cancelled = sum(str(x.get("status") or "").upper() in ("CANCELLED", "CANCELED") for x in shown)
+    st.caption(
+        f"🟢 Đang thực hiện: {current}  ·  ✅ Đã hoàn thành: {completed}  ·  "
+        f"⚫ Đã hủy: {cancelled}. Công việc đang thực hiện xếp trên, lịch sử xếp dưới."
+    )
+    if logger:
+        logger.info("CUSTOMER_WORK_SEARCH_HISTORY user=%s manager=%s term_length=%s "
+                    "current=%s completed=%s cancelled=%s",
+                    uid, manager, len(ss), current, completed, cancelled)
     if not shown:
         st.info("Không có công việc phù hợp.")
     from khdn_apps.interaction_performance import page_rows
