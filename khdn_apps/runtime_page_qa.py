@@ -88,6 +88,23 @@ def run():
         run_feedback_qa()
         installed_feedback_ui()
 
+        # Verify the actual production Customer Work detail hook after an initial
+        # open AND a Streamlit rerun: unit tests against isolated functions can
+        # pass even when later runtime installers silently overwrite the UI.
+        from khdn_apps import customer_work_ui as live_work_ui
+        from khdn_apps import customer_work_assignment_patch as live_assignment
+        assert live_work_ui._case_detail.__module__ == live_assignment.__name__, (
+            "Final Customer Work detail lost its reassignment editor",
+            live_work_ui._case_detail.__module__,
+            getattr(live_work_ui._case_detail, "__qualname__", ""),
+        )
+        from khdn_apps import planning_usability_v2_patch as live_v2
+        import inspect
+        assert "customer_ui._case_detail(st, u, get_conn, cid, logger)" in inspect.getsource(
+            live_v2._render_cases_page
+        ), "The actual Customer Work detail route bypasses assignment"
+        print("CW_CASE_ASSIGNMENT_INSTALLED_RUNTIME_QA_PASS final_detail_binding route=customer_work")
+
         # Regression guard: the final runtime must own Catalog after reruns.
         # The final zero-keystroke layer deliberately rebinds the catalog after
         # older rerun hotfixes. The command-nav restore patch now owns that final
