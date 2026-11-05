@@ -21,12 +21,16 @@ from khdn_apps import customer_work_archive_history as archive
 class UI:
     def __init__(self):
         self.labels=[]
+        self.expander_options=[]
         self.messages=[]
         self.session_state={}
 
     def __enter__(self): return self
     def __exit__(self,*a): return False
-    def expander(self,label,*a,**kw): self.labels.append(label);return self
+    def expander(self,label,*a,**kw):
+        self.labels.append(label)
+        self.expander_options.append(dict(kw))
+        return self
     def subheader(self,value,*a,**kw): self.labels.append(value)
     def caption(self,value,*a,**kw): self.messages.append(("caption",str(value)))
     def error(self,value,*a,**kw): self.messages.append(("error",str(value)))
@@ -192,6 +196,7 @@ def test_final_ui_scope_and_form(get_conn):
         assert "👥 Đổi cán bộ phụ trách" in ui.labels[-1]
         assert "✏️ Chỉnh sửa công việc · Phân công phụ trách" in ui.labels
         assert ui.labels[-1] == "👥 Đổi cán bộ phụ trách / Lãnh đạo kiểm soát"
+        assert ui.expander_options[-1]["expanded"] is True
 
         for actor in ({"id":4,"role":"Cán bộ QLKH","is_admin":0},
                       {"id":7,"role":"Vấn tin","is_admin":0}):
@@ -219,6 +224,44 @@ def test_final_ui_scope_and_form(get_conn):
     with patch.object(assignment,"_form",side_effect=lambda *a,**k:demo.called.append("assignment")):
         demo._case_detail(ui,{"id":7,"role":"Vấn tin"},get_conn,101)
     assert demo.called==["assignment","existing"],demo.called
+
+
+
+def test_end_to_end_form_submit_and_history(get_conn):
+    # This specifically exercises the *UI submit action* rather than calling
+    # the low-level SQL mutation directly. The previous QA did not cover it.
+    from khdn_apps import legacy_fast_form as fast
+    with get_conn() as c:
+        c.execute("INSERT INTO customer_work_cases VALUES(105,4,2,'ACTIVE','2026-10-01','2026-10-01')")
+
+    screen=UI()
+    submit = {"owner":"5","controller":"3","reason":"Điều động phụ trách hồ sơ khách hàng"}
+    with patch.object(fast,"legacy_fast_form",return_value=submit):
+        assignment._form(
+            screen,{"id":3,"role":"Lãnh đạo phòng","is_admin":0},
+            get_conn,105
+        )
+    assert ("rerun","called") in screen.messages
+    assert any(tag=="toast" and "lưu nhật ký" in msg for tag,msg in screen.messages)
+    with get_conn() as c:
+        row=c.execute("SELECT owner_user_id,controller_user_id,created_at FROM customer_work_cases WHERE id=105").fetchone()
+        records=[dict(x) for x in c.execute("SELECT * FROM case_actions WHERE case_id=105")]
+    assert tuple(row[:2])==(5,3)
+    assert row[2]=="2026-10-01"
+    assert len(records)==1 and records[0]["action"]=="CASE_ASSIGNMENT_UPDATE"
+    assert json.loads(records[0]["detail"])["reason"]==submit["reason"]
+
+    # A no-op submitted from a current screen must not duplicate history.
+    screen=UI()
+    with patch.object(fast,"legacy_fast_form",return_value=submit):
+        assignment._form(
+            screen,{"id":2,"role":"Lãnh đạo phòng","is_admin":0},
+            get_conn,105
+        )
+    assert ("info","Phân công không thay đổi.") in screen.messages
+    assert ("rerun","called") not in screen.messages
+    with get_conn() as c:
+        assert c.execute("SELECT COUNT(*) FROM case_actions WHERE case_id=105").fetchone()[0]==1
 
 
 def test_cif_embedded_patch():
@@ -252,5 +295,6 @@ if __name__=="__main__":
         get_conn=connect(db)
         test_server_authorization_and_audit(get_conn)
         test_final_ui_scope_and_form(get_conn)
+        test_end_to_end_form_submit_and_history(get_conn)
     test_cif_embedded_patch()
     print("CW_CASE_ASSIGNMENT_CIF_LEADER_QA_PASS admin_all leader_controller_guard staff_inquiry_denied active_role_guards optimistic_stale immutable_closed atomic_history exact_reason ui_options_cif_dropdown final_wrapper_no_migration")
