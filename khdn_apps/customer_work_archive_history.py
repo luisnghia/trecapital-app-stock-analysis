@@ -87,8 +87,9 @@ def _html_table(st, headers, rows):
         f"<td>{escape(str('—' if x is None or x == '' else x), quote=True)}</td>"
         for x in row
     ) + "</tr>" for row in rows)
+    min_width = max(690, len(headers) * 148)
     st.html(
-        '<div class="cwarch-wrap"><table class="cwarch-table"><thead><tr>'
+        f'<div class="cwarch-wrap"><table class="cwarch-table" style="min-width:{min_width}px"><thead><tr>'
         + h + '</tr></thead><tbody>' + b + '</tbody></table></div>'
         + """<style>
         .cwarch-wrap{overflow-x:auto;max-width:100%;margin:6px 0 18px}
@@ -186,7 +187,7 @@ def _event_description(row, request_by_id, stages):
     except (ValueError, TypeError):
         pass
     if action.startswith("CANCEL_") and action.endswith("_P12"):
-        m = re.fullmatch(r"request_id=(\\d+)", raw.strip())
+        m = re.fullmatch(r"request_id=(\d+)", raw.strip())
         req = request_by_id.get(int(m.group(1))) if m else None
         names = {
             "CANCEL_REQUEST_P12": "Gửi đề nghị hủy",
