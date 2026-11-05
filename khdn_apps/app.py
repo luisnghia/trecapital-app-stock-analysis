@@ -53,6 +53,20 @@ _patch_once(
     'vấn tin schema initialization',
 )
 
+# CIF administration: allow both active QLKH staff and active phòng leaders in
+# the EXISTING customer assignment dropdown. Keep the old direct customer update,
+# its audit and idempotent selection; do not broaden task approvals or user roles.
+_patch_once(
+    'qusers = all_users("Cán bộ QLKH", active_only=True)',
+    'qusers = pd.concat([all_users("Cán bộ QLKH", active_only=True), all_users("Lãnh đạo phòng", active_only=True)], ignore_index=True).drop_duplicates(subset=["id"]).sort_values(["full_name", "id"], kind="stable").reset_index(drop=True)',
+    'CIF customer QLKH dropdown includes active leaders',
+)
+_patch_once(
+    'qid = st.selectbox("CB QLKH phụ trách", opts, index=idx, format_func=lambda x: "— Chưa gắn —" if x == 0 else f"{qusers[qusers.id==x].iloc[0].full_name} ({qusers[qusers.id==x].iloc[0].username})")',
+    'qid = st.selectbox("CB QLKH / Lãnh đạo phòng phụ trách", opts, index=idx, format_func=lambda x: "— Chưa gắn —" if x == 0 else f"{qusers[qusers.id==x].iloc[0].full_name} ({qusers[qusers.id==x].iloc[0].username}) · {qusers[qusers.id==x].iloc[0].role}")',
+    'CIF assignment dropdown labels include the selected role',
+)
+
 from khdn_apps.inquiry_readonly_role import patch_source as _inquiry_role_patch_source
 _source = _inquiry_role_patch_source(_source)
 exec(compile(_source, str(_Path(__file__).resolve().parent / "app_v223_source.py"), "exec"), globals(), globals())
