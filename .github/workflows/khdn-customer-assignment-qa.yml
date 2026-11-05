@@ -1,0 +1,24 @@
+name: KHDN customer assignment controls and CIF leader selection
+on:
+  push:
+    branches: [feature/khdn-edit-case-owner-controller-cif-leader-20261105]
+  pull_request:
+    paths:
+      - 'khdn_apps/app.py'
+      - 'khdn_apps/online_entry.py'
+      - 'khdn_apps/customer_work_assignment_patch.py'
+      - 'khdn_apps/customer_work_assignment_qa.py'
+      - 'khdn_apps/customer_work_manager_note_history_patch.py'
+      - 'khdn_apps/Dockerfile'
+      - '.github/workflows/khdn-customer-assignment-qa.yml'
+jobs:
+  customer-assignment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r khdn_apps/requirements.txt
+      - run: python -m khdn_apps.customer_work_assignment_qa
+      - run: docker build --progress=plain -f khdn_apps/Dockerfile -t khdn-assignment-qa .
