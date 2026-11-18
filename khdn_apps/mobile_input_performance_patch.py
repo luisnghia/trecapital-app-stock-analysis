@@ -265,7 +265,7 @@ def _render_system_users_fast(ns, u, logger=None):
         ],
         "Lưu thay đổi user",
         key=f"system_user_edit_fast_v2_{int(selected)}",
-        reset_token=f"{int(selected)}|{cur.get('username')}|{cur.get('role')}|{cur.get('active')}|{cur.get('is_admin')}",
+        reset_token=f"{int(selected)}|{cur.get('username')}|{cur.get('role')}|{cur.get('active')}|{cur.get('is_admin')}|{st.session_state.get('_system_user_edit_epoch', 0)}",
     )
     if edit is not None:
         new_username=str(edit.get("username") or "").strip(); nr=str(edit.get("role") or cur.get("role") or roles[0]); active=bool(edit.get("active")); adminflag=bool(edit.get("is_admin")); np=str(edit.get("password") or "")
@@ -285,6 +285,8 @@ def _render_system_users_fast(ns, u, logger=None):
                 if int(selected)==int(_uget(u,"id")):
                     fresh=ns["user_by_username"](effective,active_only=False)
                     if fresh: st.session_state.user=dict(fresh)
+                # Clear the submitted reset password even when only the password changed.
+                st.session_state["_system_user_edit_epoch"] = int(st.session_state.get("_system_user_edit_epoch", 0)) + 1
                 st.toast("Đã cập nhật user.",icon="✅"); st.rerun()
             except (ValueError,sqlite3.IntegrityError) as exc:
                 st.error(str(exc) or "Không thể cập nhật username.")
