@@ -47,6 +47,9 @@ def main() -> int:
         logger.exception("TASK_TYPE_SCOPE_STARTUP_FAILED")
         raise
 
+    from .auth_diagnostics import log_inventory
+    log_inventory(db_path, logger)
+
     sealed = backup_crypto.migrate_legacy_backups(data_dir, db_path)
     logger.info("BACKUP_ENCRYPTION_READY cipher=AES-256-GCM migrated=%s", sealed)
 

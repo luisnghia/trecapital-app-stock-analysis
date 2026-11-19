@@ -36,6 +36,12 @@ def patch_source(source):
     if old not in source:
         raise RuntimeError("Security patch: profile password change missing")
     source = source.replace(old, new, 1)
+    old = '            st.error("Sai tên đăng nhập hoặc mật khẩu, hoặc tài khoản đã bị khóa.")'
+    new = ('            from khdn_apps.auth_diagnostics import log_login_failure\n'
+           '            log_login_failure(DB_PATH, username.strip())\n' + old)
+    if old not in source:
+        raise RuntimeError("Security patch: login failure diagnostic missing")
+    source = source.replace(old, new, 1)
     # The legacy Backup tab must not expose a second, unencrypted DB download.
     source, count = re.subn(
         r'    if (?:_admin_view|admin_view)\s*==\s*"backup"[^\n]*:\n.*?(?=\ndef profile_page\()',
